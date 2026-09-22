@@ -1,0 +1,5 @@
+/config/config.local.php
+/storage/resumes/*
+!/storage/resumes/.gitkeep
+*.log
+.env

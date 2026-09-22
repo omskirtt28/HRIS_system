@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PMBSI RWMS — Live Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --amber:#FDAE04; --amber-hover:#E39A00; --amber-soft:#FFF6E0; --amber-deep:#8A5B00;
+  --ink:#1C1D1F; --slate:#676B6E; --slate-2:#9A9DA0; --border:#E4E4E5; --panel:#FAFAFA; --panel-2:#F4F4F5;
+  --blue:#0B5FA5; --blue-soft:#E9F3FF; --green:#1B8A5A; --green-soft:#E6F5EE; --red:#C0392B; --red-soft:#FDECEA;
+  --amber2:#B4790A; --shadow:0 1px 2px rgba(0,0,0,.05),0 4px 16px rgba(0,0,0,.05);
+  --radius:12px; --bg:#fff;
+}
+:root[data-theme="dark"]{
+  --ink:#F2F3F4; --slate:#A9ADB1; --slate-2:#7E8287; --border:#2C2E31; --panel:#1A1B1D; --panel-2:#212325;
+  --bg:#131416; --amber-soft:#33280A; --blue-soft:#122336; --green-soft:#0F2A1E; --red-soft:#331A17;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:'Poppins',system-ui,Arial,sans-serif;color:var(--ink);background:var(--bg);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.mono,code{font-family:'JetBrains Mono',ui-monospace,monospace}
+a{color:inherit;text-decoration:none;cursor:pointer}
+button{font-family:inherit;cursor:pointer}
+img{max-width:100%}
+h1,h2,h3,h4{margin:0;font-weight:600;line-height:1.25}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:9px}
+
+/* ---- brand mark ---- */
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.01em}
+.brand .logo{width:34px;height:34px;border-radius:9px;background:var(--amber);color:var(--ink);display:grid;place-items:center;font-weight:700;font-size:15px;box-shadow:0 2px 6px rgba(253,174,4,.4)}
+.brand .logo.dark{background:var(--ink);color:var(--amber)}
+.brand .sub{display:block;font-size:10.5px;font-weight:500;color:var(--slate);letter-spacing:.02em;margin-top:-2px}
+
+/* ---- buttons ---- */
+.btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink);padding:9px 15px;border-radius:9px;font-size:13px;font-weight:500;transition:.15s;white-space:nowrap}
+.btn:hover{border-color:var(--slate-2);background:var(--panel)}
+.btn.primary{background:var(--amber);border-color:var(--amber);color:var(--ink);font-weight:600}
+.btn.primary:hover{background:var(--amber-hover);border-color:var(--amber-hover)}
+.btn.dark{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn.sm{padding:6px 11px;font-size:12px}
+.btn.block{width:100%;justify-content:center}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:11.5px;font-weight:600;background:var(--panel-2);color:var(--slate)}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600}
+.badge.amber{background:var(--amber-soft);color:var(--amber-deep)}
+.badge.blue{background:var(--blue-soft);color:var(--blue)}
+.badge.green{background:var(--green-soft);color:var(--green)}
+.badge.red{background:var(--red-soft);color:var(--red)}
+.badge.gray{background:var(--panel-2);color:var(--slate)}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+
+/* ---- cards ---- */
+.card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+.card.pad{padding:18px}
+.grid{display:grid;gap:16px}
+.muted{color:var(--slate)}
+.small{font-size:12px}
+.tiny{font-size:11px}
+
+/* ---- KPI ---- */
+.kpi-auto{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}
+.kpi{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+.kpi .lab{font-size:11.5px;color:var(--slate);font-weight:500;text-transform:uppercase;letter-spacing:.03em}
+.kpi .val{font-size:26px;font-weight:700;margin:6px 0 2px;letter-spacing:-.02em}
+.kpi .delta{font-size:11.5px;font-weight:600}
+.kpi .delta.up{color:var(--green)} .kpi .delta.down{color:var(--red)}
+.kpi .ico{float:right;width:34px;height:34px;border-radius:9px;background:var(--amber-soft);color:var(--amber-deep);display:grid;place-items:center;font-size:16px}
+
+/* ---- table ---- */
+table.tbl{border-collapse:collapse;width:100%;font-size:13px}
+table.tbl th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--slate);font-weight:600;padding:11px 14px;border-bottom:1px solid var(--border);background:var(--panel)}
+table.tbl td{padding:11px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+table.tbl tbody tr{transition:.1s}
+table.tbl tbody tr:hover{background:var(--panel)}
+.avatar{width:30px;height:30px;border-radius:50%;background:var(--amber-soft);color:var(--amber-deep);display:grid;place-items:center;font-size:12px;font-weight:600;flex-shrink:0}
+
+/* ---- meters / bars ---- */
+.meter{height:8px;border-radius:99px;background:var(--panel-2);overflow:hidden}
+.meter>span{display:block;height:100%;background:var(--amber);border-radius:99px}
+.bars{display:flex;align-items:flex-end;gap:8px;height:120px}
+.bars .b{flex:1;background:var(--amber);border-radius:5px 5px 0 0;min-height:4px;position:relative;transition:.2s}
+.bars .b:hover{background:var(--amber-hover)}
+.switch{width:38px;height:22px;border-radius:99px;background:var(--panel-2);border:1px solid var(--border);position:relative;transition:.15s;flex-shrink:0}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--bg);box-shadow:0 1px 2px rgba(0,0,0,.2);transition:.15s}
+.switch.on{background:var(--amber);border-color:var(--amber)}
+.switch.on::after{left:18px}
+
+/* ================= PUBLIC (applicant) ================= */
+.pubnav{position:sticky;top:0;z-index:40;background:var(--bg);border-bottom:1px solid var(--border);backdrop-filter:blur(8px)}
+.pubnav .in{max-width:1140px;margin:0 auto;display:flex;align-items:center;gap:26px;padding:14px 24px}
+.pubnav .links{display:flex;gap:4px;margin-left:auto}
+.pubnav .links a{padding:8px 13px;border-radius:8px;font-size:13.5px;font-weight:500;color:var(--slate)}
+.pubnav .links a:hover{background:var(--panel);color:var(--ink)}
+.pubnav .links a.active{color:var(--ink);background:var(--amber-soft)}
+.wrap{max-width:1140px;margin:0 auto;padding:0 24px}
+.hero{background:linear-gradient(160deg,var(--ink) 0%,#2A2C2F 100%);color:#fff;border-radius:0 0 26px 26px;padding:64px 24px 72px;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;right:-80px;top:-80px;width:340px;height:340px;border-radius:50%;background:radial-gradient(circle,rgba(253,174,4,.28),transparent 70%)}
+.hero .in{max-width:1140px;margin:0 auto;position:relative;z-index:2}
+.hero .eyebrow{display:inline-block;background:var(--amber);color:var(--ink);font-weight:600;font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;border-radius:999px}
+.hero h1{font-size:44px;margin:18px 0 12px;letter-spacing:-.02em;max-width:680px}
+.hero p{color:#C7C8C9;font-size:16px;max-width:560px;margin:0 0 26px}
+.searchbar{display:flex;gap:10px;background:#fff;border-radius:12px;padding:8px;max-width:560px;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+.searchbar input{flex:1;border:none;outline:none;padding:10px 12px;font-family:inherit;font-size:14px;background:transparent;color:var(--ink)}
+.jobcard{display:flex;flex-direction:column;gap:10px;padding:20px;transition:.15s;cursor:pointer}
+.jobcard:hover{border-color:var(--amber);transform:translateY(-2px)}
+.jobgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.field label{font-size:12.5px;font-weight:600;color:var(--slate)}
+.field input,.field select,.field textarea{border:1px solid var(--border);border-radius:9px;padding:10px 12px;font-family:inherit;font-size:14px;background:var(--bg);color:var(--ink);outline:none}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--amber)}
+.dropzone{border:2px dashed var(--border);border-radius:12px;padding:26px;text-align:center;color:var(--slate);background:var(--panel)}
+.step{display:flex;align-items:center;gap:9px;font-size:13px}
+.step .n{width:24px;height:24px;border-radius:50%;background:var(--panel-2);color:var(--slate);display:grid;place-items:center;font-size:12px;font-weight:600}
+.step.done .n{background:var(--green);color:#fff}
+.step.cur .n{background:var(--amber);color:var(--ink)}
+.foot{background:var(--ink);color:#C7C8C9;margin-top:56px;padding:44px 24px 30px}
+.foot .in{max-width:1140px;margin:0 auto;display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:32px}
+.foot a{display:block;color:#C7C8C9;padding:4px 0;font-size:13px}
+.foot a:hover{color:var(--amber)}
+
+/* ================= PORTAL SHELL ================= */
+.shell{display:grid;grid-template-columns:246px 1fr;min-height:100vh}
+.side{background:var(--panel);border-right:1px solid var(--border);padding:16px 12px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
+.side .brand{padding:6px 8px 16px;margin-bottom:6px;border-bottom:1px solid var(--border)}
+.nav-group{margin-top:14px}
+.nav-group .gl{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-2);font-weight:600;padding:4px 10px;margin-bottom:2px}
+.nav-item{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;font-size:13.5px;font-weight:500;color:var(--slate);margin-bottom:1px}
+.nav-item .ni{width:18px;text-align:center;font-size:15px}
+.nav-item:hover{background:var(--bg);color:var(--ink)}
+.nav-item.active{background:var(--amber);color:var(--ink);font-weight:600;box-shadow:0 2px 6px rgba(253,174,4,.35)}
+.nav-item .cnt{margin-left:auto;font-size:11px;background:var(--bg);color:var(--slate);padding:1px 7px;border-radius:99px;font-weight:600}
+.nav-item.active .cnt{background:rgba(0,0,0,.12);color:var(--ink)}
+.side .prof{margin-top:auto;padding-top:12px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.main{display:flex;flex-direction:column;min-width:0;background:var(--bg)}
+.topbar{height:60px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;padding:0 24px;position:sticky;top:0;background:var(--bg);z-index:20}
+.topbar .search{flex:1;max-width:420px;display:flex;align-items:center;gap:9px;background:var(--panel);border:1px solid var(--border);border-radius:9px;padding:8px 12px;color:var(--slate);font-size:13px}
+.topbar .search input{border:none;background:transparent;outline:none;flex:1;font-family:inherit;font-size:13px;color:var(--ink)}
+.iconbtn{width:36px;height:36px;border-radius:9px;border:1px solid var(--border);background:var(--bg);display:grid;place-items:center;font-size:15px;color:var(--slate)}
+.iconbtn:hover{background:var(--panel);color:var(--ink)}
+.content{padding:26px 28px;min-width:0}
+.pagehead{display:flex;align-items:flex-start;gap:16px;margin-bottom:22px;flex-wrap:wrap}
+.pagehead h1{font-size:23px;letter-spacing:-.01em}
+.pagehead .crumb{font-size:12px;color:var(--slate-2);margin-bottom:5px}
+.pagehead .actions{margin-left:auto;display:flex;gap:9px;flex-wrap:wrap}
+.tabs{display:flex;gap:3px;border-bottom:1px solid var(--border);margin-bottom:20px;overflow-x:auto}
+.tabs .t{padding:10px 15px;font-size:13.5px;font-weight:500;color:var(--slate);border-bottom:2px solid transparent;white-space:nowrap}
+.tabs .t:hover{color:var(--ink)}
+.tabs .t.active{color:var(--ink);border-bottom-color:var(--amber);font-weight:600}
+.section-t{font-size:15px;font-weight:600;margin:2px 0 12px;display:flex;align-items:center;gap:9px}
+
+/* pipeline kanban */
+.kanban{display:flex;gap:14px;overflow-x:auto;padding-bottom:10px}
+.kcol{min-width:230px;flex:1;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px}
+.kcol .kh{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;font-weight:600;padding:4px 6px 10px}
+.kcard{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:11px;margin-bottom:9px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.kcard:hover{border-color:var(--amber)}
+.kcard .nm{font-weight:600;font-size:13px}
+.kdot{width:7px;height:7px;border-radius:50%;display:inline-block}
+
+/* matrix */
+.matrix{border-collapse:collapse;width:100%;font-size:12.5px}
+.matrix th,.matrix td{border:1px solid var(--border);padding:8px 10px;text-align:center}
+.matrix th:first-child,.matrix td:first-child{text-align:left;font-weight:600;position:sticky;left:0;background:var(--panel)}
+.matrix thead th{background:var(--panel);font-size:11px;text-transform:uppercase;color:var(--slate)}
+.ck{width:16px;height:16px;border-radius:4px;display:inline-block;border:1px solid var(--border)}
+.ck.on{background:var(--amber);border-color:var(--amber)}
+
+/* stat rows */
+.srow{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border)}
+.srow:last-child{border-bottom:none}
+
+/* login */
+.loginwrap{min-height:100vh;display:grid;grid-template-columns:1fr 1fr}
+.login-hero{background:linear-gradient(155deg,var(--ink),#2A2C2F);color:#fff;padding:56px 48px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden}
+.login-hero::after{content:"";position:absolute;left:-60px;bottom:-60px;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(253,174,4,.25),transparent 70%)}
+.login-form{display:flex;align-items:center;justify-content:center;padding:40px;background:var(--bg)}
+.login-card{width:100%;max-width:380px}
+
+/* misc */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.split3{display:grid;grid-template-columns:2fr 1fr;gap:16px}
+.tl{position:relative;padding-left:22px}
+.tl::before{content:"";position:absolute;left:6px;top:4px;bottom:4px;width:2px;background:var(--border)}
+.tl .ev{position:relative;padding:0 0 16px 4px}
+.tl .ev::before{content:"";position:absolute;left:-20px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--amber);border:2px solid var(--bg)}
+.hidden{display:none!important}
+@media(max-width:900px){
+  .shell{grid-template-columns:1fr}
+  .side{position:fixed;left:0;top:0;z-index:60;transform:translateX(-100%);width:246px;transition:.2s}
+  .side.open{transform:none}
+  .split,.split3,.loginwrap,.foot .in{grid-template-columns:1fr}
+  .hero h1{font-size:32px}
+  .pubnav .links{display:none}
+}
+.mobtoggle{display:none}
+@media(max-width:900px){.mobtoggle{display:grid}}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;box-shadow:0 8px 30px rgba(0,0,0,.3);z-index:200;opacity:0;transition:.25s;pointer-events:none}
+.toast.show{opacity:1}
+.previewbar{background:var(--amber);color:var(--ink);text-align:center;font-size:12.5px;font-weight:600;padding:7px 16px}
+.previewbar a{text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="previewbar">PMBSI RWMS — Interactive Preview · reconstructed from project specs · <a href="#/overview">Portal overview →</a></div>
+<div id="app"></div>
+<div class="toast" id="toast"></div>
+<script>
+/* ============================================================
+   PMBSI RWMS — self-contained preview
+   ============================================================ */
+const $=(h)=>{const t=document.createElement('template');t.innerHTML=h.trim();return t.content.firstElementChild;};
+const esc=(s)=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const toast=(m)=>{const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);};
+const initials=(n)=>n.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+
+/* ---------------- SEED DATA ---------------- */
+const CLIENTS=['ABC Retail Corporation','Metro Food Services','Prime Logistics Solutions','Silver Peak Holdings','Apex Manufacturing Corporation'];
+const STAGES=['Applied','Screening','Interview','Endorsed','Client Review','Offer','Deployment','Deployed'];
+const STAGE_COLOR={Applied:'#9A9DA0',Screening:'#0B5FA5',Interview:'#FDAE04',Endorsed:'#8A5B00',['Client Review']:'#7A3FBF',Offer:'#1B8A5A',Deployment:'#E39A00',Deployed:'#1B8A5A'};
+const JOBS=[
+ {slug:'warehouse-supervisor',title:'Warehouse Supervisor',client:'Prime Logistics Solutions',dept:'Operations',loc:'Laguna, PH',type:'Full-time',pay:'₱32,000–₱40,000',posted:'3 days ago',open:4,desc:'Lead daily warehouse operations, manage inventory accuracy, and supervise a team of 12 across two shifts.',reqs:['3+ years warehouse/logistics supervision','Knowledge of WMS systems','Willing to work shifting schedules']},
+ {slug:'retail-store-associate',title:'Retail Store Associate',client:'ABC Retail Corporation',dept:'Retail',loc:'Makati, PH',type:'Full-time',pay:'₱18,000–₱22,000',posted:'1 day ago',open:12,desc:'Deliver excellent customer service, handle POS transactions, and maintain store merchandising standards.',reqs:['Customer-facing experience preferred','Flexible schedule incl. weekends','Good communication skills']},
+ {slug:'food-production-staff',title:'Food Production Staff',client:'Metro Food Services',dept:'Production',loc:'Pasig, PH',type:'Contract',pay:'₱17,500–₱20,000',posted:'5 days ago',open:20,desc:'Operate food production lines following strict HACCP and food-safety standards.',reqs:['Food-handling certificate a plus','Able to stand for long periods','Attention to hygiene standards']},
+ {slug:'production-line-operator',title:'Production Line Operator',client:'Apex Manufacturing Corporation',dept:'Manufacturing',loc:'Cavite, PH',type:'Full-time',pay:'₱19,000–₱24,000',posted:'6 days ago',open:8,desc:'Operate and monitor assembly line equipment; perform routine quality checks.',reqs:['Vocational/technical background','Machine operation experience','Shift work availability']},
+ {slug:'accounts-officer',title:'Accounts Officer',client:'Silver Peak Holdings',dept:'Finance',loc:'BGC, Taguig',type:'Full-time',pay:'₱28,000–₱34,000',posted:'2 days ago',open:2,desc:'Manage accounts payable/receivable, reconcile ledgers, and support monthly close.',reqs:['Accountancy graduate','2+ years AP/AR experience','Proficient in ERP/accounting software']},
+ {slug:'delivery-driver',title:'Delivery Driver (Professional)',client:'Prime Logistics Solutions',dept:'Logistics',loc:'Quezon City',type:'Full-time',pay:'₱18,000 + allowances',posted:'4 days ago',open:15,desc:'Perform last-mile deliveries safely and on schedule across Metro Manila.',reqs:['Professional driver’s license (1-2)','Clean driving record','Familiarity with MM routes']}
+];
+const FNAMES=['Juan','Maria','Jose','Anna','Mark','Grace','Paolo','Liza','Ramon','Carla','Nathan','Bea','Ryan','Divine','Kevin','Joan','Miguel','Rica','Angelo','Trisha'];
+const LNAMES=['Santos','Reyes','Cruz','Bautista','Garcia','Mendoza','Torres','Flores','Ramos','Aquino','Villanueva','Castillo','Domingo','Fernandez','Navarro'];
+let seed=1;const rnd=()=>{seed=(seed*9301+49297)%233280;return seed/233280;};
+const pick=(a)=>a[Math.floor(rnd()*a.length)];
+const APPS=[];
+for(let i=0;i<48;i++){
+  const j=pick(JOBS);const fn=pick(FNAMES),ln=pick(LNAMES);
+  const st=pick(STAGES);
+  APPS.push({id:i+1,ref:'PMBSI-2026-'+String(900+i).padStart(6,'0'),name:fn+' '+ln,email:(fn+'.'+ln).toLowerCase()+'@email.com',phone:'+63 9'+String(Math.floor(rnd()*900000000)+100000000),job:j.title,slug:j.slug,client:j.client,dept:j.dept,stage:st,recruiter:pick(['A. Domingo','R. Villamor','C. Ledesma','M. Aquino']),branch:pick(['Makati HQ','Cebu Branch','Davao Branch']),score:Math.floor(rnd()*35)+62,applied:pick(['Aug 21','Aug 24','Aug 27','Aug 30','Sep 1','Sep 3'])});
+}
+const byStage=(s)=>APPS.filter(a=>a.stage===s);
+const USERS=[
+ {name:'Winston Cruz',email:'winston.cruz@pmbsi.com',role:'Super Administrator',branch:'Makati HQ',status:'Active',mfa:true,last:'2 min ago'},
+ {name:'Andrea Domingo',email:'a.domingo@pmbsi.com',role:'Recruitment Manager',branch:'Makati HQ',status:'Active',mfa:true,last:'18 min ago'},
+ {name:'Rafael Villamor',email:'r.villamor@pmbsi.com',role:'Recruiter',branch:'Cebu Branch',status:'Active',mfa:false,last:'1 hr ago'},
+ {name:'Camille Ledesma',email:'c.ledesma@pmbsi.com',role:'Recruiter',branch:'Davao Branch',status:'Active',mfa:true,last:'3 hr ago'},
+ {name:'Client · ABC Retail',email:'hr@abcretail.com',role:'Client User',branch:'ABC Retail Corporation',status:'Active',mfa:false,last:'Yesterday'},
+ {name:'Client · Prime Logistics',email:'ops@primelogistics.com',role:'Client User',branch:'Prime Logistics Solutions',status:'Active',mfa:true,last:'Yesterday'},
+ {name:'Marco Salazar',email:'m.salazar@pmbsi.com',role:'Coordinator',branch:'Makati HQ',status:'Disabled',mfa:false,last:'2 weeks ago'},
+ {name:'Bea Fontanilla',email:'b.fontanilla@pmbsi.com',role:'Executive (Read-only)',branch:'Makati HQ',status:'Active',mfa:true,last:'Today'}
+];
+const ROLES=['Super Administrator','PMBSI Administrator','Recruitment Manager','Recruiter','Coordinator','Client User','Executive (Read-only)','Applicant'];
+const MODULES=['Dashboard','Manpower Requests','Jobs','Applicants','Pipeline','Endorsements','Clients','Reports','Users','Settings','AI','Integrations','Audit','Security'];
+const ACTIONS=['View','Create','Edit','Delete'];
+
+/* ================= ROUTER ================= */
+const routes={};
+function route(p,fn){routes[p]=fn;}
+function currentPath(){return (location.hash||'#/').slice(1);}
+function go(p){location.hash='#'+p;}
+window.addEventListener('hashchange',render);
+window.addEventListener('load',render);
+
+function matchRoute(path){
+  if(routes[path])return {fn:routes[path],params:{}};
+  for(const key in routes){
+    if(key.includes(':')){
+      const kp=key.split('/'),pp=path.split('/');
+      if(kp.length!==pp.length)continue;
+      const params={};let ok=true;
+      for(let i=0;i<kp.length;i++){
+        if(kp[i].startsWith(':'))params[kp[i].slice(1)]=decodeURIComponent(pp[i]);
+        else if(kp[i]!==pp[i]){ok=false;break;}
+      }
+      if(ok)return {fn:routes[key],params};
+    }
+  }
+  return null;
+}
+function render(){
+  const path=currentPath();
+  const m=matchRoute(path);
+  const app=document.getElementById('app');
+  app.innerHTML='';
+  window.scrollTo(0,0);
+  if(m){app.appendChild(m.fn(m.params));}
+  else {app.appendChild(routes['/not-found']());}
+}
+
+/* ================= SHARED BUILDERS ================= */
+function kpi(lab,val,delta,ico,dir){
+  return `<div class="kpi"><div class="ico">${ico||'▤'}</div><div class="lab">${lab}</div><div class="val">${val}</div>${delta?`<div class="delta ${dir||'up'}">${dir==='down'?'▼':'▲'} ${delta}</div>`:''}</div>`;
+}
+function badgeStage(s){const c=STAGE_COLOR[s]||'#9A9DA0';return `<span class="badge gray" style="background:${c}22;color:${c}"><span class="dot" style="background:${c}"></span>${s}</span>`;}
+function bars(vals,labels){
+  const mx=Math.max(...vals);
+  return `<div class="bars">${vals.map((v,i)=>`<div class="b" style="height:${Math.round(v/mx*100)}%" title="${labels?labels[i]+': ':''}${v}"></div>`).join('')}</div>
+  ${labels?`<div style="display:flex;gap:8px;margin-top:7px">${labels.map(l=>`<div class="tiny muted" style="flex:1;text-align:center">${l}</div>`).join('')}</div>`:''}`;
+}
+function meter(pct,label){return `<div class="srow" style="border:none;padding:6px 0"><div style="flex:1"><div class="small" style="display:flex;justify-content:space-between;margin-bottom:5px"><span>${label}</span><span class="muted">${pct}%</span></div><div class="meter"><span style="width:${pct}%"></span></div></div></div>`;}
+
+/* ================= PUBLIC / APPLICANT PORTAL ================= */
+function pubShell(active,body){
+  const links=[['Home','/'],['Careers','/careers'],['Browse Jobs','/careers'],['Track Application','/status'],['About Us','/about'],['Contact','/contact']];
+  const el=$(`<div>
+    <nav class="pubnav"><div class="in">
+      <a href="#/" class="brand"><span class="logo">P</span><span>PMBSI<span class="sub">Careers</span></span></a>
+      <div class="links">${links.map(l=>`<a href="#${l[1]}" class="${active===l[0]?'active':''}">${l[0]}</a>`).join('')}</div>
+      <a href="#/apply" class="btn primary sm" style="margin-left:8px">Apply Now</a>
+    </div></nav>
+    <div class="pub-body"></div>
+    <footer class="foot"><div class="in">
+      <div>
+        <div class="brand" style="color:#fff"><span class="logo">P</span><span style="color:#fff">PMBSI<span class="sub" style="color:#9A9DA0">Prime Mover Business Solutions</span></span></div>
+        <p style="max-width:280px;margin-top:12px">Connecting Filipino talent with meaningful careers through trusted workforce management.</p>
+      </div>
+      <div><div style="color:#fff;font-weight:600;margin-bottom:8px">Careers</div><a href="#/careers">Browse jobs</a><a href="#/apply">Apply now</a><a href="#/status">Track application</a></div>
+      <div><div style="color:#fff;font-weight:600;margin-bottom:8px">Company</div><a href="#/about">About us</a><a href="#/contact">Contact</a></div>
+      <div><div style="color:#fff;font-weight:600;margin-bottom:8px">Portals</div><a href="#/hr-login">HR Portal</a><a href="#/client-login">Client Portal</a><a href="#/admin-login">Admin</a></div>
+    </div><div class="in" style="border-top:1px solid #333;margin-top:28px;padding-top:18px;font-size:12px">© 2026 Prime Mover Business Solutions, Inc. · RWMS Preview</div></footer>
+  </div>`);
+  el.querySelector('.pub-body').appendChild(body);
+  return el;
+}
+function jobCard(j){
+  return `<a href="#/job/${j.slug}" class="card jobcard">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <span class="badge amber">${esc(j.dept)}</span><span class="tiny muted">${esc(j.posted)}</span>
+    </div>
+    <h3 style="font-size:17px">${esc(j.title)}</h3>
+    <div class="small muted">${esc(j.client)}</div>
+    <div class="small" style="display:flex;gap:14px;flex-wrap:wrap;margin-top:2px">
+      <span class="muted">📍 ${esc(j.loc)}</span><span class="muted">🕑 ${esc(j.type)}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:12px;border-top:1px solid var(--border)">
+      <span class="mono small" style="font-weight:600">${esc(j.pay)}</span>
+      <span class="badge green">${j.open} openings</span>
+    </div>
+  </a>`;
+}
+route('/',()=>pubShell('Home',$(`<div>
+  <div class="hero"><div class="in">
+    <span class="eyebrow">Now hiring across Luzon, Visayas & Mindanao</span>
+    <h1>Find your next role with PMBSI</h1>
+    <p>We match skilled Filipino workers with trusted employers in retail, logistics, manufacturing, food service and finance.</p>
+    <div class="searchbar"><input placeholder="Search job title, e.g. Warehouse Supervisor"/><a href="#/careers" class="btn primary">Search jobs</a></div>
+    <div style="display:flex;gap:26px;margin-top:26px">
+      <div><div style="font-size:24px;font-weight:700;color:#fff">${JOBS.reduce((a,j)=>a+j.open,0)}+</div><div class="tiny" style="color:#C7C8C9">Open positions</div></div>
+      <div><div style="font-size:24px;font-weight:700;color:#fff">${CLIENTS.length}</div><div class="tiny" style="color:#C7C8C9">Partner companies</div></div>
+      <div><div style="font-size:24px;font-weight:700;color:#fff">2,400+</div><div class="tiny" style="color:#C7C8C9">Careers launched</div></div>
+    </div>
+  </div></div>
+  <div class="wrap" style="margin-top:40px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h2 style="font-size:22px">Featured openings</h2><a href="#/careers" class="btn sm">View all jobs →</a>
+    </div>
+    <div class="jobgrid">${JOBS.slice(0,6).map(jobCard).join('')}</div>
+  </div>
+</div>`)));
+route('/careers',()=>pubShell('Careers',$(`<div class="wrap" style="padding-top:36px">
+  <div class="pagehead"><div><div class="crumb">Home / Careers</div><h1 style="font-size:26px">Browse ${JOBS.reduce((a,j)=>a+j.open,0)} open positions</h1></div></div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+    <div class="topbar" style="height:auto;border:1px solid var(--border);border-radius:10px;padding:8px 12px;flex:1;min-width:260px;position:static"><div class="search" style="max-width:none">🔍<input placeholder="Search jobs by title, client or location"/></div></div>
+    <select class="btn" style="min-width:150px"><option>All departments</option><option>Operations</option><option>Retail</option><option>Manufacturing</option><option>Finance</option></select>
+    <select class="btn" style="min-width:130px"><option>All types</option><option>Full-time</option><option>Contract</option></select>
+  </div>
+  <div class="jobgrid">${JOBS.map(jobCard).join('')}</div>
+</div>`)));
+route('/job/:slug',(p)=>{
+  const j=JOBS.find(x=>x.slug===p.slug)||JOBS[0];
+  return pubShell('Careers',$(`<div class="wrap" style="padding-top:36px">
+    <div class="crumb"><a href="#/careers" class="muted">← Back to all jobs</a></div>
+    <div class="split3" style="margin-top:14px">
+      <div>
+        <div class="card pad">
+          <span class="badge amber">${esc(j.dept)}</span>
+          <h1 style="font-size:27px;margin:12px 0 6px">${esc(j.title)}</h1>
+          <div class="muted">${esc(j.client)} · ${esc(j.loc)}</div>
+          <div style="display:flex;gap:22px;margin:18px 0;flex-wrap:wrap">
+            <div><div class="tiny muted">SALARY</div><div class="mono" style="font-weight:600">${esc(j.pay)}</div></div>
+            <div><div class="tiny muted">TYPE</div><div style="font-weight:600">${esc(j.type)}</div></div>
+            <div><div class="tiny muted">OPENINGS</div><div style="font-weight:600">${j.open}</div></div>
+            <div><div class="tiny muted">POSTED</div><div style="font-weight:600">${esc(j.posted)}</div></div>
+          </div>
+          <h3 class="section-t">Job description</h3>
+          <p class="muted">${esc(j.desc)}</p>
+          <h3 class="section-t" style="margin-top:20px">Requirements</h3>
+          <ul class="muted" style="padding-left:18px">${j.reqs.map(r=>`<li>${esc(r)}</li>`).join('')}</ul>
+        </div>
+      </div>
+      <div>
+        <div class="card pad" style="position:sticky;top:80px">
+          <div class="mono" style="font-size:20px;font-weight:600">${esc(j.pay)}</div>
+          <div class="tiny muted" style="margin-bottom:14px">estimated monthly</div>
+          <a href="#/apply" class="btn primary block" style="margin-bottom:9px">Apply for this role</a>
+          <button class="btn block" onclick="toast('Job link copied')">🔗 Copy job link</button>
+          <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)" class="small muted">
+            <div style="margin-bottom:6px">✓ Direct employment</div>
+            <div style="margin-bottom:6px">✓ Government-mandated benefits</div>
+            <div>✓ Career growth support</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`));
+});
+route('/apply',()=>pubShell('Careers',$(`<div class="wrap" style="padding-top:36px;max-width:760px">
+  <div class="pagehead"><div><div class="crumb">Home / Careers / Apply</div><h1 style="font-size:26px">Submit your application</h1></div></div>
+  <div style="display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap">
+    <div class="step cur"><span class="n">1</span> Your details</div><span class="muted">──</span>
+    <div class="step"><span class="n">2</span> Resume</div><span class="muted">──</span>
+    <div class="step"><span class="n">3</span> Screening</div><span class="muted">──</span>
+    <div class="step"><span class="n">4</span> Review</div>
+  </div>
+  <div class="card pad">
+    <h3 class="section-t">Personal information</h3>
+    <div class="split"><div class="field"><label>First name</label><input placeholder="Juan"/></div><div class="field"><label>Last name</label><input placeholder="Dela Cruz"/></div></div>
+    <div class="split"><div class="field"><label>Email</label><input placeholder="you@email.com"/></div><div class="field"><label>Mobile number</label><input placeholder="+63 9XX XXX XXXX"/></div></div>
+    <div class="field"><label>Position applying for</label><select>${JOBS.map(j=>`<option>${esc(j.title)} — ${esc(j.client)}</option>`).join('')}</select></div>
+    <div class="field"><label>Resume / CV</label><div class="dropzone">📎 Drag & drop your resume here, or <strong style="color:var(--amber-deep)">browse files</strong><div class="tiny" style="margin-top:6px">PDF, DOC up to 5MB</div></div></div>
+    <div class="field"><label>Why are you a good fit for this role?</label><textarea rows="3" placeholder="Tell us about your relevant experience…"></textarea></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+      <a href="#/careers" class="btn">Cancel</a>
+      <button class="btn primary" onclick="toast('Application submitted — ref PMBSI-2026-000948')">Submit application →</button>
+    </div>
+  </div>
+</div>`)));
+route('/status',()=>pubShell('Track Application',$(`<div class="wrap" style="padding-top:36px;max-width:720px">
+  <div class="pagehead"><div><div class="crumb">Home / Track Application</div><h1 style="font-size:26px">Track your application</h1></div></div>
+  <div class="card pad" style="margin-bottom:20px">
+    <div class="split"><div class="field"><label>Reference number</label><input value="PMBSI-2026-000912"/></div><div class="field"><label>Email used to apply</label><input placeholder="you@email.com"/></div></div>
+    <button class="btn primary" onclick="toast('Showing latest status')">Check status</button>
+  </div>
+  <div class="card pad">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div><div class="tiny muted">APPLICATION</div><div style="font-weight:600">Warehouse Supervisor · Prime Logistics Solutions</div></div>
+      ${badgeStage('Interview')}
+    </div>
+    <div class="tl">
+      <div class="ev"><div style="font-weight:600;font-size:13px">Application received</div><div class="tiny muted">Aug 27, 2026 · reference PMBSI-2026-000912</div></div>
+      <div class="ev"><div style="font-weight:600;font-size:13px">Screening passed</div><div class="tiny muted">Aug 29, 2026 · reviewed by recruiter</div></div>
+      <div class="ev"><div style="font-weight:600;font-size:13px">Interview scheduled</div><div class="tiny muted">Sep 5, 2026 · 10:00 AM · Makati HQ</div></div>
+      <div class="ev" style="opacity:.5"><div style="font-weight:600;font-size:13px">Client endorsement</div><div class="tiny muted">Pending</div></div>
+    </div>
+  </div>
+</div>`)));
+route('/about',()=>pubShell('About Us',$(`<div class="wrap" style="padding-top:36px;max-width:820px">
+  <div class="pagehead"><div><div class="crumb">Home / About Us</div><h1 style="font-size:30px">About PMBSI</h1></div></div>
+  <p class="muted" style="font-size:16px">Prime Mover Business Solutions, Inc. is a Philippine workforce management and recruitment partner. We connect skilled Filipino workers with reputable employers across retail, logistics, manufacturing, food service and finance — handling the full lifecycle from manpower request to deployment.</p>
+  <div class="kpi-auto" style="margin-top:26px">
+    ${kpi('Years of service','12','','★')}${kpi('Careers launched','2,400+','','◆')}${kpi('Partner companies',String(CLIENTS.length),'','▣')}${kpi('Placement rate','89%','','▲')}
+  </div>
+  <h3 class="section-t" style="margin-top:30px">What we do</h3>
+  <div class="jobgrid">
+    <div class="card pad"><h3 style="font-size:16px">End-to-end recruitment</h3><p class="muted small">From sourcing to onboarding, we manage every stage of the hiring pipeline.</p></div>
+    <div class="card pad"><h3 style="font-size:16px">Workforce management</h3><p class="muted small">Deployment tracking, compliance and post-hire coordination with clients.</p></div>
+    <div class="card pad"><h3 style="font-size:16px">Talent CRM</h3><p class="muted small">A living database of vetted candidates ready for the next opportunity.</p></div>
+  </div>
+</div>`)));
+route('/contact',()=>pubShell('Contact',$(`<div class="wrap" style="padding-top:36px;max-width:760px">
+  <div class="pagehead"><div><div class="crumb">Home / Contact</div><h1 style="font-size:26px">Get in touch</h1></div></div>
+  <div class="split3">
+    <div class="card pad">
+      <div class="field"><label>Full name</label><input placeholder="Your name"/></div>
+      <div class="field"><label>Email</label><input placeholder="you@email.com"/></div>
+      <div class="field"><label>Message</label><textarea rows="4" placeholder="How can we help?"></textarea></div>
+      <button class="btn primary" onclick="toast('Message sent — we’ll get back to you')">Send message</button>
+    </div>
+    <div class="card pad">
+      <h3 class="section-t">PMBSI Head Office</h3>
+      <div class="small muted" style="line-height:2">📍 Makati City, Metro Manila<br>📞 (02) 8888-0000<br>✉️ careers@pmbsi.com<br>🕑 Mon–Fri, 8AM–5PM</div>
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+        <div class="tiny muted">Employer? Access your portals:</div>
+        <a href="#/hr-login" class="btn sm block" style="margin-top:8px">HR Portal login</a>
+        <a href="#/client-login" class="btn sm block" style="margin-top:6px">Client Portal login</a>
+      </div>
+    </div>
+  </div>
+</div>`)));
+
+/* ================= PORTAL SHELL ================= */
+const NAV={
+ hr:{title:'HR Portal',sub:'Recruitment Team',login:'/hr-login',logo:'dark',user:'Andrea Domingo',role:'Recruitment Manager',groups:[
+   ['Workspace',[['Dashboard','/hr-dashboard','▤'],['Applicants','/hr-applicants','👤',String(APPS.length)],['Pipeline','/hr-pipeline','▦'],['Endorsements','/hr-endorsement','✓',String(byStage('Endorsed').length)]]],
+   ['Insights',[['Reports','/hr-reports','▧'],['Settings','/hr-settings','⚙']]]
+ ]},
+ client:{title:'Client Portal',sub:'Prime Logistics Solutions',login:'/client-login',logo:'',user:'Ops · Prime Logistics',role:'Client User',groups:[
+   ['Workspace',[['Dashboard','/client-dashboard','▤'],['Candidates','/client-candidates','👤'],['Approvals','/client-approval','✓',String(byStage('Client Review').length)]]],
+   ['Account',[['Reports','/client-reports','▧'],['Profile','/client-profile','⚙']]]
+ ]},
+ admin:{title:'Super Admin',sub:'System Administration',login:'/admin-login',logo:'dark',user:'Winston Cruz',role:'Super Administrator',groups:[
+   ['Overview',[['Dashboard','/admin-dashboard','▤'],['Analytics','/admin-analytics','▨']]],
+   ['Access Control',[['Users','/admin-users','👤',String(USERS.length)],['Roles & Permissions','/admin-roles','🔑'],['Security','/admin-security','🛡']]],
+   ['Organization',[['Clients','/admin-clients','▣'],['Branches','/admin-branches','◈']]],
+   ['Configuration',[['Recruitment Config','/admin-recruitment-config','⚙'],['System Settings','/admin-settings','⚙'],['AI Configuration','/admin-ai','✦'],['Integrations','/admin-integrations','⇄']]],
+   ['Operations',[['Audit Logs','/admin-audit','▤'],['Notifications','/admin-notifications','🔔'],['Monitoring','/admin-monitoring','◑']]]
+ ]}
+};
+function portalShell(kind,active,body){
+  const c=NAV[kind];
+  const el=$(`<div class="shell">
+    <aside class="side" id="side">
+      <a href="#${c.groups[0][1][0][1]}" class="brand"><span class="logo ${c.logo}">P</span><span>${c.title}<span class="sub">${c.sub}</span></span></a>
+      <div class="navs"></div>
+      <div class="prof"><span class="avatar">${initials(c.user)}</span><div style="min-width:0"><div class="small" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.user}</div><div class="tiny muted">${c.role}</div></div></div>
+    </aside>
+    <div class="main">
+      <div class="topbar">
+        <button class="iconbtn mobtoggle" onclick="document.getElementById('side').classList.toggle('open')">☰</button>
+        <div class="search">🔍<input placeholder="Search ${kind==='admin'?'anything…  (⌘K)':'applicants, jobs…'}"/></div>
+        <div style="margin-left:auto;display:flex;gap:9px;align-items:center">
+          <button class="iconbtn" title="Toggle theme" onclick="toggleTheme()">◐</button>
+          <button class="iconbtn" title="Notifications" onclick="toast('3 new notifications')">🔔</button>
+          <span class="avatar">${initials(c.user)}</span>
+          <a href="#${c.login}" class="btn sm" title="Sign out">Sign out</a>
+        </div>
+      </div>
+      <div class="content"></div>
+    </div>
+  </div>`);
+  const navs=el.querySelector('.navs');
+  c.groups.forEach(g=>{
+    const grp=$(`<div class="nav-group"><div class="gl">${g[0]}</div></div>`);
+    g[1].forEach(it=>{
+      grp.appendChild($(`<a href="#${it[1]}" class="nav-item ${active===it[1]?'active':''}"><span class="ni">${it[2]}</span><span>${it[0]}</span>${it[3]?`<span class="cnt">${it[3]}</span>`:''}</a>`));
+    });
+    navs.appendChild(grp);
+  });
+  el.querySelector('.content').appendChild(body);
+  return el;
+}
+function toggleTheme(){
+  const r=document.documentElement;
+  r.setAttribute('data-theme',r.getAttribute('data-theme')==='dark'?'light':'dark');
+}
+function pageHead(crumb,title,actions){
+  return `<div class="pagehead"><div><div class="crumb">${crumb}</div><h1>${title}</h1></div>${actions?`<div class="actions">${actions}</div>`:''}</div>`;
+}
+function dataTable(cols,rows){
+  return `<div class="card" style="overflow-x:auto"><table class="tbl"><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+
+/* ================= LOGIN ================= */
+function loginPage(kind){
+  const c=NAV[kind];const home=c.groups[0][1][0][1];
+  const roleOpts=kind==='admin'?['Super Administrator','PMBSI Administrator']:kind==='hr'?['Recruitment Manager','Recruiter','Coordinator']:['Client User'];
+  return $(`<div class="loginwrap">
+    <div class="login-hero">
+      <a href="#/" class="brand" style="color:#fff"><span class="logo">P</span><span style="color:#fff">PMBSI<span class="sub" style="color:#9A9DA0">RWMS</span></span></a>
+      <div style="position:relative;z-index:2">
+        <span class="eyebrow" style="background:var(--amber);color:var(--ink);display:inline-block;padding:5px 12px;border-radius:999px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em">${c.title}</span>
+        <h1 style="font-size:34px;margin:16px 0 10px;max-width:340px">${kind==='admin'?'System administration console':kind==='hr'?'Recruitment workspace':'Your candidates, your decisions'}</h1>
+        <p style="color:#C7C8C9;max-width:340px">${kind==='admin'?'Manage users, roles, clients, integrations and system health for the entire RWMS.':kind==='hr'?'Manage the full hiring pipeline from application to deployment.':'Review endorsed candidates and approve deployments in one place.'}</p>
+      </div>
+      <div class="tiny" style="color:#9A9DA0;position:relative;z-index:2">Separate, role-isolated login · RBAC enforced</div>
+    </div>
+    <div class="login-form"><div class="login-card">
+      <h2 style="font-size:22px">Sign in</h2>
+      <p class="muted small" style="margin:6px 0 22px">Access restricted to authorized ${kind==='client'?'client':'PMBSI'} accounts.</p>
+      <div class="field"><label>Role</label><select id="lg-role">${roleOpts.map(r=>`<option>${r}</option>`).join('')}</select></div>
+      <div class="field"><label>Email</label><input value="${esc(c.user.toLowerCase().replace(/[^a-z]/g,'.'))}@${kind==='client'?'primelogistics.com':'pmbsi.com'}"/></div>
+      <div class="field"><label>Password</label><input type="password" value="demo1234"/></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <label class="small muted" style="display:flex;gap:6px;align-items:center"><input type="checkbox" checked/> Remember me</label>
+        <a class="small" style="color:var(--blue)">Forgot password?</a>
+      </div>
+      <button class="btn primary block" onclick="go('${home}')">Sign in →</button>
+      <div class="small muted" style="text-align:center;margin-top:16px">Preview mode · any credentials work</div>
+      <div style="text-align:center;margin-top:12px"><a href="#/" class="small muted">← Back to careers site</a></div>
+    </div></div>
+  </div>`);
+}
+route('/hr-login',()=>loginPage('hr'));
+route('/client-login',()=>loginPage('client'));
+route('/admin-login',()=>loginPage('admin'));
+
+/* ================= HR PORTAL ================= */
+route('/hr-dashboard',()=>portalShell('hr','/hr-dashboard',$(`<div>
+  ${pageHead('HR Portal / Dashboard','Recruitment Dashboard','<a class="btn sm">This month ▾</a><a href="#/hr-pipeline" class="btn primary sm">Open pipeline</a>')}
+  <div class="kpi-auto" style="margin-bottom:20px">
+    ${kpi('Active applicants',String(APPS.length),'12% vs last month','👤')}
+    ${kpi('In interview',String(byStage('Interview').length),'4 scheduled today','◔')}
+    ${kpi('Endorsed to clients',String(byStage('Endorsed').length),'','✓')}
+    ${kpi('Deployed this month',String(byStage('Deployed').length),'8% ','▲')}
+    ${kpi('Open requisitions','23','5 urgent','▣')}
+    ${kpi('Avg. time to hire','18 days','2 days faster','↓','up')}
+  </div>
+  <div class="split3">
+    <div class="card pad">
+      <div class="section-t">Applications — last 7 days</div>
+      ${bars([12,18,9,22,15,26,19],['Mon','Tue','Wed','Thu','Fri','Sat','Sun'])}
+      <div class="section-t" style="margin-top:24px">Pipeline distribution</div>
+      ${STAGES.map(s=>meter(Math.round(byStage(s).length/APPS.length*100),s+' ('+byStage(s).length+')')).join('')}
+    </div>
+    <div class="card pad">
+      <div class="section-t">Today’s interviews</div>
+      ${byStage('Interview').slice(0,4).map(a=>`<div class="srow"><span class="avatar">${initials(a.name)}</span><div style="flex:1;min-width:0"><div class="small" style="font-weight:600">${esc(a.name)}</div><div class="tiny muted">${esc(a.job)}</div></div><span class="badge amber">10:00</span></div>`).join('')}
+      <div class="section-t" style="margin-top:22px">Requisitions by client</div>
+      ${CLIENTS.map((cl,i)=>`<div class="srow" style="padding:8px 0"><span class="dot" style="background:var(--amber)"></span><div class="small" style="flex:1">${esc(cl)}</div><span class="badge gray">${[8,4,15,2,8][i]} open</span></div>`).join('')}
+    </div>
+  </div>
+</div>`)));
+route('/hr-applicants',()=>portalShell('hr','/hr-applicants',$(`<div>
+  ${pageHead('HR Portal / Applicants','Applicant Database','<a class="btn sm">Export CSV</a><a class="btn primary sm">+ Add applicant</a>')}
+  <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+    <div class="search" style="flex:1;min-width:220px;max-width:340px;border:1px solid var(--border)">🔍<input placeholder="Search by name, ref, email…"/></div>
+    <select class="btn"><option>All stages</option>${STAGES.map(s=>`<option>${s}</option>`).join('')}</select>
+    <select class="btn"><option>All clients</option>${CLIENTS.map(c=>`<option>${esc(c)}</option>`).join('')}</select>
+  </div>
+  ${dataTable(['Applicant','Reference','Position','Client','Stage','Score','Recruiter',''],
+    APPS.slice(0,14).map(a=>[
+      `<div style="display:flex;gap:9px;align-items:center"><span class="avatar">${initials(a.name)}</span><div><div style="font-weight:600">${esc(a.name)}</div><div class="tiny muted">${esc(a.email)}</div></div></div>`,
+      `<span class="mono tiny">${a.ref}</span>`,esc(a.job),`<span class="small">${esc(a.client)}</span>`,badgeStage(a.stage),
+      `<span class="badge ${a.score>85?'green':a.score>72?'amber':'gray'}">${a.score}</span>`,`<span class="small">${a.recruiter}</span>`,
+      `<a href="#/hr-profile" class="btn sm">View</a>`
+    ]))}
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px" class="small muted">
+    <span>Showing 1–14 of ${APPS.length}</span>
+    <div style="display:flex;gap:6px"><button class="btn sm">← Prev</button><button class="btn sm">1</button><button class="btn primary sm">2</button><button class="btn sm">3</button><button class="btn sm">Next →</button></div>
+  </div>
+</div>`)));
+route('/hr-pipeline',()=>portalShell('hr','/hr-pipeline',$(`<div>
+  ${pageHead('HR Portal / Pipeline','Recruitment Pipeline','<a class="btn sm">Filter ▾</a><a class="btn primary sm">+ New manpower request</a>')}
+  <div class="kanban">
+    ${STAGES.map(s=>{const items=byStage(s);const c=STAGE_COLOR[s];return `<div class="kcol">
+      <div class="kh"><span><span class="kdot" style="background:${c}"></span> ${s}</span><span class="badge gray">${items.length}</span></div>
+      ${items.slice(0,4).map(a=>`<div class="kcard"><div class="nm">${esc(a.name)}</div><div class="tiny muted" style="margin:3px 0 7px">${esc(a.job)}</div><div style="display:flex;justify-content:space-between;align-items:center"><span class="tiny mono muted">${a.ref.slice(-6)}</span><span class="badge ${a.score>82?'green':'amber'}">${a.score}</span></div></div>`).join('')||'<div class="tiny muted" style="text-align:center;padding:16px 0">No candidates</div>'}
+      ${items.length>4?`<div class="tiny muted" style="text-align:center;padding:6px">+${items.length-4} more</div>`:''}
+    </div>`;}).join('')}
+  </div>
+</div>`)));
+route('/hr-profile',()=>{const a=APPS[10];return portalShell('hr','/hr-applicants',$(`<div>
+  ${pageHead('HR Portal / Applicants / Profile','Applicant Profile','<a class="btn sm">Send email</a><a class="btn primary sm">Endorse to client →</a>')}
+  <div class="split3">
+    <div>
+      <div class="card pad" style="margin-bottom:16px">
+        <div style="display:flex;gap:14px;align-items:center">
+          <span class="avatar" style="width:52px;height:52px;font-size:18px">${initials(a.name)}</span>
+          <div><h2 style="font-size:20px">${esc(a.name)}</h2><div class="muted small">${esc(a.job)} · ${esc(a.client)}</div></div>
+          <div style="margin-left:auto;text-align:right">${badgeStage(a.stage)}<div class="tiny muted" style="margin-top:5px">${a.ref}</div></div>
+        </div>
+        <div style="display:flex;gap:24px;margin-top:16px;flex-wrap:wrap" class="small">
+          <div><div class="tiny muted">EMAIL</div>${esc(a.email)}</div>
+          <div><div class="tiny muted">PHONE</div>${esc(a.phone)}</div>
+          <div><div class="tiny muted">BRANCH</div>${a.branch}</div>
+          <div><div class="tiny muted">MATCH SCORE</div><span class="badge green">${a.score}%</span></div>
+        </div>
+      </div>
+      <div class="card pad" style="margin-bottom:16px">
+        <div class="section-t">Stage & actions</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <select class="btn">${STAGES.map(s=>`<option ${s===a.stage?'selected':''}>${s}</option>`).join('')}</select>
+          <button class="btn sm" onclick="toast('Interview scheduled')">Schedule interview</button>
+          <button class="btn sm" onclick="toast('Note saved')">Add note</button>
+          <button class="btn sm" onclick="toast('Offer drafted')">Draft offer</button>
+        </div>
+      </div>
+      <div class="card pad">
+        <div class="section-t">Screening answers</div>
+        <div class="small"><strong>Why are you a good fit?</strong><p class="muted">Over 4 years of hands-on warehouse operations experience with a strong safety record and WMS familiarity.</p></div>
+      </div>
+    </div>
+    <div>
+      <div class="card pad">
+        <div class="section-t">Activity timeline</div>
+        <div class="tl">
+          <div class="ev"><div class="small" style="font-weight:600">Moved to Interview</div><div class="tiny muted">Today · A. Domingo</div></div>
+          <div class="ev"><div class="small" style="font-weight:600">Screening passed</div><div class="tiny muted">Aug 29 · R. Villamor</div></div>
+          <div class="ev"><div class="small" style="font-weight:600">Application received</div><div class="tiny muted">Aug 27 · Careers site</div></div>
+        </div>
+        <div class="section-t" style="margin-top:18px">Documents</div>
+        <div class="srow"><span>📄</span><div class="small" style="flex:1">Resume_${a.name.split(' ')[1]}.pdf</div><a class="btn sm">View</a></div>
+      </div>
+    </div>
+  </div>
+</div>`));});
+route('/hr-endorsement',()=>portalShell('hr','/hr-endorsement',$(`<div>
+  ${pageHead('HR Portal / Endorsements','Client Endorsements','<a class="btn primary sm">Bulk endorse</a>')}
+  <p class="muted small" style="margin-bottom:16px">Candidates ready to endorse to clients for review and approval.</p>
+  ${dataTable(['Candidate','Position','Client','Match','Endorsed','Status'],
+    byStage('Endorsed').concat(byStage('Client Review')).slice(0,10).map(a=>[
+      `<div style="display:flex;gap:9px;align-items:center"><span class="avatar">${initials(a.name)}</span><span style="font-weight:600">${esc(a.name)}</span></div>`,
+      esc(a.job),`<span class="small">${esc(a.client)}</span>`,`<span class="badge green">${a.score}%</span>`,`<span class="small muted">${a.applied}</span>`,
+      a.stage==='Client Review'?'<span class="badge blue">Awaiting client</span>':'<span class="badge amber">Ready to send</span>'
+    ]))}
+</div>`)));
+route('/hr-reports',()=>portalShell('hr','/hr-reports',$(`<div>
+  ${pageHead('HR Portal / Reports','Recruitment Reports','<a class="btn sm">Export PDF</a><select class="btn"><option>Last 30 days</option></select>')}
+  <div class="kpi-auto" style="margin-bottom:20px">
+    ${kpi('Total hires','142','','▲')}${kpi('Offer acceptance','91%','','✓')}${kpi('Avg. cost per hire','₱8,400','','₱')}${kpi('Source: referrals','38%','','◆')}
+  </div>
+  <div class="split">
+    <div class="card pad"><div class="section-t">Hires by client</div>${bars([42,18,55,9,28],CLIENTS.map(c=>c.split(' ')[0]))}</div>
+    <div class="card pad"><div class="section-t">Applications by source</div>${meter(38,'Employee referral')}${meter(27,'Careers site')}${meter(19,'JobStreet')}${meter(16,'Walk-in / others')}</div>
+  </div>
+</div>`)));
+route('/hr-settings',()=>portalShell('hr','/hr-settings',$(`<div>
+  ${pageHead('HR Portal / Settings','Portal Settings')}
+  <div class="tabs"><span class="t active">Email templates</span><span class="t">Departments</span><span class="t">Recruiters</span><span class="t">Notifications</span></div>
+  <div class="split">
+    <div class="card pad">
+      <div class="section-t">Email templates</div>
+      ${['Application received','Interview invitation','Endorsement notice','Offer letter','Regret notice'].map(t=>`<div class="srow"><span>✉️</span><div class="small" style="flex:1;font-weight:500">${t}</div><a class="btn sm">Edit</a></div>`).join('')}
+    </div>
+    <div class="card pad">
+      <div class="section-t">Preferences</div>
+      <div class="srow"><div style="flex:1"><div class="small" style="font-weight:600">Auto-acknowledge applications</div><div class="tiny muted">Send confirmation email on submit</div></div><div class="switch on" onclick="this.classList.toggle('on')"></div></div>
+      <div class="srow"><div style="flex:1"><div class="small" style="font-weight:600">Daily pipeline digest</div><div class="tiny muted">Email summary at 8:00 AM</div></div><div class="switch on" onclick="this.classList.toggle('on')"></div></div>
+      <div class="srow"><div style="flex:1"><div class="small" style="font-weight:600">Interview reminders</div><div class="tiny muted">SMS 1 hour before</div></div><div class="switch" onclick="this.classList.toggle('on')"></div></div>
+    </div>
+  </div>
+</div>`)));
+
+/* ================= CLIENT PORTAL ================= */
+const CLIENT='Prime Logistics Solutions';
+const clientApps=APPS.filter(a=>a.client===CLIENT);
+route('/client-dashboard',()=>portalShell('client','/client-dashboard',$(`<div>
+  ${pageHead('Client Portal / Dashboard','Welcome, Prime Logistics','<a href="#/client-approval" class="btn primary sm">Review candidates</a>')}
+  <div class="kpi-auto" style="margin-bottom:20px">
+    ${kpi('Open requisitions','15','2 new this week','▣')}
+    ${kpi('Candidates endorsed',String(clientApps.filter(a=>['Endorsed','Client Review','Offer','Deployment','Deployed'].includes(a.stage)).length),'','✓')}
+    ${kpi('Awaiting your approval',String(clientApps.filter(a=>a.stage==='Client Review').length),'action needed','◔')}
+    ${kpi('Deployed',String(clientApps.filter(a=>a.stage==='Deployed').length),'','▲')}
+    ${kpi('Fill rate','82%','','◆')}
+    ${kpi('Avg. time to fill','16 days','','↓','up')}
+  </div>
+  <div class="split3">
+    <div class="card pad">
+      <div class="section-t">Endorsed candidates awaiting review</div>
+      ${clientApps.filter(a=>a.stage==='Client Review').concat(clientApps.filter(a=>a.stage==='Endorsed')).slice(0,5).map(a=>`<div class="srow"><span class="avatar">${initials(a.name)}</span><div style="flex:1;min-width:0"><div class="small" style="font-weight:600">${esc(a.name)}</div><div class="tiny muted">${esc(a.job)} · match ${a.score}%</div></div><a href="#/client-approval" class="btn sm">Review</a></div>`).join('')||'<div class="muted small">No candidates pending.</div>'}
+    </div>
+    <div class="card pad">
+      <div class="section-t">Requisition status</div>
+      ${meter(82,'Positions filled')}${meter(60,'In progress')}${meter(18,'Not yet sourced')}
+      <div class="section-t" style="margin-top:18px">SLA compliance</div>
+      <div style="text-align:center;padding:8px 0"><div style="font-size:34px;font-weight:700;color:var(--green)">96%</div><div class="tiny muted">on-time endorsements this quarter</div></div>
+    </div>
+  </div>
+</div>`)));
+route('/client-candidates',()=>portalShell('client','/client-candidates',$(`<div>
+  ${pageHead('Client Portal / Candidates','Endorsed Candidates','<a class="btn sm">Export</a>')}
+  <div class="tabs"><span class="t active">All (${clientApps.length})</span><span class="t">Pending review</span><span class="t">Approved</span><span class="t">Deployed</span></div>
+  ${dataTable(['Candidate','Position','Match','Stage','Endorsed','Action'],
+    clientApps.slice(0,12).map(a=>[
+      `<div style="display:flex;gap:9px;align-items:center"><span class="avatar">${initials(a.name)}</span><div><div style="font-weight:600">${esc(a.name)}</div><div class="tiny muted">${a.ref.slice(-6)}</div></div></div>`,
+      esc(a.job),`<span class="badge ${a.score>82?'green':'amber'}">${a.score}%</span>`,badgeStage(a.stage),`<span class="small muted">${a.applied}</span>`,
+      a.stage==='Client Review'?'<a href="#/client-approval" class="btn primary sm">Review</a>':'<a href="#/client-profile" class="btn sm">View</a>'
+    ]))}
+</div>`)));
+route('/client-approval',()=>portalShell('client','/client-approval',$(`<div>
+  ${pageHead('Client Portal / Approvals','Candidate Approvals')}
+  <p class="muted small" style="margin-bottom:16px">Approve or decline candidates endorsed by the PMBSI recruitment team. Approved candidates move to deployment.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(340px,1fr))">
+    ${clientApps.filter(a=>a.stage==='Client Review').concat(clientApps.filter(a=>a.stage==='Endorsed')).slice(0,6).map(a=>`
+    <div class="card pad">
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px">
+        <span class="avatar" style="width:44px;height:44px;font-size:15px">${initials(a.name)}</span>
+        <div style="flex:1"><div style="font-weight:600">${esc(a.name)}</div><div class="tiny muted">${esc(a.job)}</div></div>
+        <span class="badge green">${a.score}%</span>
+      </div>
+      <div class="small muted" style="margin-bottom:12px">Endorsed ${a.applied} · Recruiter ${a.recruiter} · ${a.branch}</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn primary sm" style="flex:1" onclick="toast('${esc(a.name)} approved for deployment')">✓ Approve</button>
+        <button class="btn sm" onclick="toast('Interview requested')">Request interview</button>
+        <button class="btn sm" onclick="toast('Candidate declined')">Decline</button>
+      </div>
+    </div>`).join('')}
+  </div>
+</div>`)));
+route('/client-profile',()=>portalShell('client','/client-profile',$(`<div>
+  ${pageHead('Client Portal / Profile','Company Profile')}
+  <div class="split3">
+    <div class="card pad">
+      <div class="section-t">Company details</div>
+      <div class="field"><label>Company name</label><input value="Prime Logistics Solutions"/></div>
+      <div class="split"><div class="field"><label>Industry</label><input value="Logistics & Distribution"/></div><div class="field"><label>Location</label><input value="Laguna, PH"/></div></div>
+      <div class="field"><label>Primary contact</label><input value="ops@primelogistics.com"/></div>
+      <button class="btn primary sm" onclick="toast('Profile saved')">Save changes</button>
+    </div>
+    <div class="card pad">
+      <div class="section-t">Account team</div>
+      <div class="srow"><span class="avatar">AD</span><div class="small" style="flex:1"><div style="font-weight:600">Andrea Domingo</div><div class="tiny muted">Account Manager</div></div></div>
+      <div class="srow"><span class="avatar">RV</span><div class="small" style="flex:1"><div style="font-weight:600">Rafael Villamor</div><div class="tiny muted">Lead Recruiter</div></div></div>
+      <div class="section-t" style="margin-top:16px">Contract</div>
+      <div class="small muted">MSA · renews Jan 2027 · SLA: 5-day endorsement</div>
+    </div>
+  </div>
+</div>`)));
+route('/client-reports',()=>portalShell('client','/client-reports',$(`<div>
+  ${pageHead('Client Portal / Reports','Hiring Reports','<a class="btn sm">Export PDF</a>')}
+  <div class="kpi-auto" style="margin-bottom:20px">
+    ${kpi('Positions filled','48','','✓')}${kpi('Avg. time to fill','16 days','','◔')}${kpi('Retention (90d)','88%','','▲')}${kpi('Endorsement accuracy','83%','','◆')}
+  </div>
+  <div class="split">
+    <div class="card pad"><div class="section-t">Deployments by month</div>${bars([6,9,12,8,14,11],['Apr','May','Jun','Jul','Aug','Sep'])}</div>
+    <div class="card pad"><div class="section-t">Candidates by position</div>${meter(45,'Delivery Driver')}${meter(30,'Warehouse Supervisor')}${meter(25,'Logistics Staff')}</div>
+  </div>
+</div>`)));
+
+/* ================= SUPER ADMIN PORTAL ================= */
+route('/admin-dashboard',()=>portalShell('admin','/admin-dashboard',$(`<div>
+  ${pageHead('Super Admin / Dashboard','System Dashboard','<a class="btn sm">⚙ Configure widgets</a><select class="btn"><option>All branches</option></select>')}
+  <div class="kpi-auto" style="margin-bottom:20px">
+    ${kpi('Active clients',String(CLIENTS.length),'1 onboarding','▣')}
+    ${kpi('Recruiters','14','','👤')}
+    ${kpi('Total applicants','2,418','6% ','▲')}
+    ${kpi('Active jobs','23','','▦')}
+    ${kpi('Applications / month','486','','◆')}
+    ${kpi('Interviews','128','','◔')}
+    ${kpi('Pending approvals',String(byStage('Client Review').length),'','✓')}
+    ${kpi('Conversion rate','19%','','▲')}
+    ${kpi('Avg. time to hire','18 d','2d faster','↓','up')}
+    ${kpi('Deployment rate','74%','','▲')}
+    ${kpi('System health','99.9%','','◑')}
+    ${kpi('Storage used','61%','','▤')}
+    ${kpi('API calls / day','48.2k','','⇄')}
+    ${kpi('Email queue','12','','✉')}
+    ${kpi('AI queue','3','','✦')}
+    ${kpi('Uptime (30d)','99.98%','','◑')}
+  </div>
+  <div class="split3">
+    <div class="card pad">
+      <div class="section-t">Recruitment funnel</div>
+      ${STAGES.map(s=>meter(Math.round(byStage(s).length/APPS.length*100),s+' — '+byStage(s).length)).join('')}
+    </div>
+    <div class="card pad">
+      <div class="section-t">System health</div>
+      <div class="srow"><span class="dot" style="background:var(--green)"></span><div class="small" style="flex:1">API gateway</div><span class="badge green">Operational</span></div>
+      <div class="srow"><span class="dot" style="background:var(--green)"></span><div class="small" style="flex:1">Database</div><span class="badge green">Operational</span></div>
+      <div class="srow"><span class="dot" style="background:var(--amber)"></span><div class="small" style="flex:1">Email queue</div><span class="badge amber">Elevated</span></div>
+      <div class="srow"><span class="dot" style="background:var(--green)"></span><div class="small" style="flex:1">AI service</div><span class="badge green">Operational</span></div>
+      <div class="section-t" style="margin-top:16px">Recent activity</div>
+      <div class="tl"><div class="ev"><div class="small" style="font-weight:600">Role updated: Recruiter</div><div class="tiny muted">2 min ago · Winston Cruz</div></div>
+      <div class="ev"><div class="small" style="font-weight:600">New client onboarded</div><div class="tiny muted">1 hr ago · Apex Manufacturing</div></div>
+      <div class="ev"><div class="small" style="font-weight:600">Integration connected: Slack</div><div class="tiny muted">Today</div></div></div>
+    </div>
+  </div>
+</div>`)));
+route('/admin-analytics',()=>portalShell('admin','/admin-analytics',$(`<div>
+  ${pageHead('Super Admin / Analytics','Executive Analytics','<select class="btn"><option>Last quarter</option></select>')}
+  <div class="kpi-auto" style="margin-bottom:20px">
+    ${kpi('Total placements','412','14% ','▲')}${kpi('Revenue impact','₱6.2M','','₱')}${kpi('Client retention','94%','','✓')}${kpi('Recruiter productivity','+11%','','▲')}
+  </div>
+  <div class="split">
+    <div class="card pad"><div class="section-t">Placements by month</div>${bars([48,55,61,58,72,68,79,84],['F','M','A','M','J','J','A','S'])}</div>
+    <div class="card pad"><div class="section-t">Performance by client</div>${CLIENTS.map((c,i)=>meter([88,72,94,61,80][i],c)).join('')}</div>
+  </div>
+  <div class="split" style="margin-top:16px">
+    <div class="card pad"><div class="section-t">Source effectiveness</div>${meter(38,'Referrals')}${meter(27,'Careers site')}${meter(19,'JobStreet')}${meter(16,'Others')}</div>
+    <div class="card pad"><div class="section-t">AI performance</div>${meter(83,'Match accuracy')}${meter(91,'Resume parse rate')}${meter(76,'Auto-screen precision')}</div>
+  </div>
+</div>`)));
+route('/admin-users',()=>portalShell('admin','/admin-users',$(`<div>
+  ${pageHead('Super Admin / Users','User Management','<a class="btn sm">Import</a><a class="btn primary sm">+ Add user</a>')}
+  <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+    <div class="search" style="flex:1;min-width:220px;max-width:320px;border:1px solid var(--border)">🔍<input placeholder="Search users…"/></div>
+    <select class="btn"><option>All roles</option>${ROLES.map(r=>`<option>${r}</option>`).join('')}</select>
+    <select class="btn"><option>All status</option><option>Active</option><option>Disabled</option></select>
+  </div>
+  ${dataTable(['User','Role','Branch','MFA','Status','Last active',''],
+    USERS.map(u=>[
+      `<div style="display:flex;gap:9px;align-items:center"><span class="avatar">${initials(u.name)}</span><div><div style="font-weight:600">${esc(u.name)}</div><div class="tiny muted">${esc(u.email)}</div></div></div>`,
+      `<span class="small">${u.role}</span>`,`<span class="small muted">${u.branch}</span>`,
+      u.mfa?'<span class="badge green">On</span>':'<span class="badge gray">Off</span>',
+      u.status==='Active'?'<span class="badge green">Active</span>':'<span class="badge red">Disabled</span>',
+      `<span class="small muted">${u.last}</span>`,`<a class="btn sm">Manage</a>`
+    ]))}
+</div>`)));
+route('/admin-roles',()=>portalShell('admin','/admin-roles',$(`<div>
+  ${pageHead('Super Admin / Roles','Role & Permission Management','<a class="btn sm">Clone role</a><a class="btn primary sm">+ Create role</a>')}
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">${ROLES.map((r,i)=>`<span class="chip" style="${i===3?'background:var(--amber);color:var(--ink)':''}">${r}</span>`).join('')}</div>
+  <div class="card pad">
+    <div class="section-t">Permission matrix — <span class="muted" style="font-weight:400">Recruiter</span></div>
+    <div style="overflow-x:auto"><table class="matrix"><thead><tr><th>Module</th>${ACTIONS.map(a=>`<th>${a}</th>`).join('')}</tr></thead><tbody>
+    ${MODULES.map((m,mi)=>`<tr><td>${m}</td>${ACTIONS.map((a,ai)=>{const on=(ai===0)||(ai<2&&mi<8)||(mi>=1&&mi<=5&&ai<3);return `<td><span class="ck ${on?'on':''}"></span></td>`;}).join('')}</tr>`).join('')}
+    </tbody></table></div>
+    <div class="small muted" style="margin-top:12px">System roles are locked. Custom roles can be cloned and edited. 8 roles × ${MODULES.length} modules × ${ACTIONS.length} actions.</div>
+  </div>
+</div>`)));
+route('/admin-clients',()=>portalShell('admin','/admin-clients',$(`<div>
+  ${pageHead('Super Admin / Clients','Client Management','<a class="btn primary sm">+ Add client</a>')}
+  ${dataTable(['Client','Industry','Open reqs','Fill rate','SLA','Contract','Status'],
+    CLIENTS.map((c,i)=>[
+      `<div style="display:flex;gap:9px;align-items:center"><span class="avatar" style="border-radius:8px">${c.split(' ')[0].slice(0,2).toUpperCase()}</span><span style="font-weight:600">${esc(c)}</span></div>`,
+      `<span class="small muted">${['Retail','Food Service','Logistics','Holdings','Manufacturing'][i]}</span>`,
+      `<span class="badge gray">${[8,4,15,2,8][i]}</span>`,
+      `<div style="min-width:120px"><div class="meter"><span style="width:${[82,74,88,61,80][i]}%"></span></div><span class="tiny muted">${[82,74,88,61,80][i]}%</span></div>`,
+      `<span class="badge ${[96,88,99,90,92][i]>90?'green':'amber'}">${[96,88,99,90,92][i]}%</span>`,
+      `<span class="small muted">${['MSA','SOW','MSA','MSA','SOW'][i]}</span>`,
+      i===4?'<span class="badge amber">Onboarding</span>':'<span class="badge green">Active</span>'
+    ]))}
+</div>`)));
+route('/admin-branches',()=>portalShell('admin','/admin-branches',$(`<div>
+  ${pageHead('Super Admin / Branches','Branch Management','<a class="btn primary sm">+ Add branch</a>')}
+  <div class="tabs"><span class="t active">All</span><span class="t">PMBSI branches</span><span class="t">Client sites</span></div>
+  <div class="kpi-auto" style="margin-bottom:18px">${kpi('PMBSI branches','3','','◈')}${kpi('Client sites','12','','▣')}${kpi('Regions','4','','🗺')}${kpi('Cost centers','9','','₱')}</div>
+  ${dataTable(['Branch','Type','Region','Business unit','Cost center','Staff'],[
+    ['Makati HQ','PMBSI','NCR','Corporate','CC-001','48'],
+    ['Cebu Branch','PMBSI','Region VII','Field Ops','CC-002','22'],
+    ['Davao Branch','PMBSI','Region XI','Field Ops','CC-003','17'],
+    ['Prime Logistics — Laguna','Client site','Region IV-A','Logistics','CC-101','—'],
+    ['ABC Retail — Makati','Client site','NCR','Retail','CC-102','—'],
+  ].map(r=>[`<span style="font-weight:600">${r[0]}</span>`,r[1]==='PMBSI'?'<span class="badge amber">PMBSI</span>':'<span class="badge blue">Client site</span>',r[2],r[3],`<span class="mono tiny">${r[4]}</span>`,r[5]]))}
+</div>`)));
+route('/admin-recruitment-config',()=>portalShell('admin','/admin-recruitment-config',$(`<div>
+  ${pageHead('Super Admin / Configuration','Recruitment Configuration')}
+  <div class="tabs"><span class="t active">Pipeline stages</span><span class="t">Interview types</span><span class="t">Statuses</span><span class="t">Reject reasons</span><span class="t">Templates</span></div>
+  <div class="card pad">
+    <div class="section-t">Pipeline stages</div>
+    <p class="muted small">Drag to reorder. These stages drive the HR pipeline and client review flow.</p>
+    ${STAGES.map((s,i)=>`<div class="srow"><span class="muted mono tiny">${i+1}</span><span class="kdot" style="background:${STAGE_COLOR[s]}"></span><div class="small" style="flex:1;font-weight:500">${s}</div><span class="badge gray">${byStage(s).length} active</span><a class="btn sm">Edit</a></div>`).join('')}
+    <button class="btn sm" style="margin-top:12px" onclick="toast('Stage added')">+ Add stage</button>
+  </div>
+</div>`)));
+route('/admin-settings',()=>portalShell('admin','/admin-settings',$(`<div>
+  ${pageHead('Super Admin / Settings','System Settings','<a class="btn primary sm" onclick="toast(&quot;Settings saved&quot;)">Save changes</a>')}
+  <div class="tabs"><span class="t active">Company</span><span class="t">Branding & theme</span><span class="t">Regional</span><span class="t">Security</span><span class="t">Storage</span></div>
+  <div class="split">
+    <div class="card pad">
+      <div class="section-t">Company profile</div>
+      <div class="field"><label>Company name</label><input value="Prime Mover Business Solutions, Inc."/></div>
+      <div class="split"><div class="field"><label>Default currency</label><select><option>PHP (₱)</option><option>USD ($)</option></select></div><div class="field"><label>Timezone</label><select><option>Asia/Manila (GMT+8)</option></select></div></div>
+      <div class="field"><label>Default language</label><select><option>English</option><option>Filipino</option></select></div>
+    </div>
+    <div class="card pad">
+      <div class="section-t">Appearance & security</div>
+      <div class="srow"><div style="flex:1"><div class="small" style="font-weight:600">Dark mode</div><div class="tiny muted">Enable dark theme for admins</div></div><div class="switch" onclick="this.classList.toggle('on');toggleTheme()"></div></div>
+      <div class="srow"><div style="flex:1"><div class="small" style="font-weight:600">Enforce MFA</div><div class="tiny muted">Require 2FA for all staff</div></div><div class="switch on" onclick="this.classList.toggle('on')"></div></div>
+      <div class="srow"><div style="flex:1"><div class="small" style="font-weight:600">Session timeout</div><div class="tiny muted">Auto sign-out after inactivity</div></div><select class="btn sm"><option>30 min</option><option>1 hr</option></select></div>
+      <div class="section-t" style="margin-top:14px">Storage</div>${meter(61,'61.2 GB of 100 GB used')}
+    </div>
+  </div>
+</div>`)));
+route('/admin-ai',()=>portalShell('admin','/admin-ai',$(`<div>
+  ${pageHead('Super Admin / AI','AI Configuration')}
+  <div class="kpi-auto" style="margin-bottom:18px">${kpi('Resumes parsed','12.4k','','✦')}${kpi('Match suggestions','3.1k','','◆')}${kpi('Avg. confidence','83%','','▲')}${kpi('Tokens (30d)','8.2M','','⇄')}</div>
+  <div class="split">
+    <div class="card pad">
+      <div class="section-t">AI modules</div>
+      ${[['Resume parsing',true],['Candidate matching',true],['Auto-screening',true],['Interview summary',false],['Job description generator',true],['Sentiment analysis',false]].map(m=>`<div class="srow"><div style="flex:1"><div class="small" style="font-weight:600">${m[0]}</div></div><div class="switch ${m[1]?'on':''}" onclick="this.classList.toggle('on')"></div></div>`).join('')}
+    </div>
+    <div class="card pad">
+      <div class="section-t">Model & prompts</div>
+      <div class="field"><label>Default model</label><select><option>Claude · balanced</option><option>Claude · fast</option></select></div>
+      <div class="field"><label>Match confidence threshold</label><input value="0.75"/></div>
+      <div class="section-t" style="margin-top:8px">Prompt library</div>
+      ${['Screen candidate','Summarize interview','Draft job post'].map(p=>`<div class="srow"><span>✦</span><div class="small" style="flex:1">${p}</div><a class="btn sm">Edit</a></div>`).join('')}
+    </div>
+  </div>
+</div>`)));
+route('/admin-integrations',()=>portalShell('admin','/admin-integrations',$(`<div>
+  ${pageHead('Super Admin / Integrations','Integration Center')}
+  ${[['Communication',[['Email (SMTP)',true],['SMS Gateway',true],['WhatsApp',false],['Slack',true],['MS Teams',false]]],['Productivity',[['Google Calendar',true],['Google Drive',true],['Zoom',false]]],['Enterprise',[['HRIS',false],['Payroll',false],['Biometrics',true],['REST API',true],['Webhooks',true]]]].map(g=>`
+    <div class="section-t" style="margin-top:14px">${g[0]}</div>
+    <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(230px,1fr))">
+    ${g[1].map(it=>`<div class="card pad" style="display:flex;align-items:center;gap:12px">
+      <div style="width:38px;height:38px;border-radius:9px;background:var(--panel-2);display:grid;place-items:center;font-size:16px">⇄</div>
+      <div style="flex:1;min-width:0"><div class="small" style="font-weight:600">${it[0]}</div>${it[1]?'<span class="badge green">Connected</span>':'<span class="badge gray">Not connected</span>'}</div>
+      <button class="btn sm" onclick="toast('${it[1]?'Manage':'Connect'} ${esc(it[0])}')">${it[1]?'⚙':'Connect'}</button>
+    </div>`).join('')}
+    </div>`).join('')}
+</div>`)));
+route('/admin-audit',()=>portalShell('admin','/admin-audit',$(`<div>
+  ${pageHead('Super Admin / Audit','Audit Logs','<a class="btn sm">Export</a>')}
+  <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+    <div class="search" style="flex:1;min-width:200px;max-width:300px;border:1px solid var(--border)">🔍<input placeholder="Search logs…"/></div>
+    <select class="btn"><option>All modules</option></select><select class="btn"><option>All actions</option></select><input class="btn" type="date"/>
+  </div>
+  ${dataTable(['Timestamp','User','Module','Action','Record','IP','Status'],[
+    ['Sep 4, 14:08','Winston Cruz','Roles','UPDATE','role/recruiter','203.0.113.4','OK'],
+    ['Sep 4, 13:52','A. Domingo','Applicants','ENDORSE','app/000912','203.0.113.9','OK'],
+    ['Sep 4, 13:40','R. Villamor','Pipeline','MOVE_STAGE','app/000934','198.51.100.7','OK'],
+    ['Sep 4, 12:15','System','Integrations','CONNECT','slack','—','OK'],
+    ['Sep 4, 11:02','Client · Prime','Approvals','APPROVE','app/000901','198.51.100.22','OK'],
+    ['Sep 4, 09:47','M. Salazar','Auth','LOGIN_FAIL','—','203.0.113.88','DENIED'],
+  ].map(r=>[`<span class="mono tiny">${r[0]}</span>`,r[1],`<span class="small">${r[2]}</span>`,`<span class="badge ${r[3].includes('FAIL')?'red':'gray'}">${r[3]}</span>`,`<span class="mono tiny muted">${r[4]}</span>`,`<span class="mono tiny muted">${r[5]}</span>`,r[6]==='OK'?'<span class="badge green">OK</span>':'<span class="badge red">Denied</span>']))}
+</div>`)));
+route('/admin-notifications',()=>portalShell('admin','/admin-notifications',$(`<div>
+  ${pageHead('Super Admin / Notifications','Notification Center','<a class="btn primary sm">+ New broadcast</a>')}
+  <div class="tabs"><span class="t active">System</span><span class="t">Broadcasts</span><span class="t">Maintenance</span><span class="t">Scheduled</span></div>
+  <div class="split3">
+    <div class="card pad">
+      ${[['🔔','Storage at 61% capacity','Consider archiving old records','2 hr ago','amber'],['✓','Backup completed','Nightly backup successful','6 hr ago','green'],['⚠','Elevated email queue','12 messages pending delivery','Today','amber'],['✦','AI model updated','New matching model deployed','Yesterday','blue']].map(n=>`<div class="srow"><span style="font-size:18px">${n[0]}</span><div style="flex:1"><div class="small" style="font-weight:600">${n[1]}</div><div class="tiny muted">${n[2]}</div></div><span class="badge ${n[4]}">${n[3]}</span></div>`).join('')}
+    </div>
+    <div class="card pad">
+      <div class="section-t">Compose broadcast</div>
+      <div class="field"><label>Audience</label><select><option>All staff</option><option>Recruiters</option><option>Clients</option></select></div>
+      <div class="field"><label>Message</label><textarea rows="3" placeholder="Announcement…"></textarea></div>
+      <button class="btn primary sm" onclick="toast('Broadcast queued')">Send broadcast</button>
+    </div>
+  </div>
+</div>`)));
+route('/admin-monitoring',()=>portalShell('admin','/admin-monitoring',$(`<div>
+  ${pageHead('Super Admin / Monitoring','System Monitoring','<span class="badge green">All systems operational</span>')}
+  <div class="kpi-auto" style="margin-bottom:18px">${kpi('Uptime (30d)','99.98%','','◑')}${kpi('Avg. response','142ms','','⚡')}${kpi('API calls/day','48.2k','','⇄')}${kpi('Error rate','0.02%','','▼','down')}</div>
+  <div class="split">
+    <div class="card pad">
+      <div class="section-t">Services</div>
+      ${[['API Gateway',99.99,'green'],['Database',99.98,'green'],['Email queue',97.2,'amber'],['AI service',99.9,'green'],['Object storage',100,'green'],['Auth service',99.99,'green']].map(s=>`<div class="srow"><span class="dot" style="background:var(--${s[2]})"></span><div class="small" style="flex:1;font-weight:500">${s[0]}</div><span class="mono tiny muted">${s[1]}%</span></div>`).join('')}
+    </div>
+    <div class="card pad">
+      <div class="section-t">Server load</div>
+      ${meter(34,'CPU — web-01')}${meter(52,'CPU — web-02')}${meter(61,'Memory')}${meter(61,'Disk')}
+      <div class="section-t" style="margin-top:14px">Queues & jobs</div>
+      <div class="srow"><div class="small" style="flex:1">Email queue</div><span class="badge amber">12 pending</span></div>
+      <div class="srow"><div class="small" style="flex:1">AI processing</div><span class="badge gray">3 pending</span></div>
+      <div class="srow"><div class="small" style="flex:1">Nightly jobs</div><span class="badge green">On schedule</span></div>
+    </div>
+  </div>
+</div>`)));
+route('/admin-security',()=>portalShell('admin','/admin-security',$(`<div>
+  ${pageHead('Super Admin / Security','Security Center')}
+  <div class="kpi-auto" style="margin-bottom:18px">${kpi('Failed logins (24h)','7','','🛡')}${kpi('Locked accounts','1','','🔒')}${kpi('Active sessions','36','','◑')}${kpi('MFA adoption','78%','','✓')}</div>
+  <div class="split">
+    <div class="card pad">
+      <div class="section-t">Security alerts</div>
+      ${[['⚠','Multiple failed logins','m.salazar@pmbsi.com · 4 attempts','red'],['🔒','Account locked','m.salazar@pmbsi.com','amber'],['🌐','New device sign-in','Winston Cruz · Chrome/Mac','blue'],['✓','Password policy passed','All accounts compliant','green']].map(a=>`<div class="srow"><span style="font-size:16px">${a[0]}</span><div style="flex:1"><div class="small" style="font-weight:600">${a[1]}</div><div class="tiny muted">${a[2]}</div></div><span class="badge ${a[3]}">${a[3]==='red'?'High':a[3]==='amber'?'Medium':'Info'}</span></div>`).join('')}
+    </div>
+    <div class="card pad">
+      <div class="section-t">Policies</div>
+      <div class="srow"><div style="flex:1"><div class="small" style="font-weight:600">Enforce MFA</div></div><div class="switch on" onclick="this.classList.toggle('on')"></div></div>
+      <div class="srow"><div style="flex:1"><div class="small" style="font-weight:600">Password expiry (90d)</div></div><div class="switch on" onclick="this.classList.toggle('on')"></div></div>
+      <div class="srow"><div style="flex:1"><div class="small" style="font-weight:600">IP allowlist</div></div><div class="switch" onclick="this.classList.toggle('on')"></div></div>
+      <div class="srow"><div style="flex:1"><div class="small" style="font-weight:600">Auto-lock after 5 fails</div></div><div class="switch on" onclick="this.classList.toggle('on')"></div></div>
+    </div>
+  </div>
+</div>`)));
+
+/* ================= PREVIEW OVERVIEW + 404 ================= */
+route('/overview',()=>$(`<div class="wrap" style="padding:44px 24px;max-width:1000px">
+  <div class="brand" style="margin-bottom:8px"><span class="logo">P</span><span>PMBSI RWMS<span class="sub">Recruitment & Workforce Management System</span></span></div>
+  <h1 style="font-size:30px;margin:16px 0 8px">Interactive preview — current progress</h1>
+  <p class="muted" style="max-width:640px">Four role-isolated portals over one recruitment spine (Manpower Request → Screening → Endorsement → Client Approval → Deployment). Click any portal to explore its screens. This is a front-end preview reconstructed from the project specs; data is sample-only.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr));margin-top:26px">
+    ${[['Applicant / Careers site','Public job site — browse, apply, track','#/','P','7 pages'],
+       ['HR Portal','Recruitment team — pipeline & endorsements','#/hr-login','H','8 screens'],
+       ['Client Portal','Clients — review & approve candidates','#/client-login','C','6 screens'],
+       ['Super Admin Portal','System administration & configuration','#/admin-login','S','15 modules']].map(p=>`
+      <a href="${p[2]}" class="card pad" style="display:block;transition:.15s" onmouseover="this.style.borderColor='var(--amber)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div class="brand" style="margin-bottom:10px"><span class="logo ${p[3]==='H'||p[3]==='S'?'dark':''}">${p[3]}</span></div>
+        <h3 style="font-size:16px">${p[0]}</h3>
+        <p class="muted small" style="margin:6px 0 10px">${p[1]}</p>
+        <span class="badge amber">${p[4]}</span> <span class="small muted" style="float:right;margin-top:3px">Open →</span>
+      </a>`).join('')}
+  </div>
+  <div class="card pad" style="margin-top:24px">
+    <div class="section-t">Direct links (RBAC enforced in production)</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap" class="small">
+      ${['/','/careers','/apply','/status','/hr-dashboard','/hr-pipeline','/client-dashboard','/client-approval','/admin-dashboard','/admin-roles','/admin-security'].map(r=>`<a href="#${r}" class="chip">${r}</a>`).join('')}
+    </div>
+  </div>
+</div>`));
+route('/not-found',()=>$(`<div class="wrap" style="padding:80px 24px;text-align:center;max-width:520px">
+  <div style="font-size:56px;font-weight:700;color:var(--amber)">404</div>
+  <h1 style="font-size:22px;margin:8px 0">Page not found</h1>
+  <p class="muted">The page you’re looking for doesn’t exist in this preview.</p>
+  <div style="display:flex;gap:8px;justify-content:center;margin-top:16px"><a href="#/overview" class="btn primary">Portal overview</a><a href="#/" class="btn">Careers site</a></div>
+</div>`));
+route('/access-denied',()=>$(`<div class="wrap" style="padding:80px 24px;text-align:center;max-width:520px">
+  <div style="font-size:48px">🔒</div>
+  <h1 style="font-size:22px;margin:8px 0">Access denied</h1>
+  <p class="muted">Your role does not have permission to view this portal. RBAC blocks cross-portal access in every direction.</p>
+  <a href="#/overview" class="btn primary" style="margin-top:16px">Back to overview</a>
+</div>`));
+</script>
+</body>
+</html>
