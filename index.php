@@ -20,12 +20,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string)($_POST['action'] ?? '');
     try {
         if ($action === 'login') {
-            $portal=(string)($_POST['portal'] ?? 'hr');
-            if (Auth::login((string)($_POST['email']??''),(string)($_POST['password']??''),$portal)) {
+            $portal=trim((string)($_POST['portal'] ?? ''));
+            if (Auth::login((string)($_POST['email']??''),(string)($_POST['password']??''),$portal !== '' ? $portal : null)) {
                 flash('success','Signed in successfully.');
-                redirect($portal.'-dashboard');
+                redirect(Auth::landingPage());
             }
-            flash('error','Invalid credentials or portal access.'); redirect('login',['portal'=>$portal]);
+            flash('error','Invalid credentials or portal access.');
+            redirect('login',$portal !== '' ? ['portal'=>$portal] : []);
         }
         if ($action === 'apply') {
             $required=['first_name','last_name','email','mobile_no','job_opening_id'];
@@ -40,12 +41,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect('track',['ref'=>$ref,'email'=>trim((string)$_POST['email'])]);
         }
         if ($action === 'move_stage') {
-            Auth::requireRoles(['SUPER_ADMIN','RECRUITMENT_MANAGER','RECRUITER']);
+            Auth::requirePermission('recruitment.manage');
             RecruitmentRepository::moveStage((int)$_POST['application_id'],(string)$_POST['target_stage'],trim((string)($_POST['comment']??'')));
             flash('success','Application stage updated.'); redirect('hr-applicant',['id'=>(int)$_POST['application_id']]);
         }
         if ($action === 'schedule_interview') {
-            Auth::requireRoles(['SUPER_ADMIN','RECRUITMENT_MANAGER','RECRUITER']);
+            Auth::requirePermission('recruitment.manage');
             RecruitmentRepository::scheduleInterview((int)$_POST['application_id'],[
                 'interview_type'=>(string)$_POST['interview_type'], 'scheduled_at'=>(string)$_POST['scheduled_at'],
                 'location_or_link'=>trim((string)($_POST['location_or_link']??'')), 'notes'=>trim((string)($_POST['notes']??''))
@@ -53,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('success','Interview scheduled and candidate moved to Interview stage.'); redirect('hr-applicant',['id'=>(int)$_POST['application_id']]);
         }
         if ($action === 'create_manpower') {
-            Auth::requireRoles(['SUPER_ADMIN','RECRUITMENT_MANAGER']);
+            Auth::requirePermission('recruitment.manage');
             RecruitmentRepository::createManpowerRequest([
                 'client_id'=>(int)$_POST['client_id'],'branch_id'=>(int)($_POST['branch_id']??0),'department_id'=>(int)($_POST['department_id']??0),
                 'position_title'=>trim((string)$_POST['position_title']),'requested_headcount'=>(int)$_POST['requested_headcount'],
@@ -63,27 +64,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('success','Manpower request created.'); redirect('hr-manpower');
         }
         if ($action === 'endorse') {
-            Auth::requireRoles(['SUPER_ADMIN','RECRUITMENT_MANAGER','RECRUITER']);
+            Auth::requirePermission('recruitment.manage');
             RecruitmentRepository::endorse((int)$_POST['application_id'],trim((string)($_POST['note']??'')));
             flash('success','Candidate endorsed to the client and moved to Client Review.'); redirect('hr-applicant',['id'=>(int)$_POST['application_id']]);
         }
         if ($action === 'save_offer') {
-            Auth::requireRoles(['SUPER_ADMIN','RECRUITMENT_MANAGER','RECRUITER']);
+            Auth::requirePermission('recruitment.manage');
             RecruitmentRepository::saveOffer((int)$_POST['application_id'],['offered_salary'=>(float)($_POST['offered_salary']??0),'employment_type'=>(string)$_POST['employment_type'],'start_date'=>(string)($_POST['start_date']??'')]);
             flash('success','Offer saved and marked as sent.'); redirect('hr-applicant',['id'=>(int)$_POST['application_id']]);
         }
         if ($action === 'accept_offer') {
-            Auth::requireRoles(['SUPER_ADMIN','RECRUITMENT_MANAGER','RECRUITER']);
+            Auth::requirePermission('recruitment.manage');
             RecruitmentRepository::acceptOffer((int)$_POST['application_id']);
             flash('success','Offer marked accepted; candidate moved to Deployment.'); redirect('hr-applicant',['id'=>(int)$_POST['application_id']]);
         }
         if ($action === 'save_deployment') {
-            Auth::requireRoles(['SUPER_ADMIN','RECRUITMENT_MANAGER','RECRUITER','COORDINATOR']);
+            Auth::requirePermission('recruitment.manage');
             RecruitmentRepository::saveDeployment((int)$_POST['application_id'],['branch_id'=>(int)($_POST['branch_id']??0),'scheduled_date'=>(string)($_POST['scheduled_date']??''),'notes'=>trim((string)($_POST['notes']??''))]);
             flash('success','Deployment schedule saved.'); redirect('hr-applicant',['id'=>(int)$_POST['application_id']]);
         }
         if ($action === 'complete_deployment') {
-            Auth::requireRoles(['SUPER_ADMIN','RECRUITMENT_MANAGER','RECRUITER','COORDINATOR']);
+            Auth::requirePermission('recruitment.manage');
             RecruitmentRepository::completeDeployment((int)$_POST['application_id']);
             flash('success','Candidate marked Deployed and manpower fill count updated.'); redirect('hr-applicant',['id'=>(int)$_POST['application_id']]);
         }
@@ -92,19 +93,165 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             RecruitmentRepository::clientDecision((int)$_POST['application_id'],(string)$_POST['decision'],trim((string)($_POST['remarks']??'')));
             flash('success','Candidate decision saved.'); redirect('client-approvals');
         }
+        if ($action === 'create_department') {
+            Auth::requirePermission('organization.manage');
+            FoundationRepository::createDepartment((string)($_POST['code']??''),(string)($_POST['name']??''));
+            flash('success','Department created.'); redirect('admin-organization');
+        }
+        if ($action === 'create_position') {
+            Auth::requirePermission('organization.manage');
+            FoundationRepository::createPosition((string)($_POST['code']??''),(string)($_POST['name']??''),(int)($_POST['department_id']??0));
+            flash('success','Position created.'); redirect('admin-organization');
+        }
+        if ($action === 'create_branch') {
+            Auth::requirePermission('organization.manage');
+            FoundationRepository::createBranch((string)($_POST['code']??''),(string)($_POST['name']??''),(string)($_POST['address_text']??''));
+            flash('success','Branch created.'); redirect('admin-organization');
+        }
+        if ($action === 'create_employment_type') {
+            Auth::requirePermission('organization.manage');
+            FoundationRepository::createEmploymentType((string)($_POST['code']??''),(string)($_POST['name']??''));
+            flash('success','Employment type created.'); redirect('admin-organization');
+        }
+        if ($action === 'toggle_master') {
+            Auth::requirePermission('organization.manage');
+            FoundationRepository::toggleMaster((string)($_POST['entity']??''),(int)($_POST['id']??0));
+            flash('success','Organization record status updated.'); redirect('admin-organization');
+        }
+        if ($action === 'create_role') {
+            Auth::requirePermission('roles.manage');
+            FoundationRepository::createRole((string)($_POST['code']??''),(string)($_POST['name']??''),(string)($_POST['portal']??''));
+            flash('success','Role created. Assign permissions below.'); redirect('admin-roles');
+        }
+        if ($action === 'save_role_permissions') {
+            Auth::requirePermission('roles.manage');
+            FoundationRepository::saveRolePermissions((int)($_POST['role_id']??0),(array)($_POST['permission_ids']??[]));
+            flash('success','Role permissions updated.'); redirect('admin-roles',['role'=>(int)($_POST['role_id']??0)]);
+        }
+        if ($action === 'create_user') {
+            Auth::requirePermission('users.manage');
+            FoundationRepository::createUser((string)($_POST['full_name']??''),(string)($_POST['email']??''),(string)($_POST['password']??''),(int)($_POST['role_id']??0));
+            flash('success','User account created.'); redirect('admin-users');
+        }
+        if ($action === 'toggle_user_status') {
+            Auth::requirePermission('users.manage');
+            FoundationRepository::toggleUserStatus((int)($_POST['user_id']??0));
+            flash('success','User account status updated.'); redirect('admin-users');
+        }
     } catch(Throwable $e) {
         flash('error',$e->getMessage());
-        $back=(string)($_POST['return_page']??'home'); $params=[]; if(!empty($_POST['return_id']))$params['id']=(int)$_POST['return_id'];
+        $defaultBack = match($action) {
+            'create_department','create_position','create_branch','create_employment_type','toggle_master' => 'admin-organization',
+            'create_role','save_role_permissions' => 'admin-roles',
+            'create_user','toggle_user_status' => 'admin-users',
+            default => 'home',
+        };
+        $back=(string)($_POST['return_page']??$defaultBack); $params=[]; if(!empty($_POST['return_id']))$params['id']=(int)$_POST['return_id'];
         redirect($back,$params);
     }
 }
 
 // -------- public pages --------
 if ($page === 'home') {
-    need_db(); $jobs=RecruitmentRepository::publishedJobs(); $clients=RecruitmentRepository::clients(); $open=array_sum(array_map(fn($j)=>(int)$j['openings'],$jobs));
-    render_head('Careers'); render_public_header('home'); ?>
-    <div class="hero"><div class="in"><span class="eyebrow">Now hiring across Luzon, Visayas & Mindanao</span><h1>Find your next role with PMBSI</h1><p>We match skilled Filipino workers with trusted employers in retail, logistics, manufacturing, food service and finance.</p><form class="searchbar" method="get"><input type="hidden" name="page" value="careers"><input name="q" placeholder="Search job title, e.g. Warehouse Supervisor"><button class="btn primary">Search jobs</button></form><div style="display:flex;gap:26px;margin-top:26px"><div><div style="font-size:24px;font-weight:700;color:#fff"><?=$open?>+</div><div class="tiny" style="color:#C7C8C9">Open positions</div></div><div><div style="font-size:24px;font-weight:700;color:#fff"><?=count($clients)?></div><div class="tiny" style="color:#C7C8C9">Partner companies</div></div><div><div style="font-size:24px;font-weight:700;color:#fff">2,400+</div><div class="tiny" style="color:#C7C8C9">Careers launched</div></div></div></div></div>
-    <div class="wrap" style="margin-top:40px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px"><h2 style="font-size:22px">Featured openings</h2><a href="<?=url('careers')?>" class="btn sm">View all jobs →</a></div><div class="jobgrid"><?php foreach(array_slice($jobs,0,6) as $j) job_card($j); ?></div></div>
+    need_db();
+    $jobs=RecruitmentRepository::publishedJobs();
+    $clients=RecruitmentRepository::clients();
+    $open=array_sum(array_map(fn($j)=>(int)$j['openings'],$jobs));
+    render_head('Home'); render_public_header('home'); ?>
+
+    <section class="home-hero">
+      <div class="home-hero-grid">
+        <div class="home-hero-copy">
+          <span class="home-kicker">Prime Mover Business Solutions, Inc.</span>
+          <h1>People operations,<br><span>built for today.</span></h1>
+          <p>Modern workforce solutions for hiring, deployment, employee services and HR operations — connected through one secure HRIS experience.</p>
+          <div class="home-hero-actions">
+            <a class="btn primary home-btn" href="<?=url('careers')?>">Explore opportunities <?=icon_svg('arrow')?></a>
+            <a class="btn home-btn home-btn-light" href="<?=url('login')?>">Employee Login</a>
+          </div>
+          <div class="home-trust-row">
+            <span>Recruitment</span><i></i><span>Staffing</span><i></i><span>Outsourcing</span><i></i><span>HR Services</span>
+          </div>
+        </div>
+        <div class="home-hero-visual" aria-label="PMBSI workforce platform preview">
+          <div class="home-float-card home-float-card--main">
+            <div class="home-card-head"><div><span class="home-card-eyebrow">WORKFORCE OVERVIEW</span><strong>Today at PMBSI</strong></div><span class="home-live"><i></i> Live</span></div>
+            <div class="home-metric-row">
+              <div><span>Employees</span><strong>428</strong><small>+12 this month</small></div>
+              <div><span>Present</span><strong>376</strong><small>87.9% today</small></div>
+              <div><span>Open Roles</span><strong><?=$open?></strong><small>Across partner sites</small></div>
+            </div>
+            <div class="home-chart-wrap">
+              <div class="home-chart-title"><span>Attendance pulse</span><small>Last 8 workdays</small></div>
+              <div class="home-mini-bars"><i style="height:48%"></i><i style="height:66%"></i><i style="height:82%"></i><i style="height:61%"></i><i style="height:91%"></i><i style="height:73%"></i><i style="height:86%"></i><i style="height:94%"></i></div>
+            </div>
+          </div>
+          <div class="home-float-card home-float-card--access">
+            <span class="home-access-icon"><?=icon_svg('shield')?></span>
+            <div><strong>Secure HRIS Access</strong><small>Employee · HR · HR Admin</small></div>
+          </div>
+          <div class="home-float-card home-float-card--candidate">
+            <span class="home-candidate-icon"><?=icon_svg('user-plus')?></span>
+            <div><strong>46 Active Applicants</strong><small>Recruitment pipeline</small></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="home-section" id="services">
+      <div class="home-section-head">
+        <div><span class="home-overline">WHAT WE DO</span><h2>Workforce solutions that move with your business.</h2></div>
+        <p>From flexible staffing to direct placement and outsourced operations, PMBSI supports organizations across the employee lifecycle.</p>
+      </div>
+      <div class="home-service-grid">
+        <?php foreach([
+          ['Contractual Staffing','Flexible manpower support for operational and clerical requirements.','users'],
+          ['Project-Based Staffing','Deploy skilled resources for fixed-term projects and time-boxed requirements.','calendar'],
+          ['One-Time Placement','Direct placement support from rank-and-file to specialized and leadership roles.','briefcase'],
+          ['Outsourcing Services','Managed back-office and workforce functions built around your operational needs.','settings']
+        ] as [$title,$desc,$ico]): ?>
+        <article class="home-service-card"><span class="home-service-icon"><?=icon_svg($ico)?></span><h3><?=e($title)?></h3><p><?=e($desc)?></p><span class="home-card-link">Learn more <?=icon_svg('arrow')?></span></article>
+        <?php endforeach; ?>
+      </div>
+    </section>
+
+    <section class="home-platform-section">
+      <div class="home-platform-copy">
+        <span class="home-overline">CONNECTED HR EXPERIENCE</span>
+        <h2>One platform. Different experiences for every role.</h2>
+        <p>Employees get a simple self-service portal. HR gets the operational workspace they need. HR Admin gets organization, security and access control — all inside the same system.</p>
+        <div class="home-feature-list">
+          <div><span><?=icon_svg('user')?></span><div><strong>Employee Self-Service</strong><small>Profile, attendance, leave, requests and personal HR records.</small></div></div>
+          <div><span><?=icon_svg('users')?></span><div><strong>HR Operations</strong><small>Recruitment, workforce monitoring, employee records and HR workflows.</small></div></div>
+          <div><span><?=icon_svg('shield')?></span><div><strong>HR Administration</strong><small>Roles, permissions, organization setup, security and audit logs.</small></div></div>
+        </div>
+        <a class="home-text-link" href="<?=url('login')?>">Open the HRIS portal <?=icon_svg('arrow')?></a>
+      </div>
+      <div class="home-platform-panel">
+        <div class="home-platform-window">
+          <div class="home-window-top"><span class="home-dots"><i></i><i></i><i></i></span><small>PMBSI HRIS</small><span></span></div>
+          <div class="home-window-body">
+            <aside><div class="home-window-brand"><img src="public/assets/branding/pmbsi-mark.png" alt=""><b>PMBSI HRIS</b></div><i class="active"></i><i></i><i></i><i></i><i></i><i></i></aside>
+            <main><div class="home-window-bar"><i></i><i></i><i></i></div><div class="home-window-title"></div><div class="home-window-kpis"><i></i><i></i><i></i><i></i></div><div class="home-window-panels"><i></i><i></i></div></main>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="home-section home-jobs-section">
+      <div class="home-section-head compact">
+        <div><span class="home-overline">CAREERS</span><h2>Build your next chapter with PMBSI.</h2></div>
+        <a href="<?=url('careers')?>" class="btn">View all openings <?=icon_svg('arrow')?></a>
+      </div>
+      <div class="jobgrid home-jobgrid"><?php foreach(array_slice($jobs,0,3) as $j) job_card($j); ?></div>
+      <?php if(!$jobs): ?><div class="home-empty-jobs">New opportunities will appear here as soon as positions are published.</div><?php endif; ?>
+    </section>
+
+    <section class="home-portal-cta">
+      <div><span class="home-overline">PMBSI EMPLOYEE PORTAL</span><h2>Already part of the team?</h2><p>Access your personal HR workspace, attendance, leave, requests and company updates through one secure login.</p></div>
+      <a href="<?=url('login')?>" class="btn primary home-btn">Open Employee Login <?=icon_svg('arrow')?></a>
+    </section>
+
     <?php render_public_footer(); exit;
 }
 
@@ -146,24 +293,80 @@ if ($page === 'about' || $page === 'contact') {
 
 // -------- login --------
 if ($page === 'login') {
-    need_db(); $portal=(string)($_GET['portal']??'hr'); if(!in_array($portal,['hr','client','admin'],true))$portal='hr';
-    $meta=['hr'=>['HR Portal','Recruitment workspace','a.domingo@pmbsi.com'], 'client'=>['Client Portal','Your candidates, your decisions','ops@primelogistics.com'], 'admin'=>['Super Admin','System administration console','winston.cruz@pmbsi.com']][$portal];
+    need_db();
+    $portal=trim((string)($_GET['portal']??''));
+    if(!in_array($portal,['employee','hr','client','admin'],true)) $portal='';
+    $meta = match($portal) {
+        'client' => ['Client Portal','Review endorsed candidates and recruitment decisions in one secure workspace.','ops@primelogistics.com'],
+        'admin' => ['HRIS Administration','Manage access, organization settings, security and audit visibility.','winston.cruz@pmbsi.com'],
+        'hr' => ['Human Resources','Recruitment, people operations and HR services in one secure workspace.','hr.demo@pmbsi.com'],
+        'employee' => ['Employee Self-Service','Your workday, requests and HR services in one modern workspace.','employee.demo@pmbsi.com'],
+        default => ['PMBSI HRIS','Your workday, HR services and workforce tools in one modern workspace.','employee.demo@pmbsi.com'],
+    };
     render_head($meta[0]); render_flashes(); ?>
-    <div class="loginwrap"><div class="login-hero"><a href="<?=url('home')?>" class="brand" style="color:#fff"><span class="logo">P</span><span style="color:#fff">PMBSI<span class="sub" style="color:#9A9DA0">HRIS</span></span></a><div style="position:relative;z-index:2"><span class="eyebrow" style="background:var(--amber);color:var(--ink);display:inline-block;padding:5px 12px;border-radius:999px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em"><?=e($meta[0])?></span><h1 style="font-size:34px;margin:16px 0 10px;max-width:340px"><?=e($meta[1])?></h1><p style="color:#C7C8C9;max-width:340px">Role-isolated access with server-side authorization and MySQL-backed accounts.</p></div><div class="tiny" style="color:#9A9DA0">Recruitment Module · PHP + MySQL</div></div><div class="login-form"><form class="login-card" method="post"><?=csrf_field()?><input type="hidden" name="action" value="login"><input type="hidden" name="portal" value="<?=e($portal)?>"><h2 style="font-size:22px">Sign in</h2><p class="muted small" style="margin:6px 0 22px">Demo seed credentials use password <code>demo1234</code>.</p><div class="field"><label>Email</label><input type="email" name="email" required value="<?=e($meta[2])?>"></div><div class="field"><label>Password</label><input type="password" name="password" required value="demo1234"></div><button class="btn primary block">Sign in →</button><div style="text-align:center;margin-top:12px"><a href="<?=url('home')?>" class="small muted">← Back to careers site</a></div></form></div></div></body></html>
+    <div class="loginwrap">
+      <div class="login-hero">
+        <a href="<?=url('home')?>" class="brand brand-official brand-official-login" style="position:relative;z-index:2" aria-label="Prime Mover Business Solutions, Inc."><img src="public/assets/branding/pmbsi-logo.png" alt="Prime Mover Business Solutions, Inc." class="brand-full-logo"></a>
+        <div class="login-copy"><span class="login-kicker">Secure HR workspace</span><h1>People operations,<br>designed for how teams work now.</h1><p>One HRIS experience for employees, HR teams and administrators — with role-based access, clear workflows and a modern responsive interface.</p><div class="login-benefits"><div class="login-benefit"><strong>Employee self-service</strong><span>Attendance, leave, requests and profile access.</span></div><div class="login-benefit"><strong>HR operations</strong><span>Recruitment, workforce actions and reporting.</span></div><div class="login-benefit"><strong>Role-based access</strong><span>Each user only sees tools relevant to their role.</span></div><div class="login-benefit"><strong>Audit-ready</strong><span>Security controls and traceable system activity.</span></div></div></div>
+        <div class="tiny" style="position:relative;z-index:2;color:#777f8b">Prime Mover Business Solutions, Inc. · Local development: localhost:3000</div>
+      </div>
+      <div class="login-form"><form class="login-card" method="post"><?=csrf_field()?><input type="hidden" name="action" value="login"><?php if($portal!==''):?><input type="hidden" name="portal" value="<?=e($portal)?>"><?php endif;?>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px"><div><h2>Welcome back</h2><div class="login-sub"><?=e($meta[1])?></div></div><span class="badge amber"><?=e($portal===''?'Unified Login':ucfirst($portal).' Portal')?></span></div>
+        <?php if(($GLOBALS['config']['app']['debug'] ?? false)===true):?><div class="portal-hint">Demo environment · password <code>demo1234</code></div><?php endif;?>
+        <div class="field"><label>Email address</label><input type="email" name="email" required value="<?=e($meta[2])?>" autocomplete="username"></div>
+        <div class="field"><label>Password</label><input type="password" name="password" required value="<?=($GLOBALS['config']['app']['debug'] ?? false)?'demo1234':''?>" autocomplete="current-password"></div>
+        <button class="btn primary block" style="height:44px;justify-content:center">Sign in <?=icon_svg('arrow')?></button>
+        <div class="login-footnote">Your dashboard is selected automatically based on your account role.</div>
+        <div style="text-align:center;margin-top:14px"><a href="<?=url('home')?>" class="small muted">← Back to PMBSI Careers</a></div>
+      </form></div>
+    </div></body></html>
     <?php exit;
+}
+
+// -------- Employee portal --------
+if (str_starts_with($page,'employee-')) {
+    need_db(); if (!Auth::check()) redirect('login'); Auth::requireRoles(['EMPLOYEE','SUPER_ADMIN','HRIS_ADMIN']);
+}
+
+if ($page === 'employee-dashboard') {
+    $u=Auth::user();
+    render_portal_header('employee',$page,'Employee Home');
+    dashboard_hero('Employee self-service','Good morning, '.explode(' ',trim((string)$u['name']))[0].'.','Here is your personal HR workspace for today.','<span class="badge amber">UI preview · employee modules next</span>'); ?>
+    <div class="employee-focus">
+      <section class="panel today-card"><div class="panel-head"><div><h2>Today</h2><p>Thursday · September 24, 2026</p></div><span class="status-pill">On time</span></div><div class="today-time"><div><div class="big">08:47 AM</div><div class="smallline">Time in · Schedule 9:00 AM — 6:00 PM</div></div><div style="text-align:right"><div class="smallline">Work location</div><strong style="font-size:13px">PMBSI Head Office</strong></div></div></section>
+      <section class="panel"><div class="panel-head"><div><h2>Leave balance</h2><p>Available credits</p></div></div><div class="panel-body"><div class="balance-grid"><div class="balance-card"><strong>5.0</strong><span>Vacation leave</span></div><div class="balance-card"><strong>4.0</strong><span>Sick leave</span></div></div></div></section>
+    </div>
+    <div class="dashboard-grid equal">
+      <section class="panel"><div class="panel-head"><div><h2>Quick actions</h2><p>Common employee requests</p></div></div><div class="panel-body"><div class="quick-actions"><a class="quick-action" href="#"><span class="qa-icon"><?=icon_svg('calendar')?></span><span><strong>Apply for leave</strong><span>Submit and track requests</span></span></a><a class="quick-action" href="#"><span class="qa-icon"><?=icon_svg('clock')?></span><span><strong>Attendance correction</strong><span>Request time record adjustment</span></span></a><a class="quick-action" href="#"><span class="qa-icon"><?=icon_svg('file')?></span><span><strong>Request COE</strong><span>Employment document request</span></span></a><a class="quick-action" href="#"><span class="qa-icon"><?=icon_svg('clipboard')?></span><span><strong>HR request</strong><span>Send a concern to HR</span></span></a></div></div></section>
+      <section class="panel"><div class="panel-head"><div><h2>Upcoming</h2><p>Your next HR activities</p></div></div><div class="panel-body"><div class="timeline-list"><div class="timeline-row"><div class="time">Sep 27</div><span class="timeline-dot"></span><div class="detail"><strong>Workplace Safety Training</strong><span>10:00 AM · Training Room</span></div></div><div class="timeline-row"><div class="time">Oct 02</div><span class="timeline-dot"></span><div class="detail"><strong>Performance Check-in</strong><span>With immediate supervisor</span></div></div><div class="timeline-row"><div class="time">Oct 15</div><span class="timeline-dot"></span><div class="detail"><strong>Document renewal</strong><span>Government ID record</span></div></div></div></div></section>
+    </div>
+    <?php render_portal_footer(); exit;
 }
 
 // -------- HR portal --------
 if (str_starts_with($page,'hr-')) {
-    need_db(); if (!Auth::check()) redirect('login',['portal'=>'hr']); Auth::requireRoles(['SUPER_ADMIN','RECRUITMENT_MANAGER','RECRUITER','COORDINATOR']);
+    need_db();
+    if (!Auth::check()) redirect('login',['portal'=>'hr']);
+    Auth::requirePortal('hr');
+    Auth::requirePermission('dashboard.hr.view');
 }
 
 if ($page === 'hr-dashboard') {
     $d=RecruitmentRepository::dashboard(); $counts=RecruitmentRepository::stageCounts();
     $today=db()->query('SELECT i.*, CONCAT(ap.first_name," ",ap.last_name) applicant_name,j.title job_title FROM interviews i JOIN applications a ON a.id=i.application_id JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id WHERE DATE(i.scheduled_at)=CURDATE() ORDER BY i.scheduled_at LIMIT 6')->fetchAll();
-    render_portal_header('hr',$page,'Recruitment Dashboard'); page_head('HR Portal / Dashboard','Recruitment Dashboard','<a href="'.url('hr-pipeline').'" class="btn primary sm">Open pipeline</a>'); ?>
-    <div class="kpi-auto" style="margin-bottom:20px"><?php kpi_card('Active applicants',$d['active'],'','👤');kpi_card('In interview',$d['interviews'],'','◔');kpi_card('Endorsed / client review',$d['endorsed'],'','✓');kpi_card('Deployed',$d['deployed'],'','▲');kpi_card('Open requested headcount',$d['openReq'],'','▣');?></div>
-    <div class="split3"><div class="card pad"><div class="section-t">Pipeline distribution</div><?php foreach($counts as $c):$pct=$d['active']?round(((int)$c['total']/$d['active'])*100):0;?><div class="srow" style="border:none;padding:6px 0"><div style="flex:1"><div class="small" style="display:flex;justify-content:space-between;margin-bottom:5px"><span><?=e($c['name'])?></span><span class="muted"><?=$c['total']?> (<?=$pct?>%)</span></div><div class="meter"><span style="width:<?=$pct?>%"></span></div></div></div><?php endforeach;?></div><div class="card pad"><div class="section-t">Today’s interviews</div><?php if(!$today):?><div class="empty">No interviews scheduled today.</div><?php endif;foreach($today as $i):?><div class="srow"><span class="avatar"><?=e(initials($i['applicant_name']))?></span><div style="flex:1"><div class="small" style="font-weight:600"><?=e($i['applicant_name'])?></div><div class="tiny muted"><?=e($i['job_title'])?></div></div><span class="badge amber"><?=e(date('g:i A',strtotime($i['scheduled_at'])))?></span></div><?php endforeach;?></div></div>
+    $first=explode(' ',trim((string)(Auth::user()['name']??'HR Team')))[0];
+    $maxStage=max(1,...array_map(fn($x)=>(int)$x['total'],$counts));
+    render_portal_header('hr',$page,'HR Dashboard');
+    dashboard_hero('Human Resources','Good morning, '.$first.'.','Here is the recruitment activity that needs your attention today.','<a href="'.url('hr-manpower').'" class="btn">'.icon_svg('plus').' New request</a><a href="'.url('hr-pipeline').'" class="btn primary">Open recruitment pipeline '.icon_svg('arrow').'</a>'); ?>
+    <div class="metric-grid"><?php metric_card('Active applicants',$d['active'],'Live recruitment pool','users','up'); metric_card('Interviews',$d['interviews'],count($today).' scheduled today','calendar'); metric_card('Client review',$d['endorsed'],'Candidates awaiting decision','check-square'); metric_card('Open headcount',$d['openReq'],'Across active manpower requests','briefcase','warn'); ?></div>
+    <div class="dashboard-grid">
+      <section class="panel"><div class="panel-head"><div><h2>Recruitment pulse</h2><p>Applicant distribution across your current pipeline</p></div><a class="panel-link" href="<?=url('hr-pipeline')?>">View pipeline</a></div><div class="panel-body"><div class="pulse-bars"><?php foreach($counts as $c): $h=max(8,round(((int)$c['total']/$maxStage)*145)); ?><div class="col" title="<?=e($c['name'].' · '.$c['total'])?>"><div class="bar" style="height:<?=$h?>px"></div><div class="label"><?=e(mb_substr($c['name'],0,8))?></div></div><?php endforeach;?></div><div class="legend-row"><span><i class="legend-dot" style="background:var(--hris-brand)"></i>Applicant volume by stage</span><span>Updated from live recruitment records</span></div></div></section>
+      <section class="panel"><div class="panel-head"><div><h2>Requires attention</h2><p>Priority recruitment work</p></div></div><div class="panel-body"><div class="attention-list"><?php attention_item('Open manpower requirements','Unfilled approved headcount',$d['openReq'],'warn','briefcase'); attention_item('Client review','Candidates waiting for a decision',$d['endorsed'],'info','check-square'); attention_item('Interviews today','Scheduled candidate interviews',count($today),'success','calendar'); attention_item('Active applicants','Profiles currently moving through recruitment',$d['active'],'info','users'); ?></div></div></section>
+    </div>
+    <div class="dashboard-grid equal">
+      <section class="panel"><div class="panel-head"><div><h2>Today’s interviews</h2><p>Scheduled candidate conversations</p></div><a class="panel-link" href="<?=url('hr-applicants')?>">All applicants</a></div><div class="panel-body"><?php if(!$today):?><div class="empty">No interviews are scheduled today.</div><?php else:?><div class="timeline-list"><?php foreach($today as $i):?><div class="timeline-row"><div class="time"><?=e(date('g:i A',strtotime($i['scheduled_at'])))?></div><span class="timeline-dot"></span><div class="detail"><strong><?=e($i['applicant_name'])?></strong><span><?=e($i['job_title'])?> · <?=e(stage_label($i['interview_type']))?></span></div><span class="badge amber"><?=e(stage_label($i['interview_type']))?></span></div><?php endforeach;?></div><?php endif;?></div></section>
+      <section class="panel"><div class="panel-head"><div><h2>Quick actions</h2><p>Start common HR workflows</p></div></div><div class="panel-body"><div class="quick-actions"><a class="quick-action" href="<?=url('hr-manpower')?>"><span class="qa-icon"><?=icon_svg('briefcase')?></span><span><strong>Manpower request</strong><span>Create or review hiring demand</span></span></a><a class="quick-action" href="<?=url('hr-applicants')?>"><span class="qa-icon"><?=icon_svg('users')?></span><span><strong>Applicant database</strong><span>Search candidate profiles</span></span></a><a class="quick-action" href="<?=url('hr-pipeline')?>"><span class="qa-icon"><?=icon_svg('pipeline')?></span><span><strong>Recruitment pipeline</strong><span>Move candidates through stages</span></span></a><a class="quick-action" href="<?=url('hr-reports')?>"><span class="qa-icon"><?=icon_svg('chart')?></span><span><strong>Reports</strong><span>Review recruitment performance</span></span></a></div></div></section>
+    </div>
     <?php render_portal_footer(); exit;
 }
 
@@ -262,49 +465,98 @@ if ($page === 'client-reports') {
 }
 
 // -------- Admin portal --------
-if (str_starts_with($page,'admin-')) { need_db(); if (!Auth::check()) redirect('login',['portal'=>'admin']); Auth::requireRoles(['SUPER_ADMIN','HRIS_ADMIN']); }
+if (str_starts_with($page,'admin-')) {
+    need_db();
+    if (!Auth::check()) redirect('login',['portal'=>'admin']);
+    Auth::requirePortal('admin');
+}
 
 if ($page === 'admin-dashboard') {
-    $d=RecruitmentRepository::dashboard(); $users=RecruitmentRepository::users(); $clients=RecruitmentRepository::clients(); $logs=RecruitmentRepository::auditLogs();
-    render_portal_header('admin',$page,'System Administration'); page_head('Super Admin / Dashboard','System Administration'); ?>
-    <div class="kpi-auto" style="margin-bottom:20px"><?php kpi_card('User accounts',count($users),'','👤');kpi_card('Clients',count($clients),'','▣');kpi_card('Applications',$d['active'],'','◆');kpi_card('Open headcount',$d['openReq'],'','▲');?></div><div class="card pad"><div class="section-t">Recent audit activity</div><?php foreach(array_slice($logs,0,8) as $l):?><div class="srow"><div style="flex:1"><div class="small" style="font-weight:600"><?=e($l['action'])?> · <?=e($l['module'])?></div><div class="tiny muted"><?=e($l['full_name']??'System')?> · <?=e(date('M j, Y g:i A',strtotime($l['created_at'])))?></div></div><span class="mono tiny muted"><?=e(($l['record_type']??'').($l['record_id']?' #'.$l['record_id']:''))?></span></div><?php endforeach;?></div>
+    Auth::requirePermission('dashboard.admin.view');
+    $d=RecruitmentRepository::dashboard();
+    $org=FoundationRepository::organizationSummary();
+    $logs=FoundationRepository::auditLogs(8);
+    $first=explode(' ',trim((string)(Auth::user()['name']??'Admin')))[0];
+    $foundationReady=FoundationRepository::tableExists('permissions') && FoundationRepository::tableExists('positions');
+    render_portal_header('admin',$page,'HRIS Administration');
+    dashboard_hero('HR Administration','Welcome back, '.$first.'.','Manage access, organization master data, security and system activity from one workspace.','<a href="'.url('admin-users').'" class="btn">'.icon_svg('users').' Manage users</a><a href="'.url('admin-organization').'" class="btn primary">Organization setup '.icon_svg('arrow').'</a>'); ?>
+    <?php if(!$foundationReady):?><div class="alert error"><strong>Phase 1 migration required.</strong> Import <code>database/migrations/20260924_phase1_foundation.sql</code> in phpMyAdmin to enable permissions, positions, employment types and tracked sessions.</div><?php endif;?>
+    <div class="metric-grid"><?php metric_card('Active users',$org['users'],'Role-based system access','users'); metric_card('Departments',$org['departments'],$org['positions'].' active positions','building'); metric_card('Branches & sites',$org['branches'],$org['employment_types'].' employment types','building'); metric_card('Open headcount',$d['openReq'],'Recruitment demand','briefcase','warn'); ?></div>
+    <div class="dashboard-grid">
+      <section class="panel"><div class="panel-head"><div><h2>System activity</h2><p>Latest auditable actions across the HRIS</p></div><a class="panel-link" href="<?=url('admin-audit')?>">Open audit logs</a></div><div class="panel-body"><div class="timeline-list"><?php foreach($logs as $l):?><div class="timeline-row"><div class="time"><?=e(date('g:i A',strtotime($l['created_at'])))?></div><span class="timeline-dot"></span><div class="detail"><strong><?=e($l['action'])?> · <?=e($l['module'])?></strong><span><?=e($l['user_name']??'System')?> · <?=e(date('M j, Y',strtotime($l['created_at'])))?></span></div><span class="mono tiny muted"><?=e(($l['record_type']??'').($l['record_id']?' #'.$l['record_id']:''))?></span></div><?php endforeach;?></div></div></section>
+      <section class="panel"><div class="panel-head"><div><h2>Foundation controls</h2><p>Core HRIS administration</p></div></div><div class="panel-body"><div class="quick-actions"><a class="quick-action" href="<?=url('admin-users')?>"><span class="qa-icon"><?=icon_svg('users')?></span><span><strong>Users</strong><span>Create and control HRIS accounts</span></span></a><a class="quick-action" href="<?=url('admin-roles')?>"><span class="qa-icon"><?=icon_svg('shield')?></span><span><strong>Roles & permissions</strong><span>Control access at function level</span></span></a><a class="quick-action" href="<?=url('admin-organization')?>"><span class="qa-icon"><?=icon_svg('building')?></span><span><strong>Organization</strong><span>Departments, positions and branches</span></span></a><a class="quick-action" href="<?=url('admin-security')?>"><span class="qa-icon"><?=icon_svg('audit')?></span><span><strong>Security & sessions</strong><span>Tracked sign-ins and safeguards</span></span></a></div></div></section>
+    </div>
     <?php render_portal_footer(); exit;
 }
 
 if ($page === 'admin-users') {
-    $users=RecruitmentRepository::users(); render_portal_header('admin',$page,'Users'); page_head('Super Admin / Users','Users & Access'); ?>
-    <div class="card" style="overflow-x:auto"><table class="tbl"><thead><tr><th>User</th><th>Email</th><th>Role</th><th>Client scope</th><th>Status</th><th>Last login</th></tr></thead><tbody><?php foreach($users as $u):?><tr><td><strong><?=e($u['full_name'])?></strong></td><td><?=e($u['email'])?></td><td><span class="badge gray"><?=e($u['role_name'])?></span></td><td><?=e($u['client_name']??'PMBSI / Global')?></td><td><span class="badge green"><?=e($u['status'])?></span></td><td class="tiny muted"><?=e($u['last_login_at']?:'Never')?></td></tr><?php endforeach;?></tbody></table></div>
+    Auth::requirePermission('users.view');
+    $users=FoundationRepository::users(); $roles=FoundationRepository::roles();
+    render_portal_header('admin',$page,'Users'); page_head('HR Admin / Access Control','Users & Access',Auth::can('users.manage')?'<span class="badge amber">Account provisioning enabled</span>':''); ?>
+    <div class="foundation-layout">
+      <?php if(Auth::can('users.manage')):?><form method="post" class="panel foundation-form"><?=csrf_field()?><input type="hidden" name="action" value="create_user"><div class="panel-head"><div><h2>Create user</h2><p>Provision a new HRIS account.</p></div></div><div class="panel-body"><div class="field"><label>Full name</label><input name="full_name" required placeholder="Employee or HR user name"></div><div class="field"><label>Email</label><input name="email" type="email" required placeholder="name@pmbsi.com"></div><div class="field"><label>Role</label><select name="role_id" required><option value="">Select role</option><?php foreach($roles as $r):?><option value="<?=$r['id']?>"><?=e($r['name'])?> · <?=e(strtoupper($r['portal']))?></option><?php endforeach;?></select></div><div class="field"><label>Temporary password</label><input name="password" type="password" minlength="10" required placeholder="Minimum 10 characters"></div><button class="btn primary block" style="justify-content:center">Create account</button></div></form><?php endif;?>
+      <section class="panel foundation-main"><div class="panel-head"><div><h2>User accounts</h2><p><?=count($users)?> configured accounts</p></div></div><div style="overflow-x:auto"><table class="tbl"><thead><tr><th>User</th><th>Role</th><th>Portal</th><th>Status</th><th>Last login</th><?php if(Auth::can('users.manage')):?><th></th><?php endif;?></tr></thead><tbody><?php foreach($users as $u):?><tr><td><strong><?=e($u['full_name'])?></strong><div class="tiny muted"><?=e($u['email'])?></div></td><td><span class="badge gray"><?=e($u['role_name'])?></span></td><td class="tiny mono"><?=e(strtoupper($u['portal']))?></td><td><span class="badge <?=$u['status']==='ACTIVE'?'green':'gray'?>"><?=e($u['status'])?></span></td><td class="tiny muted"><?=e($u['last_login_at']?date('M j, Y g:i A',strtotime($u['last_login_at'])):'Never')?></td><?php if(Auth::can('users.manage')):?><td class="nowrap"><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_user_status"><input type="hidden" name="user_id" value="<?=$u['id']?>"><button class="btn sm" <?=$u['id']===(Auth::user()['id']??0)?'disabled':''?>><?=$u['status']==='ACTIVE'?'Deactivate':'Activate'?></button></form></td><?php endif;?></tr><?php endforeach;?></tbody></table></div></section>
+    </div>
     <?php render_portal_footer(); exit;
 }
 
-if ($page === 'admin-clients') {
-    $clients=RecruitmentRepository::clients(); render_portal_header('admin',$page,'Clients'); page_head('Super Admin / Organization','Clients'); ?>
-    <div class="card" style="overflow-x:auto"><table class="tbl"><thead><tr><th>Code</th><th>Client</th><th>Contact</th><th>Status</th></tr></thead><tbody><?php foreach($clients as $c):?><tr><td class="mono tiny"><?=e($c['code'])?></td><td><strong><?=e($c['name'])?></strong></td><td><?=e($c['contact_email']??'—')?></td><td><span class="badge green"><?=e($c['status'])?></span></td></tr><?php endforeach;?></tbody></table></div>
+if ($page === 'admin-roles') {
+    Auth::requirePermission('roles.view');
+    $roles=FoundationRepository::roles(); $groups=FoundationRepository::permissionsGrouped();
+    $selectedId=(int)($_GET['role']??($roles[0]['id']??0));
+    $selected=null; foreach($roles as $r) if((int)$r['id']===$selectedId){$selected=$r;break;}
+    if(!$selected && $roles){$selected=$roles[0];$selectedId=(int)$selected['id'];}
+    $selectedCodes=$selectedId?FoundationRepository::permissionsForRole($selectedId):[];
+    render_portal_header('admin',$page,'Roles & Permissions'); page_head('HR Admin / Access Control','Roles & Permissions'); ?>
+    <?php if(!FoundationRepository::tableExists('permissions')):?><div class="alert error">Run <code>database/migrations/20260924_phase1_foundation.sql</code> first to enable permission management.</div><?php endif;?>
+    <div class="foundation-layout">
+      <div><section class="panel"><div class="panel-head"><div><h2>Roles</h2><p>Choose a role to review access.</p></div></div><div class="role-list"><?php foreach($roles as $r):?><a class="role-row <?=$selectedId===(int)$r['id']?'active':''?>" href="<?=url('admin-roles',['role'=>$r['id']])?>"><div><strong><?=e($r['name'])?></strong><span><?=e($r['code'])?> · <?=e(strtoupper($r['portal']))?></span></div><span class="badge gray"><?=e((string)$r['permission_count'])?></span></a><?php endforeach;?></div></section>
+      <?php if(Auth::can('roles.manage')):?><form method="post" class="panel foundation-form compact"><?=csrf_field()?><input type="hidden" name="action" value="create_role"><div class="panel-head"><div><h2>New role</h2><p>Create a custom access role.</p></div></div><div class="panel-body"><div class="field"><label>Role code</label><input name="code" required placeholder="HR_COORDINATOR"></div><div class="field"><label>Role name</label><input name="name" required placeholder="HR Coordinator"></div><div class="field"><label>Portal</label><select name="portal"><option value="employee">Employee</option><option value="hr">HR</option><option value="admin">HR Admin</option><option value="client">Client</option></select></div><button class="btn primary block" style="justify-content:center">Create role</button></div></form><?php endif;?></div>
+      <section class="panel foundation-main"><?php if($selected):?><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="save_role_permissions"><input type="hidden" name="role_id" value="<?=$selectedId?>"><div class="panel-head"><div><h2><?=e($selected['name'])?></h2><p><?=e($selected['code'])?> · <?=e(strtoupper($selected['portal']))?> portal · <?=$selected['user_count']?> user(s)</p></div><?php if(Auth::can('roles.manage')):?><button class="btn primary">Save permissions</button><?php endif;?></div><div class="permission-groups"><?php foreach($groups as $module=>$perms):?><div class="permission-group"><div class="permission-module"><?=e($module)?></div><?php foreach($perms as $perm): $checked=in_array($perm['code'],$selectedCodes,true); ?><label class="permission-row"><input type="checkbox" name="permission_ids[]" value="<?=$perm['id']?>" <?=$checked?'checked':''?> <?=Auth::can('roles.manage')?'':'disabled'?>><span><strong><?=e($perm['name'])?></strong><small><?=e($perm['description']??$perm['code'])?></small><code><?=e($perm['code'])?></code></span></label><?php endforeach;?></div><?php endforeach;?></div></form><?php else:?><div class="empty">No roles configured.</div><?php endif;?></section>
+    </div>
     <?php render_portal_footer(); exit;
 }
 
-if ($page === 'admin-branches') {
-    $branches=RecruitmentRepository::branches(); render_portal_header('admin',$page,'Branches'); page_head('Super Admin / Organization','Branches & Sites'); ?>
-    <div class="card" style="overflow-x:auto"><table class="tbl"><thead><tr><th>Code</th><th>Name</th><th>Client</th><th>Address</th></tr></thead><tbody><?php foreach($branches as $b):?><tr><td class="mono tiny"><?=e($b['code'])?></td><td><strong><?=e($b['name'])?></strong></td><td><?=e($b['client_name']??'PMBSI')?></td><td><?=e($b['address_text']??'—')?></td></tr><?php endforeach;?></tbody></table></div>
-    <?php render_portal_footer(); exit;
-}
-
-if ($page === 'admin-recruitment-config') {
-    $stages=RecruitmentRepository::stages(); $counts=RecruitmentRepository::stageCounts(); $map=[];foreach($counts as $c)$map[$c['code']]=$c['total'];
-    render_portal_header('admin',$page,'Recruitment Configuration'); page_head('Super Admin / Recruitment Config','Recruitment Configuration'); ?>
-    <div class="card pad"><div class="section-t">Pipeline stages</div><p class="muted small">Stage codes are stable business identifiers. Display order and visibility are stored in MySQL.</p><?php foreach($stages as $s):?><div class="srow"><span class="mono tiny muted"><?=e((string)$s['sequence_no'])?></span><div style="flex:1"><div class="small" style="font-weight:600"><?=e($s['name'])?></div><div class="tiny mono muted"><?=e($s['code'])?></div></div><span class="badge gray"><?=e((string)($map[$s['code']]??0))?> active</span><span class="badge <?=$s['client_visible']?'blue':'gray'?>">Client <?=$s['client_visible']?'visible':'hidden'?></span></div><?php endforeach;?></div>
+if ($page === 'admin-organization') {
+    Auth::requirePermission('organization.view');
+    $departments=FoundationRepository::departments(); $positions=FoundationRepository::positions(); $branches=FoundationRepository::branches(); $types=FoundationRepository::employmentTypes();
+    $canManage=Auth::can('organization.manage');
+    render_portal_header('admin',$page,'Organization Setup'); page_head('HR Admin / Organization','Organization Setup','<span class="badge amber">Core master data</span>'); ?>
+    <?php if(!FoundationRepository::tableExists('positions')):?><div class="alert error">Phase 1 foundation migration has not been applied. Import <code>database/migrations/20260924_phase1_foundation.sql</code>.</div><?php endif;?>
+    <div class="org-grid">
+      <section class="panel org-card"><div class="panel-head"><div><h2>Departments</h2><p><?=count($departments)?> records</p></div></div><?php if($canManage):?><form method="post" class="master-add"><?=csrf_field()?><input type="hidden" name="action" value="create_department"><input name="code" placeholder="Code" required><input name="name" placeholder="Department name" required><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?><div class="master-list"><?php foreach($departments as $x):?><div class="master-row"><div><strong><?=e($x['name'])?></strong><span><?=e($x['code'])?> · <?=$x['position_count']?> positions</span></div><div><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Inactive'?></span><?php if($canManage):?><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="department"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action" title="Toggle status">•••</button></form><?php endif;?></div></div><?php endforeach;?></div></section>
+      <section class="panel org-card"><div class="panel-head"><div><h2>Positions</h2><p><?=count($positions)?> records</p></div></div><?php if($canManage):?><form method="post" class="master-add master-add-4"><?=csrf_field()?><input type="hidden" name="action" value="create_position"><input name="code" placeholder="Code" required><input name="name" placeholder="Position name" required><select name="department_id"><option value="">No department</option><?php foreach($departments as $d):?><option value="<?=$d['id']?>"><?=e($d['name'])?></option><?php endforeach;?></select><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?><div class="master-list"><?php foreach($positions as $x):?><div class="master-row"><div><strong><?=e($x['name'])?></strong><span><?=e($x['code'])?> · <?=e($x['department_name']??'Unassigned')?></span></div><div><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Inactive'?></span><?php if($canManage):?><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="position"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action">•••</button></form><?php endif;?></div></div><?php endforeach;?></div></section>
+      <section class="panel org-card"><div class="panel-head"><div><h2>Branches & Sites</h2><p><?=count($branches)?> records</p></div></div><?php if($canManage):?><form method="post" class="master-add master-add-4"><?=csrf_field()?><input type="hidden" name="action" value="create_branch"><input name="code" placeholder="Code" required><input name="name" placeholder="Branch name" required><input name="address_text" placeholder="City / address"><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?><div class="master-list"><?php foreach($branches as $x):?><div class="master-row"><div><strong><?=e($x['name'])?></strong><span><?=e($x['code'])?> · <?=e($x['address_text']??'No address')?></span></div><div><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Inactive'?></span><?php if($canManage):?><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="branch"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action">•••</button></form><?php endif;?></div></div><?php endforeach;?></div></section>
+      <section class="panel org-card"><div class="panel-head"><div><h2>Employment Types</h2><p><?=count($types)?> records</p></div></div><?php if($canManage):?><form method="post" class="master-add"><?=csrf_field()?><input type="hidden" name="action" value="create_employment_type"><input name="code" placeholder="Code" required><input name="name" placeholder="Employment type" required><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?><div class="master-list"><?php foreach($types as $x):?><div class="master-row"><div><strong><?=e($x['name'])?></strong><span><?=e($x['code'])?></span></div><div><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Inactive'?></span><?php if($canManage):?><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="employment_type"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action">•••</button></form><?php endif;?></div></div><?php endforeach;?></div></section>
+    </div>
     <?php render_portal_footer(); exit;
 }
 
 if ($page === 'admin-audit') {
-    $logs=RecruitmentRepository::auditLogs(); render_portal_header('admin',$page,'Audit Logs'); page_head('Super Admin / Audit','Audit Logs'); ?>
-    <div class="card" style="overflow-x:auto"><table class="tbl"><thead><tr><th>Timestamp</th><th>User</th><th>Module</th><th>Action</th><th>Record</th><th>IP</th></tr></thead><tbody><?php foreach($logs as $l):?><tr><td class="mono tiny"><?=e(date('M j H:i:s',strtotime($l['created_at'])))?></td><td><?=e($l['full_name']??'Public / System')?></td><td><?=e($l['module'])?></td><td><span class="badge gray"><?=e($l['action'])?></span></td><td class="mono tiny"><?=e(($l['record_type']??'').($l['record_id']?' #'.$l['record_id']:''))?></td><td class="mono tiny muted"><?=e($l['ip_address']??'—')?></td></tr><?php endforeach;?></tbody></table></div>
+    Auth::requirePermission('audit.view');
+    $logs=FoundationRepository::auditLogs(200); render_portal_header('admin',$page,'Audit Logs'); page_head('HR Admin / Security','Audit Logs'); ?>
+    <div class="card" style="overflow-x:auto"><table class="tbl"><thead><tr><th>Timestamp</th><th>User</th><th>Module</th><th>Action</th><th>Record</th><th>IP</th></tr></thead><tbody><?php foreach($logs as $l):?><tr><td class="mono tiny"><?=e(date('M j H:i:s',strtotime($l['created_at'])))?></td><td><?=e($l['user_name']??'Public / System')?><div class="tiny muted"><?=e($l['user_email']??'')?></div></td><td><?=e($l['module'])?></td><td><span class="badge gray"><?=e($l['action'])?></span></td><td class="mono tiny"><?=e(($l['record_type']??'').($l['record_id']?' #'.$l['record_id']:''))?></td><td class="mono tiny muted"><?=e($l['ip_address']??'—')?></td></tr><?php endforeach;?></tbody></table></div>
     <?php render_portal_footer(); exit;
 }
 
 if ($page === 'admin-security') {
-    render_portal_header('admin',$page,'Security Center'); page_head('Super Admin / Security','Security Center'); ?>
-    <div class="kpi-auto" style="margin-bottom:18px"><?php kpi_card('Authentication','Session-based','','🛡');kpi_card('Passwords','password_hash()','','🔒');kpi_card('Database','PDO prepared statements','','✓');kpi_card('Forms','CSRF protected','','◆');?></div><div class="split"><div class="card pad"><div class="section-t">Enforced baseline</div><?php foreach(['Server-side role checks','Client record scope enforcement','CSRF token verification','Prepared SQL statements','Randomized resume filenames','MIME + size validation','Append-only audit records'] as $x):?><div class="srow"><span>✓</span><div class="small"><?=e($x)?></div></div><?php endforeach;?></div><div class="card pad"><div class="section-t">Production checklist</div><p class="muted small">Set <code>debug=false</code>, use a dedicated MySQL user, enable HTTPS, configure secure session cookies, move uploads outside the public web root, remove demo seed users, and schedule database backups before live deployment.</p></div></div>
+    Auth::requirePermission('audit.view');
+    $sessions=FoundationRepository::sessions(100); $activeSessions=array_values(array_filter($sessions,fn($s)=>empty($s['revoked_at'])));
+    render_portal_header('admin',$page,'Security & Sessions'); page_head('HR Admin / Security','Security & Sessions'); ?>
+    <div class="metric-grid"><?php metric_card('Active sessions',count($activeSessions),'Tracked server-side sessions','shield'); metric_card('CSRF','Enabled','POST actions protected','check'); metric_card('Passwords','Hashed','PHP password_hash()','shield'); metric_card('Audit trail','Enabled','Security-sensitive actions logged','audit'); ?></div>
+    <div class="dashboard-grid equal"><section class="panel"><div class="panel-head"><div><h2>Security baseline</h2><p>Controls already enforced in Phase 1</p></div></div><div class="panel-body"><?php foreach(['Server-side role and permission checks','CSRF verification for all write actions','PDO prepared statements','Password hashing and session ID regeneration','Tracked login sessions with revocation support','Audit logging for access-control changes'] as $x):?><div class="srow"><span class="badge green">On</span><div class="small" style="flex:1"><?=e($x)?></div></div><?php endforeach;?></div></section><section class="panel"><div class="panel-head"><div><h2>Production checklist</h2><p>Before public deployment</p></div></div><div class="panel-body"><p class="muted small">Disable debug mode, remove demo users, enforce HTTPS, use a dedicated MySQL account, enable backups, configure secure upload storage and review least-privilege role assignments.</p></div></section></div>
+    <section class="panel"><div class="panel-head"><div><h2>Tracked sessions</h2><p>Latest authenticated sessions</p></div></div><?php if(!FoundationRepository::tableExists('user_sessions')):?><div class="empty">Import the Phase 1 migration to enable session tracking.</div><?php else:?><div style="overflow-x:auto"><table class="tbl"><thead><tr><th>User</th><th>Role</th><th>IP</th><th>Created</th><th>Last activity</th><th>Status</th></tr></thead><tbody><?php foreach($sessions as $x):?><tr><td><strong><?=e($x['full_name'])?></strong><div class="tiny muted"><?=e($x['email'])?></div></td><td><span class="badge gray"><?=e($x['role_name'])?></span></td><td class="mono tiny"><?=e($x['ip_address']??'—')?></td><td class="tiny muted"><?=e(date('M j g:i A',strtotime($x['created_at'])))?></td><td class="tiny muted"><?=e(date('M j g:i A',strtotime($x['last_activity_at'])))?></td><td><span class="badge <?=empty($x['revoked_at'])?'green':'gray'?>"><?=empty($x['revoked_at'])?'Active':'Revoked'?></span></td></tr><?php endforeach;?></tbody></table></div><?php endif;?></section>
+    <?php render_portal_footer(); exit;
+}
+
+// Backward-compatible admin links from the earlier recruitment build.
+if ($page === 'admin-clients' || $page === 'admin-branches') redirect('admin-organization');
+
+if ($page === 'admin-recruitment-config') {
+    Auth::requirePermission('recruitment.view');
+    $stages=RecruitmentRepository::stages(); $counts=RecruitmentRepository::stageCounts(); $map=[]; foreach($counts as $c)$map[$c['code']]=$c['total'];
+    render_portal_header('admin',$page,'Recruitment Configuration'); page_head('HR Admin / Recruitment','Recruitment Configuration'); ?>
+    <div class="card pad"><div class="section-t">Pipeline stages</div><p class="muted small">Stage codes are stable business identifiers. Display order and visibility are stored in MySQL.</p><?php foreach($stages as $s):?><div class="srow"><span class="mono tiny muted"><?=e((string)$s['sequence_no'])?></span><div style="flex:1"><div class="small" style="font-weight:600"><?=e($s['name'])?></div><div class="tiny mono muted"><?=e($s['code'])?></div></div><span class="badge gray"><?=e((string)($map[$s['code']]??0))?> active</span><span class="badge <?=$s['client_visible']?'blue':'gray'?>">Client <?=$s['client_visible']?'visible':'hidden'?></span></div><?php endforeach;?></div>
     <?php render_portal_footer(); exit;
 }
 

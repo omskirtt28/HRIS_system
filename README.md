@@ -1,108 +1,154 @@
-# PMBSI HRIS — Recruitment Module
+# PMBSI HRIS
 
-Converted from the supplied Recruitment HTML/JavaScript prototype into a working **PHP + MySQL** module.
+PMBSI Human Resources Information System built with **PHP + MySQL**, using a modern role-based UI for Employee, HR and HR Admin users. Recruitment is the first live business module; the HRIS Core Foundation is now implemented as the shared base for future Employee Management, Attendance, Leave, Requests, Employee Relations, Performance, Training and Offboarding.
 
 ## Stack
 
-- PHP 8.2+ (tested for syntax with PHP 8.4)
-- MySQL 8.0+
+- PHP 8.2+
+- MySQL 8 / MariaDB-compatible SQL for local XAMPP use
 - PDO prepared statements
-- HTML/CSS/vanilla JavaScript
-- PHP sessions + CSRF protection
-- XAMPP/Apache compatible
+- HTML5 / modern CSS / vanilla JavaScript
+- Secure PHP sessions
+- Role-Based Access Control (RBAC)
+- CSRF protection
+- Audit logging
 
-## Current Working Scope
+## Preferred Local URL
 
-The module now stores real records for:
+The project is designed to run locally at:
 
-- Clients, branches, departments, roles and users
-- Manpower Requests
-- Job Openings / Careers Site
-- Applicant Master
-- Applications
-- Recruitment stages and immutable stage history
-- Screening score / applicant answer
-- Interviews
-- Endorsements
-- Client Reviews / Decisions
-- Offers and Deployments database structure
-- Resume metadata/uploads
-- Audit Logs
+`http://localhost:3000`
 
-Recruitment flow:
+From the HRIS project root in PowerShell:
 
-`Manpower Request → Job Opening → Applied → Screening → Interview → Endorsed → Client Review → Offer → Deployment → Deployed`
+```powershell
+C:\xampp\php\php.exe -S localhost:3000
+```
 
-## XAMPP Installation
+Keep MySQL running in XAMPP. Application links are relative, so localhost is not hardcoded into production navigation.
 
-1. Copy the folder into your XAMPP web root, for example:
-   `C:\xampp\htdocs\PMBSI_HRIS_Recruitment`
-2. Start **Apache** and **MySQL** in XAMPP.
-3. Open **phpMyAdmin**.
-4. Import `database/schema.sql`.
-   - The script creates the database `pmbsi_hris` automatically.
-5. Copy:
-   `config/config.local.example.php`
-   to:
-   `config/config.local.php`
-6. Edit the MySQL connection if your local credentials are different.
-7. Open:
-   `http://localhost/PMBSI_HRIS_Recruitment/`
+## Installation — New Database
 
-If the folder name is different, use that folder name in the URL.
+1. Place the project in your HRIS folder, for example `C:\xampp\htdocs\HRIS_system`.
+2. Start MySQL in XAMPP.
+3. Import `database/schema.sql` in phpMyAdmin.
+4. Copy `config/config.local.example.php` to `config/config.local.php` if local DB credentials differ.
+5. Run the PHP local server on port 3000.
+6. Open `http://localhost:3000`.
 
-## Seeded Demo Accounts
+`database/schema.sql` already includes the Phase 1 Foundation tables and demo records.
 
-All seeded accounts use password: **demo1234**
+## Upgrade — Existing Database
 
-| Portal | Email |
+If you already imported the earlier HRIS Recruitment database, **do not re-import the full schema**. Run these migrations in order as needed:
+
+1. `database/migrations/20260924_role_based_ui.sql`
+2. `database/migrations/20260924_phase1_foundation.sql`
+
+The Phase 1 migration adds:
+
+- permissions and role-permission mapping;
+- positions;
+- employment types;
+- HR operational role;
+- server-side tracked sessions;
+- demo HR account;
+- initial permission grants for existing roles.
+
+## Demo Accounts
+
+Local/demo password: **demo1234**
+
+| Experience | Email |
 |---|---|
-| Super Admin | `winston.cruz@pmbsi.com` |
+| Employee | `employee.demo@pmbsi.com` |
+| HR | `hr.demo@pmbsi.com` |
 | HR / Recruitment Manager | `a.domingo@pmbsi.com` |
-| HR / Recruiter | `r.villamor@pmbsi.com` |
-| Client — Prime Logistics | `ops@primelogistics.com` |
-| Client — ABC Retail | `hr@abcretail.com` |
+| HR Admin / Super Admin | `winston.cruz@pmbsi.com` |
+| Client Portal | `ops@primelogistics.com` |
 
-Remove demo accounts/passwords before production use.
+Remove all demo accounts before production deployment.
+
+## Phase 1 Foundation — Implemented
+
+### Authentication and access
+- Unified login.
+- Automatic dashboard routing by portal/role.
+- Server-side portal protection.
+- Permission-code authorization through `Auth::can()` and `Auth::requirePermission()`.
+- Session ID regeneration on login.
+- Tracked authenticated sessions with revocation support.
+- CSRF protection on write actions.
+
+### HR Admin foundation
+- User account list and account creation.
+- Activate/deactivate user accounts.
+- Roles and permission matrix.
+- Custom role creation.
+- Department master.
+- Position master.
+- Branch/site master.
+- Employment type master.
+- Security/session center.
+- Audit logs.
+
+### Recruitment
+- Manpower Requests.
+- Careers Site / Job Openings.
+- Applicants and Applications.
+- Pipeline stages and stage history.
+- Interviews.
+- Endorsements and Client Review.
+- Offers / Deployments data model.
+- Resume upload metadata.
+- Recruitment reporting.
+
+## Role Experiences
+
+`Employee Login → Employee Dashboard`
+
+`HR Login → HR Dashboard / Recruitment Workspace`
+
+`HR Admin Login → HR Admin Dashboard / Access Control / Organization / Security`
+
+The UI is role-specific, but the project uses one shared authentication system, design system and database.
 
 ## Important Files
 
-- `index.php` — front controller and module routes
-- `app/Database.php` — PDO connection
-- `app/Auth.php` — authentication / RBAC
-- `app/RecruitmentRepository.php` — Recruitment domain/data operations
-- `app/View.php` — shared UI layout/components
-- `database/schema.sql` — MySQL schema + demo seed
-- `public/assets/app.css` — design converted from supplied prototype
-- `storage/resumes/` — private resume storage
-- `ARCHITECTURE.md`
-- `DESIGN.md`
-- `RULES.md`
-- `SCHEMA.md`
+- `index.php` — front controller and routes
+- `app/Auth.php` — authentication, portal checks, RBAC and tracked session handling
+- `app/FoundationRepository.php` — users, roles, permissions and organization master operations
+- `app/RecruitmentRepository.php` — recruitment domain operations
+- `app/View.php` — shared role-based shell and reusable UI components
+- `database/schema.sql` — clean-install database
+- `database/migrations/20260924_phase1_foundation.sql` — existing-database Phase 1 upgrade
+- `public/assets/hris-modern.css` — current HRIS design system
+- `public/assets/hris-app.js` — shell interactions
+- `public/home-preview.html` — meeting preview for the public home page
+- `public/meeting-preview.html` — meeting preview for role dashboards
+- `ARCHITECTURE.md`, `DESIGN.md`, `RULES.md`, `SCHEMA.md` — project source-of-truth documentation
 
-## Security Already Included
+## Security Baseline
 
-- PDO prepared statements
-- `password_hash()` / `password_verify()`
-- Session regeneration on login
-- CSRF protection on write forms
-- Server-side role checks
-- Client-level application scope
-- Resume MIME/size validation and randomized filenames
-- Audit logging for sensitive actions
-- Storage `.htaccess` blocking direct Apache access
+- Passwords use PHP password hashing APIs.
+- SQL writes use PDO prepared statements.
+- Authorization is enforced server-side; hiding a menu item is never treated as security.
+- Permission changes and organization changes are audited.
+- Client records remain client-scoped.
+- Upload handling validates size and MIME type.
+- Direct Apache access to private storage is blocked.
 
 ## Before Production
 
-- Create a dedicated MySQL user instead of `root`.
-- Set `debug` to `false` in `config/config.local.php`.
-- Enable HTTPS and secure session cookie settings.
-- Remove demo users and seed applicant data.
-- Put uploads outside the public document root if hosting configuration permits.
-- Add scheduled MySQL backups.
-- Configure official company contact information.
-- Add SMTP/SMS integrations only through centralized services, not directly inside Recruitment pages.
+- Set `debug=false`.
+- Remove demo users and sample recruitment records.
+- Enforce HTTPS.
+- Use a dedicated least-privilege MySQL user instead of `root`.
+- Configure backups.
+- Review role permissions using least privilege.
+- Move private uploads outside the public document root where hosting permits.
+- Add rate limiting / account lockout policy for authentication before public internet deployment.
 
-## Architecture Decision
 
-This Recruitment module is the first business module of the larger HRIS. Shared future functionality such as Employee Master, Time & Attendance, Leave, Payroll integration and Employee Relations should reuse the HRIS Core rather than duplicating authentication, clients, branches, users or audit tables.
+### PMBSI Branding
+The approved PMBSI corporate logo and favicon set are bundled with the system under `public/assets/branding/`. The public site, login screen, HRIS sidebar, meeting previews, and browser tab branding use these assets.

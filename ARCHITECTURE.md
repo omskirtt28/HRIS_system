@@ -364,3 +364,76 @@ Every new HRIS module must define before coding:
 - links to other modules.
 
 No new module may bypass this baseline.
+
+---
+
+## 2026-09-24 - Role-Based HRIS Shell
+
+The application now uses a shared HRIS shell with role-specific navigation and landing dashboards:
+
+- `EMPLOYEE` -> `employee-dashboard`
+- `RECRUITMENT_MANAGER`, `RECRUITER`, `COORDINATOR` -> `hr-dashboard`
+- `HRIS_ADMIN`, `SUPER_ADMIN` -> `admin-dashboard`
+- `CLIENT_USER` -> `client-dashboard`
+
+Authentication remains server-side and role checks remain mandatory. Hiding navigation is not considered authorization.
+
+### Local development standard
+The preferred local development address is `http://localhost:3000`. Do not hard-code this value into feature links; use the existing URL helper/configuration so production deployment can change the host without source edits.
+
+## 15. Phase 1 Foundation Implementation — September 24, 2026
+
+The HRIS Core Foundation is now implemented in the PHP/MySQL application.
+
+### Implemented identity/access flow
+
+```text
+Public Home
+   |
+   v
+Unified Login
+   |
+   +--> Employee portal --> Employee Dashboard
+   +--> HR portal -------> HR Dashboard / Recruitment
+   +--> Admin portal ----> HR Admin / Access / Organization / Security
+   +--> Client portal ---> Client Recruitment Workspace
+```
+
+Authentication is centralized in `app/Auth.php`. Authorization is enforced with stable permission codes. UI visibility is only a convenience layer; server-side permission checks remain mandatory.
+
+### RBAC model
+
+Current account model uses one primary role per user:
+
+```text
+users.role_id -> roles.id
+roles.id <-> permissions.id through role_permissions
+```
+
+This is intentionally simpler than a multi-role user model for the current modular monolith. If multi-role users become a confirmed business requirement, migrate deliberately rather than adding ad hoc secondary role columns.
+
+### Core Foundation ownership
+
+`app/FoundationRepository.php` owns the current operational access/master-data functions for:
+
+- users;
+- roles;
+- permissions;
+- departments;
+- positions;
+- branches/sites;
+- employment types;
+- tracked sessions;
+- administration audit views.
+
+Recruitment must reference these masters and must not create separate role, position, department, branch, or authentication systems.
+
+### Session model
+
+Successful login regenerates the PHP session ID. When `user_sessions` exists, a random authentication token is stored only in the server session while a SHA-256 hash is stored in MySQL. Session records support server-side revocation and activity tracking. Account deactivation revokes tracked sessions for that user.
+
+Single-active-session enforcement may be added later by revoking prior active session rows during login; the data model is already prepared for this policy.
+
+### Next architectural milestone
+
+Phase 2 is **Employee Master / 201 File**. It must reuse this foundation and introduce an employee identity separate from the login account. A user account may link to an employee record, but `users` must not become the 201-file table.

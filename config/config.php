@@ -1,7 +1,7 @@
 <?php
 return [
     'app' => [
-        'name' => 'PMBSI HRIS - Recruitment',
+        'name' => 'PMBSI HRIS',
         'base_url' => '',
         'timezone' => 'Asia/Manila',
         'debug' => true,

@@ -19,3 +19,21 @@
 ## Deliberately not merged
 
 The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, not a Recruitment backend. It is treated as a reference for future shared HRIS concepts only. Ticket tables were not reused as applicant/application records.
+
+## 2026-09-24 — Phase 1 Foundation
+
+- Added permission-code RBAC and role-permission management.
+- Added HR operational role and HR demo account.
+- Added positions and employment types master data.
+- Added tracked authenticated sessions.
+- Added HR Admin Users, Roles & Permissions, Organization Setup, Security & Sessions and enhanced Audit pages.
+- Updated sidebar visibility to honor permissions.
+- Changed recruitment write authorization from hardcoded role lists to the `recruitment.manage` permission.
+- Updated project documentation and database schema for the HRIS Core Foundation.
+
+## 2026-09-24 — Official PMBSI Branding
+- Integrated approved PMBSI logo across public, login and authenticated HRIS surfaces.
+- Added browser favicon and app icon asset set.
+- Removed active text-only placeholder branding.
+
+- Enlarged and standardized the complete PMBSI wordmark in the public navigation header; compact PMBSI mark remains the favicon/app icon for small-format readability.

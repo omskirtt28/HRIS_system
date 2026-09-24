@@ -23,6 +23,7 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/Database.php';
+require_once __DIR__ . '/FoundationRepository.php';
 require_once __DIR__ . '/Auth.php';
 require_once __DIR__ . '/RecruitmentRepository.php';
 

@@ -307,14 +307,14 @@ function pubShell(active,body){
   const links=[['Home','/'],['Careers','/careers'],['Browse Jobs','/careers'],['Track Application','/status'],['About Us','/about'],['Contact','/contact']];
   const el=$(`<div>
     <nav class="pubnav"><div class="in">
-      <a href="#/" class="brand"><span class="logo">P</span><span>PMBSI<span class="sub">Careers</span></span></a>
+      <a href="#/" class="brand"><img src="../public/assets/branding/pmbsi-mark.png" alt="" class="brand-mark"><span>PMBSI<span class="sub">Careers</span></span></a>
       <div class="links">${links.map(l=>`<a href="#${l[1]}" class="${active===l[0]?'active':''}">${l[0]}</a>`).join('')}</div>
       <a href="#/apply" class="btn primary sm" style="margin-left:8px">Apply Now</a>
     </div></nav>
     <div class="pub-body"></div>
     <footer class="foot"><div class="in">
       <div>
-        <div class="brand" style="color:#fff"><span class="logo">P</span><span style="color:#fff">PMBSI<span class="sub" style="color:#9A9DA0">Prime Mover Business Solutions</span></span></div>
+        <div class="brand" style="color:#fff"><img src="../public/assets/branding/pmbsi-mark.png" alt="" class="brand-mark"><span style="color:#fff">PMBSI<span class="sub" style="color:#9A9DA0">Prime Mover Business Solutions</span></span></div>
         <p style="max-width:280px;margin-top:12px">Connecting Filipino talent with meaningful careers through trusted workforce management.</p>
       </div>
       <div><div style="color:#fff;font-weight:600;margin-bottom:8px">Careers</div><a href="#/careers">Browse jobs</a><a href="#/apply">Apply now</a><a href="#/status">Track application</a></div>
@@ -549,7 +549,7 @@ function loginPage(kind){
   const roleOpts=kind==='admin'?['Super Administrator','PMBSI Administrator']:kind==='hr'?['Recruitment Manager','Recruiter','Coordinator']:['Client User'];
   return $(`<div class="loginwrap">
     <div class="login-hero">
-      <a href="#/" class="brand" style="color:#fff"><span class="logo">P</span><span style="color:#fff">PMBSI<span class="sub" style="color:#9A9DA0">RWMS</span></span></a>
+      <a href="#/" class="brand" style="color:#fff"><img src="../public/assets/branding/pmbsi-mark.png" alt="" class="brand-mark"><span style="color:#fff">PMBSI<span class="sub" style="color:#9A9DA0">RWMS</span></span></a>
       <div style="position:relative;z-index:2">
         <span class="eyebrow" style="background:var(--amber);color:var(--ink);display:inline-block;padding:5px 12px;border-radius:999px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em">${c.title}</span>
         <h1 style="font-size:34px;margin:16px 0 10px;max-width:340px">${kind==='admin'?'System administration console':kind==='hr'?'Recruitment workspace':'Your candidates, your decisions'}</h1>
@@ -1031,7 +1031,7 @@ route('/admin-security',()=>portalShell('admin','/admin-security',$(`<div>
 
 /* ================= PREVIEW OVERVIEW + 404 ================= */
 route('/overview',()=>$(`<div class="wrap" style="padding:44px 24px;max-width:1000px">
-  <div class="brand" style="margin-bottom:8px"><span class="logo">P</span><span>PMBSI RWMS<span class="sub">Recruitment & Workforce Management System</span></span></div>
+  <div class="brand" style="margin-bottom:8px"><img src="../public/assets/branding/pmbsi-mark.png" alt="" class="brand-mark"><span>PMBSI RWMS<span class="sub">Recruitment & Workforce Management System</span></span></div>
   <h1 style="font-size:30px;margin:16px 0 8px">Interactive preview — current progress</h1>
   <p class="muted" style="max-width:640px">Four role-isolated portals over one recruitment spine (Manpower Request → Screening → Endorsement → Client Approval → Deployment). Click any portal to explore its screens. This is a front-end preview reconstructed from the project specs; data is sample-only.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr));margin-top:26px">

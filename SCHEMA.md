@@ -495,3 +495,83 @@ Do **not** repurpose these HR Service Desk concepts as Recruitment entities:
 - `ticket_assignments`
 
 Their generic workflow capabilities may inspire reusable services, but Recruitment requires its own domain schema above.
+
+---
+
+## 2026-09-24 - Employee Portal Role
+
+The `roles` reference data includes `EMPLOYEE` with portal value `employee`.
+
+Existing local databases should run:
+
+`database/migrations/20260924_role_based_ui.sql`
+
+This migration safely inserts the Employee role and the local demo account used for UI review if they do not already exist. Future Employee Management tables will be added separately so the recruitment schema remains backward-compatible during phased HRIS development.
+
+## 14. Phase 1 Foundation — Implemented Tables
+
+The executable schema currently uses **one primary role per user** through `users.role_id`. Earlier planning references to `user_roles` are future options, not current executable tables.
+
+### `permissions`
+
+- `id`
+- `code` unique stable permission identifier
+- `name`
+- `module`
+- `description`
+- `sort_order`
+- `created_at`
+
+Examples: `dashboard.hr.view`, `recruitment.manage`, `organization.manage`, `users.manage`, `audit.view`.
+
+### `role_permissions`
+
+Composite primary key: `(role_id, permission_id)`.
+
+Connects each role to its allowed function codes.
+
+### `positions`
+
+- `id`
+- `department_id` nullable FK → `departments.id`
+- `code` unique
+- `name`
+- `active`
+- timestamps
+
+This becomes the shared position master for Employee Master and Recruitment references.
+
+### `employment_types`
+
+- `id`
+- `code` unique
+- `name`
+- `active`
+- `sort_order`
+- timestamps
+
+Seeded values include Regular, Probationary, Contractual, Project-Based, Fixed-Term, Part-Time and Intern.
+
+### `user_sessions`
+
+- `id`
+- `user_id` FK → `users.id`
+- `session_token_hash` unique
+- `ip_address`
+- `user_agent`
+- `created_at`
+- `last_activity_at`
+- `revoked_at`
+
+Only a hash of the generated authentication-session token is persisted. `revoked_at IS NULL` identifies a session that has not been server-revoked.
+
+### Current role model
+
+`roles.portal` determines the primary experience:
+
+- `employee`
+- `hr`
+- `admin`
+- `client`
+
+Current system roles include `EMPLOYEE`, `HR_USER`, Recruitment roles, `HRIS_ADMIN`, `SUPER_ADMIN`, and `CLIENT_USER`.

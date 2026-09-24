@@ -291,3 +291,70 @@ Production screens must not contain:
 - placeholder AI scores represented as factual decisions.
 
 Any AI-generated output must be identified as assistance and remain reviewable by authorized staff.
+
+---
+
+## 2026-09-24 - Modern HRIS Experience Standard
+
+The HRIS must present as a modern enterprise SaaS application, not a traditional PHP administration panel.
+
+### Shared visual system
+- PMBSI orange is an accent, not the dominant page color.
+- Neutral off-white application background, white surfaces, dark charcoal navigation, restrained shadows, 10-16px radii, and strong whitespace.
+- Inter is the preferred UI typeface with system-font fallbacks.
+- Use line-style SVG icons, status chips, contextual actions, skeleton/loading states, confirmation modals, drawers, and toast feedback where appropriate.
+- Avoid dense Bootstrap-style panels, heavy borders, excessive cards, emoji navigation icons, and browser `alert()` UI.
+
+### Role-specific experience
+- **Employee**: self-service first; personal schedule, attendance, leave, requests, documents, performance, training, notifications.
+- **HR**: operational workspace; workforce attention items, employee records, attendance, leave, recruitment, employee relations, performance, training, reports.
+- **HR Admin**: administration and governance; users, roles, permissions, organization settings, audit logs, security, active sessions, system configuration.
+- **Client**: scoped recruitment collaboration only.
+
+The same design tokens and component system are shared by every role, but dashboard density, navigation, quick actions, and information hierarchy change by role.
+
+### Responsive behavior
+- Desktop: persistent 264px sidebar + sticky topbar.
+- Tablet/mobile: sidebar becomes a drawer; dashboard grids collapse predictably; tables remain horizontally scrollable when necessary.
+- User actions must remain reachable without hover-only behavior.
+
+### Meeting preview
+`public/meeting-preview.html` is a design-only presentation surface using sample data. It is not a production business-data screen.
+
+
+## Public Home Page
+
+The public landing page is part of the HRIS product experience and must use the same modern PMBSI design system. It serves three audiences: prospective applicants, current employees, and company/partner visitors.
+
+- Use PMBSI orange as an accent, not as the full-page background.
+- Use a dark modern hero with generous whitespace, strong typography, and a product/workforce visual.
+- Primary public actions are **Explore opportunities**, **Employee Login**, and **Apply Now**.
+- Show PMBSI workforce services in modern cards: Contractual Staffing, Project-Based Staffing, One-Time Placement, and Outsourcing Services.
+- Introduce the role-based HRIS experience on the home page so users understand that Employee, HR, and HR Admin have different workspaces.
+- Keep the public site visually consistent with the authenticated SaaS interface.
+- The home page must be fully responsive and usable on desktop, tablet, and mobile.
+
+## Phase 1 Administration UI Standard
+
+The Foundation administration screens establish the pattern for future HRIS configuration pages:
+
+- use a two-column workspace when a compact create/edit form accompanies a larger data table;
+- use searchable/scrollable master lists instead of oversized dashboard cards;
+- roles use a left selection rail and a permission matrix on the right;
+- status is represented with compact chips, not large banners;
+- secondary actions use subtle controls while the primary save/create action remains visually dominant;
+- master-data screens must remain usable at tablet/mobile widths by collapsing to a single column;
+- do not expose database IDs as the primary visible label; show human-readable code + name combinations;
+- destructive deletion is avoided for shared master data; activation/inactivation is the standard control.
+
+
+## Official PMBSI Branding Assets (Locked · 2026-09-24)
+- Full corporate logo: `public/assets/branding/pmbsi-logo.png`
+- HRIS/app mark: `public/assets/branding/pmbsi-mark.png`
+- Browser favicon: `/favicon.ico` plus PNG favicon sizes under `public/assets/branding/`
+- Apple touch icon: `public/assets/branding/apple-touch-icon.png`
+- Use the full corporate logo on the public website and login identity areas. Use the compact PMBSI mark inside the authenticated sidebar and small UI surfaces.
+- Do not replace the official mark with text-only `P` placeholders in production UI.
+
+## Full wordmark header rule
+The public website header must use the complete PMBSI corporate wordmark at a readable size. The compact PMBSI mark is reserved for the browser favicon, collapsed navigation, app icons, and other small-format surfaces where a full wordmark would be illegible.

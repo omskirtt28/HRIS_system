@@ -205,3 +205,35 @@ A Recruitment feature is not complete until:
 - errors are handled;
 - empty/loading states exist;
 - docs are updated if architecture/schema/rules changed.
+
+---
+
+## 2026-09-24 - UI/UX and Role Rules
+
+1. Every authenticated page must use the shared HRIS design system.
+2. Employee, HR, HR Admin, and Client users must receive role-appropriate navigation and dashboards.
+3. Authorization must be enforced in PHP on every protected route; UI visibility alone is never sufficient.
+4. New modules must be responsive and use the established modern components before they are considered complete.
+5. Avoid hard-coded localhost links. Local testing is expected at `http://localhost:3000`, but URLs must be generated through application helpers/config.
+6. `public/meeting-preview.html` may contain sample presentation data and must never be used as a production data source.
+
+## 13. Phase 1 RBAC and Master-Data Rules
+
+- New protected functions require a stable permission code.
+- Use `Auth::can('permission.code')` for UI visibility and `Auth::requirePermission('permission.code')` on the server for protected actions/pages.
+- Do not authorize by checking whether a sidebar item is visible.
+- `SUPER_ADMIN` is an emergency/system administration role and may bypass permission rows; other roles must follow assigned permission records.
+- Custom roles must declare a portal (`employee`, `hr`, `admin`, or `client`) and receive explicit permissions before use.
+- Account creation must use `password_hash()` and never store a temporary password in logs.
+- Account deactivation must revoke active tracked sessions.
+- A logged-in administrator may not deactivate their own account from the normal Users UI.
+- Organization masters are shared HRIS Core data. Recruitment and future modules must reference the same Department, Position, Branch and Employment Type records.
+- Master records should normally be made inactive instead of deleted when historical records may reference them.
+- Permission, role, user-status and organization-master changes must be audited.
+- New write forms must include CSRF protection and use prepared SQL statements.
+
+
+## Branding Rule
+Use only the approved PMBSI assets in `public/assets/branding/` for system identity. The full logo is used on public/login surfaces; the compact mark is used for sidebars and favicons. Text-only placeholder logos must not be reintroduced.
+
+- Public website/navigation branding must display the full PMBSI wordmark. Do not replace the public header with the compact mark. Use the compact mark only for favicon/app-icon/compact UI contexts.
