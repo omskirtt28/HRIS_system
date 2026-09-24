@@ -575,3 +575,31 @@ Only a hash of the generated authentication-session token is persisted. `revoked
 - `client`
 
 Current system roles include `EMPLOYEE`, `HR_USER`, Recruitment roles, `HRIS_ADMIN`, `SUPER_ADMIN`, and `CLIENT_USER`.
+
+
+## Phase 2A: `employees`
+
+The `employees` table is the central HR employee master. Key relationships: optional `user_id` → `users`, `department_id` → `departments`, `position_id` → `positions`, `branch_id` → `branches`, and `employment_type_id` → `employment_types`. It stores the stable employee number, core identity/contact information, organization assignment, hire/regularization dates, and employee status. Future 201-file tables should reference `employees.id`.
+
+
+## Phase 2B: Complete 201 File Tables
+
+### `employees` additions
+
+Phase 2B adds `place_of_birth`, `nationality`, `permanent_address_text`, and secure profile-photo metadata fields. The image itself is stored under `storage/employee_photos/`.
+
+### `employee_government_ids`
+
+Stores one record per employee / ID type, including ID number, optional issued/expiry dates, notes, and created/updated user references.
+
+### `employee_emergency_contacts`
+
+Stores emergency contact name, relationship, mobile/email/address and a primary-contact flag. Multiple contacts are allowed.
+
+### `employee_documents`
+
+Stores document metadata only: employee, document type/title, original filename, randomized stored filename, MIME type, file size, uploader and upload timestamp. File bytes live under `storage/employee_documents/` and are streamed through authenticated PHP routes.
+
+### `employee_employment_history`
+
+Immutable employee movement/status timeline. Each entry stores an event type, effective date, from/to department, position, branch, employment type, status, remarks and creator. Phase 2B migration backfills one `HIRED` baseline row for existing Phase 2A employees.

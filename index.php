@@ -138,17 +138,131 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             FoundationRepository::toggleUserStatus((int)($_POST['user_id']??0));
             flash('success','User account status updated.'); redirect('admin-users');
         }
+        if ($action === 'create_employee') {
+            Auth::requirePermission('employees.manage');
+            $id=EmployeeRepository::create([
+                'employee_no'=>(string)($_POST['employee_no']??''),
+                'user_id'=>(int)($_POST['user_id']??0),
+                'first_name'=>(string)($_POST['first_name']??''),
+                'middle_name'=>(string)($_POST['middle_name']??''),
+                'last_name'=>(string)($_POST['last_name']??''),
+                'suffix'=>(string)($_POST['suffix']??''),
+                'preferred_name'=>(string)($_POST['preferred_name']??''),
+                'company_email'=>(string)($_POST['company_email']??''),
+                'personal_email'=>(string)($_POST['personal_email']??''),
+                'mobile_no'=>(string)($_POST['mobile_no']??''),
+                'birth_date'=>(string)($_POST['birth_date']??''),
+                'gender'=>(string)($_POST['gender']??''),
+                'civil_status'=>(string)($_POST['civil_status']??''),
+                'address_text'=>(string)($_POST['address_text']??''),
+                'department_id'=>(int)($_POST['department_id']??0),
+                'position_id'=>(int)($_POST['position_id']??0),
+                'branch_id'=>(int)($_POST['branch_id']??0),
+                'employment_type_id'=>(int)($_POST['employment_type_id']??0),
+                'hire_date'=>(string)($_POST['hire_date']??''),
+                'regularization_date'=>(string)($_POST['regularization_date']??''),
+                'status'=>(string)($_POST['status']??'ACTIVE'),
+            ]);
+            flash('success','Employee record created successfully.');
+            redirect('hr-employee',['id'=>$id]);
+        }
+        if ($action === 'update_employee_personal') {
+            Auth::requirePermission('employees.manage');
+            $id=(int)($_POST['employee_id']??0);
+            EmployeeRepository::updatePersonal($id,[
+                'first_name'=>(string)($_POST['first_name']??''),'middle_name'=>(string)($_POST['middle_name']??''),'last_name'=>(string)($_POST['last_name']??''),
+                'suffix'=>(string)($_POST['suffix']??''),'preferred_name'=>(string)($_POST['preferred_name']??''),'birth_date'=>(string)($_POST['birth_date']??''),
+                'place_of_birth'=>(string)($_POST['place_of_birth']??''),'gender'=>(string)($_POST['gender']??''),'civil_status'=>(string)($_POST['civil_status']??''),
+                'nationality'=>(string)($_POST['nationality']??''),'mobile_no'=>(string)($_POST['mobile_no']??''),'personal_email'=>(string)($_POST['personal_email']??''),
+                'company_email'=>(string)($_POST['company_email']??''),'address_text'=>(string)($_POST['address_text']??''),'permanent_address_text'=>(string)($_POST['permanent_address_text']??''),
+            ]);
+            flash('success','Personal information updated.'); redirect('hr-employee',['id'=>$id,'tab'=>'personal']);
+        }
+        if ($action === 'update_employee_employment') {
+            Auth::requirePermission('employees.manage');
+            $id=(int)($_POST['employee_id']??0);
+            EmployeeRepository::updateEmployment($id,[
+                'employee_no'=>(string)($_POST['employee_no']??''),'user_id'=>(int)($_POST['user_id']??0),'department_id'=>(int)($_POST['department_id']??0),
+                'position_id'=>(int)($_POST['position_id']??0),'branch_id'=>(int)($_POST['branch_id']??0),'employment_type_id'=>(int)($_POST['employment_type_id']??0),
+                'hire_date'=>(string)($_POST['hire_date']??''),'regularization_date'=>(string)($_POST['regularization_date']??''),'status'=>(string)($_POST['status']??'ACTIVE'),
+                'effective_date'=>(string)($_POST['effective_date']??''),'remarks'=>(string)($_POST['remarks']??''),
+            ]);
+            flash('success','Employment information updated and history recorded.'); redirect('hr-employee',['id'=>$id,'tab'=>'employment']);
+        }
+        if ($action === 'upload_employee_photo') {
+            Auth::requirePermission('employees.manage'); $id=(int)($_POST['employee_id']??0);
+            EmployeeRepository::uploadProfilePhoto($id,$_FILES['profile_photo']??[]);
+            flash('success','Profile photo updated.'); redirect('hr-employee',['id'=>$id]);
+        }
+        if ($action === 'save_government_id') {
+            Auth::requirePermission('employees.manage'); $id=(int)($_POST['employee_id']??0);
+            EmployeeRepository::saveGovernmentId($id,$_POST);
+            flash('success','Government ID saved.'); redirect('hr-employee',['id'=>$id,'tab'=>'government']);
+        }
+        if ($action === 'delete_government_id') {
+            Auth::requirePermission('employees.manage'); $id=(int)($_POST['employee_id']??0);
+            EmployeeRepository::deleteGovernmentId($id,(int)($_POST['government_id_id']??0));
+            flash('success','Government ID removed.'); redirect('hr-employee',['id'=>$id,'tab'=>'government']);
+        }
+        if ($action === 'save_emergency_contact') {
+            Auth::requirePermission('employees.manage'); $id=(int)($_POST['employee_id']??0);
+            EmployeeRepository::saveEmergencyContact($id,$_POST);
+            flash('success','Emergency contact saved.'); redirect('hr-employee',['id'=>$id,'tab'=>'emergency']);
+        }
+        if ($action === 'delete_emergency_contact') {
+            Auth::requirePermission('employees.manage'); $id=(int)($_POST['employee_id']??0);
+            EmployeeRepository::deleteEmergencyContact($id,(int)($_POST['contact_id']??0));
+            flash('success','Emergency contact removed.'); redirect('hr-employee',['id'=>$id,'tab'=>'emergency']);
+        }
+        if ($action === 'upload_employee_document') {
+            Auth::requirePermission('employees.manage'); $id=(int)($_POST['employee_id']??0);
+            EmployeeRepository::uploadDocument($id,$_FILES['document_file']??[],$_POST);
+            flash('success','Employee document uploaded.'); redirect('hr-employee',['id'=>$id,'tab'=>'documents']);
+        }
+        if ($action === 'delete_employee_document') {
+            Auth::requirePermission('employees.manage'); $id=(int)($_POST['employee_id']??0);
+            EmployeeRepository::deleteDocument($id,(int)($_POST['document_id']??0));
+            flash('success','Employee document deleted.'); redirect('hr-employee',['id'=>$id,'tab'=>'documents']);
+        }
     } catch(Throwable $e) {
         flash('error',$e->getMessage());
         $defaultBack = match($action) {
             'create_department','create_position','create_branch','create_employment_type','toggle_master' => 'admin-organization',
             'create_role','save_role_permissions' => 'admin-roles',
             'create_user','toggle_user_status' => 'admin-users',
+            'create_employee' => 'hr-employee-new',
+            'update_employee_personal','update_employee_employment','upload_employee_photo','save_government_id','delete_government_id','save_emergency_contact','delete_emergency_contact','upload_employee_document','delete_employee_document' => 'hr-employee',
             default => 'home',
         };
-        $back=(string)($_POST['return_page']??$defaultBack); $params=[]; if(!empty($_POST['return_id']))$params['id']=(int)$_POST['return_id'];
+        $back=(string)($_POST['return_page']??$defaultBack); $params=[]; if(!empty($_POST['return_id']))$params['id']=(int)$_POST['return_id']; if(!empty($_POST['return_tab']))$params['tab']=(string)$_POST['return_tab'];
         redirect($back,$params);
     }
+}
+
+
+// -------- secure employee file streams --------
+if ($page === 'hr-employee-photo') {
+    need_db(); Auth::requirePermission('employees.view_all');
+    $employeeId=(int)($_GET['id']??0); $photo=EmployeeRepository::profilePhoto($employeeId);
+    if(!$photo){http_response_code(404);exit('Photo not found');}
+    $path=__DIR__.'/storage/employee_photos/'.basename((string)$photo['stored_name']);
+    if(!is_file($path)){http_response_code(404);exit('Photo file not found');}
+    header('Content-Type: '.($photo['mime_type']?:'application/octet-stream'));
+    header('Content-Length: '.filesize($path)); header('Cache-Control: private, max-age=300');
+    readfile($path); exit;
+}
+if ($page === 'hr-employee-document') {
+    need_db(); Auth::requirePermission('employees.view_all');
+    $employeeId=(int)($_GET['employee_id']??0); $documentId=(int)($_GET['id']??0); $doc=EmployeeRepository::document($employeeId,$documentId);
+    if(!$doc){http_response_code(404);exit('Document not found');}
+    $path=__DIR__.'/storage/employee_documents/'.basename((string)$doc['stored_name']);
+    if(!is_file($path)){http_response_code(404);exit('Document file not found');}
+    $inline=in_array((string)$doc['mime_type'],['application/pdf','image/jpeg','image/png','image/webp'],true);
+    $name=str_replace(["\r","\n",'"'],['','',''],(string)$doc['original_name']);
+    header('Content-Type: '.($doc['mime_type']?:'application/octet-stream'));
+    header('Content-Length: '.filesize($path)); header('X-Content-Type-Options: nosniff');
+    header('Content-Disposition: '.($inline?'inline':'attachment').'; filename="'.$name.'"');
+    readfile($path); exit;
 }
 
 // -------- public pages --------
@@ -231,7 +345,7 @@ if ($page === 'home') {
         <div class="home-platform-window">
           <div class="home-window-top"><span class="home-dots"><i></i><i></i><i></i></span><small>PMBSI HRIS</small><span></span></div>
           <div class="home-window-body">
-            <aside><div class="home-window-brand"><img src="public/assets/branding/pmbsi-mark.png" alt=""><b>PMBSI HRIS</b></div><i class="active"></i><i></i><i></i><i></i><i></i><i></i></aside>
+            <aside><div class="home-window-brand"><img src="public/assets/branding/pmbsi-logo-transparent-v2.png" alt="Prime Mover Business Solutions, Inc."><b>PMBSI HRIS</b></div><i class="active"></i><i></i><i></i><i></i><i></i><i></i></aside>
             <main><div class="home-window-bar"><i></i><i></i><i></i></div><div class="home-window-title"></div><div class="home-window-kpis"><i></i><i></i><i></i><i></i></div><div class="home-window-panels"><i></i><i></i></div></main>
           </div>
         </div>
@@ -306,9 +420,9 @@ if ($page === 'login') {
     render_head($meta[0]); render_flashes(); ?>
     <div class="loginwrap">
       <div class="login-hero">
-        <a href="<?=url('home')?>" class="brand brand-official brand-official-login" style="position:relative;z-index:2" aria-label="Prime Mover Business Solutions, Inc."><img src="public/assets/branding/pmbsi-logo.png" alt="Prime Mover Business Solutions, Inc." class="brand-full-logo"></a>
-        <div class="login-copy"><span class="login-kicker">Secure HR workspace</span><h1>People operations,<br>designed for how teams work now.</h1><p>One HRIS experience for employees, HR teams and administrators — with role-based access, clear workflows and a modern responsive interface.</p><div class="login-benefits"><div class="login-benefit"><strong>Employee self-service</strong><span>Attendance, leave, requests and profile access.</span></div><div class="login-benefit"><strong>HR operations</strong><span>Recruitment, workforce actions and reporting.</span></div><div class="login-benefit"><strong>Role-based access</strong><span>Each user only sees tools relevant to their role.</span></div><div class="login-benefit"><strong>Audit-ready</strong><span>Security controls and traceable system activity.</span></div></div></div>
-        <div class="tiny" style="position:relative;z-index:2;color:#777f8b">Prime Mover Business Solutions, Inc. · Local development: localhost:3000</div>
+        <a href="<?=url('home')?>" class="brand brand-official brand-official-login" style="position:relative;z-index:2" aria-label="Prime Mover Business Solutions, Inc."><img src="public/assets/branding/pmbsi-logo-transparent-v2.png" alt="Prime Mover Business Solutions, Inc." class="brand-full-logo"></a>
+        <div class="login-copy"><span class="login-kicker">Secure HR workspace</span><h1>People operations,<br>designed for how teams work now.</h1><p>One HRIS experience for employees, HR teams and administrators — with role-based access, clear workflows and a modern responsive interface.</p><div class="login-benefits"><div class="login-benefit"><span class="login-benefit-icon"><?=icon_svg('users')?></span><div><strong>Employee self-service</strong><span>Attendance, leave, requests and profile access.</span></div></div><div class="login-benefit"><span class="login-benefit-icon"><?=icon_svg('briefcase')?></span><div><strong>HR operations</strong><span>Recruitment, workforce actions and reporting.</span></div></div><div class="login-benefit"><span class="login-benefit-icon"><?=icon_svg('lock')?></span><div><strong>Role-based access</strong><span>Each user only sees tools relevant to their role.</span></div></div><div class="login-benefit"><span class="login-benefit-icon"><?=icon_svg('shield')?></span><div><strong>Audit-ready</strong><span>Security controls and traceable system activity.</span></div></div></div></div>
+        <div class="tiny login-hero-foot">Prime Mover Business Solutions, Inc. · Local development: localhost:3000</div>
       </div>
       <div class="login-form"><form class="login-card" method="post"><?=csrf_field()?><input type="hidden" name="action" value="login"><?php if($portal!==''):?><input type="hidden" name="portal" value="<?=e($portal)?>"><?php endif;?>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px"><div><h2>Welcome back</h2><div class="login-sub"><?=e($meta[1])?></div></div><span class="badge amber"><?=e($portal===''?'Unified Login':ucfirst($portal).' Portal')?></span></div>
@@ -357,7 +471,7 @@ if ($page === 'hr-dashboard') {
     $first=explode(' ',trim((string)(Auth::user()['name']??'HR Team')))[0];
     $maxStage=max(1,...array_map(fn($x)=>(int)$x['total'],$counts));
     render_portal_header('hr',$page,'HR Dashboard');
-    dashboard_hero('Human Resources','Good morning, '.$first.'.','Here is the recruitment activity that needs your attention today.','<a href="'.url('hr-manpower').'" class="btn">'.icon_svg('plus').' New request</a><a href="'.url('hr-pipeline').'" class="btn primary">Open recruitment pipeline '.icon_svg('arrow').'</a>'); ?>
+    dashboard_hero('Human Resources','Good morning, '.$first.'.','Here is the workforce and recruitment activity that needs your attention today.','<a href="'.url('hr-employees').'" class="btn">'.icon_svg('users').' Employee directory</a><a href="'.url('hr-pipeline').'" class="btn primary">Open recruitment pipeline '.icon_svg('arrow').'</a>'); ?>
     <div class="metric-grid"><?php metric_card('Active applicants',$d['active'],'Live recruitment pool','users','up'); metric_card('Interviews',$d['interviews'],count($today).' scheduled today','calendar'); metric_card('Client review',$d['endorsed'],'Candidates awaiting decision','check-square'); metric_card('Open headcount',$d['openReq'],'Across active manpower requests','briefcase','warn'); ?></div>
     <div class="dashboard-grid">
       <section class="panel"><div class="panel-head"><div><h2>Recruitment pulse</h2><p>Applicant distribution across your current pipeline</p></div><a class="panel-link" href="<?=url('hr-pipeline')?>">View pipeline</a></div><div class="panel-body"><div class="pulse-bars"><?php foreach($counts as $c): $h=max(8,round(((int)$c['total']/$maxStage)*145)); ?><div class="col" title="<?=e($c['name'].' · '.$c['total'])?>"><div class="bar" style="height:<?=$h?>px"></div><div class="label"><?=e(mb_substr($c['name'],0,8))?></div></div><?php endforeach;?></div><div class="legend-row"><span><i class="legend-dot" style="background:var(--hris-brand)"></i>Applicant volume by stage</span><span>Updated from live recruitment records</span></div></div></section>
@@ -365,10 +479,158 @@ if ($page === 'hr-dashboard') {
     </div>
     <div class="dashboard-grid equal">
       <section class="panel"><div class="panel-head"><div><h2>Today’s interviews</h2><p>Scheduled candidate conversations</p></div><a class="panel-link" href="<?=url('hr-applicants')?>">All applicants</a></div><div class="panel-body"><?php if(!$today):?><div class="empty">No interviews are scheduled today.</div><?php else:?><div class="timeline-list"><?php foreach($today as $i):?><div class="timeline-row"><div class="time"><?=e(date('g:i A',strtotime($i['scheduled_at'])))?></div><span class="timeline-dot"></span><div class="detail"><strong><?=e($i['applicant_name'])?></strong><span><?=e($i['job_title'])?> · <?=e(stage_label($i['interview_type']))?></span></div><span class="badge amber"><?=e(stage_label($i['interview_type']))?></span></div><?php endforeach;?></div><?php endif;?></div></section>
-      <section class="panel"><div class="panel-head"><div><h2>Quick actions</h2><p>Start common HR workflows</p></div></div><div class="panel-body"><div class="quick-actions"><a class="quick-action" href="<?=url('hr-manpower')?>"><span class="qa-icon"><?=icon_svg('briefcase')?></span><span><strong>Manpower request</strong><span>Create or review hiring demand</span></span></a><a class="quick-action" href="<?=url('hr-applicants')?>"><span class="qa-icon"><?=icon_svg('users')?></span><span><strong>Applicant database</strong><span>Search candidate profiles</span></span></a><a class="quick-action" href="<?=url('hr-pipeline')?>"><span class="qa-icon"><?=icon_svg('pipeline')?></span><span><strong>Recruitment pipeline</strong><span>Move candidates through stages</span></span></a><a class="quick-action" href="<?=url('hr-reports')?>"><span class="qa-icon"><?=icon_svg('chart')?></span><span><strong>Reports</strong><span>Review recruitment performance</span></span></a></div></div></section>
+      <section class="panel"><div class="panel-head"><div><h2>Quick actions</h2><p>Start common HR workflows</p></div></div><div class="panel-body"><div class="quick-actions"><a class="quick-action" href="<?=url('hr-employees')?>"><span class="qa-icon"><?=icon_svg('users')?></span><span><strong>Employee directory</strong><span>Open employee master records</span></span></a><a class="quick-action" href="<?=url('hr-manpower')?>"><span class="qa-icon"><?=icon_svg('briefcase')?></span><span><strong>Manpower request</strong><span>Create or review hiring demand</span></span></a><a class="quick-action" href="<?=url('hr-applicants')?>"><span class="qa-icon"><?=icon_svg('user-plus')?></span><span><strong>Applicant database</strong><span>Search candidate profiles</span></span></a><a class="quick-action" href="<?=url('hr-reports')?>"><span class="qa-icon"><?=icon_svg('chart')?></span><span><strong>Reports</strong><span>Review HR and recruitment activity</span></span></a></div></div></section>
     </div>
     <?php render_portal_footer(); exit;
 }
+
+if ($page === 'hr-employees') {
+    Auth::requirePermission('employees.view_all');
+    $ready=EmployeeRepository::ready();
+    $filters=[
+        'q'=>(string)($_GET['q']??''),
+        'department_id'=>(int)($_GET['department_id']??0),
+        'branch_id'=>(int)($_GET['branch_id']??0),
+        'employment_type_id'=>(int)($_GET['employment_type_id']??0),
+        'status'=>(string)($_GET['status']??''),
+    ];
+    $employees=$ready?EmployeeRepository::directory($filters):[];
+    $summary=$ready?EmployeeRepository::summary():['total'=>0,'active'=>0,'probationary'=>0,'inactive'=>0,'new_this_month'=>0];
+    $masters=EmployeeRepository::masters();
+    $canManage=Auth::can('employees.manage');
+    render_portal_header('hr',$page,'Employee Directory');
+    page_head('HR Portal / People','Employee Directory',$canManage?'<a href="'.url('hr-employee-new').'" class="btn primary">'.icon_svg('plus').' Add employee</a>':''); ?>
+    <?php if(!$ready):?><div class="alert error">Phase 2A database migration is required. Import <code>database/migrations/20260924_phase2a_employees.sql</code> in phpMyAdmin.</div><?php endif;?>
+    <div class="metric-grid employee-metrics"><?php metric_card('Total employees',$summary['total'],'Employee master records','users'); metric_card('Active',$summary['active'],'Currently active','check','up'); metric_card('Probationary',$summary['probationary'],'Under probationary status','clock'); metric_card('New this month',$summary['new_this_month'],'Based on hire date','user-plus'); ?></div>
+    <section class="panel employee-directory-panel">
+      <div class="panel-head"><div><h2>Employee master list</h2><p>Search and filter employee records across the organization.</p></div><span class="badge gray"><?=count($employees)?> shown</span></div>
+      <form method="get" class="employee-filterbar">
+        <input type="hidden" name="page" value="hr-employees">
+        <div class="employee-search"><?=icon_svg('search')?><input name="q" value="<?=e($filters['q'])?>" placeholder="Search employee no., name or email"></div>
+        <select name="department_id"><option value="">All departments</option><?php foreach($masters['departments'] as $x):?><option value="<?=$x['id']?>" <?=$filters['department_id']==$x['id']?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select>
+        <select name="branch_id"><option value="">All branches</option><?php foreach($masters['branches'] as $x):?><option value="<?=$x['id']?>" <?=$filters['branch_id']==$x['id']?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select>
+        <select name="status"><option value="">All statuses</option><?php foreach(['ACTIVE'=>'Active','PROBATIONARY'=>'Probationary','ON_LEAVE'=>'On Leave','INACTIVE'=>'Inactive','RESIGNED'=>'Resigned','TERMINATED'=>'Terminated'] as $k=>$label):?><option value="<?=$k?>" <?=$filters['status']===$k?'selected':''?>><?=$label?></option><?php endforeach;?></select>
+        <button class="btn sm">Filter</button><a class="btn sm ghost" href="<?=url('hr-employees')?>">Reset</a>
+      </form>
+      <?php if(!$employees):?><div class="empty employee-empty"><?= $ready ? 'No employee records match the current filters.' : 'Employee directory will be available after the Phase 2A migration.' ?></div><?php else:?><div class="employee-table-wrap"><table class="tbl employee-table"><thead><tr><th>Employee</th><th>Employment</th><th>Department / Position</th><th>Branch</th><th>Hire date</th><th>Status</th><th></th></tr></thead><tbody><?php foreach($employees as $e): $name=EmployeeRepository::fullName($e); $tone=in_array($e['status'],['ACTIVE','PROBATIONARY'],true)?'green':'gray'; ?><tr>
+        <td><a class="employee-cell" href="<?=url('hr-employee',['id'=>$e['id']])?>"><span class="employee-avatar"><?=e(initials($name))?></span><span><strong><?=e($name)?></strong><small><?=e($e['employee_no'])?><?=!empty($e['company_email'])?' · '.e($e['company_email']):''?></small></span></a></td>
+        <td><?=e($e['employment_type_name']??'—')?></td><td><strong><?=e($e['department_name']??'Unassigned')?></strong><div class="tiny muted"><?=e($e['position_name']??'No position')?></div></td><td><?=e($e['branch_name']??'Unassigned')?></td><td><?=e(date('M j, Y',strtotime($e['hire_date'])))?></td><td><span class="badge <?=$tone?>"><?=e(stage_label($e['status']))?></span></td><td><a href="<?=url('hr-employee',['id'=>$e['id']])?>" class="employee-open" aria-label="Open employee"><?=icon_svg('arrow')?></a></td>
+      </tr><?php endforeach;?></tbody></table></div><?php endif;?>
+    </section>
+    <?php render_portal_footer(); exit;
+}
+
+if ($page === 'hr-employee-new') {
+    Auth::requirePermission('employees.manage');
+    $ready=EmployeeRepository::ready(); $masters=EmployeeRepository::masters();
+    render_portal_header('hr','hr-employees','Add Employee');
+    page_head('HR Portal / People / Employees','Add Employee','<a href="'.url('hr-employees').'" class="btn">Back to directory</a>'); ?>
+    <?php if(!$ready):?><div class="alert error">Import <code>database/migrations/20260924_phase2a_employees.sql</code> before adding employees.</div><?php else:?>
+    <form method="post" class="employee-create-layout"><?=csrf_field()?><input type="hidden" name="action" value="create_employee"><input type="hidden" name="return_page" value="hr-employee-new">
+      <div class="employee-form-main">
+        <section class="panel employee-form-card"><div class="panel-head"><div><h2>Personal information</h2><p>Core identity and contact information for the employee master record.</p></div><span class="badge amber">201 File foundation</span></div><div class="panel-body employee-form-grid">
+          <div class="field"><label>Employee number</label><input name="employee_no" value="<?=e(EmployeeRepository::nextEmployeeNo())?>" required><small>Auto-generated; can be adjusted before saving.</small></div>
+          <div class="field"><label>Preferred name</label><input name="preferred_name" placeholder="Optional"></div>
+          <div class="field"><label>First name <span class="req">*</span></label><input name="first_name" required></div>
+          <div class="field"><label>Middle name</label><input name="middle_name"></div>
+          <div class="field"><label>Last name <span class="req">*</span></label><input name="last_name" required></div>
+          <div class="field"><label>Suffix</label><input name="suffix" placeholder="Jr., III, etc."></div>
+          <div class="field"><label>Birth date</label><input type="date" name="birth_date"></div>
+          <div class="field"><label>Gender</label><select name="gender"><option value="">Not specified</option><option>Female</option><option>Male</option><option>Prefer not to say</option></select></div>
+          <div class="field"><label>Civil status</label><select name="civil_status"><option value="">Not specified</option><option>Single</option><option>Married</option><option>Widowed</option><option>Separated</option></select></div>
+          <div class="field"><label>Mobile number</label><input name="mobile_no" placeholder="+63 ..."></div>
+          <div class="field"><label>Personal email</label><input type="email" name="personal_email"></div>
+          <div class="field"><label>Company email</label><input type="email" name="company_email"></div>
+          <div class="field full"><label>Current address</label><input name="address_text" placeholder="House / street / city / province"></div>
+        </div></section>
+        <section class="panel employee-form-card"><div class="panel-head"><div><h2>Employment information</h2><p>Organization assignment and employment details.</p></div></div><div class="panel-body employee-form-grid">
+          <div class="field"><label>Department</label><select name="department_id"><option value="">Unassigned</option><?php foreach($masters['departments'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>"><?=e($x['name'])?></option><?php endforeach;?></select></div>
+          <div class="field"><label>Position</label><select name="position_id"><option value="">Unassigned</option><?php foreach($masters['positions'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>"><?=e($x['name'])?><?=!empty($x['department_name'])?' · '.e($x['department_name']):''?></option><?php endforeach;?></select></div>
+          <div class="field"><label>Branch / Site</label><select name="branch_id"><option value="">Unassigned</option><?php foreach($masters['branches'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>"><?=e($x['name'])?></option><?php endforeach;?></select></div>
+          <div class="field"><label>Employment type</label><select name="employment_type_id"><option value="">Unassigned</option><?php foreach($masters['employment_types'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>"><?=e($x['name'])?></option><?php endforeach;?></select></div>
+          <div class="field"><label>Hire date <span class="req">*</span></label><input type="date" name="hire_date" value="<?=e(date('Y-m-d'))?>" required></div>
+          <div class="field"><label>Regularization date</label><input type="date" name="regularization_date"></div>
+          <div class="field"><label>Employee status</label><select name="status"><option value="ACTIVE">Active</option><option value="PROBATIONARY">Probationary</option><option value="ON_LEAVE">On Leave</option><option value="INACTIVE">Inactive</option></select></div>
+          <div class="field"><label>Employee portal account</label><select name="user_id"><option value="">Link later</option><?php foreach($masters['employee_users'] as $x):?><option value="<?=$x['id']?>"><?=e($x['full_name'])?> · <?=e($x['email'])?></option><?php endforeach;?></select><small>Only unlinked active Employee portal accounts are listed.</small></div>
+        </div></section>
+      </div>
+      <aside class="employee-form-aside"><section class="panel sticky-card"><div class="panel-head"><div><h2>Create record</h2><p>Phase 2A employee master</p></div></div><div class="panel-body"><div class="employee-save-note"><span class="qa-icon"><?=icon_svg('shield')?></span><div><strong>Audited action</strong><p>Creation is recorded in the HRIS audit log.</p></div></div><button class="btn primary block" type="submit"><?=icon_svg('plus')?> Create employee</button><a href="<?=url('hr-employees')?>" class="btn block" style="margin-top:8px">Cancel</a></div></section></aside>
+    </form><?php endif;?>
+    <?php render_portal_footer(); exit;
+}
+
+if ($page === 'hr-employee') {
+    Auth::requirePermission('employees.view_all');
+    $id=(int)($_GET['id']??0); $e=EmployeeRepository::find($id);
+    if(!$e){flash('error','Employee record not found.');redirect('hr-employees');}
+    $tabs=['overview','personal','employment','government','emergency','documents','history','audit'];
+    $tab=strtolower((string)($_GET['tab']??'overview')); if(!in_array($tab,$tabs,true))$tab='overview';
+    $phase2Ready=EmployeeRepository::phase2Ready(); $canManage=Auth::can('employees.manage'); $masters=EmployeeRepository::masters($id);
+    $name=EmployeeRepository::fullName($e); $tone=in_array($e['status'],['ACTIVE','PROBATIONARY'],true)?'green':'gray';
+    $govIds=$phase2Ready?EmployeeRepository::governmentIds($id):[]; $contacts=$phase2Ready?EmployeeRepository::emergencyContacts($id):[];
+    $documents=$phase2Ready?EmployeeRepository::documents($id):[]; $history=$phase2Ready?EmployeeRepository::history($id):[]; $auditTrail=EmployeeRepository::auditTrail($id);
+    render_portal_header('hr','hr-employees','Employee 201 File');
+    page_head('HR Portal / People / Employees','Employee 201 File','<a href="'.url('hr-employees').'" class="btn">Back to directory</a>'); ?>
+    <?php if(!$phase2Ready):?><div class="alert error">Phase 2B database migration is required. Import <code>database/migrations/20260924_phase2b_201_file.sql</code> in phpMyAdmin to activate the complete 201 File tabs.</div><?php endif;?>
+    <section class="panel employee-profile-head phase2b-profile-head"><div class="employee-profile-main">
+      <?php if(!empty($e['profile_photo_stored_name'])):?><img class="employee-profile-photo" src="<?=url('hr-employee-photo',['id'=>$id])?>" alt="<?=e($name)?>"><?php else:?><span class="employee-profile-avatar"><?=e(initials($name))?></span><?php endif;?>
+      <div class="employee-profile-copy"><div class="employee-profile-title"><h2><?=e($name)?></h2><span class="badge <?=$tone?>"><?=e(stage_label($e['status']))?></span></div><p><?=e($e['employee_no'])?> · <?=e($e['position_name']??'No position assigned')?> · <?=e($e['department_name']??'No department assigned')?></p><div class="employee-profile-meta"><span><?=icon_svg('building')?> <?=e($e['branch_name']??'No branch')?></span><span><?=icon_svg('briefcase')?> <?=e($e['employment_type_name']??'No employment type')?></span><span><?=icon_svg('calendar')?> Hired <?=e(date('M j, Y',strtotime($e['hire_date'])))?></span></div></div>
+      <div class="employee-profile-completeness"><span>201 File</span><strong><?=$phase2Ready?'Active':'Migration needed'?></strong><small><?=count($documents)?> docs · <?=count($govIds)?> IDs</small></div>
+    </div></section>
+    <nav class="employee-tabs phase2b-tabs"><?php foreach(['overview'=>'Overview','personal'=>'Personal Info','employment'=>'Employment','government'=>'Government IDs','emergency'=>'Emergency Contact','documents'=>'Documents','history'=>'History','audit'=>'Audit Trail'] as $key=>$label):?><a href="<?=url('hr-employee',['id'=>$id,'tab'=>$key])?>" class="<?=$tab===$key?'active':''?>"><?=e($label)?></a><?php endforeach;?></nav>
+
+    <?php if($tab==='overview'):?>
+      <div class="dashboard-grid equal employee-profile-grid">
+        <section class="panel"><div class="panel-head"><div><h2>Employee overview</h2><p>Current master-data assignment</p></div><?php if($canManage):?><a class="panel-link" href="<?=url('hr-employee',['id'=>$id,'tab'=>'employment'])?>">Edit employment</a><?php endif;?></div><div class="panel-body employee-detail-list">
+          <div><span>Employee number</span><strong><?=e($e['employee_no'])?></strong></div><div><span>Department</span><strong><?=e($e['department_name']??'Unassigned')?></strong></div><div><span>Position</span><strong><?=e($e['position_name']??'Unassigned')?></strong></div><div><span>Branch / Site</span><strong><?=e($e['branch_name']??'Unassigned')?></strong></div><div><span>Employment type</span><strong><?=e($e['employment_type_name']??'Unassigned')?></strong></div><div><span>Hire date</span><strong><?=e(date('F j, Y',strtotime($e['hire_date'])))?></strong></div>
+        </div></section>
+        <section class="panel"><div class="panel-head"><div><h2>Contact & access</h2><p>Employee contact and portal link</p></div><?php if($canManage):?><a class="panel-link" href="<?=url('hr-employee',['id'=>$id,'tab'=>'personal'])?>">Edit profile</a><?php endif;?></div><div class="panel-body employee-detail-list">
+          <div><span>Company email</span><strong><?=e($e['company_email']??'Not provided')?></strong></div><div><span>Personal email</span><strong><?=e($e['personal_email']??'Not provided')?></strong></div><div><span>Mobile number</span><strong><?=e($e['mobile_no']??'Not provided')?></strong></div><div><span>Portal account</span><strong><?=e($e['user_email']??'Not linked')?></strong></div><div><span>Portal status</span><strong><?=e($e['user_status']??'—')?></strong></div><div><span>201 File records</span><strong><?=count($govIds)?> IDs · <?=count($contacts)?> contacts · <?=count($documents)?> docs</strong></div>
+        </div></section>
+      </div>
+      <div class="dashboard-grid equal phase2b-overview-row">
+        <section class="panel"><div class="panel-head"><div><h2>Profile photo</h2><p>Employee identification photo</p></div></div><div class="panel-body phase2b-photo-panel"><?php if(!empty($e['profile_photo_stored_name'])):?><img src="<?=url('hr-employee-photo',['id'=>$id])?>" alt="<?=e($name)?>"><?php else:?><span class="employee-profile-avatar big"><?=e(initials($name))?></span><?php endif;?><?php if($canManage&&$phase2Ready):?><form method="post" enctype="multipart/form-data" class="phase2b-inline-upload"><?=csrf_field()?><input type="hidden" name="action" value="upload_employee_photo"><input type="hidden" name="employee_id" value="<?=$id?>"><input type="hidden" name="return_page" value="hr-employee"><input type="hidden" name="return_id" value="<?=$id?>"><input type="file" name="profile_photo" accept="image/jpeg,image/png,image/webp" required><button class="btn sm">Upload photo</button><small>JPG, PNG or WEBP · max 3 MB</small></form><?php endif;?></div></section>
+        <section class="panel"><div class="panel-head"><div><h2>201 File summary</h2><p>Completion snapshot</p></div></div><div class="panel-body phase2b-summary-grid"><a href="<?=url('hr-employee',['id'=>$id,'tab'=>'government'])?>"><strong><?=count($govIds)?></strong><span>Government IDs</span></a><a href="<?=url('hr-employee',['id'=>$id,'tab'=>'emergency'])?>"><strong><?=count($contacts)?></strong><span>Emergency contacts</span></a><a href="<?=url('hr-employee',['id'=>$id,'tab'=>'documents'])?>"><strong><?=count($documents)?></strong><span>Documents</span></a><a href="<?=url('hr-employee',['id'=>$id,'tab'=>'history'])?>"><strong><?=count($history)?></strong><span>History events</span></a></div></section>
+      </div>
+
+    <?php elseif($tab==='personal'):?>
+      <section class="panel phase2b-form-panel"><div class="panel-head"><div><h2>Personal information</h2><p>Identity, contact details and addresses.</p></div><span class="badge amber">201 File</span></div><?php if(!$canManage):?><div class="panel-body"><div class="alert">You have view-only access.</div></div><?php else:?><form method="post" class="panel-body employee-form-grid"><?=csrf_field()?><input type="hidden" name="action" value="update_employee_personal"><input type="hidden" name="employee_id" value="<?=$id?>"><input type="hidden" name="return_page" value="hr-employee"><input type="hidden" name="return_id" value="<?=$id?>"><input type="hidden" name="return_tab" value="personal">
+        <div class="field"><label>First name <span class="req">*</span></label><input name="first_name" value="<?=e($e['first_name'])?>" required></div><div class="field"><label>Middle name</label><input name="middle_name" value="<?=e($e['middle_name']??'')?>"></div><div class="field"><label>Last name <span class="req">*</span></label><input name="last_name" value="<?=e($e['last_name'])?>" required></div><div class="field"><label>Suffix</label><input name="suffix" value="<?=e($e['suffix']??'')?>"></div>
+        <div class="field"><label>Preferred name</label><input name="preferred_name" value="<?=e($e['preferred_name']??'')?>"></div><div class="field"><label>Birth date</label><input type="date" name="birth_date" value="<?=e($e['birth_date']??'')?>"></div><div class="field"><label>Place of birth</label><input name="place_of_birth" value="<?=e($e['place_of_birth']??'')?>"></div><div class="field"><label>Nationality</label><input name="nationality" value="<?=e($e['nationality']??'')?>" placeholder="Filipino"></div>
+        <div class="field"><label>Gender</label><select name="gender"><?php foreach([''=>'Not specified','Female'=>'Female','Male'=>'Male','Prefer not to say'=>'Prefer not to say'] as $v=>$l):?><option value="<?=e($v)?>" <?=($e['gender']??'')===$v?'selected':''?>><?=e($l)?></option><?php endforeach;?></select></div><div class="field"><label>Civil status</label><select name="civil_status"><?php foreach([''=>'Not specified','Single'=>'Single','Married'=>'Married','Widowed'=>'Widowed','Separated'=>'Separated'] as $v=>$l):?><option value="<?=e($v)?>" <?=($e['civil_status']??'')===$v?'selected':''?>><?=e($l)?></option><?php endforeach;?></select></div>
+        <div class="field"><label>Mobile number</label><input name="mobile_no" value="<?=e($e['mobile_no']??'')?>"></div><div class="field"><label>Personal email</label><input type="email" name="personal_email" value="<?=e($e['personal_email']??'')?>"></div><div class="field"><label>Company email</label><input type="email" name="company_email" value="<?=e($e['company_email']??'')?>"></div><div class="field full"><label>Current address</label><input name="address_text" value="<?=e($e['address_text']??'')?>"></div><div class="field full"><label>Permanent address</label><input name="permanent_address_text" value="<?=e($e['permanent_address_text']??'')?>"></div>
+        <div class="phase2b-form-actions full"><button class="btn primary" type="submit">Save personal information</button></div>
+      </form><?php endif;?></section>
+
+    <?php elseif($tab==='employment'):?>
+      <section class="panel phase2b-form-panel"><div class="panel-head"><div><h2>Employment information</h2><p>Assignment, status, portal linkage and effective-date history.</p></div><span class="badge gray">Changes are audited</span></div><?php if(!$canManage):?><div class="panel-body"><div class="alert">You have view-only access.</div></div><?php else:?><form method="post" class="panel-body employee-form-grid"><?=csrf_field()?><input type="hidden" name="action" value="update_employee_employment"><input type="hidden" name="employee_id" value="<?=$id?>"><input type="hidden" name="return_page" value="hr-employee"><input type="hidden" name="return_id" value="<?=$id?>"><input type="hidden" name="return_tab" value="employment">
+        <div class="field"><label>Employee number</label><input name="employee_no" value="<?=e($e['employee_no'])?>" required></div><div class="field"><label>Employee portal account</label><select name="user_id"><option value="">Not linked</option><?php foreach($masters['employee_users'] as $x):?><option value="<?=$x['id']?>" <?=((int)($e['user_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['full_name'])?> · <?=e($x['email'])?></option><?php endforeach;?></select></div>
+        <div class="field"><label>Department</label><select name="department_id"><option value="">Unassigned</option><?php foreach($masters['departments'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=((int)($e['department_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select></div><div class="field"><label>Position</label><select name="position_id"><option value="">Unassigned</option><?php foreach($masters['positions'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=((int)($e['position_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['name'])?><?=!empty($x['department_name'])?' · '.e($x['department_name']):''?></option><?php endforeach;?></select></div>
+        <div class="field"><label>Branch / Site</label><select name="branch_id"><option value="">Unassigned</option><?php foreach($masters['branches'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=((int)($e['branch_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select></div><div class="field"><label>Employment type</label><select name="employment_type_id"><option value="">Unassigned</option><?php foreach($masters['employment_types'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=((int)($e['employment_type_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select></div>
+        <div class="field"><label>Hire date</label><input type="date" name="hire_date" value="<?=e($e['hire_date'])?>" required></div><div class="field"><label>Regularization date</label><input type="date" name="regularization_date" value="<?=e($e['regularization_date']??'')?>"></div><div class="field"><label>Employee status</label><select name="status"><?php foreach(['ACTIVE'=>'Active','PROBATIONARY'=>'Probationary','ON_LEAVE'=>'On Leave','INACTIVE'=>'Inactive','RESIGNED'=>'Resigned','TERMINATED'=>'Terminated'] as $v=>$l):?><option value="<?=$v?>" <?=$e['status']===$v?'selected':''?>><?=$l?></option><?php endforeach;?></select></div><div class="field"><label>Effective date of this change</label><input type="date" name="effective_date" value="<?=e(date('Y-m-d'))?>"></div><div class="field full"><label>Change remarks</label><textarea name="remarks" rows="3" placeholder="Example: Transferred to Makati HQ; promoted to HR Associate."></textarea><small>When department, position, branch, employment type, or status changes, HRIS creates an employment history entry automatically.</small></div>
+        <div class="phase2b-form-actions full"><button class="btn primary" type="submit">Save employment changes</button></div>
+      </form><?php endif;?></section>
+
+    <?php elseif($tab==='government'):?>
+      <?php if(!$phase2Ready):?><div class="panel pad"><div class="empty">Import the Phase 2B migration to use Government IDs.</div></div><?php else:?><div class="phase2b-two-col"><section class="panel"><div class="panel-head"><div><h2>Government IDs</h2><p>Official employee identifiers.</p></div><span class="badge gray"><?=count($govIds)?> records</span></div><div class="phase2b-list"><?php if(!$govIds):?><div class="empty">No government IDs recorded yet.</div><?php endif;foreach($govIds as $g):?><div class="phase2b-record"><div><span><?=e(stage_label($g['id_type']))?></span><strong><?=e($g['id_number'])?></strong><small><?=!empty($g['expiry_date'])?'Expires '.e(date('M j, Y',strtotime($g['expiry_date']))):'No expiry recorded'?></small></div><?php if($canManage):?><form method="post" onsubmit="return confirm('Remove this government ID?')"><?=csrf_field()?><input type="hidden" name="action" value="delete_government_id"><input type="hidden" name="employee_id" value="<?=$id?>"><input type="hidden" name="government_id_id" value="<?=$g['id']?>"><input type="hidden" name="return_page" value="hr-employee"><input type="hidden" name="return_id" value="<?=$id?>"><input type="hidden" name="return_tab" value="government"><button class="mini-action" title="Remove">×</button></form><?php endif;?></div><?php endforeach;?></div></section>
+      <?php if($canManage):?><section class="panel"><div class="panel-head"><div><h2>Add / update ID</h2><p>One record per ID type.</p></div></div><form method="post" class="panel-body"><?=csrf_field()?><input type="hidden" name="action" value="save_government_id"><input type="hidden" name="employee_id" value="<?=$id?>"><input type="hidden" name="return_page" value="hr-employee"><input type="hidden" name="return_id" value="<?=$id?>"><input type="hidden" name="return_tab" value="government"><div class="field"><label>ID type</label><select name="id_type"><?php foreach(EmployeeRepository::govIdTypes() as $t):?><option value="<?=$t?>"><?=e(stage_label($t))?></option><?php endforeach;?></select></div><div class="field"><label>ID number</label><input name="id_number" required></div><div class="split"><div class="field"><label>Issued date</label><input type="date" name="issued_date"></div><div class="field"><label>Expiry date</label><input type="date" name="expiry_date"></div></div><div class="field"><label>Notes</label><input name="notes"></div><button class="btn primary">Save government ID</button></form></section><?php endif;?></div><?php endif;?>
+
+    <?php elseif($tab==='emergency'):?>
+      <?php if(!$phase2Ready):?><div class="panel pad"><div class="empty">Import the Phase 2B migration to use Emergency Contacts.</div></div><?php else:?><div class="phase2b-two-col"><section class="panel"><div class="panel-head"><div><h2>Emergency contacts</h2><p>People HR may contact during an emergency.</p></div></div><div class="phase2b-list"><?php if(!$contacts):?><div class="empty">No emergency contacts recorded yet.</div><?php endif;foreach($contacts as $c):?><div class="phase2b-record"><div><span><?=e($c['relationship'])?> <?=$c['is_primary']?'<em class="phase2b-primary">Primary</em>':''?></span><strong><?=e($c['name'])?></strong><small><?=e($c['mobile_no'])?><?=!empty($c['email'])?' · '.e($c['email']):''?></small></div><?php if($canManage):?><form method="post" onsubmit="return confirm('Remove this emergency contact?')"><?=csrf_field()?><input type="hidden" name="action" value="delete_emergency_contact"><input type="hidden" name="employee_id" value="<?=$id?>"><input type="hidden" name="contact_id" value="<?=$c['id']?>"><input type="hidden" name="return_page" value="hr-employee"><input type="hidden" name="return_id" value="<?=$id?>"><input type="hidden" name="return_tab" value="emergency"><button class="mini-action" title="Remove">×</button></form><?php endif;?></div><?php endforeach;?></div></section>
+      <?php if($canManage):?><section class="panel"><div class="panel-head"><div><h2>Add emergency contact</h2><p>Set one contact as primary.</p></div></div><form method="post" class="panel-body"><?=csrf_field()?><input type="hidden" name="action" value="save_emergency_contact"><input type="hidden" name="employee_id" value="<?=$id?>"><input type="hidden" name="return_page" value="hr-employee"><input type="hidden" name="return_id" value="<?=$id?>"><input type="hidden" name="return_tab" value="emergency"><div class="field"><label>Name</label><input name="name" required></div><div class="field"><label>Relationship</label><input name="relationship" required placeholder="Parent, spouse, sibling..."></div><div class="field"><label>Mobile number</label><input name="mobile_no" required></div><div class="field"><label>Email</label><input type="email" name="email"></div><div class="field"><label>Address</label><input name="address_text"></div><label class="phase2b-check"><input type="checkbox" name="is_primary" value="1"> Set as primary contact</label><button class="btn primary">Save emergency contact</button></form></section><?php endif;?></div><?php endif;?>
+
+    <?php elseif($tab==='documents'):?>
+      <?php if(!$phase2Ready):?><div class="panel pad"><div class="empty">Import the Phase 2B migration to use secure Employee Documents.</div></div><?php else:?><div class="phase2b-doc-layout"><?php if($canManage):?><section class="panel"><div class="panel-head"><div><h2>Upload document</h2><p>Files are stored outside the public web directory.</p></div></div><form method="post" enctype="multipart/form-data" class="panel-body"><?=csrf_field()?><input type="hidden" name="action" value="upload_employee_document"><input type="hidden" name="employee_id" value="<?=$id?>"><input type="hidden" name="return_page" value="hr-employee"><input type="hidden" name="return_id" value="<?=$id?>"><input type="hidden" name="return_tab" value="documents"><div class="field"><label>Document type</label><select name="document_type"><?php foreach(EmployeeRepository::documentTypes() as $t):?><option value="<?=$t?>"><?=e(stage_label($t))?></option><?php endforeach;?></select></div><div class="field"><label>Title</label><input name="title" placeholder="Optional custom title"></div><div class="field"><label>File</label><input type="file" name="document_file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx" required><small>PDF, images, Word or Excel · max 10 MB</small></div><button class="btn primary">Upload document</button></form></section><?php endif;?><section class="panel phase2b-doc-list-panel"><div class="panel-head"><div><h2>Employee documents</h2><p><?=count($documents)?> secure file<?=count($documents)===1?'':'s'?></p></div></div><div class="phase2b-doc-list"><?php if(!$documents):?><div class="empty">No employee documents uploaded yet.</div><?php endif;foreach($documents as $d):?><div class="phase2b-document"><span class="phase2b-file-icon"><?=icon_svg('file')?></span><div><strong><?=e($d['title'])?></strong><span><?=e(stage_label($d['document_type']))?> · <?=e($d['original_name'])?></span><small><?=number_format(((int)$d['file_size'])/1024,1)?> KB · Uploaded <?=e(date('M j, Y g:i A',strtotime($d['uploaded_at'])))?><?=!empty($d['uploaded_by_name'])?' by '.e($d['uploaded_by_name']):''?></small></div><div class="phase2b-doc-actions"><a class="btn sm" target="_blank" href="<?=url('hr-employee-document',['employee_id'=>$id,'id'=>$d['id']])?>">View / Download</a><?php if($canManage):?><form method="post" onsubmit="return confirm('Delete this document permanently?')"><?=csrf_field()?><input type="hidden" name="action" value="delete_employee_document"><input type="hidden" name="employee_id" value="<?=$id?>"><input type="hidden" name="document_id" value="<?=$d['id']?>"><input type="hidden" name="return_page" value="hr-employee"><input type="hidden" name="return_id" value="<?=$id?>"><input type="hidden" name="return_tab" value="documents"><button class="btn sm ghost" type="submit">Delete</button></form><?php endif;?></div></div><?php endforeach;?></div></section></div><?php endif;?>
+
+    <?php elseif($tab==='history'):?>
+      <section class="panel"><div class="panel-head"><div><h2>Employment history</h2><p>Automatic trail of hiring, transfers, promotions, assignment and status changes.</p></div><span class="badge gray"><?=count($history)?> events</span></div><div class="phase2b-history"><?php if(!$phase2Ready):?><div class="empty">Import the Phase 2B migration to activate employment history.</div><?php elseif(!$history):?><div class="empty">No employment history events yet.</div><?php endif;foreach($history as $h):?><article><span class="phase2b-history-dot"></span><div class="phase2b-history-date"><?=e(date('M j, Y',strtotime($h['effective_date'])))?></div><div class="phase2b-history-card"><div><strong><?=e(stage_label($h['event_type']))?></strong><small><?=!empty($h['created_by_name'])?'Recorded by '.e($h['created_by_name']):'System record'?></small></div><p><?=e($h['remarks']??'Employment record updated.')?></p><div class="phase2b-history-changes"><?php if(($h['from_department_name']??'')!==($h['to_department_name']??'')):?><span>Department: <?=e($h['from_department_name']??'—')?> → <?=e($h['to_department_name']??'—')?></span><?php endif;?><?php if(($h['from_position_name']??'')!==($h['to_position_name']??'')):?><span>Position: <?=e($h['from_position_name']??'—')?> → <?=e($h['to_position_name']??'—')?></span><?php endif;?><?php if(($h['from_branch_name']??'')!==($h['to_branch_name']??'')):?><span>Branch: <?=e($h['from_branch_name']??'—')?> → <?=e($h['to_branch_name']??'—')?></span><?php endif;?><?php if(($h['from_status']??'')!==($h['to_status']??'')):?><span>Status: <?=e(stage_label((string)($h['from_status']??'—')))?> → <?=e(stage_label((string)($h['to_status']??'—')))?></span><?php endif;?></div></div></article><?php endforeach;?></div></section>
+
+    <?php elseif($tab==='audit'):?>
+      <section class="panel"><div class="panel-head"><div><h2>Audit trail</h2><p>Traceable system actions associated with this employee.</p></div><span class="badge gray"><?=count($auditTrail)?> actions</span></div><div class="phase2b-audit-list"><?php if(!$auditTrail):?><div class="empty">No audit actions recorded for this employee yet.</div><?php endif;foreach($auditTrail as $a):$details=$a['details_json']?json_decode((string)$a['details_json'],true):null;?><div class="phase2b-audit-row"><span class="phase2b-audit-icon"><?=icon_svg('audit')?></span><div><strong><?=e(stage_label($a['action']))?></strong><span><?=e($a['module'])?><?=!empty($a['user_name'])?' · '.e($a['user_name']):''?></span><?php if(is_array($details)&&$details):?><small><?=e(mb_substr(json_encode($details,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),0,220))?></small><?php endif;?></div><time><?=e(date('M j, Y g:i A',strtotime($a['created_at'])))?></time></div><?php endforeach;?></div></section>
+    <?php endif;?>
+    <?php render_portal_footer(); exit;
+}
+
 
 if ($page === 'hr-manpower') {
     $mrs=RecruitmentRepository::manpowerRequests(); $clients=RecruitmentRepository::clients(); $branches=RecruitmentRepository::branches(); $deps=RecruitmentRepository::departments();

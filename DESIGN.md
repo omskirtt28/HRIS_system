@@ -349,7 +349,7 @@ The Foundation administration screens establish the pattern for future HRIS conf
 
 
 ## Official PMBSI Branding Assets (Locked · 2026-09-24)
-- Full corporate logo: `public/assets/branding/pmbsi-logo.png`
+- Full corporate logo: `public/assets/branding/pmbsi-logo-transparent-v2.png`
 - HRIS/app mark: `public/assets/branding/pmbsi-mark.png`
 - Browser favicon: `/favicon.ico` plus PNG favicon sizes under `public/assets/branding/`
 - Apple touch icon: `public/assets/branding/apple-touch-icon.png`
@@ -357,4 +357,31 @@ The Foundation administration screens establish the pattern for future HRIS conf
 - Do not replace the official mark with text-only `P` placeholders in production UI.
 
 ## Full wordmark header rule
-The public website header must use the complete PMBSI corporate wordmark at a readable size. The compact PMBSI mark is reserved for the browser favicon, collapsed navigation, app icons, and other small-format surfaces where a full wordmark would be illegible.
+The public website header must use the complete PMBSI corporate wordmark at a readable size. The browser favicon and app icon now use the complete PMBSI wordmark scaled inside a square canvas, per the approved branding direction. The compact PMBSI mark remains available for collapsed navigation and other optional compact UI surfaces.
+
+
+## Logo Consistency Rule
+Use the full PMBSI wordmark across the public site, login screens, app sidebars, and footer areas unless a technical size constraint explicitly requires a smaller icon. Avoid mixing boxed, glow-heavy, or mark-only variants inside the main application UI.
+
+
+## Approved Login Experience
+The official HRIS login screen uses a split layout: a dark PMBSI brand/benefits hero on the left and a light sign-in card on the right. The four feature cards must include icons, soft glassy dark surfaces, and warm amber accents consistent with the approved PMBSI visual.
+
+
+## Approved PMBSI Logo Asset
+Use the metallic silver-circle PMBSI wordmark (`public/assets/branding/pmbsi-logo-transparent-v2.png`) as the canonical logo for the HRIS. Do not substitute the earlier flat gray logo. Login placement uses the larger wordmark treatment shown in the approved mockup.
+
+
+
+## Official Logo Asset Update
+Use `public/assets/branding/pmbsi-logo-transparent-v2.png` as the single approved PMBSI full logo across the live interface. Preserve transparency, keep proportions intact, and avoid adding wrapper backgrounds, glow, or non-original shadows.
+
+
+## Phase 2A Employee UX
+
+The Employee Directory follows the HRIS panel/table language: compact metric cards, a single filter rail, identity-first employee rows, and a dedicated profile view. Add Employee uses a two-column desktop form with a sticky action card, collapsing to one column on smaller screens. The profile tab rail previews the 201-file information architecture while unfinished tabs stay visibly marked as `Soon`.
+
+
+## Phase 2B 201 File UX
+
+The Employee Profile tab rail is now functional: Overview, Personal Info, Employment, Government IDs, Emergency Contact, Documents, History, and Audit Trail. Editing stays inside the employee context instead of opening unrelated screens. Employment changes require an effective date and optional remarks so the resulting history is understandable. Document rows keep actions compact and profile/photo controls avoid disrupting the main information hierarchy.

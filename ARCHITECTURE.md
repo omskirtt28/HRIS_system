@@ -437,3 +437,13 @@ Single-active-session enforcement may be added later by revoking prior active se
 ### Next architectural milestone
 
 Phase 2 is **Employee Master / 201 File**. It must reuse this foundation and introduce an employee identity separate from the login account. A user account may link to an employee record, but `users` must not become the 201-file table.
+
+
+## Phase 2A — Employee Management Foundation
+
+Employee Management is now a first-class HR domain through `app/EmployeeRepository.php`. The HR portal exposes `hr-employees`, `hr-employee-new`, and `hr-employee` routes. Employee master records are stored in `employees` and reference Phase 1 organization masters (`departments`, `positions`, `branches`, `employment_types`) plus an optional Employee-portal `users` account. Write actions remain permission-gated and audited. Future 201-file tables will extend this employee ID instead of duplicating employee identity data.
+
+
+## Phase 2B — Complete 201 File Architecture
+
+Phase 2B extends the central `employees` master without changing employee identity. The 201 File is composed of child domains keyed by `employees.id`: `employee_government_ids`, `employee_emergency_contacts`, `employee_documents`, and `employee_employment_history`. Secure document/photo bytes are stored under `storage/` and are streamed only through authenticated HR routes; they are not directly web-accessible. Employee changes are written through `EmployeeRepository`, and organization/status changes create immutable history entries plus the existing global audit log.

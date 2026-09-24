@@ -234,6 +234,30 @@ A Recruitment feature is not complete until:
 
 
 ## Branding Rule
-Use only the approved PMBSI assets in `public/assets/branding/` for system identity. The full logo is used on public/login surfaces; the compact mark is used for sidebars and favicons. Text-only placeholder logos must not be reintroduced.
+Use only the approved PMBSI assets in `public/assets/branding/` for system identity. The full logo is used on public/login surfaces and browser favicon/app icons. The compact mark may still be used only in narrow sidebar/compact UI contexts. Text-only placeholder logos must not be reintroduced.
 
-- Public website/navigation branding must display the full PMBSI wordmark. Do not replace the public header with the compact mark. Use the compact mark only for favicon/app-icon/compact UI contexts.
+- Public website/navigation branding must display the full PMBSI wordmark. Do not replace the public header with the compact mark. Use the full PMBSI wordmark for favicon and app-icon branding. The compact mark is reserved only for narrow UI contexts where needed.
+
+
+## Employee Master Rules
+
+- `employee_no` is the stable human-readable employee identifier and must remain unique.
+- One Employee portal user may link to at most one employee record.
+- Department, position, branch, and employment type are master-data references; do not hard-code labels into employee records.
+- Position/department assignments must be consistent when both are selected.
+- Employee creation requires `employees.manage` and must be written to the audit log.
+- Do not duplicate identity data when future Attendance, Leave, Performance, Training, Documents, or Offboarding modules are added; reference `employees.id`.
+- Recruitment → Employee conversion will be added in a later Phase 2 step and must create/link this same employee master record rather than a parallel table.
+
+
+## Phase 2B Employee 201 File Rules
+
+- `employees.id` is the permanent parent identity for all 201 File child records.
+- Personal/employment edits require `employees.manage` and must create an audit log entry.
+- Department, position, branch, employment type, and status changes must create an `employee_employment_history` event; do not overwrite history.
+- One Employee portal user may link to only one employee record; unlinking is allowed by authorized HR users.
+- Employee documents must be stored outside the public directory and accessed through authenticated/authorized routes only.
+- Uploads are allow-listed by extension/MIME and size; filenames stored on disk must be randomized.
+- Profile photos accept JPG, PNG, or WEBP only and must not be placed in a public upload directory.
+- A Government ID type is unique per employee and may be updated by saving the same type again.
+- Deleting a 201 File child record is an audited HR action.

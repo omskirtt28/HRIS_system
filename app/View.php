@@ -11,6 +11,7 @@ function icon_svg(string $name, string $class=''): string {
         'clock'=>'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
         'file'=>'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h6"/>',
         'briefcase'=>'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18M10 12v2h4v-2"/>',
+        'lock'=>'<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V8a4 4 0 1 1 8 0v3"/>',
         'pipeline'=>'<rect x="3" y="4" width="5" height="6" rx="1"/><rect x="10" y="4" width="5" height="6" rx="1"/><rect x="17" y="4" width="4" height="6" rx="1"/><path d="M5.5 10v4h7v-4M12.5 14v4h6.5v-8"/>',
         'check'=>'<path d="m5 12 4 4L19 6"/>',
         'check-square'=>'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="m7 12 3 3 7-7"/>',
@@ -38,14 +39,14 @@ function icon_svg(string $name, string $class=''): string {
 function render_head(string $title): void { ?>
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title><?=e($title)?> · PMBSI HRIS</title>
-<link rel="shortcut icon" href="favicon.ico?v=20260924-full-wordmark" type="image/x-icon">
-<link rel="icon" href="favicon.ico?v=20260924-full-wordmark" sizes="any">
-<link rel="icon" type="image/png" sizes="32x32" href="public/assets/branding/favicon-32x32.png?v=20260924-full-wordmark">
-<link rel="icon" type="image/png" sizes="16x16" href="public/assets/branding/favicon-16x16.png?v=20260924-full-wordmark">
-<link rel="apple-touch-icon" sizes="180x180" href="public/assets/branding/apple-touch-icon.png?v=20260924-full-wordmark">
+<link rel="shortcut icon" href="favicon.ico?v=20260924-logo-transparency-fix-v2" type="image/x-icon">
+<link rel="icon" href="favicon.ico?v=20260924-logo-transparency-fix-v2" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="public/assets/branding/favicon-32x32.png?v=20260924-logo-transparency-fix-v2">
+<link rel="icon" type="image/png" sizes="16x16" href="public/assets/branding/favicon-16x16.png?v=20260924-logo-transparency-fix-v2">
+<link rel="apple-touch-icon" sizes="180x180" href="public/assets/branding/apple-touch-icon.png?v=20260924-logo-transparency-fix-v2">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="public/assets/app.css"><link rel="stylesheet" href="public/assets/hris-modern.css?v=20260924-login-logo-clean">
+<link rel="stylesheet" href="public/assets/app.css"><link rel="stylesheet" href="public/assets/hris-modern.css?v=20260924-phase2a-employees"><link rel="stylesheet" href="public/assets/phase2b.css?v=20260924-phase2b-201file">
 <style>.alert{padding:11px 14px;border-radius:10px;margin-bottom:14px;font-size:12.5px}.req{color:var(--red)}.actions-inline{display:flex;gap:6px;flex-wrap:wrap}.nowrap{white-space:nowrap}.empty{padding:36px;text-align:center;color:var(--hris-muted)}form.inline{display:inline}.status-select{min-width:150px}</style>
 </head><body><div id="toast" class="toast"></div>
 <?php }
@@ -54,7 +55,7 @@ function render_flashes(): void { $f=pull_flashes(); if(!$f)return; echo '<div c
 
 function render_public_header(string $active=''): void { ?>
 <nav class="pubnav"><div class="in">
-<a href="<?=url('home')?>" class="brand brand-official brand-official-public" aria-label="Prime Mover Business Solutions, Inc."><img src="public/assets/branding/pmbsi-logo.png" alt="Prime Mover Business Solutions, Inc." class="brand-full-logo"></a>
+<a href="<?=url('home')?>" class="brand brand-official brand-official-public" aria-label="Prime Mover Business Solutions, Inc."><img src="public/assets/branding/pmbsi-logo-transparent-v2.png" alt="Prime Mover Business Solutions, Inc." class="brand-full-logo"></a>
 <div class="links">
 <?php foreach([['Home','home'],['Careers','careers'],['About Us','about'],['Contact','contact']] as [$label,$page]): ?>
 <a href="<?=url($page)?>" class="<?=$active===$page?'active':''?>"><?=e($label)?></a>
@@ -65,7 +66,7 @@ function render_public_header(string $active=''): void { ?>
 
 function render_public_footer(): void { ?>
 <footer class="foot"><div class="in">
-<div><div class="brand brand-official brand-official-dark"><img src="public/assets/branding/pmbsi-logo.png" alt="Prime Mover Business Solutions, Inc." class="brand-full-logo"></div><p style="max-width:280px;margin-top:12px">Connecting Filipino talent with meaningful careers through trusted workforce management.</p></div>
+<div><div class="brand brand-official brand-official-footer"><img src="public/assets/branding/pmbsi-logo-transparent-v2.png" alt="Prime Mover Business Solutions, Inc." class="brand-full-logo"></div><p style="max-width:280px;margin-top:12px">Connecting Filipino talent with meaningful careers through trusted workforce management.</p></div>
 <div><div style="color:#fff;font-weight:600;margin-bottom:8px">Careers</div><a href="<?=url('careers')?>">Browse jobs</a><a href="<?=url('apply')?>">Apply now</a><a href="<?=url('track')?>">Track application</a></div>
 <div><div style="color:#fff;font-weight:600;margin-bottom:8px">Company</div><a href="<?=url('about')?>">About us</a><a href="<?=url('contact')?>">Contact</a></div>
 <div><div style="color:#fff;font-weight:600;margin-bottom:8px">HRIS</div><a href="<?=url('login')?>">Employee / HR Login</a><a href="<?=url('login',['portal'=>'client'])?>">Client Portal</a><a href="<?=url('login',['portal'=>'admin'])?>">Administration</a></div>
@@ -81,7 +82,7 @@ function nav_config(string $kind): array {
       ]],
       'hr'=>['title'=>'PMBSI HRIS','sub'=>'Human Resources','groups'=>[
         ['Overview',[['Dashboard','hr-dashboard','home',false,'dashboard.hr.view']]],
-        ['People',[['Employees','#','users',true,'employees.view_all'],['Attendance','#','clock',true,'attendance.view_all'],['Leave','#','calendar',true,'leave.manage'],['HR Requests','#','clipboard',true,'requests.manage']]],
+        ['People',[['Employees','hr-employees','users',false,'employees.view_all'],['Attendance','#','clock',true,'attendance.view_all'],['Leave','#','calendar',true,'leave.manage'],['HR Requests','#','clipboard',true,'requests.manage']]],
         ['Recruitment',[['Manpower Requests','hr-manpower','briefcase',false,'recruitment.view'],['Applicants','hr-applicants','user-plus',false,'recruitment.view'],['Pipeline','hr-pipeline','pipeline',false,'recruitment.view'],['Endorsements','hr-endorsements','check-square',false,'recruitment.view']]],
         ['HR Operations',[['Employee Relations','#','shield',true,null],['Performance','#','chart',true,null],['Training','#','book',true,null],['Offboarding','#','file',true,null]]],
         ['Insights',[['Reports','hr-reports','chart',false,'reports.view']]]
@@ -103,7 +104,7 @@ function nav_config(string $kind): array {
 function render_portal_header(string $kind,string $active,string $title): void {
     $c=nav_config($kind); $u=Auth::user() ?? ['name'=>'User','role_name'=>'Account']; render_head($title);
     $search=['employee'=>'Search your HRIS…','hr'=>'Search employees, applicants, requests…','client'=>'Search candidates…','admin'=>'Search users, branches, settings…'][$kind] ?? 'Search HRIS…'; ?>
-<div class="shell"><aside class="side" id="side"><a href="<?=url($kind.'-dashboard')?>" class="brand brand-portal"><img src="public/assets/branding/pmbsi-mark.png" alt="" class="brand-mark"><span><?=e($c['title'])?><span class="sub"><?=e($c['sub'])?></span></span></a>
+<div class="shell"><aside class="side" id="side"><a href="<?=url($kind.'-dashboard')?>" class="brand brand-portal" aria-label="Prime Mover Business Solutions, Inc."><img src="public/assets/branding/pmbsi-logo-transparent-v2.png" alt="Prime Mover Business Solutions, Inc." class="brand-full-logo"><span class="brand-portal-meta"><strong><?=e($c['title'])?></strong><span class="sub brand-portal-sub"><?=e($c['sub'])?></span></span></a>
 <div class="navs"><?php foreach($c['groups'] as [$group,$items]): ?><div class="nav-group"><div class="gl"><?=e($group)?></div><?php foreach($items as $item): [$label,$page,$icon,$disabled,$permission]=array_pad($item,5,null); if($permission && !Auth::can($permission)) continue; ?>
 <a href="<?=$disabled?'#':url($page)?>" class="nav-item <?=$active===$page?'active':''?> <?=$disabled?'disabled':''?>"><span class="ni"><?=icon_svg($icon)?></span><span><?=e($label)?></span><?=$disabled?'<span class="soon">Soon</span>':''?></a>
 <?php endforeach;?></div><?php endforeach;?></div>
