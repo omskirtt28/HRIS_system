@@ -92,3 +92,7 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 - Added Government ID and Emergency Contact records.
 - Added automatic employment history for assignment/status changes with effective dates and remarks.
 - Added employee-specific audit trail and Phase 2B responsive UI layer.
+
+## 2026-09-24 — Sidebar Logout
+- Added a dedicated Log out button at the very bottom of the HRIS sidebar, directly below the signed-in user profile.
+- Removed the duplicate Sign out item from the top profile dropdown.
