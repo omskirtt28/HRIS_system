@@ -191,4 +191,24 @@ final class FoundationRepository
         if(self::tableExists('user_sessions')) db()->prepare('UPDATE user_sessions SET revoked_at=NOW() WHERE user_id=? AND revoked_at IS NULL')->execute([$id]);
         audit('Access Control','TOGGLE_USER_STATUS','user',$id);
     }
+
+    public static function resetUserPassword(int $id,string $password): void
+    {
+        $me=(int)(Auth::user()['id']??0);
+        if($id<=0) throw new RuntimeException('User account not found.');
+        if($id===$me) throw new RuntimeException('Use a dedicated change-password flow for your own Super Admin account.');
+        if(strlen($password)<10) throw new RuntimeException('Temporary password must be at least 10 characters.');
+        if(!preg_match('/[A-Za-z]/',$password) || !preg_match('/[0-9]/',$password)) throw new RuntimeException('Temporary password must include at least one letter and one number.');
+
+        $st=db()->prepare('SELECT id,email FROM users WHERE id=? LIMIT 1');
+        $st->execute([$id]);
+        $user=$st->fetch();
+        if(!$user) throw new RuntimeException('User account not found.');
+
+        db()->prepare('UPDATE users SET password_hash=? WHERE id=?')->execute([password_hash($password,PASSWORD_DEFAULT),$id]);
+        if(self::tableExists('user_sessions')) {
+            db()->prepare('UPDATE user_sessions SET revoked_at=NOW() WHERE user_id=? AND revoked_at IS NULL')->execute([$id]);
+        }
+        audit('Access Control','RESET_USER_PASSWORD','user',$id,['email'=>$user['email'],'sessions_revoked'=>true]);
+    }
 }

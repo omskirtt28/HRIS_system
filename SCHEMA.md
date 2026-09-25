@@ -506,7 +506,7 @@ Existing local databases should run:
 
 `database/migrations/20260924_role_based_ui.sql`
 
-This migration safely inserts the Employee role and the local demo account used for UI review if they do not already exist. Future Employee Management tables will be added separately so the recruitment schema remains backward-compatible during phased HRIS development.
+This migration safely inserts the Employee role if it does not already exist. Employee accounts are created through the HRIS instead of being seeded with test credentials.
 
 ## 14. Phase 1 Foundation — Implemented Tables
 

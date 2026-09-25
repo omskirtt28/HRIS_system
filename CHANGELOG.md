@@ -1,3 +1,21 @@
+
+## 2026-09-25 · Users & Access header readability fix
+- rebalanced the User Accounts column architecture so the Department header is fully readable instead of showing `DEPART...`
+- preserved Password/Actions alignment and responsive card behavior
+- added a header-readability guard to prevent important labels from being silently truncated
+
+## 2026-09-25 — Users & Access structural table fix
+- Rebuilt the User Accounts column sizing with an explicit `colgroup` instead of stacked percentage overrides.
+- Added fixed action slots so Reset password / Current account and the three-dot menu align identically on every row.
+- Consolidated all Users & Access CSS into one production block and removed the previous layered hotfix rules.
+- Preserved password access, reset modal triggers, row actions, search, filters, permissions, and backend handlers.
+
+
+## 2026-09-25 · Users & Access action spacing hotfix
+- widened and rebalanced the Actions column on Users & Access
+- prevented overlap between masked password, eye icon, Reset password button, and the three-dot menu
+- kept the layout clean without bringing back the horizontal slide / awkward overflow issue
+
 # Conversion Notes — v1
 
 ## Converted from prototype to PHP/MySQL
@@ -20,79 +38,52 @@
 
 The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, not a Recruitment backend. It is treated as a reference for future shared HRIS concepts only. Ticket tables were not reused as applicant/application records.
 
-## 2026-09-24 — Phase 1 Foundation
 
-- Added permission-code RBAC and role-permission management.
-- Added HR operational role and HR demo account.
-- Added positions and employment types master data.
-- Added tracked authenticated sessions.
-- Added HR Admin Users, Roles & Permissions, Organization Setup, Security & Sessions and enhanced Audit pages.
-- Updated sidebar visibility to honor permissions.
-- Changed recruitment write authorization from hardcoded role lists to the `recruitment.manage` permission.
-- Updated project documentation and database schema for the HRIS Core Foundation.
+## v1.1 - Clean testing baseline
+- Removed seeded sample manpower requests, jobs, applicants, applications, interviews, endorsements, offers, deployments, and audit history.
+- Replaced named demo users/companies with clearly labeled generic testing access.
+- Added `database/reset_to_clean.sql` for databases already imported from v1.0.
+- Public homepage metrics now come from real database records; removed the fixed `2,400+` value.
+- Added empty-state messaging when there are no published jobs.
+- Locked next HRIS phase: Employee 201 File + Employee Master + Organization Structure.
 
-## 2026-09-24 — Official PMBSI Branding
-- Integrated approved PMBSI logo across public, login and authenticated HRIS surfaces.
-- Added browser favicon and app icon asset set.
-- Removed active text-only placeholder branding.
-
-- Enlarged and standardized the complete PMBSI wordmark in the public navigation header; compact PMBSI mark remains the favicon/app icon for small-format readability.
-
-## 2026-09-24 — Login Logo Cleanup
-- Removed the extra white login-logo container while preserving the full PMBSI wordmark.
+## 2026-09-25 — Production Account / Demo UI Cleanup
+- Removed prefilled test emails and passwords from the live login screen.
+- Removed the visible demo-environment and UI-preview labels from live HRIS pages.
+- Removed Employee/HR demo-account seeding from fresh schema and migrations.
+- Added a safe migration to retire legacy seeded demo accounts without breaking historical foreign-key references.
+- Kept recruitment presentation data unchanged for the scheduled short presentation; that data can be cleaned separately afterward.
 
 
-## 2026-09-24 — Consistent PMBSI Logo System
-- Standardized the full PMBSI wordmark across the public home page, login page, portal sidebars, and preview screens.
-- Removed mixed logo treatments so branding stays consistent throughout the HRIS.
+## 2026-09-25 — Super Admin Password Reset
+- Added Super Admin-only password reset controls in Users & Access.
+- Existing passwords remain securely hashed and are never displayed or stored in plaintext.
+- Super Admin can show the temporary password while creating/resetting it, and resetting a password revokes the target user’s active sessions.
 
 
-## 2026-09-24 — Login Visual Patch
-- Updated the login page UI to match the approved split-screen visual mockup.
-- Added icon-based benefit cards, refined spacing, and aligned the login form styling with the approved PMBSI HRIS presentation.
+## 2026-09-25 — Super Admin password UI v2
+- Kept Last Login timestamps on one line in Users & Access.
+- Replaced text Show/Hide controls with eye-icon password toggles.
+- Existing passwords remain non-recoverable because they are securely hashed.
+- After a Super Admin password reset, the new temporary password can be revealed/copied once on the redirected Users & Access page and is not stored as plaintext in the database.
 
 
-## 2026-09-24 — Login Visual V2
-- Forced the exact approved PMBSI login visual onto the system with updated spacing, layout ratios, hero styling, and card proportions.
-- Added a new CSS cache-busting version to ensure the browser loads the new design.
+## 2026-09-25 — Users & Access Final UI/UX
+- Rebuilt the Users & Access presentation to match the approved production reference while preserving existing account-management backend handlers.
+- Replaced inline expanding password-reset forms with a centered modal using the existing reset-password POST action and CSRF protection.
+- Added working client-side user search, role/department/status filters, compact row actions, responsive mobile cards, and a no-horizontal-scroll desktop table.
+- Preserved hashed-password storage; current passwords remain unrecoverable while newly reset temporary passwords are shown once using the existing secure session reveal flow.
 
 
-## 2026-09-24 — Exact Metallic PMBSI Logo
-- Replaced the old flat PMBSI image asset with the metallic silver-circle/orange wordmark used in the approved login visual.
-- Increased the login-page logo to match the approved visual proportions.
-- Regenerated favicon/app branding assets from the same metallic source.
+## 2026-09-25 — Users & Access Layout Refinement
+- Rebalanced the User Accounts table so Password and Actions no longer collide or clip.
+- Gave the Actions column enough width for its header and three-dot menu while keeping the table inside the card.
+- Moved the current-account indicator into a compact secondary line under the password mask to prevent overlap.
+- Preserved reset-password modal, search, filters, account actions, permissions, and backend behavior.
 
 
-## 2026-09-24 — Official PMBSI Transparent Logo Integration
-- Replaced older logo usage with the approved cleaned PMBSI transparent PNG as the standard logo asset.
-- Applied the same official logo consistently to the public header/footer, login screen, portal/sidebar branding, dashboard branding areas, and favicon assets.
-- Removed wrapper styling and filter effects that could introduce white boxes, borders, clipping, glow, or extra shadows around the logo.
-
-
-## 2026-09-24 — PMBSI Logo Transparency / White Box Fix
-- Added a new cache-busted approved transparent logo asset: `public/assets/branding/pmbsi-logo-transparent-v2.png`.
-- Updated the home page, login page, internal sidebar/dashboard branding, and supporting previews to use the same approved transparent logo file.
-- Strengthened branding CSS to remove any wrapper/background styling that could create a white box effect around the logo.
-
-
-## 2026-09-24 — Phase 2A Employee Management
-- Added the central `employees` master table and migration.
-- Added HR Employee Directory with search, department, branch, and status filtering.
-- Added Add Employee workflow with personal/contact, organization assignment, employment status, hire dates, and optional Employee portal account linking.
-- Added employee profile overview and 201-file roadmap tabs.
-- Connected the HR sidebar Employees item and HR dashboard quick access to Employee Management.
-- Added audited `EmployeeRepository` business logic and updated architecture/rules/schema documentation.
-
-
-## 2026-09-24 — Phase 2B Complete Employee 201 File
-- Activated functional Employee Profile tabs for Personal Info, Employment, Government IDs, Emergency Contact, Documents, History, and Audit Trail.
-- Added editable employee personal/employment records with duplicate and organization validation.
-- Added Employee portal account link/unlink in Employment settings.
-- Added secure profile photo upload and secure HR document upload/view/download/delete workflow.
-- Added Government ID and Emergency Contact records.
-- Added automatic employment history for assignment/status changes with effective dates and remarks.
-- Added employee-specific audit trail and Phase 2B responsive UI layer.
-
-## 2026-09-24 — Sidebar Logout
-- Added a dedicated Log out button at the very bottom of the HRIS sidebar, directly below the signed-in user profile.
-- Removed the duplicate Sign out item from the top profile dropdown.
+## 2026-09-25 — Users & Access Password / Actions Refinement
+- Rebalanced Password and Actions columns to remove cramped masked-password controls and prevent Reset password from visually spilling into neighboring columns.
+- Moved Reset password into the Actions column where it semantically belongs, while keeping the eye control in Password.
+- Replaced the intrusive password-protection toast with a centered Password Access modal.
+- Preserved one-way password hashing: existing passwords remain unrecoverable; a freshly reset temporary password can be revealed/copied only on the immediate Super Admin response page.

@@ -138,6 +138,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             FoundationRepository::toggleUserStatus((int)($_POST['user_id']??0));
             flash('success','User account status updated.'); redirect('admin-users');
         }
+        if ($action === 'reset_user_password') {
+            Auth::requireRoles(['SUPER_ADMIN']);
+            $targetUserId=(int)($_POST['user_id']??0);
+            $newTemporaryPassword=(string)($_POST['new_password']??'');
+            FoundationRepository::resetUserPassword($targetUserId,$newTemporaryPassword);
+            // Make the freshly reset temporary password available only on the immediate
+            // Super Admin response page. It is never stored as plaintext in the database.
+            $_SESSION['password_reset_reveal']=['user_id'=>$targetUserId,'password'=>$newTemporaryPassword];
+            flash('success','Password reset successfully. Use the eye icon for that user to view or copy the new temporary password on this page. All active sessions for that account were signed out.');
+            redirect('admin-users');
+        }
         if ($action === 'create_employee') {
             Auth::requirePermission('employees.manage');
             $id=EmployeeRepository::create([
@@ -229,7 +240,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $defaultBack = match($action) {
             'create_department','create_position','create_branch','create_employment_type','toggle_master' => 'admin-organization',
             'create_role','save_role_permissions' => 'admin-roles',
-            'create_user','toggle_user_status' => 'admin-users',
+            'create_user','toggle_user_status','reset_user_password' => 'admin-users',
             'create_employee' => 'hr-employee-new',
             'update_employee_personal','update_employee_employment','upload_employee_photo','save_government_id','delete_government_id','save_emergency_contact','delete_emergency_contact','upload_employee_document','delete_employee_document' => 'hr-employee',
             default => 'home',
@@ -413,22 +424,21 @@ if ($page === 'login') {
     $meta = match($portal) {
         'client' => ['Client Portal','Review endorsed candidates and recruitment decisions in one secure workspace.','ops@primelogistics.com'],
         'admin' => ['HRIS Administration','Manage access, organization settings, security and audit visibility.','winston.cruz@pmbsi.com'],
-        'hr' => ['Human Resources','Recruitment, people operations and HR services in one secure workspace.','hr.demo@pmbsi.com'],
-        'employee' => ['Employee Self-Service','Your workday, requests and HR services in one modern workspace.','employee.demo@pmbsi.com'],
-        default => ['PMBSI HRIS','Your workday, HR services and workforce tools in one modern workspace.','employee.demo@pmbsi.com'],
+        'hr' => ['Human Resources','Recruitment, people operations and HR services in one secure workspace.',''],
+        'employee' => ['Employee Self-Service','Your workday, requests and HR services in one modern workspace.',''],
+        default => ['PMBSI HRIS','Your workday, HR services and workforce tools in one modern workspace.',''],
     };
     render_head($meta[0]); render_flashes(); ?>
     <div class="loginwrap">
       <div class="login-hero">
         <a href="<?=url('home')?>" class="brand brand-official brand-official-login" style="position:relative;z-index:2" aria-label="Prime Mover Business Solutions, Inc."><img src="public/assets/branding/pmbsi-logo-transparent-v2.png" alt="Prime Mover Business Solutions, Inc." class="brand-full-logo"></a>
         <div class="login-copy"><span class="login-kicker">Secure HR workspace</span><h1>People operations,<br>designed for how teams work now.</h1><p>One HRIS experience for employees, HR teams and administrators — with role-based access, clear workflows and a modern responsive interface.</p><div class="login-benefits"><div class="login-benefit"><span class="login-benefit-icon"><?=icon_svg('users')?></span><div><strong>Employee self-service</strong><span>Attendance, leave, requests and profile access.</span></div></div><div class="login-benefit"><span class="login-benefit-icon"><?=icon_svg('briefcase')?></span><div><strong>HR operations</strong><span>Recruitment, workforce actions and reporting.</span></div></div><div class="login-benefit"><span class="login-benefit-icon"><?=icon_svg('lock')?></span><div><strong>Role-based access</strong><span>Each user only sees tools relevant to their role.</span></div></div><div class="login-benefit"><span class="login-benefit-icon"><?=icon_svg('shield')?></span><div><strong>Audit-ready</strong><span>Security controls and traceable system activity.</span></div></div></div></div>
-        <div class="tiny login-hero-foot">Prime Mover Business Solutions, Inc. · Local development: localhost:3000</div>
+        <div class="tiny login-hero-foot">Prime Mover Business Solutions, Inc. · Human Resources Information System</div>
       </div>
       <div class="login-form"><form class="login-card" method="post"><?=csrf_field()?><input type="hidden" name="action" value="login"><?php if($portal!==''):?><input type="hidden" name="portal" value="<?=e($portal)?>"><?php endif;?>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px"><div><h2>Welcome back</h2><div class="login-sub"><?=e($meta[1])?></div></div><span class="badge amber"><?=e($portal===''?'Unified Login':ucfirst($portal).' Portal')?></span></div>
-        <?php if(($GLOBALS['config']['app']['debug'] ?? false)===true):?><div class="portal-hint">Demo environment · password <code>demo1234</code></div><?php endif;?>
         <div class="field"><label>Email address</label><input type="email" name="email" required value="<?=e($meta[2])?>" autocomplete="username"></div>
-        <div class="field"><label>Password</label><input type="password" name="password" required value="<?=($GLOBALS['config']['app']['debug'] ?? false)?'demo1234':''?>" autocomplete="current-password"></div>
+        <div class="field"><label>Password</label><input type="password" name="password" required value="" autocomplete="current-password"></div>
         <button class="btn primary block" style="height:44px;justify-content:center">Sign in <?=icon_svg('arrow')?></button>
         <div class="login-footnote">Your dashboard is selected automatically based on your account role.</div>
         <div style="text-align:center;margin-top:14px"><a href="<?=url('home')?>" class="small muted">← Back to PMBSI Careers</a></div>
@@ -445,7 +455,7 @@ if (str_starts_with($page,'employee-')) {
 if ($page === 'employee-dashboard') {
     $u=Auth::user();
     render_portal_header('employee',$page,'Employee Home');
-    dashboard_hero('Employee self-service','Good morning, '.explode(' ',trim((string)$u['name']))[0].'.','Here is your personal HR workspace for today.','<span class="badge amber">UI preview · employee modules next</span>'); ?>
+    dashboard_hero('Employee self-service','Good morning, '.explode(' ',trim((string)$u['name']))[0].'.','Here is your personal HR workspace for today.'); ?>
     <div class="employee-focus">
       <section class="panel today-card"><div class="panel-head"><div><h2>Today</h2><p>Thursday · September 24, 2026</p></div><span class="status-pill">On time</span></div><div class="today-time"><div><div class="big">08:47 AM</div><div class="smallline">Time in · Schedule 9:00 AM — 6:00 PM</div></div><div style="text-align:right"><div class="smallline">Work location</div><strong style="font-size:13px">PMBSI Head Office</strong></div></div></section>
       <section class="panel"><div class="panel-head"><div><h2>Leave balance</h2><p>Available credits</p></div></div><div class="panel-body"><div class="balance-grid"><div class="balance-card"><strong>5.0</strong><span>Vacation leave</span></div><div class="balance-card"><strong>4.0</strong><span>Sick leave</span></div></div></div></section>
@@ -753,12 +763,238 @@ if ($page === 'admin-dashboard') {
 
 if ($page === 'admin-users') {
     Auth::requirePermission('users.view');
-    $users=FoundationRepository::users(); $roles=FoundationRepository::roles();
-    render_portal_header('admin',$page,'Users'); page_head('HR Admin / Access Control','Users & Access',Auth::can('users.manage')?'<span class="badge amber">Account provisioning enabled</span>':''); ?>
-    <div class="foundation-layout">
-      <?php if(Auth::can('users.manage')):?><form method="post" class="panel foundation-form"><?=csrf_field()?><input type="hidden" name="action" value="create_user"><div class="panel-head"><div><h2>Create user</h2><p>Provision a new HRIS account.</p></div></div><div class="panel-body"><div class="field"><label>Full name</label><input name="full_name" required placeholder="Employee or HR user name"></div><div class="field"><label>Email</label><input name="email" type="email" required placeholder="name@pmbsi.com"></div><div class="field"><label>Role</label><select name="role_id" required><option value="">Select role</option><?php foreach($roles as $r):?><option value="<?=$r['id']?>"><?=e($r['name'])?> · <?=e(strtoupper($r['portal']))?></option><?php endforeach;?></select></div><div class="field"><label>Temporary password</label><input name="password" type="password" minlength="10" required placeholder="Minimum 10 characters"></div><button class="btn primary block" style="justify-content:center">Create account</button></div></form><?php endif;?>
-      <section class="panel foundation-main"><div class="panel-head"><div><h2>User accounts</h2><p><?=count($users)?> configured accounts</p></div></div><div style="overflow-x:auto"><table class="tbl"><thead><tr><th>User</th><th>Role</th><th>Portal</th><th>Status</th><th>Last login</th><?php if(Auth::can('users.manage')):?><th></th><?php endif;?></tr></thead><tbody><?php foreach($users as $u):?><tr><td><strong><?=e($u['full_name'])?></strong><div class="tiny muted"><?=e($u['email'])?></div></td><td><span class="badge gray"><?=e($u['role_name'])?></span></td><td class="tiny mono"><?=e(strtoupper($u['portal']))?></td><td><span class="badge <?=$u['status']==='ACTIVE'?'green':'gray'?>"><?=e($u['status'])?></span></td><td class="tiny muted"><?=e($u['last_login_at']?date('M j, Y g:i A',strtotime($u['last_login_at'])):'Never')?></td><?php if(Auth::can('users.manage')):?><td class="nowrap"><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_user_status"><input type="hidden" name="user_id" value="<?=$u['id']?>"><button class="btn sm" <?=$u['id']===(Auth::user()['id']??0)?'disabled':''?>><?=$u['status']==='ACTIVE'?'Deactivate':'Activate'?></button></form></td><?php endif;?></tr><?php endforeach;?></tbody></table></div></section>
+    $users=FoundationRepository::users();
+    $roles=FoundationRepository::roles();
+    $isSuperAdmin=Auth::is('SUPER_ADMIN');
+    $passwordResetReveal=$_SESSION['password_reset_reveal'] ?? null;
+    unset($_SESSION['password_reset_reveal']);
+    $passwordResetRevealUserId=is_array($passwordResetReveal)?(int)($passwordResetReveal['user_id']??0):0;
+    $passwordResetRevealValue=is_array($passwordResetReveal)?(string)($passwordResetReveal['password']??''):'';
+    $portalOptions=[];
+    foreach($users as $usr){$portalKey=strtoupper((string)$usr['portal']); if($portalKey!==''){$portalOptions[$portalKey]=$portalKey;}}
+    ksort($portalOptions);
+    render_portal_header('admin',$page,'Users'); ?>
+
+    <div class="users-pagehead">
+      <div>
+        <h1>Users &amp; Access</h1>
+        <p>Manage user accounts, roles, and access to PMBSI HRIS.</p>
+      </div>
     </div>
+
+    <div class="users-access-layout">
+      <?php if(Auth::can('users.manage')):?><form method="post" class="panel users-create-card" id="createUserForm"><?=csrf_field()?>
+        <input type="hidden" name="action" value="create_user">
+        <div class="users-card-head"><h2>Create New User</h2><p>Add a new user account to PMBSI HRIS.</p></div>
+        <div class="users-create-body">
+          <div class="field"><label for="create_full_name">Full name</label><input id="create_full_name" name="full_name" required placeholder="Enter full name" autocomplete="name"></div>
+          <div class="field"><label for="create_email">Email address</label><input id="create_email" name="email" type="email" required placeholder="name@pmbsi.com" autocomplete="email"></div>
+          <div class="field"><label for="create_role">Role</label><select id="create_role" name="role_id" required><option value="">Select role</option><?php foreach($roles as $r):?><option value="<?=$r['id']?>"><?=e($r['name'])?></option><?php endforeach;?></select></div>
+          <div class="field"><label for="create_password">Temporary password</label><div class="users-password-input"><input id="create_password" name="password" type="password" minlength="10" required autocomplete="new-password" placeholder="Minimum 10 characters"><button class="users-eye-btn" type="button" aria-label="Show temporary password" title="Show / hide password" data-password-toggle="#create_password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></div><small>Minimum 10 characters. Include at least one letter and one number.</small></div>
+          <button class="btn primary block users-create-btn" type="submit"><?=icon_svg('user-plus')?> <span>Create account</span></button>
+        </div>
+      </form><?php endif;?>
+
+      <section class="panel users-list-card">
+        <div class="users-list-head">
+          <div><h2>User Accounts (<span id="usersVisibleCount"><?=count($users)?></span>)</h2><p>View and manage all user accounts in the system.</p></div>
+          <div class="users-list-tools">
+            <div class="users-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="userAccountSearch" type="search" placeholder="Search users..." autocomplete="off" aria-label="Search users"></div>
+            <div class="users-filter-wrap"><button class="btn users-filter-btn" id="userFiltersButton" type="button" aria-expanded="false" aria-controls="userFiltersPanel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M7 12h10M10 19h4"/></svg><span>Filters</span></button>
+              <div class="users-filter-panel" id="userFiltersPanel" hidden>
+                <div class="field"><label for="filterRole">Role</label><select id="filterRole"><option value="">All roles</option><?php foreach($roles as $r):?><option value="<?=e(strtolower($r['name']))?>"><?=e($r['name'])?></option><?php endforeach;?></select></div>
+                <div class="field"><label for="filterDepartment">Department</label><select id="filterDepartment"><option value="">All departments</option><?php foreach($portalOptions as $p):?><option value="<?=e(strtolower($p))?>"><?=e($p)?></option><?php endforeach;?></select></div>
+                <div class="field"><label for="filterStatus">Status</label><select id="filterStatus"><option value="">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="locked">Locked</option></select></div>
+                <button class="btn sm users-clear-filters" id="clearUserFilters" type="button">Clear filters</button>
+              </div>
+            </div>
+          </div>
+        </div>
+<div class="users-table-shell">
+          <table class="users-access-table" id="usersAccessTable">
+            <colgroup>
+              <col class="users-col-name">
+              <col class="users-col-role">
+              <col class="users-col-department">
+              <col class="users-col-status">
+              <col class="users-col-last-login">
+              <?php if($isSuperAdmin):?><col class="users-col-password"><?php endif;?>
+              <col class="users-col-actions">
+            </colgroup>
+            <thead><tr><th>Name / Email</th><th>Role</th><th class="users-department-head">Department</th><th>Status</th><th>Last login</th><?php if($isSuperAdmin):?><th>Password</th><?php endif;?><th class="users-actions-head">Actions</th></tr></thead>
+            <tbody>
+            <?php foreach($users as $u):
+              $roleFilter=strtolower((string)$u['role_name']);
+              $portalFilter=strtolower(strtoupper((string)$u['portal']));
+              $statusFilter=strtolower((string)$u['status']);
+              $searchFilter=strtolower(trim((string)$u['full_name'].' '.(string)$u['email'].' '.(string)$u['role_name'].' '.(string)$u['portal'].' '.(string)$u['status']));
+              $isCurrent=(int)$u['id']===(int)(Auth::user()['id']??0);
+            ?>
+              <tr data-user-row data-search="<?=e($searchFilter)?>" data-role="<?=e($roleFilter)?>" data-department="<?=e($portalFilter)?>" data-status="<?=e($statusFilter)?>">
+                <td data-label="Name / Email"><div class="users-person"><div><strong><?=e($u['full_name'])?></strong><span><?=e($u['email'])?></span></div></div></td>
+                <td data-label="Role"><span class="users-role-badge"><?=e($u['role_name'])?></span></td>
+                <td data-label="Department"><span class="users-department"><?=e(strtoupper($u['portal']))?></span></td>
+                <td data-label="Status"><span class="users-status users-status-<?=e(strtolower($u['status']))?>"><?=e(strtoupper($u['status']))?></span></td>
+                <td data-label="Last login"><span class="users-last-login"><?=e($u['last_login_at']?date('M j, Y g:i A',strtotime($u['last_login_at'])):'Never')?></span></td>
+                <?php if($isSuperAdmin):?>
+                <td data-label="Password">
+                  <div class="users-password-cell">
+                    <span class="password-mask">••••••••</span>
+                    <button class="users-eye-btn users-hash-eye" type="button" aria-label="Open password access" title="Password access" data-password-info data-user-id="<?=$u['id']?>" data-user-name="<?=e($u['full_name'])?>" data-user-email="<?=e($u['email'])?>" data-user-initials="<?=e(initials($u['full_name']))?>" data-is-current="<?=$isCurrent?'1':'0'?>" <?php if($passwordResetRevealUserId===(int)$u['id'] && $passwordResetRevealValue!==''):?>data-revealed-password="<?=e($passwordResetRevealValue)?>"<?php endif;?>><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                  </div>
+                </td>
+                <?php endif;?>
+                <td data-label="Actions" class="users-actions-cell">
+                  <div class="users-row-actions">
+                    <div class="users-action-primary">
+                      <?php if(!$isCurrent):?><button class="btn sm users-reset-button" type="button" data-reset-user data-user-id="<?=$u['id']?>" data-user-name="<?=e($u['full_name'])?>" data-user-email="<?=e($u['email'])?>" data-user-initials="<?=e(initials($u['full_name']))?>">Reset password</button><?php else:?><span class="users-current-account">Current account</span><?php endif;?>
+                    </div>
+                    <div class="users-action-menu-slot">
+                      <button class="users-more-btn" type="button" aria-label="Open user actions" aria-expanded="false" data-user-menu-button>⋮</button>
+                      <div class="users-row-menu" hidden><?php if(Auth::can('users.manage')):?><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="toggle_user_status"><input type="hidden" name="user_id" value="<?=$u['id']?>"><button type="submit" <?=$isCurrent?'disabled':''?>><?=$u['status']==='ACTIVE'?'Deactivate account':'Activate account'?></button></form><?php else:?><span>No available actions</span><?php endif;?></div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            <?php endforeach;?>
+            <tr class="users-no-results" id="usersNoResults" hidden><td colspan="<?=6+($isSuperAdmin?1:0)?>">No user accounts match the current search or filters.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <?php if($isSuperAdmin):?>
+    <div class="users-modal-backdrop" id="passwordAccessModal" hidden>
+      <div class="users-modal users-password-access-modal" role="dialog" aria-modal="true" aria-labelledby="passwordAccessTitle" tabindex="-1">
+        <div class="users-modal-head"><div><h2 id="passwordAccessTitle">Password access</h2><p>Secure credential support for this account.</p></div><button class="users-modal-close" type="button" aria-label="Close password access dialog" data-close-password-access>×</button></div>
+        <div class="users-modal-user"><span class="users-modal-avatar" id="passwordAccessInitials">U</span><div><strong id="passwordAccessName">User</strong><span id="passwordAccessEmail">user@pmbsi.com</span></div></div>
+        <div class="users-credential-reveal" id="passwordCredentialReveal" hidden>
+          <label for="passwordCredentialValue">Temporary password</label>
+          <div class="users-password-input"><input id="passwordCredentialValue" type="password" readonly autocomplete="off"><button class="users-eye-btn" type="button" aria-label="Show temporary password" data-password-toggle="#passwordCredentialValue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
+          <div class="users-credential-note success">This temporary password was just issued in your current Super Admin session. Copy it now; it will not be recoverable after this page is left or refreshed.</div>
+          <div class="users-modal-actions"><button class="btn" type="button" id="copyCredentialPassword"><?=icon_svg('clipboard')?> <span>Copy password</span></button><button class="btn primary" type="button" data-close-password-access>Done</button></div>
+        </div>
+        <div class="users-credential-protected" id="passwordCredentialProtected">
+          <div class="users-password-help"><span class="users-help-lock"><?=icon_svg('lock')?></span><div><strong>Current password is protected.</strong><br>PMBSI HRIS stores account passwords using secure one-way hashing. The existing password cannot be revealed, even to a Super Administrator.</div></div>
+          <p class="users-credential-guidance">If the user forgot the password, issue a new temporary password. This keeps the account secure and preserves the production authentication standard.</p>
+          <div class="users-modal-actions"><button class="btn" type="button" data-close-password-access>Close</button><button class="btn primary" type="button" id="passwordAccessResetButton"><?=icon_svg('key')?> <span>Reset password</span></button></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="users-modal-backdrop" id="resetPasswordModal" hidden>
+      <div class="users-modal" role="dialog" aria-modal="true" aria-labelledby="resetPasswordTitle" tabindex="-1">
+        <div class="users-modal-head"><div><h2 id="resetPasswordTitle">Reset password</h2><p>Set a new temporary password for this user.</p></div><button class="users-modal-close" type="button" aria-label="Close reset password dialog" data-close-reset-modal>×</button></div>
+        <div class="users-modal-user"><span class="users-modal-avatar" id="resetModalInitials">U</span><div><strong id="resetModalName">User</strong><span id="resetModalEmail">user@pmbsi.com</span></div></div>
+        <form method="post" id="resetPasswordForm">
+          <?=csrf_field()?>
+          <input type="hidden" name="action" value="reset_user_password">
+          <input type="hidden" name="user_id" id="resetModalUserId" value="">
+          <div class="field"><label for="resetModalPassword">New temporary password</label><div class="users-password-input"><input id="resetModalPassword" name="new_password" type="password" minlength="10" required autocomplete="new-password" placeholder="Minimum 10 characters"><button class="users-eye-btn" type="button" aria-label="Show new temporary password" data-password-toggle="#resetModalPassword"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+          <div class="users-password-help"><span class="users-help-lock"><?=icon_svg('lock')?></span><div>Minimum 10 characters. Include at least one letter and one number.<br>This will be set as a temporary password for the user.</div></div>
+          <div class="users-modal-actions"><button class="btn" type="button" data-close-reset-modal>Cancel</button><button class="btn primary" type="submit"><?=icon_svg('key')?> <span>Save new password</span></button></div>
+        </form>
+      </div>
+    </div>
+    <?php endif;?>
+
+
+    <script>
+    (()=>{
+      const qs=(s,r=document)=>r.querySelector(s), qsa=(s,r=document)=>Array.from(r.querySelectorAll(s));
+      const table=qs('#usersAccessTable');
+      const rows=qsa('[data-user-row]');
+      const search=qs('#userAccountSearch');
+      const role=qs('#filterRole');
+      const dept=qs('#filterDepartment');
+      const status=qs('#filterStatus');
+      const count=qs('#usersVisibleCount');
+      const noResults=qs('#usersNoResults');
+      const filterBtn=qs('#userFiltersButton');
+      const filterPanel=qs('#userFiltersPanel');
+      const clearBtn=qs('#clearUserFilters');
+      const normalize=v=>(v||'').toString().trim().toLowerCase();
+      const applyFilters=()=>{
+        const q=normalize(search?.value), rv=normalize(role?.value), dv=normalize(dept?.value), sv=normalize(status?.value);
+        let visible=0;
+        rows.forEach(row=>{
+          const ok=(!q||normalize(row.dataset.search).includes(q))&&(!rv||normalize(row.dataset.role)===rv)&&(!dv||normalize(row.dataset.department)===dv)&&(!sv||normalize(row.dataset.status)===sv);
+          row.hidden=!ok; if(ok) visible++;
+        });
+        if(count) count.textContent=visible;
+        if(noResults) noResults.hidden=visible!==0;
+      };
+      [search,role,dept,status].forEach(el=>el&&el.addEventListener(el===search?'input':'change',applyFilters));
+      filterBtn?.addEventListener('click',()=>{const open=filterPanel.hidden;filterPanel.hidden=!open;filterBtn.setAttribute('aria-expanded',open?'true':'false');});
+      clearBtn?.addEventListener('click',()=>{if(search)search.value='';if(role)role.value='';if(dept)dept.value='';if(status)status.value='';applyFilters();});
+
+      qsa('[data-password-toggle]').forEach(btn=>btn.addEventListener('click',()=>{const input=qs(btn.dataset.passwordToggle);if(!input)return;input.type=input.type==='password'?'text':'password';btn.classList.toggle('active',input.type==='text');btn.setAttribute('aria-label',input.type==='text'?'Hide password':'Show password');}));
+
+      const passwordAccessModal=qs('#passwordAccessModal');
+      const passwordAccessBox=passwordAccessModal?.querySelector('.users-modal');
+      const passwordAccessName=qs('#passwordAccessName');
+      const passwordAccessEmail=qs('#passwordAccessEmail');
+      const passwordAccessInitials=qs('#passwordAccessInitials');
+      const credentialReveal=qs('#passwordCredentialReveal');
+      const credentialProtected=qs('#passwordCredentialProtected');
+      const credentialValue=qs('#passwordCredentialValue');
+      const accessResetButton=qs('#passwordAccessResetButton');
+      let passwordAccessTrigger=null;
+      let passwordAccessData=null;
+      const openPasswordAccess=btn=>{
+        if(!passwordAccessModal)return;
+        passwordAccessTrigger=btn;
+        passwordAccessData={userId:btn.dataset.userId||'',userName:btn.dataset.userName||'User',userEmail:btn.dataset.userEmail||'',userInitials:btn.dataset.userInitials||'U',isCurrent:btn.dataset.isCurrent==='1',revealedPassword:btn.dataset.revealedPassword||''};
+        passwordAccessName.textContent=passwordAccessData.userName;
+        passwordAccessEmail.textContent=passwordAccessData.userEmail;
+        passwordAccessInitials.textContent=passwordAccessData.userInitials;
+        const hasReveal=passwordAccessData.revealedPassword!=='';
+        credentialReveal.hidden=!hasReveal;
+        credentialProtected.hidden=hasReveal;
+        if(hasReveal){credentialValue.value=passwordAccessData.revealedPassword;credentialValue.type='password';}
+        if(accessResetButton)accessResetButton.hidden=passwordAccessData.isCurrent;
+        passwordAccessModal.hidden=false;
+        document.body.classList.add('users-modal-open');
+        requestAnimationFrame(()=>passwordAccessBox?.focus());
+      };
+      const closePasswordAccess=()=>{if(!passwordAccessModal||passwordAccessModal.hidden)return;passwordAccessModal.hidden=true;document.body.classList.remove('users-modal-open');passwordAccessTrigger?.focus();};
+      qsa('[data-password-info]').forEach(btn=>btn.addEventListener('click',()=>openPasswordAccess(btn)));
+      qsa('[data-close-password-access]').forEach(btn=>btn.addEventListener('click',closePasswordAccess));
+      passwordAccessModal?.addEventListener('mousedown',e=>{if(e.target===passwordAccessModal)closePasswordAccess();});
+
+      qsa('[data-user-menu-button]').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();qsa('.users-row-menu').forEach(m=>{if(m!==btn.nextElementSibling)m.hidden=true});const menu=btn.nextElementSibling;menu.hidden=!menu.hidden;btn.setAttribute('aria-expanded',menu.hidden?'false':'true');}));
+      document.addEventListener('click',()=>qsa('.users-row-menu').forEach(m=>m.hidden=true));
+
+      const modal=qs('#resetPasswordModal'), modalBox=modal?.querySelector('.users-modal'), modalId=qs('#resetModalUserId'), modalName=qs('#resetModalName'), modalEmail=qs('#resetModalEmail'), modalInitials=qs('#resetModalInitials'), modalPassword=qs('#resetModalPassword');
+      let lastTrigger=null;
+      const getFocusable=()=>modal? qsa('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])',modal).filter(el=>!el.disabled&&!el.hidden):[];
+      const openModal=btn=>{if(!modal)return;lastTrigger=btn;modalId.value=btn.dataset.userId||'';modalName.textContent=btn.dataset.userName||'User';modalEmail.textContent=btn.dataset.userEmail||'';modalInitials.textContent=btn.dataset.userInitials||'U';modalPassword.value='';modalPassword.type='password';modal.hidden=false;document.body.classList.add('users-modal-open');requestAnimationFrame(()=>modalPassword.focus());};
+      const closeModal=()=>{if(!modal||modal.hidden)return;modal.hidden=true;document.body.classList.remove('users-modal-open');lastTrigger?.focus();};
+      qsa('[data-reset-user]').forEach(btn=>btn.addEventListener('click',()=>openModal(btn)));
+      accessResetButton?.addEventListener('click',()=>{
+        if(!passwordAccessData||passwordAccessData.isCurrent)return;
+        const proxy={dataset:{userId:passwordAccessData.userId,userName:passwordAccessData.userName,userEmail:passwordAccessData.userEmail,userInitials:passwordAccessData.userInitials},focus:()=>passwordAccessTrigger?.focus()};
+        closePasswordAccess();
+        openModal(proxy);
+      });
+      qsa('[data-close-reset-modal]').forEach(btn=>btn.addEventListener('click',closeModal));
+      modal?.addEventListener('mousedown',e=>{if(e.target===modal)closeModal();});
+      document.addEventListener('keydown',e=>{
+        if(passwordAccessModal&&!passwordAccessModal.hidden){
+          if(e.key==='Escape'){e.preventDefault();closePasswordAccess();return;}
+          if(e.key==='Tab'){const f=qsa('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])',passwordAccessModal).filter(el=>!el.disabled&&!el.hidden);if(f.length){const first=f[0],last=f[f.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}}
+          return;
+        }
+        if(!modal||modal.hidden)return;
+        if(e.key==='Escape'){e.preventDefault();closeModal();return;}
+        if(e.key==='Tab'){const f=getFocusable();if(!f.length)return;const first=f[0],last=f[f.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
+      });
+
+      const credentialCopyBtn=qs('#copyCredentialPassword'); credentialCopyBtn?.addEventListener('click',async()=>{if(!credentialValue?.value)return;const label=credentialCopyBtn.querySelector('span');try{await navigator.clipboard.writeText(credentialValue.value);if(label)label.textContent='Copied';setTimeout(()=>{if(label)label.textContent='Copy password';},1500);}catch(e){credentialValue.type='text';credentialValue.select();}});
+      applyFilters();
+    })();
+    </script>
     <?php render_portal_footer(); exit;
 }
 
@@ -806,7 +1042,7 @@ if ($page === 'admin-security') {
     $sessions=FoundationRepository::sessions(100); $activeSessions=array_values(array_filter($sessions,fn($s)=>empty($s['revoked_at'])));
     render_portal_header('admin',$page,'Security & Sessions'); page_head('HR Admin / Security','Security & Sessions'); ?>
     <div class="metric-grid"><?php metric_card('Active sessions',count($activeSessions),'Tracked server-side sessions','shield'); metric_card('CSRF','Enabled','POST actions protected','check'); metric_card('Passwords','Hashed','PHP password_hash()','shield'); metric_card('Audit trail','Enabled','Security-sensitive actions logged','audit'); ?></div>
-    <div class="dashboard-grid equal"><section class="panel"><div class="panel-head"><div><h2>Security baseline</h2><p>Controls already enforced in Phase 1</p></div></div><div class="panel-body"><?php foreach(['Server-side role and permission checks','CSRF verification for all write actions','PDO prepared statements','Password hashing and session ID regeneration','Tracked login sessions with revocation support','Audit logging for access-control changes'] as $x):?><div class="srow"><span class="badge green">On</span><div class="small" style="flex:1"><?=e($x)?></div></div><?php endforeach;?></div></section><section class="panel"><div class="panel-head"><div><h2>Production checklist</h2><p>Before public deployment</p></div></div><div class="panel-body"><p class="muted small">Disable debug mode, remove demo users, enforce HTTPS, use a dedicated MySQL account, enable backups, configure secure upload storage and review least-privilege role assignments.</p></div></section></div>
+    <div class="dashboard-grid equal"><section class="panel"><div class="panel-head"><div><h2>Security baseline</h2><p>Controls already enforced in Phase 1</p></div></div><div class="panel-body"><?php foreach(['Server-side role and permission checks','CSRF verification for all write actions','PDO prepared statements','Password hashing and session ID regeneration','Tracked login sessions with revocation support','Audit logging for access-control changes'] as $x):?><div class="srow"><span class="badge green">On</span><div class="small" style="flex:1"><?=e($x)?></div></div><?php endforeach;?></div></section><section class="panel"><div class="panel-head"><div><h2>Production checklist</h2><p>Before public deployment</p></div></div><div class="panel-body"><p class="muted small">Disable debug mode, review inactive/test accounts, enforce HTTPS, use a dedicated MySQL account, enable backups, configure secure upload storage and review least-privilege role assignments.</p></div></section></div>
     <section class="panel"><div class="panel-head"><div><h2>Tracked sessions</h2><p>Latest authenticated sessions</p></div></div><?php if(!FoundationRepository::tableExists('user_sessions')):?><div class="empty">Import the Phase 1 migration to enable session tracking.</div><?php else:?><div style="overflow-x:auto"><table class="tbl"><thead><tr><th>User</th><th>Role</th><th>IP</th><th>Created</th><th>Last activity</th><th>Status</th></tr></thead><tbody><?php foreach($sessions as $x):?><tr><td><strong><?=e($x['full_name'])?></strong><div class="tiny muted"><?=e($x['email'])?></div></td><td><span class="badge gray"><?=e($x['role_name'])?></span></td><td class="mono tiny"><?=e($x['ip_address']??'—')?></td><td class="tiny muted"><?=e(date('M j g:i A',strtotime($x['created_at'])))?></td><td class="tiny muted"><?=e(date('M j g:i A',strtotime($x['last_activity_at'])))?></td><td><span class="badge <?=empty($x['revoked_at'])?'green':'gray'?>"><?=empty($x['revoked_at'])?'Active':'Revoked'?></span></td></tr><?php endforeach;?></tbody></table></div><?php endif;?></section>
     <?php render_portal_footer(); exit;
 }

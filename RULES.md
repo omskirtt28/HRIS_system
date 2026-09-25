@@ -261,3 +261,8 @@ Use only the approved PMBSI assets in `public/assets/branding/` for system ident
 - Profile photos accept JPG, PNG, or WEBP only and must not be placed in a public upload directory.
 - A Government ID type is unique per employee and may be updated by saving the same type again.
 - Deleting a 201 File child record is an audited HR action.
+
+
+## Password Administration Rule
+- Passwords must remain one-way hashed using PHP `password_hash`; the system must never expose or persist recoverable/plaintext passwords.
+- Super Admin may reset another user to a new temporary password. Password resets must be audited and active sessions for the target account must be revoked.
