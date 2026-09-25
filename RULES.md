@@ -266,3 +266,13 @@ Use only the approved PMBSI assets in `public/assets/branding/` for system ident
 ## Password Administration Rule
 - Passwords must remain one-way hashed using PHP `password_hash`; the system must never expose or persist recoverable/plaintext passwords.
 - Super Admin may reset another user to a new temporary password. Password resets must be audited and active sessions for the target account must be revoked.
+
+## Phase 2C business rules
+- Only hired/deployed candidates can be converted.
+- Each application can be converted only once.
+- Converted recruitment records are locked from further recruitment-stage/offer/deployment changes.
+- Duplicate employee email checks run during conversion.
+- Account creation/linking is optional and must use an available Employee portal account or a securely hashed new temporary password.
+- Recruitment documents may be copied into Employee Documents while the original recruitment files remain intact.
+- The conversion and resulting employee record remain auditable and cross-linked.
+

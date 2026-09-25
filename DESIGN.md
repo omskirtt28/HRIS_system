@@ -385,3 +385,7 @@ The Employee Directory follows the HRIS panel/table language: compact metric car
 ## Phase 2B 201 File UX
 
 The Employee Profile tab rail is now functional: Overview, Personal Info, Employment, Government IDs, Emergency Contact, Documents, History, and Audit Trail. Editing stays inside the employee context instead of opening unrelated screens. Employment changes require an effective date and optional remarks so the resulting history is understandable. Document rows keep actions compact and profile/photo controls avoid disrupting the main information hierarchy.
+
+## Phase 2C UX
+The recruitment-to-employee conversion uses a review-first workflow: source recruitment summary, employee identity, employment assignment, portal-access option, document transfer, and a final confirmation card. Converted applications become read-only for recruitment actions and expose a direct link to the Employee 201 File.
+

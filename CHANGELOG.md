@@ -87,3 +87,15 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 - Moved Reset password into the Actions column where it semantically belongs, while keeping the eye control in Password.
 - Replaced the intrusive password-protection toast with a centered Password Access modal.
 - Preserved one-way password hashing: existing passwords remain unrecoverable; a freshly reset temporary password can be revealed/copied only on the immediate Super Admin response page.
+
+## 2026-09-25 — Phase 2C Recruitment → Employee Conversion
+- Added a controlled one-time conversion from a hired/deployed recruitment application into Employee Management / 201 File.
+- Added a review screen for identity, organization assignment, employment details, portal-account setup, and recruitment-document transfer.
+- Added duplicate protection, source traceability, audit records, and a lock that prevents further recruitment changes after conversion.
+- Employee profiles now show their originating recruitment application when applicable.
+- Applicant records show a clear Converted state and link to the resulting 201 File.
+
+
+## 2026-09-25 — Login portal badge cleanup
+- Removed the redundant Unified Login / portal badge from the login card.
+- Preserved unified role-based authentication and automatic dashboard routing.

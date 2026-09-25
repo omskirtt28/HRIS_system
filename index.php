@@ -88,6 +88,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             RecruitmentRepository::completeDeployment((int)$_POST['application_id']);
             flash('success','Candidate marked Deployed and manpower fill count updated.'); redirect('hr-applicant',['id'=>(int)$_POST['application_id']]);
         }
+        if ($action === 'convert_application_to_employee') {
+            Auth::requirePermission('recruitment.manage');
+            Auth::requirePermission('employees.create');
+            if(empty($_POST['conversion_confirmed'])) throw new RuntimeException('Confirm that you reviewed the employee details before conversion.');
+            $applicationId=(int)($_POST['application_id']??0);
+            $employeeId=RecruitmentRepository::convertToEmployee($applicationId,[
+                'employee_no'=>trim((string)($_POST['employee_no']??'')),
+                'first_name'=>trim((string)($_POST['first_name']??'')),
+                'middle_name'=>trim((string)($_POST['middle_name']??'')),
+                'last_name'=>trim((string)($_POST['last_name']??'')),
+                'suffix'=>trim((string)($_POST['suffix']??'')),
+                'personal_email'=>trim((string)($_POST['personal_email']??'')),
+                'company_email'=>trim((string)($_POST['company_email']??'')),
+                'mobile_no'=>trim((string)($_POST['mobile_no']??'')),
+                'department_id'=>(int)($_POST['department_id']??0),
+                'position_id'=>(int)($_POST['position_id']??0),
+                'branch_id'=>(int)($_POST['branch_id']??0),
+                'employment_type_id'=>(int)($_POST['employment_type_id']??0),
+                'hire_date'=>(string)($_POST['hire_date']??''),
+                'regularization_date'=>(string)($_POST['regularization_date']??''),
+                'status'=>(string)($_POST['status']??'PROBATIONARY'),
+                'account_mode'=>(string)($_POST['account_mode']??'later'),
+                'user_id'=>(int)($_POST['user_id']??0),
+                'account_email'=>trim((string)($_POST['account_email']??'')),
+                'temporary_password'=>(string)($_POST['temporary_password']??''),
+                'transfer_documents'=>!empty($_POST['transfer_documents'])?1:0,
+            ]);
+            flash('success','Candidate converted to an employee record successfully.');
+            redirect('hr-employee',['id'=>$employeeId]);
+        }
         if ($action === 'client_decision') {
             Auth::requireRoles(['CLIENT_USER']);
             RecruitmentRepository::clientDecision((int)$_POST['application_id'],(string)$_POST['decision'],trim((string)($_POST['remarks']??'')));
@@ -436,7 +466,7 @@ if ($page === 'login') {
         <div class="tiny login-hero-foot">Prime Mover Business Solutions, Inc. · Human Resources Information System</div>
       </div>
       <div class="login-form"><form class="login-card" method="post"><?=csrf_field()?><input type="hidden" name="action" value="login"><?php if($portal!==''):?><input type="hidden" name="portal" value="<?=e($portal)?>"><?php endif;?>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px"><div><h2>Welcome back</h2><div class="login-sub"><?=e($meta[1])?></div></div><span class="badge amber"><?=e($portal===''?'Unified Login':ucfirst($portal).' Portal')?></span></div>
+        <div><h2>Welcome back</h2><div class="login-sub"><?=e($meta[1])?></div></div>
         <div class="field"><label>Email address</label><input type="email" name="email" required value="<?=e($meta[2])?>" autocomplete="username"></div>
         <div class="field"><label>Password</label><input type="password" name="password" required value="" autocomplete="current-password"></div>
         <button class="btn primary block" style="height:44px;justify-content:center">Sign in <?=icon_svg('arrow')?></button>
@@ -579,6 +609,7 @@ if ($page === 'hr-employee') {
     $name=EmployeeRepository::fullName($e); $tone=in_array($e['status'],['ACTIVE','PROBATIONARY'],true)?'green':'gray';
     $govIds=$phase2Ready?EmployeeRepository::governmentIds($id):[]; $contacts=$phase2Ready?EmployeeRepository::emergencyContacts($id):[];
     $documents=$phase2Ready?EmployeeRepository::documents($id):[]; $history=$phase2Ready?EmployeeRepository::history($id):[]; $auditTrail=EmployeeRepository::auditTrail($id);
+    $recruitmentSource=RecruitmentRepository::employeeSource($id);
     render_portal_header('hr','hr-employees','Employee 201 File');
     page_head('HR Portal / People / Employees','Employee 201 File','<a href="'.url('hr-employees').'" class="btn">Back to directory</a>'); ?>
     <?php if(!$phase2Ready):?><div class="alert error">Phase 2B database migration is required. Import <code>database/migrations/20260924_phase2b_201_file.sql</code> in phpMyAdmin to activate the complete 201 File tabs.</div><?php endif;?>
@@ -598,6 +629,7 @@ if ($page === 'hr-employee') {
           <div><span>Company email</span><strong><?=e($e['company_email']??'Not provided')?></strong></div><div><span>Personal email</span><strong><?=e($e['personal_email']??'Not provided')?></strong></div><div><span>Mobile number</span><strong><?=e($e['mobile_no']??'Not provided')?></strong></div><div><span>Portal account</span><strong><?=e($e['user_email']??'Not linked')?></strong></div><div><span>Portal status</span><strong><?=e($e['user_status']??'—')?></strong></div><div><span>201 File records</span><strong><?=count($govIds)?> IDs · <?=count($contacts)?> contacts · <?=count($documents)?> docs</strong></div>
         </div></section>
       </div>
+      <?php if($recruitmentSource):?><section class="panel phase2c-source-link"><div class="panel-head"><div><h2>Recruitment source</h2><p>This employee was created from a completed recruitment record.</p></div><a class="panel-link" href="<?=url('hr-applicant',['id'=>$recruitmentSource['application_id']])?>">Open applicant record</a></div><div class="panel-body phase2c-source-link-grid"><div><span>Application</span><strong><?=e($recruitmentSource['application_no'])?></strong></div><div><span>Position</span><strong><?=e($recruitmentSource['job_title'])?></strong></div><div><span>Client</span><strong><?=e($recruitmentSource['client_name'])?></strong></div><div><span>Converted</span><strong><?=e(date('M j, Y g:i A',strtotime($recruitmentSource['converted_at'])))?></strong><small><?=!empty($recruitmentSource['converted_by_name'])?'by '.e($recruitmentSource['converted_by_name']):'System conversion'?></small></div></div></section><?php endif;?>
       <div class="dashboard-grid equal phase2b-overview-row">
         <section class="panel"><div class="panel-head"><div><h2>Profile photo</h2><p>Employee identification photo</p></div></div><div class="panel-body phase2b-photo-panel"><?php if(!empty($e['profile_photo_stored_name'])):?><img src="<?=url('hr-employee-photo',['id'=>$id])?>" alt="<?=e($name)?>"><?php else:?><span class="employee-profile-avatar big"><?=e(initials($name))?></span><?php endif;?><?php if($canManage&&$phase2Ready):?><form method="post" enctype="multipart/form-data" class="phase2b-inline-upload"><?=csrf_field()?><input type="hidden" name="action" value="upload_employee_photo"><input type="hidden" name="employee_id" value="<?=$id?>"><input type="hidden" name="return_page" value="hr-employee"><input type="hidden" name="return_id" value="<?=$id?>"><input type="file" name="profile_photo" accept="image/jpeg,image/png,image/webp" required><button class="btn sm">Upload photo</button><small>JPG, PNG or WEBP · max 3 MB</small></form><?php endif;?></div></section>
         <section class="panel"><div class="panel-head"><div><h2>201 File summary</h2><p>Completion snapshot</p></div></div><div class="panel-body phase2b-summary-grid"><a href="<?=url('hr-employee',['id'=>$id,'tab'=>'government'])?>"><strong><?=count($govIds)?></strong><span>Government IDs</span></a><a href="<?=url('hr-employee',['id'=>$id,'tab'=>'emergency'])?>"><strong><?=count($contacts)?></strong><span>Emergency contacts</span></a><a href="<?=url('hr-employee',['id'=>$id,'tab'=>'documents'])?>"><strong><?=count($documents)?></strong><span>Documents</span></a><a href="<?=url('hr-employee',['id'=>$id,'tab'=>'history'])?>"><strong><?=count($history)?></strong><span>History events</span></a></div></section>
@@ -654,7 +686,7 @@ if ($page === 'hr-applicants') {
     $filters=['q'=>trim((string)($_GET['q']??'')),'stage'=>trim((string)($_GET['stage']??''))]; $apps=RecruitmentRepository::applications($filters); $stages=RecruitmentRepository::stages();
     render_portal_header('hr',$page,'Applicant Database'); page_head('HR Portal / Applicants','Applicant Database'); ?>
     <form style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap"><input type="hidden" name="page" value="hr-applicants"><div class="search" style="flex:1;min-width:220px;max-width:340px;border:1px solid var(--border)">🔍<input name="q" value="<?=e($filters['q'])?>" placeholder="Search by name, ref, email…"></div><select class="btn" name="stage"><option value="">All stages</option><?php foreach($stages as $s):?><option value="<?=e($s['code'])?>" <?=$filters['stage']===$s['code']?'selected':''?>><?=e($s['name'])?></option><?php endforeach;?></select><button class="btn primary">Filter</button></form>
-    <div class="card" style="overflow-x:auto"><table class="tbl"><thead><tr><th>Applicant</th><th>Reference</th><th>Position</th><th>Client</th><th>Stage</th><th>Score</th><th>Recruiter</th><th></th></tr></thead><tbody><?php foreach($apps as $a):$name=$a['first_name'].' '.$a['last_name'];?><tr><td><div style="display:flex;gap:9px;align-items:center"><span class="avatar"><?=e(initials($name))?></span><div><div style="font-weight:600"><?=e($name)?></div><div class="tiny muted"><?=e($a['email'])?></div></div></div></td><td class="mono tiny"><?=e($a['application_no'])?></td><td><?=e($a['job_title'])?></td><td><?=e($a['client_name'])?></td><td><?=stage_badge($a['stage_code'])?></td><td><span class="badge <?=((float)$a['screening_score']>=85)?'green':'amber'?>"><?=e((string)($a['screening_score']??'—'))?></span></td><td class="small"><?=e($a['recruiter_name']??'Unassigned')?></td><td><a href="<?=url('hr-applicant',['id'=>$a['id']])?>" class="btn sm">View</a></td></tr><?php endforeach;?></tbody></table><?php if(!$apps):?><div class="empty">No applicants found.</div><?php endif;?></div>
+    <div class="card" style="overflow-x:auto"><table class="tbl"><thead><tr><th>Applicant</th><th>Reference</th><th>Position</th><th>Client</th><th>Stage</th><th>Score</th><th>Recruiter</th><th></th></tr></thead><tbody><?php foreach($apps as $a):$name=$a['first_name'].' '.$a['last_name'];?><tr><td><div style="display:flex;gap:9px;align-items:center"><span class="avatar"><?=e(initials($name))?></span><div><div style="font-weight:600"><?=e($name)?></div><div class="tiny muted"><?=e($a['email'])?></div></div></div></td><td class="mono tiny"><?=e($a['application_no'])?></td><td><?=e($a['job_title'])?></td><td><?=e($a['client_name'])?></td><td><?=($a['application_status']??'')==='CONVERTED'?'<span class="badge green">Converted</span>':stage_badge($a['stage_code'])?></td><td><span class="badge <?=((float)$a['screening_score']>=85)?'green':'amber'?>"><?=e((string)($a['screening_score']??'—'))?></span></td><td class="small"><?=e($a['recruiter_name']??'Unassigned')?></td><td><a href="<?=url('hr-applicant',['id'=>$a['id']])?>" class="btn sm">View</a></td></tr><?php endforeach;?></tbody></table><?php if(!$apps):?><div class="empty">No applicants found.</div><?php endif;?></div>
     <?php render_portal_footer(); exit;
 }
 
@@ -667,16 +699,127 @@ if ($page === 'hr-pipeline') {
 
 if ($page === 'hr-applicant') {
     $id=(int)($_GET['id']??0); $a=RecruitmentRepository::application($id); if(!$a){http_response_code(404);exit('Application not found');} $stages=RecruitmentRepository::stages(); $branches=RecruitmentRepository::branches(); $name=$a['first_name'].' '.$a['last_name'];
+    $phase2CReady=RecruitmentRepository::phase2CReady();
+    $convertedEmployeeId=$phase2CReady?(int)($a['converted_employee_id']??0):0;
+    $canConvert=Auth::can('recruitment.manage')&&Auth::can('employees.create');
+    $conversionEligible=$a['stage_code']==='HIRED' || ($a['stage_code']==='DEPLOYED' && (($a['deployment']['status']??'')==='DEPLOYED'));
     render_portal_header('hr','hr-applicants','Applicant Profile'); page_head('HR Portal / Applicants / Profile','Applicant Profile'); ?>
-    <div class="split3"><div><div class="card pad" style="margin-bottom:16px"><div style="display:flex;gap:14px;align-items:center"><span class="avatar" style="width:52px;height:52px;font-size:18px"><?=e(initials($name))?></span><div><h2 style="font-size:20px"><?=e($name)?></h2><div class="muted small"><?=e($a['job_title'])?> · <?=e($a['client_name'])?></div></div><div style="margin-left:auto;text-align:right"><?=stage_badge($a['stage_code'])?><div class="tiny muted mono" style="margin-top:5px"><?=e($a['application_no'])?></div></div></div><div style="display:flex;gap:24px;margin-top:16px;flex-wrap:wrap" class="small"><div><div class="tiny muted">EMAIL</div><?=e($a['email'])?></div><div><div class="tiny muted">PHONE</div><?=e($a['mobile_no'])?></div><div><div class="tiny muted">MATCH / SCREEN SCORE</div><span class="badge green"><?=e((string)($a['screening_score']??'—'))?></span></div></div></div>
-    <?php if(Auth::is('SUPER_ADMIN','RECRUITMENT_MANAGER','RECRUITER')):?><div class="card pad" style="margin-bottom:16px"><div class="section-t">Stage & actions</div><form method="post" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end"><?=csrf_field()?><input type="hidden" name="action" value="move_stage"><input type="hidden" name="application_id" value="<?=$a['id']?>"><input type="hidden" name="return_page" value="hr-applicant"><input type="hidden" name="return_id" value="<?=$a['id']?>"><div class="field" style="margin:0"><label>Move to</label><select name="target_stage" class="btn status-select"><?php foreach($stages as $s):?><option value="<?=e($s['code'])?>" <?=$s['code']===$a['stage_code']?'selected':''?>><?=e($s['name'])?></option><?php endforeach;?></select></div><div class="field" style="margin:0;flex:1;min-width:200px"><label>Comment</label><input name="comment" placeholder="Reason / note"></div><button class="btn primary">Update stage</button></form></div>
+    <div class="split3"><div><div class="card pad" style="margin-bottom:16px"><div style="display:flex;gap:14px;align-items:center"><span class="avatar" style="width:52px;height:52px;font-size:18px"><?=e(initials($name))?></span><div><h2 style="font-size:20px"><?=e($name)?></h2><div class="muted small"><?=e($a['job_title'])?> · <?=e($a['client_name'])?></div></div><div style="margin-left:auto;text-align:right"><?=$convertedEmployeeId>0?'<span class="badge green">Converted</span>':stage_badge($a['stage_code'])?><div class="tiny muted mono" style="margin-top:5px"><?=e($a['application_no'])?></div></div></div><div style="display:flex;gap:24px;margin-top:16px;flex-wrap:wrap" class="small"><div><div class="tiny muted">EMAIL</div><?=e($a['email'])?></div><div><div class="tiny muted">PHONE</div><?=e($a['mobile_no'])?></div><div><div class="tiny muted">MATCH / SCREEN SCORE</div><span class="badge green"><?=e((string)($a['screening_score']??'—'))?></span></div></div></div>
+    <?php if(Auth::is('SUPER_ADMIN','RECRUITMENT_MANAGER','RECRUITER') && $convertedEmployeeId===0):?><div class="card pad" style="margin-bottom:16px"><div class="section-t">Stage & actions</div><form method="post" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end"><?=csrf_field()?><input type="hidden" name="action" value="move_stage"><input type="hidden" name="application_id" value="<?=$a['id']?>"><input type="hidden" name="return_page" value="hr-applicant"><input type="hidden" name="return_id" value="<?=$a['id']?>"><div class="field" style="margin:0"><label>Move to</label><select name="target_stage" class="btn status-select"><?php foreach($stages as $s):?><option value="<?=e($s['code'])?>" <?=$s['code']===$a['stage_code']?'selected':''?>><?=e($s['name'])?></option><?php endforeach;?></select></div><div class="field" style="margin:0;flex:1;min-width:200px"><label>Comment</label><input name="comment" placeholder="Reason / note"></div><button class="btn primary">Update stage</button></form></div>
     <details class="card pad" style="margin-bottom:16px"><summary style="font-weight:600;cursor:pointer">Schedule interview</summary><form method="post" style="margin-top:14px"><?=csrf_field()?><input type="hidden" name="action" value="schedule_interview"><input type="hidden" name="application_id" value="<?=$a['id']?>"><input type="hidden" name="return_page" value="hr-applicant"><input type="hidden" name="return_id" value="<?=$a['id']?>"><div class="split"><div class="field"><label>Interview type</label><select name="interview_type"><option>Initial Interview</option><option>Final Interview</option><option>Client Interview</option><option>Technical Interview</option></select></div><div class="field"><label>Date & time</label><input type="datetime-local" name="scheduled_at" required></div></div><div class="field"><label>Location or meeting link</label><input name="location_or_link"></div><div class="field"><label>Notes</label><textarea name="notes" rows="2"></textarea></div><button class="btn primary">Schedule interview</button></form></details>
     <?php if(in_array($a['stage_code'],['INTERVIEW','ENDORSED'],true)):?><form method="post" class="card pad" style="margin-bottom:16px"><?=csrf_field()?><input type="hidden" name="action" value="endorse"><input type="hidden" name="application_id" value="<?=$a['id']?>"><input type="hidden" name="return_page" value="hr-applicant"><input type="hidden" name="return_id" value="<?=$a['id']?>"><div class="section-t">Client endorsement</div><div class="field"><label>Endorsement note</label><textarea name="note" rows="2" placeholder="Summary for client review"></textarea></div><button class="btn primary">Endorse to client →</button></form><?php endif;?>
     <?php if($a['stage_code']==='OFFER' || $a['offer']):?><div class="card pad" style="margin-bottom:16px"><div class="section-t">Offer</div><?php if($a['offer']):?><div class="srow"><div class="small" style="flex:1"><strong><?=e($a['offer']['offer_no'])?></strong><div class="tiny muted">Status: <?=e($a['offer']['status'])?><?=!empty($a['offer']['start_date'])?' · Start '.e($a['offer']['start_date']):''?></div></div><span class="mono small"><?=e($a['offer']['offered_salary']!==null?'₱'.number_format((float)$a['offer']['offered_salary'],2):'—')?></span></div><?php endif;?><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="save_offer"><input type="hidden" name="application_id" value="<?=$a['id']?>"><input type="hidden" name="return_page" value="hr-applicant"><input type="hidden" name="return_id" value="<?=$a['id']?>"><div class="split"><div class="field"><label>Offered salary</label><input type="number" step="0.01" name="offered_salary" value="<?=e((string)($a['offer']['offered_salary']??''))?>"></div><div class="field"><label>Employment type</label><select name="employment_type"><option value="FULL_TIME">Full-time</option><option value="CONTRACT">Contract</option></select></div></div><div class="field"><label>Start date</label><input type="date" name="start_date" value="<?=e((string)($a['offer']['start_date']??''))?>"></div><button class="btn primary">Save / Send offer</button></form><?php if(($a['offer']['status']??'')==='SENT'):?><form method="post" style="margin-top:10px"><?=csrf_field()?><input type="hidden" name="action" value="accept_offer"><input type="hidden" name="application_id" value="<?=$a['id']?>"><input type="hidden" name="return_page" value="hr-applicant"><input type="hidden" name="return_id" value="<?=$a['id']?>"><button class="btn">Mark offer accepted → Deployment</button></form><?php endif;?></div><?php endif;?>
     <?php if($a['stage_code']==='DEPLOYMENT' || $a['deployment']):?><div class="card pad" style="margin-bottom:16px"><div class="section-t">Deployment</div><?php if($a['deployment']):?><div class="srow"><div class="small" style="flex:1"><strong><?=e($a['deployment']['deployment_no'])?></strong><div class="tiny muted"><?=e($a['deployment']['status'])?><?=!empty($a['deployment']['branch_name'])?' · '.e($a['deployment']['branch_name']):''?></div></div><span class="tiny muted"><?=e($a['deployment']['scheduled_date']??'')?></span></div><?php endif;?><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="save_deployment"><input type="hidden" name="application_id" value="<?=$a['id']?>"><input type="hidden" name="return_page" value="hr-applicant"><input type="hidden" name="return_id" value="<?=$a['id']?>"><div class="split"><div class="field"><label>Deployment branch/site</label><select name="branch_id"><option value="">Not specified</option><?php foreach($branches as $b):?><option value="<?=$b['id']?>" <?=((int)($a['deployment']['branch_id']??0)===(int)$b['id'])?'selected':''?>><?=e($b['name'])?></option><?php endforeach;?></select></div><div class="field"><label>Scheduled date</label><input type="date" name="scheduled_date" value="<?=e((string)($a['deployment']['scheduled_date']??''))?>"></div></div><div class="field"><label>Notes</label><textarea name="notes" rows="2"><?=e((string)($a['deployment']['notes']??''))?></textarea></div><button class="btn primary">Save deployment schedule</button></form><?php if($a['deployment'] && $a['deployment']['status']!=='DEPLOYED'):?><form method="post" style="margin-top:10px" onsubmit="return confirm('Mark this candidate as deployed?')"><?=csrf_field()?><input type="hidden" name="action" value="complete_deployment"><input type="hidden" name="application_id" value="<?=$a['id']?>"><input type="hidden" name="return_page" value="hr-applicant"><input type="hidden" name="return_id" value="<?=$a['id']?>"><button class="btn">Mark as Deployed</button></form><?php endif;?></div><?php endif;?>
     <?php endif;?>
+    <?php if($convertedEmployeeId>0):?>
+      <section class="card phase2c-conversion-state success"><div class="phase2c-state-icon"><?=icon_svg('check-square')?></div><div><strong>Converted to employee</strong><p>This recruitment record is locked for recruitment changes and linked to its Employee 201 File.</p></div><a class="btn primary sm" href="<?=url('hr-employee',['id'=>$convertedEmployeeId])?>">Open 201 File</a></section>
+    <?php elseif($conversionEligible):?>
+      <section class="card phase2c-conversion-state"><div class="phase2c-state-icon"><?=icon_svg('user-plus')?></div><div><strong>Ready for employee conversion</strong><p>Create the Employee Master / 201 File directly from this recruitment record without re-encoding the candidate.</p></div><?php if(!$phase2CReady):?><span class="badge amber">Migration required</span><?php elseif($canConvert):?><a class="btn primary sm" href="<?=url('hr-convert-employee',['id'=>$a['id']])?>">Convert to Employee</a><?php else:?><span class="badge gray">No conversion access</span><?php endif;?></section>
+    <?php elseif($a['stage_code']==='DEPLOYED'):?>
+      <section class="card phase2c-conversion-state"><div class="phase2c-state-icon"><?=icon_svg('briefcase')?></div><div><strong>Complete deployment first</strong><p>The stage is Deployed, but the deployment record has not been completed. Finish the deployment workflow before employee conversion.</p></div><span class="badge amber">Not ready</span></section>
+    <?php endif;?>
     <div class="card pad"><div class="section-t">Screening answer</div><p class="muted"><?=nl2br(e($a['why_fit']?:'No answer provided.'))?></p><div class="section-t" style="margin-top:18px">Interviews</div><?php if(!$a['interviews']):?><div class="tiny muted">No interviews yet.</div><?php endif;foreach($a['interviews'] as $i):?><div class="srow"><div style="flex:1"><div class="small" style="font-weight:600"><?=e($i['interview_type'])?></div><div class="tiny muted"><?=e(date('M j, Y g:i A',strtotime($i['scheduled_at'])))?> · <?=e($i['location_or_link']?:'TBD')?></div></div><span class="badge blue"><?=e($i['status'])?></span></div><?php endforeach;?></div></div><div><div class="card pad"><div class="section-t">Activity timeline</div><div class="tl"><?php foreach($a['history'] as $h):?><div class="ev"><div class="small" style="font-weight:600"><?=e($h['to_name'])?></div><div class="tiny muted"><?=e(date('M j, Y g:i A',strtotime($h['changed_at'])))?><?=!empty($h['changed_by_name'])?' · '.e($h['changed_by_name']):''?></div><?php if($h['comment']):?><div class="tiny muted"><?=e($h['comment'])?></div><?php endif;?></div><?php endforeach;?></div></div></div></div>
     <?php render_portal_footer(); exit;
+}
+
+if ($page === 'hr-convert-employee') {
+    Auth::requirePermission('recruitment.manage');
+    Auth::requirePermission('employees.create');
+    $id=(int)($_GET['id']??0);$a=RecruitmentRepository::application($id);
+    if(!$a){flash('error','Application not found.');redirect('hr-applicants');}
+    if(!RecruitmentRepository::phase2CReady()){
+        render_portal_header('hr','hr-applicants','Convert to Employee');
+        page_head('HR Portal / Recruitment / Employee Conversion','Convert to Employee','<a href="'.url('hr-applicant',['id'=>$id]).'" class="btn">Back to applicant</a>'); ?>
+        <div class="alert error">Phase 2C database migration is required. Import <code>database/migrations/20260925_phase2c_recruitment_to_employee.sql</code> in phpMyAdmin first.</div>
+        <?php render_portal_footer();exit;
+    }
+    if(!empty($a['converted_employee_id'])){redirect('hr-employee',['id'=>(int)$a['converted_employee_id']]);}
+    $conversionEligible=$a['stage_code']==='HIRED' || ($a['stage_code']==='DEPLOYED' && (($a['deployment']['status']??'')==='DEPLOYED'));
+    if(!$conversionEligible){flash('error','Complete the hired/deployment workflow before converting this candidate to Employee Management.');redirect('hr-applicant',['id'=>$id]);}
+    $defaults=RecruitmentRepository::conversionDefaults($id);$masters=EmployeeRepository::masters();$documents=RecruitmentRepository::applicationDocuments($id);
+    $duplicate=RecruitmentRepository::employeeDuplicateByEmail((string)$a['email']);$name=trim($a['first_name'].' '.($a['middle_name']??'').' '.$a['last_name']);
+    render_portal_header('hr','hr-applicants','Convert to Employee');
+    page_head('HR Portal / Recruitment / Employee Conversion','Convert to Employee','<a href="'.url('hr-applicant',['id'=>$id]).'" class="btn">Back to applicant</a>'); ?>
+    <div class="phase2c-flow" aria-label="Recruitment to employee workflow"><span class="done">Applicant</span><i>→</i><span class="done">Hired / Deployed</span><i>→</i><span class="active">Review employee record</span><i>→</i><span>201 File</span></div>
+    <?php if($duplicate):?><div class="alert error phase2c-duplicate"><strong>Possible duplicate employee found.</strong> <?=e($a['email'])?> is already used by <a href="<?=url('hr-employee',['id'=>$duplicate['id']])?>"><?=e(trim(($duplicate['first_name']??'').' '.($duplicate['last_name']??'')))?> (<?=e($duplicate['employee_no'])?>)</a>. Review that employee before continuing.</div><?php endif;?>
+    <form method="post" class="phase2c-layout" id="convertEmployeeForm">
+      <?=csrf_field()?><input type="hidden" name="action" value="convert_application_to_employee"><input type="hidden" name="application_id" value="<?=$id?>">
+      <div class="phase2c-main">
+        <section class="panel phase2c-source-card">
+          <div class="panel-head"><div><h2>Recruitment source</h2><p>Original hiring record that will remain linked to the employee.</p></div><span class="badge green"><?=e(stage_label($a['stage_code']))?></span></div>
+          <div class="panel-body phase2c-source-grid">
+            <div><span>Candidate</span><strong><?=e($name)?></strong><small><?=e($a['applicant_no'])?></small></div>
+            <div><span>Application</span><strong><?=e($a['application_no'])?></strong><small>Applied <?=e(date('M j, Y',strtotime($a['applied_at'])))?></small></div>
+            <div><span>Position</span><strong><?=e($a['job_title'])?></strong><small><?=e($a['client_name'])?></small></div>
+            <div><span>Deployment</span><strong><?=e($a['deployment']['branch_name']??'Not specified')?></strong><small><?=!empty($a['deployment']['actual_date'])?'Deployed '.e(date('M j, Y',strtotime($a['deployment']['actual_date']))):'Deployment completed'?></small></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><div><h2>Employee identity</h2><p>Review the details before creating the Employee Master record.</p></div><span class="badge amber">Review required</span></div>
+          <div class="panel-body employee-form-grid">
+            <div class="field"><label>Employee number</label><input name="employee_no" value="<?=e($defaults['employee_no'])?>" required></div>
+            <div class="field"><label>Company email</label><input type="email" name="company_email" placeholder="name@pmbsi.com"></div>
+            <div class="field"><label>First name</label><input name="first_name" value="<?=e($defaults['first_name'])?>" required></div>
+            <div class="field"><label>Middle name</label><input name="middle_name" value="<?=e($defaults['middle_name'])?>"></div>
+            <div class="field"><label>Last name</label><input name="last_name" value="<?=e($defaults['last_name'])?>" required></div>
+            <div class="field"><label>Suffix</label><input name="suffix" value="<?=e($defaults['suffix'])?>"></div>
+            <div class="field"><label>Personal email</label><input type="email" name="personal_email" value="<?=e($defaults['personal_email'])?>"></div>
+            <div class="field"><label>Mobile number</label><input name="mobile_no" value="<?=e($defaults['mobile_no'])?>"></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><div><h2>Employment assignment</h2><p>Confirm the employee's organization assignment and start details.</p></div></div>
+          <div class="panel-body employee-form-grid">
+            <div class="field"><label>Department</label><select name="department_id" id="phase2cDepartment"><option value="">Unassigned</option><?php foreach($masters['departments'] as $x):if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=((int)$defaults['department_id']===(int)$x['id'])?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select></div>
+            <div class="field"><label>Position</label><select name="position_id" id="phase2cPosition"><option value="">Unassigned</option><?php foreach($masters['positions'] as $x):if(!$x['active'])continue;?><option value="<?=$x['id']?>" data-department="<?=e((string)($x['department_id']??''))?>" <?=((int)$defaults['position_id']===(int)$x['id'])?'selected':''?>><?=e($x['name'])?><?=!empty($x['department_name'])?' · '.e($x['department_name']):''?></option><?php endforeach;?></select><small>If the recruitment title has no exact Position master match, select the correct position here.</small></div>
+            <div class="field"><label>Branch / Site</label><select name="branch_id"><option value="">Unassigned</option><?php foreach($masters['branches'] as $x):if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=((int)$defaults['branch_id']===(int)$x['id'])?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select></div>
+            <div class="field"><label>Employment type</label><select name="employment_type_id" required><option value="">Select employment type</option><?php foreach($masters['employment_types'] as $x):if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=((int)$defaults['employment_type_id']===(int)$x['id'])?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select></div>
+            <div class="field"><label>Hire date</label><input type="date" name="hire_date" value="<?=e($defaults['hire_date'])?>" required></div>
+            <div class="field"><label>Regularization date</label><input type="date" name="regularization_date"></div>
+            <div class="field"><label>Employee status</label><select name="status"><option value="PROBATIONARY" selected>Probationary</option><option value="ACTIVE">Active</option></select></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><div><h2>Employee portal access</h2><p>Link an existing Employee portal account, create one now, or complete account setup later.</p></div></div>
+          <div class="panel-body">
+            <div class="field"><label>Account setup</label><select name="account_mode" id="phase2cAccountMode"><option value="later">Link account later</option><option value="existing">Link existing Employee account</option><option value="create">Create Employee account now</option></select></div>
+            <div class="phase2c-account-block" id="phase2cExistingAccount" hidden><div class="field"><label>Existing Employee account</label><select name="user_id"><option value="">Select account</option><?php foreach($masters['employee_users'] as $u):?><option value="<?=$u['id']?>"><?=e($u['full_name'])?> · <?=e($u['email'])?></option><?php endforeach;?></select><small>Only active, unlinked Employee portal accounts are shown.</small></div></div>
+            <div class="phase2c-account-grid" id="phase2cCreateAccount" hidden><div class="field"><label>Account email</label><input type="email" name="account_email" id="phase2cAccountEmail" placeholder="employee@pmbsi.com"></div><div class="field"><label>Temporary password</label><div class="users-password-input"><input type="password" name="temporary_password" id="phase2cTempPassword" minlength="10" placeholder="Minimum 10 characters" autocomplete="new-password"><button class="users-eye-btn" type="button" data-password-toggle="#phase2cTempPassword" aria-label="Show temporary password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></div><small>At least 10 characters with one letter and one number.</small></div></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><div><h2>Recruitment documents</h2><p><?=count($documents)?> application document<?=count($documents)===1?'':'s'?> available for transfer.</p></div></div>
+          <div class="panel-body"><label class="phase2c-check"><input type="checkbox" name="transfer_documents" value="1" checked> Copy recruitment documents into the Employee 201 File</label><?php if($documents):?><div class="phase2c-doc-preview"><?php foreach($documents as $doc):?><span><?=icon_svg('file')?> <?=e($doc['original_name'])?></span><?php endforeach;?></div><?php else:?><p class="muted small phase2c-no-docs">No recruitment documents are attached to this application.</p><?php endif;?></div>
+        </section>
+      </div>
+
+      <aside class="phase2c-aside">
+        <section class="panel phase2c-review-card">
+          <div class="panel-head"><div><h2>Final review</h2><p>One-time conversion</p></div></div>
+          <div class="panel-body">
+            <div class="phase2c-review-note"><span><?=icon_svg('shield')?></span><div><strong>Duplicate protected</strong><p>The application can only be converted once. Email and account-link checks run again on save.</p></div></div>
+            <div class="phase2c-review-note"><span><?=icon_svg('audit')?></span><div><strong>Audited</strong><p>The source application, employee record, converter and timestamp remain traceable.</p></div></div>
+            <label class="phase2c-confirm"><input type="checkbox" name="conversion_confirmed" value="1" required><span>I reviewed the employee identity, assignment and portal-access details.</span></label>
+            <button class="btn primary block phase2c-submit" type="submit" <?=$duplicate?'disabled':''?>><?=icon_svg('user-plus')?> Create Employee 201 File</button>
+            <?php if($duplicate):?><a class="btn block" href="<?=url('hr-employee',['id'=>$duplicate['id']])?>">Review existing employee</a><?php endif;?>
+          </div>
+        </section>
+      </aside>
+    </form>
+    <script>
+    (()=>{
+      const mode=document.getElementById('phase2cAccountMode'),existing=document.getElementById('phase2cExistingAccount'),create=document.getElementById('phase2cCreateAccount'),email=document.getElementById('phase2cAccountEmail'),password=document.getElementById('phase2cTempPassword');
+      const syncAccount=()=>{const v=mode?.value||'later';if(existing)existing.hidden=v!=='existing';if(create)create.hidden=v!=='create';if(email)email.required=v==='create';if(password)password.required=v==='create';};mode?.addEventListener('change',syncAccount);syncAccount();
+      document.querySelectorAll('[data-password-toggle]').forEach(btn=>{if(btn.dataset.phase2cBound)return;btn.dataset.phase2cBound='1';btn.addEventListener('click',()=>{const input=document.querySelector(btn.dataset.passwordToggle);if(!input)return;input.type=input.type==='password'?'text':'password';btn.classList.toggle('active',input.type==='text');btn.setAttribute('aria-label',input.type==='text'?'Hide temporary password':'Show temporary password');});});
+      const department=document.getElementById('phase2cDepartment'),position=document.getElementById('phase2cPosition');
+      const syncPositions=()=>{if(!department||!position)return;const dep=department.value;Array.from(position.options).forEach((o,i)=>{if(i===0)return;const match=!dep||!o.dataset.department||o.dataset.department===dep;o.hidden=!match;if(!match&&o.selected)position.value='';});};department?.addEventListener('change',syncPositions);syncPositions();
+    })();
+    </script>
+    <?php render_portal_footer();exit;
 }
 
 if ($page === 'hr-endorsements') {

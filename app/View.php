@@ -47,7 +47,7 @@ function render_head(string $title): void { ?>
 <link rel="apple-touch-icon" sizes="180x180" href="public/assets/branding/apple-touch-icon.png?v=20260924-logo-transparency-fix-v2">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="public/assets/app.css"><link rel="stylesheet" href="public/assets/hris-modern.css?v=20260925-users-table-header-v4"><link rel="stylesheet" href="public/assets/phase2b.css?v=20260924-phase2b-201file"><link rel="stylesheet" href="public/assets/sidebar-logout.css?v=20260924-sidebar-logout">
+<link rel="stylesheet" href="public/assets/app.css"><link rel="stylesheet" href="public/assets/hris-modern.css?v=20260925-phase2c-v1"><link rel="stylesheet" href="public/assets/phase2b.css?v=20260924-phase2b-201file"><link rel="stylesheet" href="public/assets/sidebar-logout.css?v=20260924-sidebar-logout">
 <style>.alert{padding:11px 14px;border-radius:10px;margin-bottom:14px;font-size:12.5px}.req{color:var(--red)}.actions-inline{display:flex;gap:6px;flex-wrap:wrap}.nowrap{white-space:nowrap}.empty{padding:36px;text-align:center;color:var(--hris-muted)}form.inline{display:inline}.status-select{min-width:150px}</style>
 </head><body><div id="toast" class="toast"></div>
 <?php }

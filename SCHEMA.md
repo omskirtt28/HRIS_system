@@ -603,3 +603,7 @@ Stores document metadata only: employee, document type/title, original filename,
 ### `employee_employment_history`
 
 Immutable employee movement/status timeline. Each entry stores an event type, effective date, from/to department, position, branch, employment type, status, remarks and creator. Phase 2B migration backfills one `HIRED` baseline row for existing Phase 2A employees.
+
+## Phase 2C conversion fields
+`applications` now includes nullable `converted_employee_id`, `converted_at`, and `converted_by`. `converted_employee_id` is unique so one employee record cannot be attached to multiple conversion rows through this workflow. It references `employees(id)`, while `converted_by` references `users(id)`.
+

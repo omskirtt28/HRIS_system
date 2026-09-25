@@ -369,3 +369,7 @@ No new module may bypass this baseline.
 ## Locked Next Development Phase
 
 After the Recruitment module, the next HRIS development phase is **Employee Information Management / 201 File + Employee Master + Organization Structure**. This foundation must be implemented before Attendance/Timekeeping, Leave, Payroll, Performance, Employee Relations, and Offboarding so all downstream modules reference one canonical employee and organization model.
+
+## Phase 2C Integration
+Recruitment remains the source for applicant/application history. A completed application can create one Employee Master record. The application stores the resulting `converted_employee_id`, conversion timestamp, and converting user. This keeps recruitment history immutable after conversion while Employee Management becomes the source of truth for ongoing employment data.
+

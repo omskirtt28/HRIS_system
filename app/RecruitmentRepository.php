@@ -58,7 +58,7 @@ final class RecruitmentRepository
         $hs=db()->prepare('SELECT h.*,fs.name from_name,ts.name to_name FROM application_stage_history h LEFT JOIN recruitment_stages fs ON fs.id=h.from_stage_id JOIN recruitment_stages ts ON ts.id=h.to_stage_id WHERE h.application_id=? ORDER BY h.changed_at'); $hs->execute([$row['id']]); $row['history']=$hs->fetchAll(); return $row;
     }
     public static function applications(array $filters=[]): array {
-        $sql='SELECT a.id,a.application_no,a.screening_score,a.applied_at,a.last_stage_changed_at,ap.first_name,ap.last_name,ap.email,ap.mobile_no,j.title job_title,c.name client_name,s.code stage_code,s.name stage_name,u.full_name recruiter_name FROM applications a JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN clients c ON c.id=a.client_id JOIN recruitment_stages s ON s.id=a.current_stage_id LEFT JOIN users u ON u.id=a.assigned_recruiter_id WHERE 1=1'; $p=[];
+        $sql='SELECT a.id,a.application_no,a.status application_status,a.screening_score,a.applied_at,a.last_stage_changed_at,ap.first_name,ap.last_name,ap.email,ap.mobile_no,j.title job_title,c.name client_name,s.code stage_code,s.name stage_name,u.full_name recruiter_name FROM applications a JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN clients c ON c.id=a.client_id JOIN recruitment_stages s ON s.id=a.current_stage_id LEFT JOIN users u ON u.id=a.assigned_recruiter_id WHERE 1=1'; $p=[];
         if (!empty($filters['client_id'])) { $sql.=' AND a.client_id=?'; $p[]=$filters['client_id']; }
         if (!empty($filters['client_portal'])) { $sql.=' AND EXISTS (SELECT 1 FROM endorsements e WHERE e.application_id=a.id AND e.client_id=a.client_id)'; }
         if (!empty($filters['stage'])) { $sql.=' AND s.code=?'; $p[]=$filters['stage']; }
@@ -66,7 +66,7 @@ final class RecruitmentRepository
         $sql.=' ORDER BY a.last_stage_changed_at DESC,a.id DESC'; $st=db()->prepare($sql); $st->execute($p); return $st->fetchAll();
     }
     public static function application(int $id, ?int $clientId=null): ?array {
-        $sql='SELECT a.*,ap.applicant_no,ap.first_name,ap.last_name,ap.email,ap.mobile_no,j.title job_title,j.location_text,c.name client_name,s.code stage_code,s.name stage_name,u.full_name recruiter_name FROM applications a JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN clients c ON c.id=a.client_id JOIN recruitment_stages s ON s.id=a.current_stage_id LEFT JOIN users u ON u.id=a.assigned_recruiter_id WHERE a.id=?'; $p=[$id];
+        $sql='SELECT a.*,ap.applicant_no,ap.first_name,ap.middle_name,ap.last_name,ap.suffix,ap.email,ap.mobile_no,j.title job_title,j.location_text,j.department_id job_department_id,j.employment_type job_employment_type,m.branch_id request_branch_id,m.department_id request_department_id,c.name client_name,s.code stage_code,s.name stage_name,u.full_name recruiter_name FROM applications a JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN manpower_requests m ON m.id=a.manpower_request_id JOIN clients c ON c.id=a.client_id JOIN recruitment_stages s ON s.id=a.current_stage_id LEFT JOIN users u ON u.id=a.assigned_recruiter_id WHERE a.id=?'; $p=[$id];
         if ($clientId) { $sql.=' AND a.client_id=? AND EXISTS (SELECT 1 FROM endorsements e WHERE e.application_id=a.id AND e.client_id=?)'; $p[]=$clientId; $p[]=$clientId; }
         $st=db()->prepare($sql); $st->execute($p); $a=$st->fetch(); if(!$a)return null;
         $hs=db()->prepare('SELECT h.*,fs.name from_name,ts.name to_name,u.full_name changed_by_name FROM application_stage_history h LEFT JOIN recruitment_stages fs ON fs.id=h.from_stage_id JOIN recruitment_stages ts ON ts.id=h.to_stage_id LEFT JOIN users u ON u.id=h.changed_by WHERE h.application_id=? ORDER BY h.changed_at DESC'); $hs->execute([$id]); $a['history']=$hs->fetchAll();
@@ -75,7 +75,14 @@ final class RecruitmentRepository
         $dp=db()->prepare('SELECT d.*,b.name branch_name FROM deployments d LEFT JOIN branches b ON b.id=d.branch_id WHERE d.application_id=? ORDER BY d.id DESC LIMIT 1'); $dp->execute([$id]); $a['deployment']=$dp->fetch()?:null;
         return $a;
     }
+    private static function assertApplicationMutable(int $applicationId): void {
+        if(!self::phase2CReady()) return;
+        $st=db()->prepare('SELECT converted_employee_id FROM applications WHERE id=? LIMIT 1');$st->execute([$applicationId]);$converted=(int)($st->fetchColumn()?:0);
+        if($converted>0) throw new RuntimeException('This recruitment record has already been converted to an employee and is locked for further recruitment changes.');
+    }
+
     public static function moveStage(int $id,string $target,?string $comment=null): void {
+        self::assertApplicationMutable($id);
         $pdo=db(); $pdo->beginTransaction(); try {
             $st=$pdo->prepare('SELECT current_stage_id FROM applications WHERE id=? FOR UPDATE'); $st->execute([$id]); $from=(int)$st->fetchColumn(); if(!$from) throw new RuntimeException('Application not found.');
             $ts=$pdo->prepare('SELECT id FROM recruitment_stages WHERE code=? AND active=1'); $ts->execute([$target]); $to=(int)$ts->fetchColumn(); if(!$to) throw new RuntimeException('Invalid target stage.');
@@ -85,6 +92,7 @@ final class RecruitmentRepository
         } catch(Throwable $e){$pdo->rollBack();throw $e;}
     }
     public static function scheduleInterview(int $id,array $d): void {
+        self::assertApplicationMutable($id);
         $st=db()->prepare('INSERT INTO interviews(application_id,interview_type,scheduled_at,location_or_link,interviewer_id,status,notes,created_at,updated_at) VALUES(?,?,?,?,?,"SCHEDULED",?,NOW(),NOW())');
         $st->execute([$id,$d['interview_type'],$d['scheduled_at'],$d['location_or_link'],$_SESSION['user']['id']??null,$d['notes']]);
         self::moveStage($id,'INTERVIEW','Interview scheduled'); audit('Recruitment','SCHEDULE_INTERVIEW','application',$id);
@@ -114,6 +122,7 @@ final class RecruitmentRepository
         return compact('active','interviews','endorsed','deployed','openReq');
     }
     public static function clientDecision(int $applicationId,string $decision,string $remarks=''): void {
+        self::assertApplicationMutable($applicationId);
         $uid=$_SESSION['user']['id']; $clientId=$_SESSION['user']['client_id'];
         $app=self::application($applicationId,$clientId); if(!$app) throw new RuntimeException('Candidate not found in your client scope.');
         if (!in_array($app['stage_code'],['ENDORSED','CLIENT_REVIEW'],true)) throw new RuntimeException('This candidate is not awaiting a client decision.');
@@ -125,6 +134,7 @@ final class RecruitmentRepository
         audit('Recruitment','CLIENT_DECISION','application',$applicationId,['decision'=>$decision]);
     }
     public static function endorse(int $applicationId,string $note=''): void {
+        self::assertApplicationMutable($applicationId);
         $app=self::application($applicationId); if(!$app) throw new RuntimeException('Application not found.');
         if (in_array($app['stage_code'],['REJECTED','WITHDRAWN','DEPLOYED'],true)) throw new RuntimeException('This application can no longer be endorsed.');
         $st=db()->prepare('SELECT id FROM endorsements WHERE application_id=? AND client_id=? LIMIT 1'); $st->execute([$applicationId,$app['client_id']]);
@@ -136,6 +146,7 @@ final class RecruitmentRepository
         audit('Recruitment','ENDORSE','application',$applicationId,['client_id'=>$app['client_id']]);
     }
     public static function saveOffer(int $applicationId,array $d): void {
+        self::assertApplicationMutable($applicationId);
         $app=self::application($applicationId); if(!$app) throw new RuntimeException('Application not found.');
         $st=db()->prepare('SELECT id FROM offers WHERE application_id=? ORDER BY id DESC LIMIT 1'); $st->execute([$applicationId]); $id=$st->fetchColumn();
         if($id){
@@ -147,11 +158,13 @@ final class RecruitmentRepository
         self::moveStage($applicationId,'OFFER','Offer prepared/sent'); audit('Recruitment','OFFER_SENT','application',$applicationId);
     }
     public static function acceptOffer(int $applicationId): void {
+        self::assertApplicationMutable($applicationId);
         $st=db()->prepare('UPDATE offers SET status="ACCEPTED",responded_at=NOW(),updated_at=NOW() WHERE application_id=?'); $st->execute([$applicationId]);
         if(!$st->rowCount()) throw new RuntimeException('Create an offer first.');
         self::moveStage($applicationId,'DEPLOYMENT','Offer accepted; preparing deployment'); audit('Recruitment','OFFER_ACCEPTED','application',$applicationId);
     }
     public static function saveDeployment(int $applicationId,array $d): void {
+        self::assertApplicationMutable($applicationId);
         $st=db()->prepare('SELECT id FROM deployments WHERE application_id=? ORDER BY id DESC LIMIT 1'); $st->execute([$applicationId]); $id=$st->fetchColumn();
         if($id){
             db()->prepare('UPDATE deployments SET branch_id=?,scheduled_date=?,notes=?,status="SCHEDULED",updated_at=NOW() WHERE id=?')->execute([$d['branch_id']?:null,$d['scheduled_date']?:null,$d['notes'],$id]);
@@ -162,6 +175,7 @@ final class RecruitmentRepository
         self::moveStage($applicationId,'DEPLOYMENT','Deployment scheduled'); audit('Recruitment','DEPLOYMENT_SCHEDULED','application',$applicationId);
     }
     public static function completeDeployment(int $applicationId): void {
+        self::assertApplicationMutable($applicationId);
         $pdo=db(); $pdo->beginTransaction();
         try {
             $st=$pdo->prepare('SELECT current_stage_id,manpower_request_id FROM applications WHERE id=? FOR UPDATE'); $st->execute([$applicationId]); $app=$st->fetch();
@@ -176,6 +190,140 @@ final class RecruitmentRepository
             $pdo->commit(); audit('Recruitment','DEPLOYED','application',$applicationId);
         } catch(Throwable $e){ if($pdo->inTransaction())$pdo->rollBack(); throw $e; }
     }
+    public static function phase2CReady(): bool {
+        try {
+            $st=db()->prepare('SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name="applications" AND column_name IN ("converted_employee_id","converted_at","converted_by")');
+            $st->execute();
+            return (int)$st->fetchColumn()===3 && EmployeeRepository::phase2Ready();
+        } catch(Throwable) { return false; }
+    }
+
+    public static function applicationDocuments(int $applicationId): array {
+        if(!FoundationRepository::tableExists('application_documents')) return [];
+        $st=db()->prepare('SELECT * FROM application_documents WHERE application_id=? ORDER BY created_at,id');
+        $st->execute([$applicationId]);
+        return $st->fetchAll();
+    }
+
+    public static function employeeSource(int $employeeId): ?array {
+        if(!self::phase2CReady()) return null;
+        $sql='SELECT a.id application_id,a.application_no,a.converted_at,ap.applicant_no,j.title job_title,c.name client_name,u.full_name converted_by_name
+              FROM applications a
+              JOIN applicants ap ON ap.id=a.applicant_id
+              JOIN job_openings j ON j.id=a.job_opening_id
+              JOIN clients c ON c.id=a.client_id
+              LEFT JOIN users u ON u.id=a.converted_by
+              WHERE a.converted_employee_id=? LIMIT 1';
+        $st=db()->prepare($sql);$st->execute([$employeeId]);$r=$st->fetch();return $r?:null;
+    }
+
+    public static function employeeDuplicateByEmail(string $email): ?array {
+        $email=strtolower(trim($email));if($email===''||!EmployeeRepository::ready())return null;
+        $st=db()->prepare('SELECT id,employee_no,first_name,middle_name,last_name,company_email,personal_email FROM employees WHERE LOWER(COALESCE(company_email,""))=LOWER(?) OR LOWER(COALESCE(personal_email,""))=LOWER(?) LIMIT 1');
+        $st->execute([$email,$email]);$r=$st->fetch();return $r?:null;
+    }
+
+    public static function conversionDefaults(int $applicationId): array {
+        $a=self::application($applicationId); if(!$a) throw new RuntimeException('Application not found.');
+        $positions=FoundationRepository::positions();
+        $types=FoundationRepository::employmentTypes();
+        $departmentId=(int)($a['job_department_id']??0) ?: (int)($a['request_department_id']??0) ?: null;
+        $branchId=(int)($a['deployment']['branch_id']??0) ?: (int)($a['request_branch_id']??0) ?: null;
+        $positionId=null;
+        foreach($positions as $p){
+            if(strcasecmp(trim((string)$p['name']),trim((string)$a['job_title']))===0){$positionId=(int)$p['id'];break;}
+        }
+        $employmentTypeId=null;
+        $sourceType=strtoupper(trim((string)($a['offer']['employment_type']??$a['job_employment_type']??'')));
+        $map=['CONTRACT'=>'CONTRACTUAL','FULL_TIME'=>'PROBATIONARY','PART_TIME'=>'PART_TIME','PROJECT_BASED'=>'PROJECT_BASED','FIXED_TERM'=>'FIXED_TERM','INTERN'=>'INTERN'];
+        $wanted=$map[$sourceType]??$sourceType;
+        foreach($types as $t){if(strtoupper((string)$t['code'])===$wanted){$employmentTypeId=(int)$t['id'];break;}}
+        if(!$employmentTypeId){foreach($types as $t){if(strtoupper((string)$t['code'])==='PROBATIONARY'){$employmentTypeId=(int)$t['id'];break;}}}
+        $hireDate=(string)($a['offer']['start_date']??'');
+        if($hireDate==='') $hireDate=(string)($a['deployment']['actual_date']??'');
+        if($hireDate==='') $hireDate=date('Y-m-d');
+        return [
+            'employee_no'=>EmployeeRepository::nextEmployeeNo(),
+            'first_name'=>(string)$a['first_name'],'middle_name'=>(string)($a['middle_name']??''),'last_name'=>(string)$a['last_name'],'suffix'=>(string)($a['suffix']??''),
+            'personal_email'=>(string)$a['email'],'mobile_no'=>(string)$a['mobile_no'],'department_id'=>$departmentId,'position_id'=>$positionId,'branch_id'=>$branchId,
+            'employment_type_id'=>$employmentTypeId,'hire_date'=>$hireDate,'status'=>'PROBATIONARY'
+        ];
+    }
+
+    public static function convertToEmployee(int $applicationId,array $data): int {
+        if(!self::phase2CReady()) throw new RuntimeException('Import the Phase 2C recruitment-to-employee migration first.');
+        $pdo=db();$copiedFiles=[];$pdo->beginTransaction();
+        try {
+            $lock=$pdo->prepare('SELECT a.id,a.applicant_id,a.current_stage_id,a.converted_employee_id,a.status,s.code stage_code FROM applications a JOIN recruitment_stages s ON s.id=a.current_stage_id WHERE a.id=? FOR UPDATE');
+            $lock->execute([$applicationId]);$locked=$lock->fetch();
+            if(!$locked) throw new RuntimeException('Application not found.');
+            if(!empty($locked['converted_employee_id'])) throw new RuntimeException('This application has already been converted to an employee.');
+            if(!in_array((string)$locked['stage_code'],['DEPLOYED','HIRED'],true)) throw new RuntimeException('Only hired/deployed candidates can be converted to an employee record.');
+
+            $a=self::application($applicationId);if(!$a) throw new RuntimeException('Application not found.');
+            $deploymentComplete=(string)$locked['stage_code']==='HIRED' || (($a['deployment']['status']??'')==='DEPLOYED');
+            if(!$deploymentComplete) throw new RuntimeException('Complete the deployment record before converting this candidate to an employee.');
+            $personalEmail=strtolower(trim((string)($data['personal_email']??$a['email']??'')));
+            if($personalEmail!==''){
+                $dupe=$pdo->prepare('SELECT id,employee_no FROM employees WHERE LOWER(COALESCE(company_email,""))=LOWER(?) OR LOWER(COALESCE(personal_email,""))=LOWER(?) LIMIT 1');
+                $dupe->execute([$personalEmail,$personalEmail]);
+                if($existing=$dupe->fetch()) throw new RuntimeException('An employee record already uses this email ('.$existing['employee_no'].'). Review the existing employee instead of converting a duplicate.');
+            }
+
+            $accountMode=(string)($data['account_mode']??'later');$userId=null;
+            if($accountMode==='existing'){
+                $userId=(int)($data['user_id']??0);if($userId<=0)throw new RuntimeException('Select an employee portal account to link.');
+                $st=$pdo->prepare('SELECT u.id FROM users u JOIN roles r ON r.id=u.role_id LEFT JOIN employees e ON e.user_id=u.id WHERE u.id=? AND u.status="ACTIVE" AND r.portal="employee" AND e.id IS NULL LIMIT 1');
+                $st->execute([$userId]);if(!$st->fetchColumn())throw new RuntimeException('The selected employee account is unavailable or already linked.');
+            } elseif($accountMode==='create') {
+                $accountEmail=strtolower(trim((string)($data['account_email']??'')));$password=(string)($data['temporary_password']??'');
+                if(!filter_var($accountEmail,FILTER_VALIDATE_EMAIL))throw new RuntimeException('Enter a valid employee account email.');
+                if(strlen($password)<10||!preg_match('/[A-Za-z]/',$password)||!preg_match('/[0-9]/',$password))throw new RuntimeException('Temporary password must be at least 10 characters and include a letter and a number.');
+                $role=$pdo->query('SELECT id FROM roles WHERE code="EMPLOYEE" LIMIT 1')->fetchColumn();if(!$role)throw new RuntimeException('Employee portal role is not configured.');
+                $st=$pdo->prepare('SELECT COUNT(*) FROM users WHERE LOWER(email)=LOWER(?)');$st->execute([$accountEmail]);if((int)$st->fetchColumn()>0)throw new RuntimeException('A user account already uses that email address.');
+                $fullName=trim((string)($data['first_name']??$a['first_name']).' '.(string)($data['middle_name']??$a['middle_name']??'').' '.(string)($data['last_name']??$a['last_name']));
+                $pdo->prepare('INSERT INTO users(role_id,client_id,full_name,email,password_hash,status) VALUES(?,NULL,?,?,?,"ACTIVE")')->execute([(int)$role,$fullName,$accountEmail,password_hash($password,PASSWORD_DEFAULT)]);
+                $userId=(int)$pdo->lastInsertId();
+                audit('Access Control','CREATE_EMPLOYEE_ACCOUNT','user',$userId,['email'=>$accountEmail,'source_application_id'=>$applicationId]);
+                if(trim((string)($data['company_email']??''))==='')$data['company_email']=$accountEmail;
+            } elseif($accountMode!=='later') throw new RuntimeException('Invalid employee account option.');
+
+            $employeeData=[
+                'employee_no'=>(string)($data['employee_no']??''),'user_id'=>$userId,'first_name'=>(string)($data['first_name']??$a['first_name']),
+                'middle_name'=>(string)($data['middle_name']??$a['middle_name']??''),'last_name'=>(string)($data['last_name']??$a['last_name']),'suffix'=>(string)($data['suffix']??$a['suffix']??''),
+                'company_email'=>(string)($data['company_email']??''),'personal_email'=>$personalEmail,'mobile_no'=>(string)($data['mobile_no']??$a['mobile_no']),
+                'department_id'=>(int)($data['department_id']??0),'position_id'=>(int)($data['position_id']??0),'branch_id'=>(int)($data['branch_id']??0),
+                'employment_type_id'=>(int)($data['employment_type_id']??0),'hire_date'=>(string)($data['hire_date']??''),'regularization_date'=>(string)($data['regularization_date']??''),
+                'status'=>(string)($data['status']??'PROBATIONARY')
+            ];
+            $employeeId=EmployeeRepository::create($employeeData);
+
+            if(!empty($data['transfer_documents'])){
+                $srcDir=(string)cfg('uploads.resume_dir');$destDir=dirname(__DIR__).'/storage/employee_documents';
+                if(!is_dir($destDir)&&!mkdir($destDir,0775,true)&&!is_dir($destDir))throw new RuntimeException('Could not create secure employee document storage.');
+                foreach(self::applicationDocuments($applicationId) as $doc){
+                    $src=$srcDir.'/'.$doc['stored_name'];if(!is_file($src))continue;
+                    $ext=strtolower(pathinfo((string)$doc['original_name'],PATHINFO_EXTENSION));if($ext==='')$ext='bin';
+                    $stored='emp_'.$employeeId.'_'.bin2hex(random_bytes(16)).'.'.$ext;$dest=$destDir.'/'.$stored;
+                    if(!copy($src,$dest))throw new RuntimeException('Could not transfer recruitment document: '.$doc['original_name']);
+                    $copiedFiles[]=$dest;$docType=strtoupper((string)$doc['document_type'])==='RESUME'?'RESUME':'OTHER';
+                    $title=pathinfo((string)$doc['original_name'],PATHINFO_FILENAME)?:'Recruitment document';
+                    $ins=$pdo->prepare('INSERT INTO employee_documents(employee_id,document_type,title,original_name,stored_name,mime_type,file_size,uploaded_by) VALUES(?,?,?,?,?,?,?,?)');
+                    $ins->execute([$employeeId,$docType,mb_substr($title,0,180),$doc['original_name'],$stored,$doc['mime_type'],(int)$doc['file_size'],(int)(Auth::user()['id']??0)?:null]);
+                }
+            }
+
+            $uid=(int)(Auth::user()['id']??0)?:null;
+            $pdo->prepare('UPDATE applications SET converted_employee_id=?,converted_at=NOW(),converted_by=?,status="CONVERTED",updated_at=NOW() WHERE id=? AND converted_employee_id IS NULL')->execute([$employeeId,$uid,$applicationId]);
+            audit('Recruitment','CONVERT_TO_EMPLOYEE','application',$applicationId,['employee_id'=>$employeeId]);
+            audit('Employees','CREATED_FROM_RECRUITMENT','employee',$employeeId,['application_id'=>$applicationId,'application_no'=>$a['application_no']]);
+            $pdo->commit();
+            return $employeeId;
+        } catch(Throwable $e) {
+            if($pdo->inTransaction())$pdo->rollBack();foreach($copiedFiles as $file)if(is_file($file))@unlink($file);throw $e;
+        }
+    }
+
     public static function users(): array { return db()->query('SELECT u.*,r.name role_name,c.name client_name FROM users u JOIN roles r ON r.id=u.role_id LEFT JOIN clients c ON c.id=u.client_id ORDER BY u.full_name')->fetchAll(); }
     public static function auditLogs(): array { return db()->query('SELECT a.*,u.full_name FROM audit_logs a LEFT JOIN users u ON u.id=a.user_id ORDER BY a.created_at DESC LIMIT 100')->fetchAll(); }
 }
