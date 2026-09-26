@@ -603,3 +603,108 @@ table.tbl tbody tr:hover{background:var(--hris-surface-2)}
 .phase3a-cutoff-field small.warning{color:#a66b00}
 .phase3a-cutoff-field.is-disabled{opacity:.72}
 .phase3a-cutoff-field.is-disabled select{background:#f5f6f8;cursor:not-allowed}
+
+
+/* Reporting manager assignment — 2026-09-26 */
+.reporting-manager-field{padding:14px 15px;border:1px solid #ece4cf;border-radius:14px;background:linear-gradient(180deg,#fffdf8 0%,#fff 100%)}
+.reporting-manager-label{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.reporting-manager-label label{margin:0}
+.reporting-manager-help{display:flex;align-items:flex-start;gap:9px;margin-top:9px;padding:10px 11px;border-radius:10px;background:#fff8e8;color:#596273}
+.reporting-manager-help>span{width:26px;height:26px;display:grid;place-items:center;flex:0 0 26px;border-radius:8px;background:#fff0c7;color:#a76a00}
+.reporting-manager-help svg{width:15px;height:15px}
+.reporting-manager-help strong{display:block;font-size:10.5px;color:#303846;margin-bottom:2px}
+.reporting-manager-help small{display:block;font-size:9.5px;line-height:1.45;color:#707987}
+@media(max-width:700px){.reporting-manager-label{align-items:flex-start;flex-direction:column}.reporting-manager-field{padding:12px}}
+
+/* Phase 3A OB/POB conditional-field visibility fix — 2026-09-26
+   The shared .field layout sets display:flex, so explicitly honor the HTML hidden state
+   inside Payroll & Timekeeping request forms. This keeps the generic Reason field out
+   of Official Business / Unpaid Official Business while preserving it for other types. */
+.phase3a-request-form .field[hidden]{display:none!important}
+
+/* Phase 3A request review — approver detail and decision workflow */
+.phase3a-review-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-bottom:18px}
+.phase3a-review-card{min-width:0}
+.phase3a-review-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 20px}
+.phase3a-review-facts>div{min-width:0;padding:11px 0;border-bottom:1px solid var(--hris-line)}
+.phase3a-review-facts>div.full{grid-column:1/-1}
+.phase3a-review-facts span{display:block;font-size:9px;color:var(--hris-muted);text-transform:uppercase;letter-spacing:.05em}
+.phase3a-review-facts strong{display:block;margin-top:4px;font-size:11px;line-height:1.45;overflow-wrap:anywhere}
+.phase3a-review-main{align-items:start}
+.phase3a-decision-panel{border-color:#f0d79b}
+.phase3a-decision-form{display:flex;flex-direction:column;gap:14px}
+.phase3a-decision-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.btn.danger-outline{border-color:#efc2c5;background:#fff;color:#b4232d}
+.btn.danger-outline:hover{background:#fff5f5;border-color:#e49ca1}
+@media(max-width:1100px){.phase3a-review-summary{grid-template-columns:1fr}}
+@media(max-width:720px){.phase3a-review-facts{grid-template-columns:1fr}.phase3a-review-facts>div.full{grid-column:auto}.phase3a-decision-actions{align-items:stretch;flex-direction:column}.phase3a-decision-actions .btn{width:100%;justify-content:center}}
+
+/* Phase 3A manager review polish — 2026-09-26 */
+.phase3a-review-overview{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(300px,.75fr);gap:18px;margin-bottom:18px;align-items:stretch}
+.phase3a-request-summary-card,.phase3a-employee-context-card{min-width:0;margin:0}
+.phase3a-review-card-head{align-items:flex-start}
+.phase3a-summary-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;margin:0}
+.phase3a-summary-fact{min-width:0;padding:13px 18px 13px 0;border-bottom:1px solid var(--hris-line)}
+.phase3a-summary-fact:nth-child(3n+2),.phase3a-summary-fact:nth-child(3n+3){padding-left:18px;border-left:1px solid var(--hris-line)}
+.phase3a-summary-fact:nth-last-child(-n+2){border-bottom:0}
+.phase3a-summary-fact dt{margin:0 0 6px;font-size:9px;font-weight:700;line-height:1.2;letter-spacing:.055em;text-transform:uppercase;color:var(--hris-muted)}
+.phase3a-summary-fact dd{margin:0;font-size:12px;font-weight:750;line-height:1.4;color:var(--hris-text);overflow-wrap:anywhere}
+.phase3a-employee-context{display:flex;flex-direction:column;justify-content:space-between;gap:18px;height:100%}
+.phase3a-employee-context-identity{display:flex;align-items:center;gap:12px;min-width:0}
+.phase3a-employee-context-avatar{width:42px;height:42px;flex:0 0 42px;display:grid;place-items:center;border-radius:12px;background:#fff3d6;border:1px solid #f3d79e;color:#8d5c00;font-size:12px;font-weight:800}
+.phase3a-employee-context-identity>div{min-width:0}
+.phase3a-employee-context-identity strong{display:block;font-size:13px;line-height:1.35;color:var(--hris-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.phase3a-employee-context-identity>div>span{display:block;margin-top:3px;font-size:9.5px;line-height:1.45;color:var(--hris-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.phase3a-employee-context-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.phase3a-employee-context-meta>div{min-width:0;padding:10px 11px;border:1px solid var(--hris-line);border-radius:10px;background:var(--surface-2)}
+.phase3a-employee-context-meta span{display:block;font-size:8.5px;font-weight:700;line-height:1.2;letter-spacing:.045em;text-transform:uppercase;color:var(--hris-muted)}
+.phase3a-employee-context-meta strong{display:block;margin-top:5px;font-size:10.5px;line-height:1.35;color:var(--hris-text);overflow-wrap:anywhere}
+.phase3a-review-main{align-items:start}
+.phase3a-review-main>.panel{min-width:0}
+.phase3a-review-main .panel-head h2,.phase3a-section .panel-head h2,.phase3a-decision-panel .panel-head h2{font-size:13px;letter-spacing:-.01em}
+.phase3a-review-main .panel-head p,.phase3a-section .panel-head p,.phase3a-decision-panel .panel-head p{font-size:9.5px;line-height:1.45}
+@media(max-width:1180px){
+  .phase3a-review-overview{grid-template-columns:1fr}
+  .phase3a-employee-context{height:auto}
+  .phase3a-employee-context-meta{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:760px){
+  .phase3a-summary-facts{grid-template-columns:1fr}
+  .phase3a-summary-fact,.phase3a-summary-fact:nth-child(3n+2),.phase3a-summary-fact:nth-child(3n+3){padding:12px 0;border-left:0;border-bottom:1px solid var(--hris-line)}
+  .phase3a-summary-fact:last-child{border-bottom:0}
+  .phase3a-employee-context-meta{grid-template-columns:1fr}
+  .phase3a-employee-context-identity>div>span{white-space:normal}
+}
+
+
+/* Phase 3A HR Timekeeping queue — manager approval provenance */
+.phase3a-timekeeping-queue-table{min-width:1080px}
+.phase3a-timekeeping-queue-table th:nth-child(1){width:14%}
+.phase3a-timekeeping-queue-table th:nth-child(2){width:18%}
+.phase3a-timekeeping-queue-table th:nth-child(3){width:13%}
+.phase3a-timekeeping-queue-table th:nth-child(4){width:11%}
+.phase3a-timekeeping-queue-table th:nth-child(5){width:18%}
+.phase3a-timekeeping-queue-table th:nth-child(6){width:11%}
+.phase3a-timekeeping-queue-table th:nth-child(7){width:10%}
+.phase3a-timekeeping-queue-table th:nth-child(8){width:11%}
+.phase3a-reporting-line{margin-top:4px;font-size:8.8px;line-height:1.35;color:var(--hris-muted);white-space:nowrap}
+.phase3a-manager-approval-proof{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0}
+.phase3a-manager-approval-proof .badge{min-height:22px;padding:3px 7px;font-size:8px}
+.phase3a-manager-approval-proof strong{font-size:10px;line-height:1.25;color:var(--hris-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px}
+.phase3a-manager-approval-proof small{font-size:8.5px;line-height:1.3;color:var(--hris-muted);white-space:nowrap}
+@media(max-width:1100px){.phase3a-timekeeping-queue-table{min-width:1020px}}
+
+/* Phase 3A · Manager approval history — 2026-09-26 */
+.phase3a-manager-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:18px}
+.phase3a-manager-summary-card{padding:16px 18px;border:1px solid var(--hris-line);border-radius:14px;background:var(--hris-surface);box-shadow:0 10px 24px rgba(16,24,40,.04)}
+.phase3a-manager-summary-card span,.phase3a-manager-summary-card small{display:block}.phase3a-manager-summary-card>span{font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--hris-muted)}
+.phase3a-manager-summary-card strong{display:block;margin:5px 0 3px;font-size:24px;line-height:1;color:var(--hris-text);letter-spacing:-.03em}.phase3a-manager-summary-card small{font-size:8.8px;line-height:1.4;color:var(--hris-muted)}
+.phase3a-manager-history-panel{overflow:hidden}.phase3a-manager-history-list{display:flex;flex-direction:column}.phase3a-manager-history-row{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(150px,.65fr) minmax(150px,.55fr);gap:18px;align-items:center;padding:15px 18px;border-bottom:1px solid var(--hris-line)}
+.phase3a-manager-history-row:last-child{border-bottom:0}.phase3a-manager-history-main{min-width:0}.phase3a-manager-history-title{display:flex;align-items:center;gap:8px;min-width:0}.phase3a-manager-history-title strong{font-size:11px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.phase3a-history-kind{display:inline-flex;align-items:center;min-height:22px;padding:3px 7px;border-radius:999px;background:#fff5dc;color:#9a6500;font-size:8px;font-weight:700;white-space:nowrap}.phase3a-manager-history-person{margin-top:6px}.phase3a-manager-history-person strong{display:block;font-size:10.5px;line-height:1.3}.phase3a-manager-history-person span{display:block;margin-top:2px;font-size:8.8px;color:var(--hris-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.phase3a-manager-history-detail{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;margin-top:7px}.phase3a-manager-history-detail span{position:relative;font-size:8.8px;color:var(--hris-muted)}.phase3a-manager-history-detail span+span::before{content:"•";position:absolute;left:-8px;color:#c6ccd4}
+.phase3a-manager-history-decision{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0}.phase3a-history-decision{display:inline-flex;align-items:center;justify-content:center;min-height:24px;padding:4px 8px;border-radius:999px;font-size:8.2px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;white-space:nowrap}.phase3a-history-decision.approved{background:#e6f7ef;color:#128257}.phase3a-history-decision.returned{background:#fff4d9;color:#9a6500}.phase3a-history-decision.rejected{background:#fdecec;color:#c23d3d}.phase3a-manager-history-decision small{font-size:8.6px;color:var(--hris-muted);white-space:nowrap}.phase3a-history-remarks{display:-webkit-box;max-width:280px;overflow:hidden;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:8.7px;line-height:1.4;color:#667085}
+.phase3a-manager-history-status{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0}.phase3a-manager-history-status>span{font-size:8px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--hris-muted)}.phase3a-manager-history-status>strong{font-size:9.5px;line-height:1.3;color:var(--hris-text)}.phase3a-manager-history-status .btn{margin-top:2px}
+@media(max-width:1100px){.phase3a-manager-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.phase3a-manager-history-row{grid-template-columns:minmax(0,1.35fr) minmax(140px,.65fr) minmax(130px,.55fr);gap:12px}}
+@media(max-width:760px){.phase3a-manager-summary-grid{grid-template-columns:1fr 1fr}.phase3a-manager-history-row{grid-template-columns:1fr;gap:10px;align-items:start}.phase3a-manager-history-decision,.phase3a-manager-history-status{padding-top:9px;border-top:1px dashed var(--hris-line)}.phase3a-manager-history-title{align-items:flex-start;flex-wrap:wrap}.phase3a-manager-history-title strong{white-space:normal}.phase3a-manager-history-detail span+span::before{display:none}}
+@media(max-width:480px){.phase3a-manager-summary-grid{grid-template-columns:1fr}}

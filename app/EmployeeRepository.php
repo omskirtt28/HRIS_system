@@ -110,13 +110,41 @@ final class EmployeeRepository
     public static function managerCandidates(?int $employeeId=null): array
     {
         if(!self::ready()) return [];
-        $sql="SELECT e.id,e.employee_no,e.first_name,e.middle_name,e.last_name,p.name position_name,u.email user_email
-              FROM employees e LEFT JOIN positions p ON p.id=e.position_id LEFT JOIN users u ON u.id=e.user_id
+        $sql="SELECT e.id,e.employee_no,e.first_name,e.middle_name,e.last_name,p.name position_name,
+                     u.email user_email,u.status user_status,r.code role_code,r.name role_name,
+                     MAX(CASE WHEN r.code='SUPER_ADMIN' OR pm.code='payroll.approve_manager' THEN 1 ELSE 0 END) manager_ready
+              FROM employees e
+              LEFT JOIN positions p ON p.id=e.position_id
+              LEFT JOIN users u ON u.id=e.user_id
+              LEFT JOIN roles r ON r.id=u.role_id
+              LEFT JOIN role_permissions rp ON rp.role_id=r.id
+              LEFT JOIN permissions pm ON pm.id=rp.permission_id
               WHERE e.status IN ('ACTIVE','PROBATIONARY','ON_LEAVE')";
         $params=[];
         if($employeeId){$sql.=' AND e.id<>?';$params[]=$employeeId;}
-        $sql.=' ORDER BY e.last_name,e.first_name';
+        $sql.=' GROUP BY e.id,e.employee_no,e.first_name,e.middle_name,e.last_name,p.name,u.email,u.status,r.code,r.name ORDER BY manager_ready DESC,e.last_name,e.first_name';
         $st=db()->prepare($sql);$st->execute($params);return $st->fetchAll();
+    }
+
+    private static function validateImmediateManager(?int $managerEmployeeId,int $employeeId): void
+    {
+        if(!$managerEmployeeId)return;
+        if($managerEmployeeId===$employeeId)throw new RuntimeException('An employee cannot be their own Immediate Manager.');
+        $sql="SELECT e.id,e.status,u.id user_id,u.status user_status,r.code role_code,
+                    MAX(CASE WHEN r.code='SUPER_ADMIN' OR p.code='payroll.approve_manager' THEN 1 ELSE 0 END) manager_ready
+              FROM employees e
+              LEFT JOIN users u ON u.id=e.user_id
+              LEFT JOIN roles r ON r.id=u.role_id
+              LEFT JOIN role_permissions rp ON rp.role_id=r.id
+              LEFT JOIN permissions p ON p.id=rp.permission_id
+              WHERE e.id=?
+              GROUP BY e.id,e.status,u.id,u.status,r.code
+              LIMIT 1";
+        $st=db()->prepare($sql);$st->execute([$managerEmployeeId]);$row=$st->fetch();
+        if(!$row)throw new RuntimeException('Selected Immediate Manager was not found.');
+        if(!in_array((string)$row['status'],['ACTIVE','PROBATIONARY','ON_LEAVE'],true))throw new RuntimeException('Selected Immediate Manager is not an active employee.');
+        if(empty($row['user_id'])||(string)$row['user_status']!=='ACTIVE')throw new RuntimeException('Selected Immediate Manager must have an active linked HRIS account.');
+        if((int)$row['manager_ready']!==1)throw new RuntimeException('Selected Immediate Manager does not have Manager / Immediate Head approval access. Ask an administrator to update the account role or permissions first.');
     }
 
     public static function availableEmployeeUsers(?int $employeeId=null): array
@@ -191,8 +219,7 @@ final class EmployeeRepository
             'branch_id'=>$old['branch_id']!==null?(int)$old['branch_id']:null,'employment_type_id'=>$old['employment_type_id']!==null?(int)$old['employment_type_id']:null,'manager_employee_id'=>isset($old['manager_employee_id'])&&$old['manager_employee_id']!==null?(int)$old['manager_employee_id']:null,'status'=>(string)$old['status']
         ];
         $managerEmployeeId=self::columnExists('employees','manager_employee_id') ? ((int)($data['manager_employee_id']??($old['manager_employee_id']??0))?:null) : null;
-        if($managerEmployeeId===$id) throw new RuntimeException('An employee cannot be their own Immediate Manager.');
-        if($managerEmployeeId){$st=db()->prepare('SELECT COUNT(*) FROM employees WHERE id=?');$st->execute([$managerEmployeeId]);if((int)$st->fetchColumn()===0)throw new RuntimeException('Selected Immediate Manager was not found.');}
+        self::validateImmediateManager($managerEmployeeId,$id);
         $after=['department_id'=>$departmentId,'position_id'=>$positionId,'branch_id'=>$branchId,'employment_type_id'=>$employmentTypeId,'manager_employee_id'=>$managerEmployeeId,'status'=>$status];
         $changed=[];foreach($before as $k=>$v) if($v!==$after[$k])$changed[]=$k;
         db()->beginTransaction();

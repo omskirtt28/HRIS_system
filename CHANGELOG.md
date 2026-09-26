@@ -1,3 +1,56 @@
+## 2026-09-26 · Manager approval history
+- Added persistent manager decision history for Payroll & Timekeeping and Leave approvals.
+- Added summary counts for pending, approved, returned/rejected, and total manager decisions.
+- Preserved completed approval records for audit/reference instead of disappearing from the manager UI.
+
+
+## 2026-09-26 · HR Timekeeping manager approval visibility
+- Added explicit manager approval proof to the HR Timekeeping queue.
+- HR can now see the employee reporting manager, approval status, approving manager, and approval timestamp before opening the request.
+- Preserved the full approval timeline and existing review/decision workflow.
+
+
+## 2026-09-26 · Manager review employee avatar alignment fix
+- corrected the employee initials avatar on Payroll & Timekeeping manager review
+- narrowed the employee subtitle CSS selector so text styling no longer overrides the avatar display/grid centering
+- preserved responsive employee identity layout and review functionality
+
+
+## 2026-09-26 · Manager request review UI polish
+- rebuilt the review summary typography using explicit semantic fact blocks so labels and values no longer run together
+- reduced Employee information to the essentials a manager needs for approval context
+- added compact employee identity and assignment context instead of a dense seven-field card
+- preserved request details, supporting documents, timeline, and approval actions
+
+## 2026-09-26 · Payroll/Timekeeping approver review detail
+- fixed post-submit request detail redirect compatibility
+- manager, HR Timekeeping, and Payroll now review the full request before deciding
+- added complete employee/request/evidence context and approval actions on the review page
+- Return/Reject decisions now require remarks
+
+## 2026-09-26 · Payroll request post-submit redirect fix
+- corrected the employee Payroll & Timekeeping submit redirect from the obsolete `employee-request` route to the actual `payroll-request` detail route
+- added a backward-compatible route alias so older links/bookmarks do not fall through to the public Recruitment 404 page
+- preserved the successful request save, approval routing, attachments, cutoff matching, and request history behavior
+
+## 2026-09-26 · OB/POB Reason visibility fix
+- fixed the generic Reason field remaining visible for Official Business and Unpaid Official Business
+- preserved Purpose as the required OB/POB justification field and supporting attachment requirement
+- scoped the visibility fix to the Payroll & Timekeeping request form so other request types keep their Reason field
+
+
+## 2026-09-26 · Official Business form refinement
+- removed generic Reason from OB/POB employee filing UI
+- made Purpose required for OB/POB
+- made required attachment state explicit in the form while retaining backend enforcement
+- kept existing database compatibility and approval routing
+
+## 2026-09-26 · HR reporting manager assignment hardening
+- clarified HR-owned Immediate Manager / Reporting To assignment in Employee 201 File → Employment
+- manager selector now separates approval-ready accounts from employees who still need account/manager access
+- backend prevents self-reporting, inactive managers, unlinked accounts, and managers without approval access
+- existing manager-driven Payroll & Timekeeping / OB / TA / Leave routing remains unchanged
+
 
 ## 2026-09-26 · Phase 3A — Payroll & Timekeeping + Leave Credits
 - Added employee Payroll & Timekeeping Requests with dynamic TA / OB / OT / Day-Off fields.

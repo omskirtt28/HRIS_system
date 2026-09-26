@@ -128,11 +128,16 @@ final class PayrollRepository
     {
         $st=db()->prepare('SELECT pr.*,prt.code type_code,prt.name type_name,prt.category,prt.requires_attachment,
             e.employee_no,e.first_name,e.middle_name,e.last_name,d.name department_name,b.name branch_name,p.name position_name,
+            ar.name area_name, CONCAT_WS(" ",m.first_name,m.last_name) manager_name,
             pc.period_start cutoff_start,pc.period_end cutoff_end
             FROM payroll_requests pr
             JOIN payroll_request_types prt ON prt.id=pr.request_type_id
             JOIN employees e ON e.id=pr.employee_id
-            LEFT JOIN departments d ON d.id=e.department_id LEFT JOIN branches b ON b.id=e.branch_id LEFT JOIN positions p ON p.id=e.position_id
+            LEFT JOIN departments d ON d.id=e.department_id
+            LEFT JOIN branches b ON b.id=e.branch_id
+            LEFT JOIN areas ar ON ar.id=b.area_id
+            LEFT JOIN positions p ON p.id=e.position_id
+            LEFT JOIN employees m ON m.id=e.manager_employee_id
             LEFT JOIN payroll_cutoffs pc ON pc.id=pr.cutoff_id WHERE pr.id=? LIMIT 1');
         $st->execute([$id]); $r=$st->fetch(); if(!$r)return null;
         $st=db()->prepare('SELECT * FROM payroll_request_time_entries WHERE request_id=?');$st->execute([$id]);$r['time']=$st->fetch()?:[];
@@ -149,7 +154,16 @@ final class PayrollRepository
         if((int)($employee['user_id']??0)!==(int)(Auth::user()['id']??0)) throw new RuntimeException('You can only file a request for your own employee record.');
         $typeId=(int)($data['request_type_id']??0);$st=db()->prepare('SELECT * FROM payroll_request_types WHERE id=? AND active=1');$st->execute([$typeId]);$type=$st->fetch();if(!$type)throw new RuntimeException('Choose a valid request type.');
         $affected=self::validDate((string)($data['affected_date']??'')); if(!$affected)throw new RuntimeException('Affected date is required.');
-        $reason=trim((string)($data['reason']??''));if($reason==='')throw new RuntimeException('Reason is required.');
+        $typeCode=strtoupper((string)$type['code']);
+        $purpose=trim((string)($data['purpose']??''));
+        $reason=trim((string)($data['reason']??''));
+        if(in_array($typeCode,['OB','POB'],true)){
+            if($purpose==='')throw new RuntimeException('Purpose is required for Official Business requests.');
+            // Keep the legacy NOT NULL reason column populated for compatibility; Purpose is the employee-facing source of truth for OB/POB.
+            $reason=$purpose;
+        }elseif($reason===''){
+            throw new RuntimeException('Reason is required.');
+        }
         if((int)$type['requires_manager_approval']===1 && empty($employee['manager_employee_id']))throw new RuntimeException('Your Immediate Manager is not configured in your employee record. Ask HR to update your Reporting To assignment.');
         $managerUserId=self::managerApproverUserId($employee);
         if((int)$type['requires_manager_approval']===1 && !$managerUserId)throw new RuntimeException('Your assigned Immediate Manager must have an active HRIS Manager account with approval access.');
@@ -177,7 +191,7 @@ final class PayrollRepository
             $st->execute([$no,$employeeId,$typeId,$cutoffId,$affected,$status,$step,$reason,trim((string)($data['remarks']??''))?:null,$uid]);
             $id=(int)db()->lastInsertId();
             $st=db()->prepare('INSERT INTO payroll_request_time_entries(request_id,time_in,lunch_out,lunch_in,time_out,ot_start,ot_end,destination,purpose,original_rest_day,new_rest_day) VALUES(?,?,?,?,?,?,?,?,?,?,?)');
-            $st->execute([$id,self::validTime($data['time_in']??''),self::validTime($data['lunch_out']??''),self::validTime($data['lunch_in']??''),self::validTime($data['time_out']??''),self::validTime($data['ot_start']??''),self::validTime($data['ot_end']??''),trim((string)($data['destination']??''))?:null,trim((string)($data['purpose']??''))?:null,self::validDate((string)($data['original_rest_day']??'')),self::validDate((string)($data['new_rest_day']??''))]);
+            $st->execute([$id,self::validTime($data['time_in']??''),self::validTime($data['lunch_out']??''),self::validTime($data['lunch_in']??''),self::validTime($data['time_out']??''),self::validTime($data['ot_start']??''),self::validTime($data['ot_end']??''),trim((string)($data['destination']??''))?:null,$purpose?:null,self::validDate((string)($data['original_rest_day']??'')),self::validDate((string)($data['new_rest_day']??''))]);
             $stepNo=1;
             if((int)$type['requires_manager_approval']===1){$st=db()->prepare('INSERT INTO payroll_request_approvals(request_id,step_no,approver_type,approver_user_id,status) VALUES(?,?,?,?,"PENDING")');$st->execute([$id,$stepNo++,'MANAGER',$managerUserId]);}
             $second=trim((string)$type['second_approver_group']);if($second!==''){$st=db()->prepare('INSERT INTO payroll_request_approvals(request_id,step_no,approver_type,status) VALUES(?,?,?,"PENDING")');$st->execute([$id,$stepNo++,$second]);}
@@ -199,11 +213,61 @@ final class PayrollRepository
         $st->execute([$uid]);return $st->fetchAll();
     }
 
+    public static function managerPayrollHistory(int $limit=100): array
+    {
+        if(!self::ready())return [];
+        $uid=(int)(Auth::user()['id']??0);
+        $limit=max(1,min(250,$limit));
+        $sql='SELECT pr.id,pr.request_no,pr.affected_date,pr.status request_status,pr.created_at,
+            prt.name type_name,e.employee_no,e.first_name,e.last_name,b.name branch_name,
+            a.status decision_status,a.remarks decision_remarks,a.acted_at decision_at
+            FROM payroll_request_approvals a
+            JOIN payroll_requests pr ON pr.id=a.request_id
+            JOIN payroll_request_types prt ON prt.id=pr.request_type_id
+            JOIN employees e ON e.id=pr.employee_id
+            LEFT JOIN branches b ON b.id=e.branch_id
+            WHERE a.approver_type="MANAGER" AND a.acted_by=?
+              AND a.status IN ("APPROVED","REJECTED","RETURNED")
+            ORDER BY a.acted_at DESC,a.id DESC LIMIT '.$limit;
+        $st=db()->prepare($sql);$st->execute([$uid]);return $st->fetchAll();
+    }
+
+    public static function managerLeaveHistory(int $limit=100): array
+    {
+        if(!FoundationRepository::tableExists('leave_request_approvals'))return [];
+        $uid=(int)(Auth::user()['id']??0);
+        $limit=max(1,min(250,$limit));
+        $sql='SELECT lr.id,lr.request_no,lr.date_from,lr.date_to,lr.status request_status,lr.created_at,
+            lt.name leave_type_name,e.employee_no,e.first_name,e.last_name,b.name branch_name,
+            a.status decision_status,a.remarks decision_remarks,a.acted_at decision_at
+            FROM leave_request_approvals a
+            JOIN leave_requests lr ON lr.id=a.request_id
+            JOIN leave_types lt ON lt.id=lr.leave_type_id
+            JOIN employees e ON e.id=lr.employee_id
+            LEFT JOIN branches b ON b.id=e.branch_id
+            WHERE a.approver_type="MANAGER" AND a.acted_by=?
+              AND a.status IN ("APPROVED","REJECTED","RETURNED")
+            ORDER BY a.acted_at DESC,a.id DESC LIMIT '.$limit;
+        $st=db()->prepare($sql);$st->execute([$uid]);return $st->fetchAll();
+    }
+
     public static function hrPayrollQueue(string $approverType): array
     {
         if(!self::ready())return [];
-        $st=db()->prepare('SELECT pr.id,pr.request_no,pr.affected_date,pr.status,pr.created_at,prt.name type_name,e.employee_no,e.first_name,e.last_name,b.name branch_name,a.step_no
-            FROM payroll_request_approvals a JOIN payroll_requests pr ON pr.id=a.request_id JOIN payroll_request_types prt ON prt.id=pr.request_type_id JOIN employees e ON e.id=pr.employee_id LEFT JOIN branches b ON b.id=e.branch_id
+        $st=db()->prepare('SELECT pr.id,pr.request_no,pr.affected_date,pr.status,pr.created_at,prt.name type_name,
+            e.employee_no,e.first_name,e.last_name,b.name branch_name,a.step_no,
+            CONCAT_WS(" ",m.first_name,m.last_name) reporting_manager_name,
+            ma.status manager_approval_status,ma.acted_at manager_approved_at,
+            COALESCE(mu.full_name,mau.full_name,CONCAT_WS(" ",m.first_name,m.last_name)) manager_approver_name
+            FROM payroll_request_approvals a
+            JOIN payroll_requests pr ON pr.id=a.request_id
+            JOIN payroll_request_types prt ON prt.id=pr.request_type_id
+            JOIN employees e ON e.id=pr.employee_id
+            LEFT JOIN branches b ON b.id=e.branch_id
+            LEFT JOIN employees m ON m.id=e.manager_employee_id
+            LEFT JOIN payroll_request_approvals ma ON ma.request_id=pr.id AND ma.approver_type="MANAGER"
+            LEFT JOIN users mu ON mu.id=ma.acted_by
+            LEFT JOIN users mau ON mau.id=ma.approver_user_id
             WHERE a.approver_type=? AND a.status="PENDING" AND pr.current_step=a.step_no ORDER BY pr.created_at');
         $st->execute([$approverType]);return $st->fetchAll();
     }
@@ -211,6 +275,8 @@ final class PayrollRepository
     public static function decidePayroll(int $requestId,string $decision,string $remarks=''): void
     {
         $decision=strtoupper(trim($decision));if(!in_array($decision,['APPROVE','REJECT','RETURN'],true))throw new RuntimeException('Invalid decision.');
+        $remarks=trim($remarks);
+        if(in_array($decision,['REJECT','RETURN'],true) && $remarks==='')throw new RuntimeException('Remarks are required when returning or rejecting a request.');
         $req=self::payrollRequest($requestId);if(!$req)throw new RuntimeException('Request not found.');
         $step=(int)$req['current_step'];$st=db()->prepare('SELECT * FROM payroll_request_approvals WHERE request_id=? AND step_no=? AND status="PENDING" LIMIT 1');$st->execute([$requestId,$step]);$approval=$st->fetch();if(!$approval)throw new RuntimeException('This request is not awaiting approval at the current step.');
         $uid=(int)(Auth::user()['id']??0);$type=(string)$approval['approver_type'];

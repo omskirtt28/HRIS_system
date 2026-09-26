@@ -4,6 +4,8 @@ require __DIR__ . '/app/bootstrap.php';
 require __DIR__ . '/app/View.php';
 
 $page = (string)($_GET['page'] ?? 'home');
+// Backward-compatible alias for early Phase 3A links/bookmarks.
+if ($page === 'employee-request') { $page = 'payroll-request'; }
 
 function need_db(): void {
     if (($GLOBALS['pdo'] ?? null) instanceof PDO) return;
@@ -140,7 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'new_rest_day'=>(string)($_POST['new_rest_day']??''),
             ],$_FILES['attachments']??[]);
             flash('success','Payroll & Timekeeping request submitted successfully.');
-            redirect('employee-request',['id'=>$id]);
+            redirect('payroll-request',['id'=>$id]);
         }
         if ($action === 'payroll_request_decision') {
             $id=(int)($_POST['request_id']??0);
@@ -547,24 +549,160 @@ if ($page === 'payroll-request') {
     need_db(); if(!Auth::check()) redirect('login');
     if(!PayrollRepository::ready()) throw new RuntimeException('Import the Phase 3A database migration first.');
     $id=(int)($_GET['id']??0); $r=PayrollRepository::payrollRequest($id); if(!$r){http_response_code(404);exit('Request not found');}
+    $uid=(int)(Auth::user()['id']??0);
     $employee=PayrollRepository::currentEmployee(); $own=$employee && (int)$employee['id']===(int)$r['employee_id'];
-    $canManager=false; foreach($r['approvals'] as $a){if($a['approver_type']==='MANAGER' && (int)($a['approver_user_id']??0)===(int)(Auth::user()['id']??0)){$canManager=true;break;}}
+    $canManager=false; foreach($r['approvals'] as $a){if($a['approver_type']==='MANAGER' && (int)($a['approver_user_id']??0)===$uid){$canManager=true;break;}}
     $canHr=Auth::can('payroll.approve_hr')||Auth::can('payroll.process')||Auth::is('SUPER_ADMIN','HRIS_ADMIN');
     if(!$own&&!$canManager&&!$canHr){http_response_code(403);exit('Access denied');}
-    $kind=in_array((string)(Auth::user()['role_portal']??''),['hr','admin'],true)?'hr':'employee';
-    $active=$kind==='hr'?'hr-timekeeping':'employee-requests';
+
+    $currentApproval=null;
+    foreach($r['approvals'] as $a){
+        if((int)$a['step_no']===(int)$r['current_step'] && (string)$a['status']==='PENDING'){$currentApproval=$a;break;}
+    }
+    $canAct=false;
+    if($currentApproval){
+        $atype=(string)$currentApproval['approver_type'];
+        if($atype==='MANAGER')$canAct=(int)($currentApproval['approver_user_id']??0)===$uid;
+        elseif($atype==='HR_TIMEKEEPING')$canAct=Auth::can('payroll.approve_hr');
+        elseif($atype==='PAYROLL')$canAct=Auth::can('payroll.process');
+    }
+
+    $rolePortal=(string)(Auth::user()['role_portal']??'');
+    $kind=in_array($rolePortal,['hr','admin'],true)?'hr':'employee';
+    if(!$own && $canManager){$backPage='manager-approvals';$active='manager-approvals';$crumb='My Team / Approvals';}
+    elseif($currentApproval && (string)$currentApproval['approver_type']==='PAYROLL' && Auth::can('payroll.process')){$backPage='hr-payroll-processing';$active='hr-payroll-processing';$crumb='Payroll / Processing';}
+    elseif(!$own && $canHr){$backPage='hr-timekeeping';$active='hr-timekeeping';$crumb='HR Portal / Timekeeping';}
+    else{$backPage='employee-requests';$active='employee-requests';$crumb='Employee Self-Service / Requests';}
+
     render_portal_header($kind,$active,'Request '.$r['request_no']);
-    page_head(($kind==='hr'?'HR Portal':'Employee Self-Service').' / Requests','Request '.$r['request_no'],'<a class="btn" href="'.url($kind==='hr'?'hr-timekeeping':'employee-requests').'">Back to requests</a>'); ?>
-    <div class="phase3a-detail-grid">
-      <section class="panel"><div class="panel-head"><div><h2><?=e($r['type_name'])?></h2><p><?=e(date('M j, Y',strtotime($r['affected_date'])))?> · <?=e($r['employee_no'].' · '.trim($r['first_name'].' '.$r['last_name']))?></p></div><span class="badge amber"><?=e(stage_label($r['status']))?></span></div><div class="panel-body phase3a-detail-list">
-        <div><span>Department</span><strong><?=e($r['department_name']??'Unassigned')?></strong></div><div><span>Branch / Site</span><strong><?=e($r['branch_name']??'Unassigned')?></strong></div>
-        <?php if(!empty($r['cutoff_start'])):?><div><span>Payroll cutoff</span><strong><?=e(date('M j',strtotime($r['cutoff_start'])))?> – <?=e(date('M j, Y',strtotime($r['cutoff_end'])))?></strong></div><?php endif;?>
-        <div class="full"><span>Reason</span><strong><?=nl2br(e($r['reason']))?></strong></div>
-        <?php $t=$r['time']; foreach(['time_in'=>'Time In','lunch_out'=>'Lunch Out','lunch_in'=>'Lunch In','time_out'=>'Time Out','ot_start'=>'OT Start','ot_end'=>'OT End','destination'=>'Destination','purpose'=>'Purpose','original_rest_day'=>'Original Rest Day','new_rest_day'=>'New Rest Day'] as $k=>$label): if(empty($t[$k]))continue;?><div><span><?=e($label)?></span><strong><?=str_contains($k,'time')||str_contains($k,'out')||str_contains($k,'in')?e(date('g:i A',strtotime($t[$k]))):e($t[$k])?></strong></div><?php endforeach;?>
-      </div></section>
-      <section class="panel"><div class="panel-head"><div><h2>Approval timeline</h2><p>Every decision is recorded.</p></div></div><div class="panel-body phase3a-approval-list"><?php foreach($r['approvals'] as $a):?><div class="phase3a-approval-step <?=$a['status']==='APPROVED'?'done':($a['status']==='PENDING'?'current':'') ?>"><span class="phase3a-step-dot"></span><div><strong><?=e(stage_label($a['approver_type']))?></strong><span><?=e(stage_label($a['status']))?><?=!empty($a['acted_by_name'])?' · '.e($a['acted_by_name']):(!empty($a['assigned_name'])?' · '.e($a['assigned_name']):'')?></span><?php if(!empty($a['acted_at'])):?><small><?=e(date('M j, Y g:i A',strtotime($a['acted_at'])))?></small><?php endif;?></div></div><?php endforeach;?></div></section>
+    page_head($crumb,'Request '.$r['request_no'],'<a class="btn" href="'.url($backPage).'">Back to requests</a>'); ?>
+
+    <?php
+      $employeeName=trim((string)$r['first_name'].' '.(string)$r['middle_name'].' '.(string)$r['last_name']);
+      $employeeInitials='';
+      foreach(preg_split('/\s+/', trim($employeeName)) ?: [] as $namePart){
+          if($namePart!==''){$employeeInitials.=mb_strtoupper(mb_substr($namePart,0,1));}
+          if(mb_strlen($employeeInitials)>=2)break;
+      }
+      if($employeeInitials==='')$employeeInitials='E';
+    ?>
+    <div class="phase3a-review-overview">
+      <section class="panel phase3a-request-summary-card">
+        <div class="panel-head phase3a-review-card-head">
+          <div><h2>Request summary</h2><p>Key filing details for review.</p></div>
+          <span class="phase3a-status"><?=e(stage_label($r['status']))?></span>
+        </div>
+        <div class="panel-body">
+          <dl class="phase3a-summary-facts">
+            <div class="phase3a-summary-fact"><dt>Request number</dt><dd><?=e($r['request_no'])?></dd></div>
+            <div class="phase3a-summary-fact"><dt>Request type</dt><dd><?=e($r['type_name'])?></dd></div>
+            <div class="phase3a-summary-fact"><dt>Affected date</dt><dd><?=e(date('F j, Y',strtotime($r['affected_date'])))?></dd></div>
+            <div class="phase3a-summary-fact"><dt>Date filed</dt><dd><?=e(date('M j, Y · g:i A',strtotime($r['submitted_at']?:$r['created_at'])))?></dd></div>
+            <div class="phase3a-summary-fact"><dt>Payroll cutoff</dt><dd><?=!empty($r['cutoff_start'])?e(date('M j',strtotime($r['cutoff_start'])).' – '.date('M j, Y',strtotime($r['cutoff_end']))):'Not applicable'?></dd></div>
+          </dl>
+        </div>
+      </section>
+
+      <section class="panel phase3a-employee-context-card">
+        <div class="panel-head"><div><h2>Employee</h2><p>Request owner and work assignment.</p></div></div>
+        <div class="panel-body phase3a-employee-context">
+          <div class="phase3a-employee-context-identity">
+            <span class="phase3a-employee-context-avatar"><?=e($employeeInitials)?></span>
+            <div>
+              <strong><?=e($employeeName)?></strong>
+              <span><?=e($r['position_name']??'Position not assigned')?><?=!empty($r['department_name'])?' · '.e($r['department_name']):''?></span>
+            </div>
+          </div>
+          <div class="phase3a-employee-context-meta">
+            <div><span>Employee no.</span><strong><?=e($r['employee_no'])?></strong></div>
+            <div><span>Branch / Site</span><strong><?=e($r['branch_name']??'Unassigned')?></strong></div>
+          </div>
+        </div>
+      </section>
     </div>
-    <?php if($r['attachments']):?><section class="panel phase3a-section"><div class="panel-head"><div><h2>Supporting documents</h2><p><?=count($r['attachments'])?> attachment<?=count($r['attachments'])===1?'':'s'?></p></div></div><div class="panel-body phase3a-files"><?php foreach($r['attachments'] as $a):?><a class="phase3a-file" href="<?=url('payroll-attachment',['id'=>$a['id']])?>" target="_blank"><?=icon_svg('file')?><span><strong><?=e($a['original_name'])?></strong><small><?=e(strtoupper($a['mime_type']))?></small></span></a><?php endforeach;?></div></section><?php endif;?>
+
+    <div class="phase3a-detail-grid phase3a-review-main">
+      <section class="panel">
+        <div class="panel-head"><div><h2><?=e($r['type_name'])?> details</h2><p>Review the employee's submitted information before taking action.</p></div></div>
+        <div class="panel-body phase3a-detail-list">
+          <?php if(!in_array((string)$r['type_code'],['OB','POB'],true) && trim((string)$r['reason'])!==''):?><div class="full"><span>Reason</span><strong><?=nl2br(e($r['reason']))?></strong></div><?php endif;?>
+          <?php
+            $t=$r['time'];
+            $fields=[
+              'time_in'=>['Time In','time'],'lunch_out'=>['Lunch Out','time'],'lunch_in'=>['Lunch In','time'],'time_out'=>['Time Out','time'],
+              'ot_start'=>['OT Start','time'],'ot_end'=>['OT End','time'],'destination'=>['Destination / Location','text'],'purpose'=>['Purpose','text'],
+              'original_rest_day'=>['Original Rest Day','date'],'new_rest_day'=>['New Rest Day','date']
+            ];
+            foreach($fields as $k=>$meta): if(empty($t[$k]))continue;
+              $value=(string)$t[$k];
+              if($meta[1]==='time')$value=date('g:i A',strtotime($value));
+              elseif($meta[1]==='date')$value=date('F j, Y',strtotime($value));
+          ?>
+            <div class="<?=in_array($k,['purpose','destination'],true)?'full':''?>"><span><?=e($meta[0])?></span><strong><?=nl2br(e($value))?></strong></div>
+          <?php endforeach;?>
+          <?php if(trim((string)($r['remarks']??''))!==''):?><div class="full"><span>Additional remarks</span><strong><?=nl2br(e($r['remarks']))?></strong></div><?php endif;?>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><div><h2>Approval timeline</h2><p>Every approval step and decision is traceable.</p></div></div>
+        <div class="panel-body phase3a-approval-list">
+          <?php foreach($r['approvals'] as $a):?>
+            <div class="phase3a-approval-step <?=$a['status']==='APPROVED'?'done':($a['status']==='PENDING'?'current':'') ?>">
+              <span class="phase3a-step-dot"></span>
+              <div><strong><?=e(stage_label($a['approver_type']))?></strong><span><?=e(stage_label($a['status']))?><?=!empty($a['acted_by_name'])?' · '.e($a['acted_by_name']):(!empty($a['assigned_name'])?' · '.e($a['assigned_name']):'')?></span><?php if(!empty($a['remarks'])):?><small><?=e($a['remarks'])?></small><?php endif;?><?php if(!empty($a['acted_at'])):?><small><?=e(date('M j, Y g:i A',strtotime($a['acted_at'])))?></small><?php endif;?></div>
+            </div>
+          <?php endforeach;?>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel phase3a-section">
+      <div class="panel-head"><div><h2>Supporting documents</h2><p><?=count($r['attachments'])?> attachment<?=count($r['attachments'])===1?'':'s'?> submitted with this request.</p></div></div>
+      <div class="panel-body">
+        <?php if($r['attachments']):?><div class="phase3a-files"><?php foreach($r['attachments'] as $a):?><a class="phase3a-file" href="<?=url('payroll-attachment',['id'=>$a['id']])?>" target="_blank" rel="noopener"><?=icon_svg('file')?><span><strong><?=e($a['original_name'])?></strong><small><?=e(strtoupper($a['mime_type']))?> · View document</small></span></a><?php endforeach;?></div><?php else:?><div class="empty">No supporting attachment was submitted.</div><?php endif;?>
+      </div>
+    </section>
+
+    <?php if($canAct && $currentApproval):?>
+    <section class="panel phase3a-section phase3a-decision-panel">
+      <div class="panel-head"><div><h2><?=e(stage_label($currentApproval['approver_type']))?> review</h2><p>Review all request details and supporting evidence before recording your decision.</p></div><span class="badge amber">Action required</span></div>
+      <form method="post" class="panel-body phase3a-decision-form" data-approval-decision-form>
+        <?=csrf_field()?><input type="hidden" name="action" value="payroll_request_decision"><input type="hidden" name="request_id" value="<?=$r['id']?>"><input type="hidden" name="return_page" value="<?=e($backPage)?>">
+        <div class="field full"><label for="approval_remarks">Review remarks <span class="muted">(required when returning or rejecting)</span></label><textarea id="approval_remarks" name="remarks" rows="4" placeholder="Add a clear review note when needed."></textarea></div>
+        <div class="phase3a-decision-actions">
+          <button class="btn" type="submit" name="decision" value="RETURN" data-requires-remarks>Return for revision</button>
+          <button class="btn danger-outline" type="submit" name="decision" value="REJECT" data-requires-remarks>Reject</button>
+          <button class="btn primary" type="submit" name="decision" value="APPROVE">Approve request</button>
+        </div>
+      </form>
+    </section>
+    <?php endif;?>
+
+    <script>
+    (()=>{
+      const form=document.querySelector('[data-approval-decision-form]');
+      if(!form)return;
+      let clicked=null;
+      form.querySelectorAll('button[name="decision"]').forEach(btn=>btn.addEventListener('click',()=>{clicked=btn;}));
+      form.addEventListener('submit',event=>{
+        if(clicked && clicked.hasAttribute('data-requires-remarks')){
+          const remarks=form.querySelector('[name="remarks"]');
+          if(!remarks.value.trim()){
+            event.preventDefault();
+            remarks.setCustomValidity('Remarks are required when returning or rejecting a request.');
+            remarks.reportValidity();
+            remarks.focus();
+            return;
+          }
+        }
+        const remarks=form.querySelector('[name="remarks"]');
+        remarks.setCustomValidity('');
+      });
+      const remarks=form.querySelector('[name="remarks"]');
+      remarks.addEventListener('input',()=>remarks.setCustomValidity(''));
+    })();
+    </script>
     <?php render_portal_footer(); exit;
 }
 
@@ -649,9 +787,9 @@ if ($page === 'employee-request-new') {
       </div>
       <div class="phase3a-dynamic-block" data-block="TA PTA"><h3>Time adjustment</h3><p>Enter only the time fields that need correction.</p><div class="phase3a-time-grid"><div class="field"><label>Time In</label><input type="time" name="time_in"></div><div class="field"><label>Lunch Out</label><input type="time" name="lunch_out"></div><div class="field"><label>Lunch In</label><input type="time" name="lunch_in"></div><div class="field"><label>Time Out</label><input type="time" name="time_out"></div></div></div>
       <div class="phase3a-dynamic-block" data-block="OT POT"><h3>Overtime details</h3><div class="phase3a-time-grid"><div class="field"><label>OT Start</label><input type="time" name="ot_start"></div><div class="field"><label>OT End</label><input type="time" name="ot_end"></div></div></div>
-      <div class="phase3a-dynamic-block" data-block="OB POB"><h3>Official business details</h3><div class="phase3a-form-grid"><div class="field"><label>Destination / Location</label><input name="destination" placeholder="Work location / destination"></div><div class="field full"><label>Purpose</label><textarea name="purpose" rows="3" placeholder="Purpose of official business"></textarea></div></div></div>
+      <div class="phase3a-dynamic-block" data-block="OB POB"><h3>Official business details</h3><div class="phase3a-form-grid"><div class="field"><label>Destination / Location</label><input name="destination" placeholder="Work location / destination"></div><div class="field full"><label>Purpose <span class="req">*</span></label><textarea name="purpose" id="phase3aPurpose" rows="3" placeholder="Purpose of official business"></textarea></div></div></div>
       <div class="phase3a-dynamic-block" data-block="CHANGE_DAY_OFF"><h3>Rest day adjustment</h3><div class="phase3a-time-grid"><div class="field"><label>Original rest day</label><input type="date" name="original_rest_day"></div><div class="field"><label>New rest day</label><input type="date" name="new_rest_day"></div></div></div>
-      <div class="field"><label>Reason <span class="req">*</span></label><textarea name="reason" rows="4" required placeholder="Explain the adjustment clearly."></textarea></div><div class="field"><label>Supporting attachments</label><input type="file" name="attachments[]" multiple accept="application/pdf,image/jpeg,image/png,image/webp"><small>Up to 5 files · PDF, JPG, PNG or WEBP · max 10 MB each. TA/OB evidence should be clear and readable.</small></div><div class="field"><label>Additional remarks</label><textarea name="remarks" rows="3"></textarea></div>
+      <div class="field" id="phase3aReasonField"><label>Reason <span class="req">*</span></label><textarea name="reason" id="phase3aReason" rows="4" required placeholder="Explain the adjustment clearly."></textarea></div><div class="field"><label id="phase3aAttachmentLabel">Supporting attachments</label><input type="file" id="phase3aAttachments" name="attachments[]" multiple accept="application/pdf,image/jpeg,image/png,image/webp"><small id="phase3aAttachmentHelp">Up to 5 files · PDF, JPG, PNG or WEBP · max 10 MB each. TA/OB evidence should be clear and readable.</small></div><div class="field"><label>Additional remarks</label><textarea name="remarks" rows="3"></textarea></div>
       <div class="phase3a-submit-bar"><div><strong>Approval route</strong><span>Immediate Manager → HR Timekeeping<?=in_array('OT',array_column($types,'code'),true)?' → Payroll when applicable':''?></span></div><button class="btn primary" type="submit">Submit request <?=icon_svg('arrow')?></button></div>
     </form></section><aside class="panel phase3a-help"><div class="panel-head"><div><h2>Before submitting</h2><p>Request evidence guide</p></div></div><div class="panel-body"><div class="phase3a-help-item"><strong>Time Adjustment</strong><span>CCTV / attendance proof for Time In or Time Out. Verified logbook for lunch corrections.</span></div><div class="phase3a-help-item"><strong>Official Business</strong><span>Attach a clear Travel Report or supporting OB document.</span></div><div class="phase3a-help-item"><strong>Approval</strong><span>Your manager approves first. HR Timekeeping receives the request only after manager approval.</span></div></div></aside></div>
     <script>(()=>{
@@ -660,6 +798,11 @@ if ($page === 'employee-request-new') {
       const cutoffSelect=document.getElementById('phase3aCutoff');
       const cutoffField=document.getElementById('phase3aCutoffField');
       const cutoffHelp=document.getElementById('phase3aCutoffHelp');
+      const reasonField=document.getElementById('phase3aReasonField');
+      const reasonInput=document.getElementById('phase3aReason');
+      const purposeInput=document.getElementById('phase3aPurpose');
+      const attachmentInput=document.getElementById('phase3aAttachments');
+      const attachmentLabel=document.getElementById('phase3aAttachmentLabel');
       const blocks=[...document.querySelectorAll('[data-block]')];
       const cutoffOptions=[...cutoffSelect.options].filter(o=>o.value);
       const inRange=(date,opt)=>date&&opt?.dataset.start&&date>=opt.dataset.start&&date<=opt.dataset.end;
@@ -669,6 +812,13 @@ if ($page === 'employee-request-new') {
         const code=opt?.dataset.code||'';
         const category=(opt?.dataset.category||'').toUpperCase();
         blocks.forEach(b=>{b.hidden=!b.dataset.block.split(' ').includes(code)});
+        const officialBusiness=['OB','POB'].includes(code);
+        if(reasonField) reasonField.hidden=officialBusiness;
+        if(reasonInput){reasonInput.required=!officialBusiness;if(officialBusiness)reasonInput.value='';}
+        if(purposeInput) purposeInput.required=officialBusiness;
+        const attachmentRequired=opt?.dataset.attachment==='1';
+        if(attachmentInput) attachmentInput.required=attachmentRequired;
+        if(attachmentLabel) attachmentLabel.innerHTML='Supporting attachments'+(attachmentRequired?' <span class="req">*</span>':'');
         const notApplicable=category==='LEAVE';
         cutoffField.classList.toggle('is-disabled',notApplicable);
         cutoffSelect.disabled=notApplicable;
@@ -718,9 +868,81 @@ if ($page === 'employee-leave') {
 }
 
 if ($page === 'manager-approvals') {
-    Auth::requirePermission('payroll.approve_manager');$payroll=PayrollRepository::managerQueue();$leave=PayrollRepository::leaveQueue('MANAGER');render_portal_header('employee',$page,'Team Approvals');page_head('Employee Self-Service / My Team','Pending Approvals'); ?>
-    <div class="phase3a-approval-grid"><section class="panel"><div class="panel-head"><div><h2>Payroll & Timekeeping</h2><p><?=count($payroll)?> request<?=count($payroll)===1?'':'s'?> waiting for you.</p></div></div><div class="phase3a-list"><?php if(!$payroll):?><div class="empty">No pending payroll/timekeeping requests.</div><?php endif;foreach($payroll as $r):?><div class="phase3a-approval-row"><div><strong><?=e($r['first_name'].' '.$r['last_name'])?></strong><span><?=e($r['type_name'])?> · <?=e(date('M j, Y',strtotime($r['affected_date'])))?></span></div><div class="phase3a-row-actions"><a class="btn sm" href="<?=url('payroll-request',['id'=>$r['id']])?>">Review</a><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="payroll_request_decision"><input type="hidden" name="request_id" value="<?=$r['id']?>"><input type="hidden" name="decision" value="APPROVE"><input type="hidden" name="return_page" value="manager-approvals"><button class="btn primary sm">Approve</button></form></div></div><?php endforeach;?></div></section>
-    <section class="panel"><div class="panel-head"><div><h2>Leave</h2><p><?=count($leave)?> leave request<?=count($leave)===1?'':'s'?> waiting for you.</p></div></div><div class="phase3a-list"><?php if(!$leave):?><div class="empty">No pending leave requests.</div><?php endif;foreach($leave as $r):?><div class="phase3a-approval-row"><div><strong><?=e($r['first_name'].' '.$r['last_name'])?></strong><span><?=e($r['leave_type_name'])?> · <?=e(date('M j',strtotime($r['date_from'])))?> – <?=e(date('M j',strtotime($r['date_to'])))?></span></div><div class="phase3a-row-actions"><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="leave_request_decision"><input type="hidden" name="request_id" value="<?=$r['id']?>"><input type="hidden" name="decision" value="APPROVE"><input type="hidden" name="return_page" value="manager-approvals"><button class="btn primary sm">Approve</button></form><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="leave_request_decision"><input type="hidden" name="request_id" value="<?=$r['id']?>"><input type="hidden" name="decision" value="REJECT"><input type="hidden" name="return_page" value="manager-approvals"><button class="btn sm">Reject</button></form></div></div><?php endforeach;?></div></section></div>
+    Auth::requirePermission('payroll.approve_manager');
+    $payroll=PayrollRepository::managerQueue();
+    $leave=PayrollRepository::leaveQueue('MANAGER');
+    $payrollHistory=PayrollRepository::managerPayrollHistory();
+    $leaveHistory=PayrollRepository::managerLeaveHistory();
+    $allHistory=array_merge(
+        array_map(fn($r)=>$r+['history_kind'=>'PAYROLL'], $payrollHistory),
+        array_map(fn($r)=>$r+['history_kind'=>'LEAVE'], $leaveHistory)
+    );
+    usort($allHistory,fn($a,$b)=>strcmp((string)($b['decision_at']??''),(string)($a['decision_at']??'')));
+    $approvedCount=count(array_filter($allHistory,fn($r)=>(string)($r['decision_status']??'')==='APPROVED'));
+    $otherDecisionCount=count($allHistory)-$approvedCount;
+    render_portal_header('employee',$page,'Team Approvals');
+    page_head('Employee Self-Service / My Team','Team Approvals'); ?>
+
+    <div class="phase3a-manager-summary-grid">
+      <div class="phase3a-manager-summary-card"><span>Pending now</span><strong><?=count($payroll)+count($leave)?></strong><small>Requests waiting for your decision</small></div>
+      <div class="phase3a-manager-summary-card"><span>Approved by me</span><strong><?=$approvedCount?></strong><small>Recorded manager approvals</small></div>
+      <div class="phase3a-manager-summary-card"><span>Returned / rejected</span><strong><?=$otherDecisionCount?></strong><small>Requests not approved at review</small></div>
+      <div class="phase3a-manager-summary-card"><span>Total decisions</span><strong><?=count($allHistory)?></strong><small>Your retained approval history</small></div>
+    </div>
+
+    <div class="phase3a-approval-grid">
+      <section class="panel">
+        <div class="panel-head"><div><h2>Payroll & Timekeeping</h2><p><?=count($payroll)?> request<?=count($payroll)===1?'':'s'?> waiting for you.</p></div><span class="badge amber"><?=count($payroll)?> pending</span></div>
+        <div class="phase3a-list">
+          <?php if(!$payroll):?><div class="empty">No pending payroll/timekeeping requests.</div><?php endif;?>
+          <?php foreach($payroll as $r):?><div class="phase3a-approval-row"><div><strong><?=e($r['first_name'].' '.$r['last_name'])?></strong><span><?=e($r['type_name'])?> · <?=e(date('M j, Y',strtotime($r['affected_date'])))?></span></div><div class="phase3a-row-actions"><a class="btn primary sm" href="<?=url('payroll-request',['id'=>$r['id']])?>">Review request</a></div></div><?php endforeach;?>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><div><h2>Leave</h2><p><?=count($leave)?> leave request<?=count($leave)===1?'':'s'?> waiting for you.</p></div><span class="badge amber"><?=count($leave)?> pending</span></div>
+        <div class="phase3a-list">
+          <?php if(!$leave):?><div class="empty">No pending leave requests.</div><?php endif;?>
+          <?php foreach($leave as $r):?><div class="phase3a-approval-row"><div><strong><?=e($r['first_name'].' '.$r['last_name'])?></strong><span><?=e($r['leave_type_name'])?> · <?=e(date('M j',strtotime($r['date_from'])))?> – <?=e(date('M j',strtotime($r['date_to'])))?></span></div><div class="phase3a-row-actions"><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="leave_request_decision"><input type="hidden" name="request_id" value="<?=$r['id']?>"><input type="hidden" name="decision" value="APPROVE"><input type="hidden" name="return_page" value="manager-approvals"><button class="btn primary sm">Approve</button></form><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="leave_request_decision"><input type="hidden" name="request_id" value="<?=$r['id']?>"><input type="hidden" name="decision" value="REJECT"><input type="hidden" name="return_page" value="manager-approvals"><button class="btn sm">Reject</button></form></div></div><?php endforeach;?>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel phase3a-section phase3a-manager-history-panel">
+      <div class="panel-head"><div><h2>My Approval History</h2><p>Every manager decision stays recorded here for audit and reference.</p></div><span class="badge gray"><?=count($allHistory)?> decisions</span></div>
+      <div class="phase3a-manager-history-list">
+        <?php if(!$allHistory):?><div class="empty">No approval history yet. Your approved, returned, or rejected decisions will appear here.</div><?php endif;?>
+        <?php foreach($allHistory as $h):
+          $isPayroll=($h['history_kind']??'')==='PAYROLL';
+          $decision=(string)($h['decision_status']??'');
+          $decisionClass=$decision==='APPROVED'?'approved':($decision==='RETURNED'?'returned':'rejected');
+          $employeeName=trim((string)$h['first_name'].' '.(string)$h['last_name']);
+        ?>
+          <article class="phase3a-manager-history-row">
+            <div class="phase3a-manager-history-main">
+              <div class="phase3a-manager-history-title">
+                <span class="phase3a-history-kind"><?=$isPayroll?'Payroll & Timekeeping':'Leave'?></span>
+                <strong><?=e($isPayroll?($h['request_no']??'Request'):($h['request_no']??'Leave request'))?></strong>
+              </div>
+              <div class="phase3a-manager-history-person"><strong><?=e($employeeName)?></strong><span><?=e($h['employee_no']??'')?><?=!empty($h['branch_name'])?' · '.e($h['branch_name']):''?></span></div>
+              <div class="phase3a-manager-history-detail">
+                <span><?=e($isPayroll?($h['type_name']??'Request'):($h['leave_type_name']??'Leave'))?></span>
+                <span><?=$isPayroll?e(date('M j, Y',strtotime($h['affected_date']))):e(date('M j',strtotime($h['date_from'])).' – '.date('M j, Y',strtotime($h['date_to'])))?></span>
+              </div>
+            </div>
+            <div class="phase3a-manager-history-decision">
+              <span class="phase3a-history-decision <?=$decisionClass?>"><?=e(stage_label($decision))?></span>
+              <small><?=!empty($h['decision_at'])?e(date('M j, Y · g:i A',strtotime($h['decision_at']))):'—'?></small>
+              <?php if(!empty($h['decision_remarks'])):?><span class="phase3a-history-remarks"><?=e($h['decision_remarks'])?></span><?php endif;?>
+            </div>
+            <div class="phase3a-manager-history-status">
+              <span>Current status</span>
+              <strong><?=e(stage_label((string)($h['request_status']??'')))?></strong>
+              <?php if($isPayroll):?><a class="btn sm" href="<?=url('payroll-request',['id'=>$h['id']])?>">View record</a><?php endif;?>
+            </div>
+          </article>
+        <?php endforeach;?>
+      </div>
+    </section>
     <?php render_portal_footer();exit;
 }
 
@@ -755,14 +977,14 @@ if ($page === 'hr-timekeeping') {
     Auth::requirePermission('payroll.approve_hr');$queue=PayrollRepository::ready()?PayrollRepository::hrPayrollQueue('HR_TIMEKEEPING'):[];
     render_portal_header('hr',$page,'Timekeeping Queue');page_head('HR Portal / Payroll & Timekeeping','Timekeeping Approval Queue'); ?>
     <?php if(!PayrollRepository::ready()):?><div class="alert error">Import the Phase 3A database migration first.</div><?php endif;?>
-    <section class="panel"><div class="panel-head"><div><h2>For HR Timekeeping Review</h2><p>Requests appear here only after required manager approval.</p></div><span class="badge amber"><?=count($queue)?> pending</span></div><div class="phase3a-table-wrap"><table class="phase3a-table"><thead><tr><th>Request</th><th>Employee</th><th>Type</th><th>Date</th><th>Branch</th><th>Filed</th><th>Actions</th></tr></thead><tbody><?php if(!$queue):?><tr><td colspan="7" class="empty">No requests are waiting for HR Timekeeping approval.</td></tr><?php endif;foreach($queue as $r):?><tr><td><strong><?=e($r['request_no'])?></strong></td><td><?=e($r['first_name'].' '.$r['last_name'])?><div class="tiny muted"><?=e($r['employee_no'])?></div></td><td><?=e($r['type_name'])?></td><td><?=e(date('M j, Y',strtotime($r['affected_date'])))?></td><td><?=e($r['branch_name']??'—')?></td><td><?=e(date('M j, g:i A',strtotime($r['created_at'])))?></td><td><div class="phase3a-row-actions"><a class="btn sm" href="<?=url('payroll-request',['id'=>$r['id']])?>">Review</a><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="payroll_request_decision"><input type="hidden" name="request_id" value="<?=$r['id']?>"><input type="hidden" name="decision" value="APPROVE"><input type="hidden" name="return_page" value="hr-timekeeping"><button class="btn primary sm">Approve</button></form><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="payroll_request_decision"><input type="hidden" name="request_id" value="<?=$r['id']?>"><input type="hidden" name="decision" value="REJECT"><input type="hidden" name="return_page" value="hr-timekeeping"><button class="btn sm">Reject</button></form></div></td></tr><?php endforeach;?></tbody></table></div></section>
+    <section class="panel phase3a-timekeeping-queue-panel"><div class="panel-head"><div><h2>For HR Timekeeping Review</h2><p>Manager-approved requests ready for HR verification.</p></div><span class="badge amber"><?=count($queue)?> pending</span></div><div class="phase3a-table-wrap"><table class="phase3a-table phase3a-timekeeping-queue-table"><thead><tr><th>Request</th><th>Employee</th><th>Type</th><th>Affected Date</th><th>Manager Approval</th><th>Branch</th><th>Filed</th><th>Actions</th></tr></thead><tbody><?php if(!$queue):?><tr><td colspan="8" class="empty">No requests are waiting for HR Timekeeping approval.</td></tr><?php endif;foreach($queue as $r):?><tr><td><strong><?=e($r['request_no'])?></strong></td><td><strong><?=e($r['first_name'].' '.$r['last_name'])?></strong><div class="tiny muted"><?=e($r['employee_no'])?></div><?php if(!empty($r['reporting_manager_name'])):?><div class="phase3a-reporting-line">Reports to <?=e($r['reporting_manager_name'])?></div><?php endif;?></td><td><?=e($r['type_name'])?></td><td><?=e(date('M j, Y',strtotime($r['affected_date'])))?></td><td><?php if(($r['manager_approval_status']??'')==='APPROVED'):?><div class="phase3a-manager-approval-proof"><span class="badge green">Approved</span><strong><?=e($r['manager_approver_name']?:$r['reporting_manager_name']?:'Manager')?></strong><?php if(!empty($r['manager_approved_at'])):?><small><?=e(date('M j, Y · g:i A',strtotime($r['manager_approved_at'])))?></small><?php endif;?></div><?php elseif(!empty($r['reporting_manager_name'])):?><div class="phase3a-manager-approval-proof"><span class="badge gray"><?=e(stage_label($r['manager_approval_status']?:'PENDING'))?></span><strong><?=e($r['reporting_manager_name'])?></strong></div><?php else:?><span class="muted tiny">Not required / unassigned</span><?php endif;?></td><td><?=e($r['branch_name']??'—')?></td><td><?=e(date('M j, g:i A',strtotime($r['created_at'])))?></td><td><div class="phase3a-row-actions"><a class="btn primary sm" href="<?=url('payroll-request',['id'=>$r['id']])?>">Review request</a></div></td></tr><?php endforeach;?></tbody></table></div></section>
     <?php render_portal_footer();exit;
 }
 
 if ($page === 'hr-payroll-processing') {
     Auth::requirePermission('payroll.process');$queue=PayrollRepository::ready()?PayrollRepository::hrPayrollQueue('PAYROLL'):[];
     render_portal_header('hr',$page,'Payroll Processing');page_head('HR Portal / Payroll & Timekeeping','Payroll Processing Queue'); ?>
-    <section class="panel"><div class="panel-head"><div><h2>Approved items for Payroll</h2><p>Only requests that completed earlier approval steps appear here.</p></div><span class="badge amber"><?=count($queue)?> pending</span></div><div class="phase3a-table-wrap"><table class="phase3a-table"><thead><tr><th>Request</th><th>Employee</th><th>Type</th><th>Affected Date</th><th>Actions</th></tr></thead><tbody><?php if(!$queue):?><tr><td colspan="5" class="empty">No approved requests are waiting for Payroll processing.</td></tr><?php endif;foreach($queue as $r):?><tr><td><?=e($r['request_no'])?></td><td><?=e($r['first_name'].' '.$r['last_name'])?></td><td><?=e($r['type_name'])?></td><td><?=e(date('M j, Y',strtotime($r['affected_date'])))?></td><td><div class="phase3a-row-actions"><a class="btn sm" href="<?=url('payroll-request',['id'=>$r['id']])?>">Review</a><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="payroll_request_decision"><input type="hidden" name="request_id" value="<?=$r['id']?>"><input type="hidden" name="decision" value="APPROVE"><input type="hidden" name="return_page" value="hr-payroll-processing"><button class="btn primary sm">Mark processed</button></form></div></td></tr><?php endforeach;?></tbody></table></div></section>
+    <section class="panel"><div class="panel-head"><div><h2>Approved items for Payroll</h2><p>Only requests that completed earlier approval steps appear here.</p></div><span class="badge amber"><?=count($queue)?> pending</span></div><div class="phase3a-table-wrap"><table class="phase3a-table"><thead><tr><th>Request</th><th>Employee</th><th>Type</th><th>Affected Date</th><th>Actions</th></tr></thead><tbody><?php if(!$queue):?><tr><td colspan="5" class="empty">No approved requests are waiting for Payroll processing.</td></tr><?php endif;foreach($queue as $r):?><tr><td><?=e($r['request_no'])?></td><td><?=e($r['first_name'].' '.$r['last_name'])?></td><td><?=e($r['type_name'])?></td><td><?=e(date('M j, Y',strtotime($r['affected_date'])))?></td><td><div class="phase3a-row-actions"><a class="btn primary sm" href="<?=url('payroll-request',['id'=>$r['id']])?>">Review / Process</a></div></td></tr><?php endforeach;?></tbody></table></div></section>
     <?php render_portal_footer();exit;
 }
 
@@ -899,7 +1121,29 @@ if ($page === 'hr-employee') {
       <section class="panel phase2b-form-panel"><div class="panel-head"><div><h2>Employment information</h2><p>Assignment, status, portal linkage and effective-date history.</p></div><span class="badge gray">Changes are audited</span></div><?php if(!$canManage):?><div class="panel-body"><div class="alert">You have view-only access.</div></div><?php else:?><form method="post" class="panel-body employee-form-grid"><?=csrf_field()?><input type="hidden" name="action" value="update_employee_employment"><input type="hidden" name="employee_id" value="<?=$id?>"><input type="hidden" name="return_page" value="hr-employee"><input type="hidden" name="return_id" value="<?=$id?>"><input type="hidden" name="return_tab" value="employment">
         <div class="field"><label>Employee number</label><input name="employee_no" value="<?=e($e['employee_no'])?>" required></div><div class="field"><label>Employee portal account</label><select name="user_id"><option value="">Not linked</option><?php foreach($masters['employee_users'] as $x):?><option value="<?=$x['id']?>" <?=((int)($e['user_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['full_name'])?> · <?=e($x['email'])?></option><?php endforeach;?></select></div>
         <div class="field"><label>Department</label><select name="department_id"><option value="">Unassigned</option><?php foreach($masters['departments'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=((int)($e['department_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select></div><div class="field"><label>Position</label><select name="position_id"><option value="">Unassigned</option><?php foreach($masters['positions'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=((int)($e['position_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['name'])?><?=!empty($x['department_name'])?' · '.e($x['department_name']):''?></option><?php endforeach;?></select></div>
-        <div class="field"><label>Branch / Site</label><select name="branch_id"><option value="">Unassigned</option><?php foreach($masters['branches'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=((int)($e['branch_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select></div><div class="field"><label>Employment type</label><select name="employment_type_id"><option value="">Unassigned</option><?php foreach($masters['employment_types'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=((int)($e['employment_type_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select></div><div class="field full"><label>Immediate Manager / Reporting To</label><select name="manager_employee_id"><option value="">Unassigned</option><?php foreach($masters['manager_candidates'] as $m): $mn=EmployeeRepository::fullName($m);?><option value="<?=$m['id']?>" <?=((int)($e['manager_employee_id']??0)===(int)$m['id'])?'selected':''?>><?=e($mn)?> · <?=e($m['employee_no'])?><?=!empty($m['position_name'])?' · '.e($m['position_name']):''?></option><?php endforeach;?></select><small>Payroll/Timekeeping and Leave requests route first to this employee's linked manager account.</small></div>
+        <div class="field"><label>Branch / Site</label><select name="branch_id"><option value="">Unassigned</option><?php foreach($masters['branches'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=((int)($e['branch_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select></div><div class="field"><label>Employment type</label><select name="employment_type_id"><option value="">Unassigned</option><?php foreach($masters['employment_types'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=((int)($e['employment_type_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select></div>
+        <div class="field full reporting-manager-field">
+          <div class="reporting-manager-label"><label for="manager_employee_id">Immediate Manager / Reporting To</label><span class="badge amber">Assigned by HR</span></div>
+          <select id="manager_employee_id" name="manager_employee_id">
+            <option value="">Unassigned</option>
+            <optgroup label="Available for approval routing">
+            <?php foreach($masters['manager_candidates'] as $m): if((int)($m['manager_ready']??0)!==1 || ($m['user_status']??'')!=='ACTIVE')continue; $mn=EmployeeRepository::fullName($m);?>
+              <option value="<?=$m['id']?>" <?=((int)($e['manager_employee_id']??0)===(int)$m['id'])?'selected':''?>><?=e($mn)?> · <?=e($m['employee_no'])?><?=!empty($m['position_name'])?' · '.e($m['position_name']):''?><?=!empty($m['role_name'])?' · '.e($m['role_name']):''?></option>
+            <?php endforeach;?>
+            </optgroup>
+            <?php $hasUnavailable=false; foreach($masters['manager_candidates'] as $m){if((int)($m['manager_ready']??0)!==1 || ($m['user_status']??'')!=='ACTIVE'){$hasUnavailable=true;break;}} if($hasUnavailable):?>
+            <optgroup label="Not ready — account/manager access required">
+            <?php foreach($masters['manager_candidates'] as $m): if((int)($m['manager_ready']??0)===1 && ($m['user_status']??'')==='ACTIVE')continue; $mn=EmployeeRepository::fullName($m);?>
+              <option value="<?=$m['id']?>" disabled><?=e($mn)?> · <?=e($m['employee_no'])?> · <?=empty($m['user_email'])?'No linked account':'Manager access required'?></option>
+            <?php endforeach;?>
+            </optgroup>
+            <?php endif;?>
+          </select>
+          <div class="reporting-manager-help">
+            <span><?=icon_svg('shield')?></span>
+            <div><strong>HR controls the reporting line.</strong><small>Payroll & Timekeeping, OB, TA and Leave requests route first to this manager. The selected manager must have an active linked HRIS account with Manager / Immediate Head approval access.</small></div>
+          </div>
+        </div>
         <div class="field"><label>Hire date</label><input type="date" name="hire_date" value="<?=e($e['hire_date'])?>" required></div><div class="field"><label>Regularization date</label><input type="date" name="regularization_date" value="<?=e($e['regularization_date']??'')?>"></div><div class="field"><label>Employee status</label><select name="status"><?php foreach(['ACTIVE'=>'Active','PROBATIONARY'=>'Probationary','ON_LEAVE'=>'On Leave','INACTIVE'=>'Inactive','RESIGNED'=>'Resigned','TERMINATED'=>'Terminated'] as $v=>$l):?><option value="<?=$v?>" <?=$e['status']===$v?'selected':''?>><?=$l?></option><?php endforeach;?></select></div><div class="field"><label>Effective date of this change</label><input type="date" name="effective_date" value="<?=e(date('Y-m-d'))?>"></div><div class="field full"><label>Change remarks</label><textarea name="remarks" rows="3" placeholder="Example: Transferred to Makati HQ; promoted to HR Associate."></textarea><small>When department, position, branch, employment type, or status changes, HRIS creates an employment history entry automatically.</small></div>
         <div class="phase2b-form-actions full"><button class="btn primary" type="submit">Save employment changes</button></div>
       </form><?php endif;?></section>
