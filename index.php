@@ -615,13 +615,38 @@ if ($page === 'employee-requests') {
 if ($page === 'employee-request-new') {
     Auth::requirePermission('payroll.request_self');
     if(!PayrollRepository::ready())throw new RuntimeException('Import the Phase 3A database migration first.');
-    $employee=PayrollRepository::currentEmployee();PayrollRepository::ensureCurrentCutoff();$types=PayrollRepository::requestTypes();$cutoffs=PayrollRepository::openCutoffs();
+    $employee=PayrollRepository::currentEmployee();$types=PayrollRepository::requestTypes();$cutoffs=PayrollRepository::requestCutoffs();
     render_portal_header('employee','employee-requests','New Payroll & Timekeeping Request');
     page_head('Employee Self-Service / Requests','New Payroll & Timekeeping Request','<a class="btn" href="'.url('employee-requests').'">Cancel</a>'); ?>
     <?php if(!$employee):?><div class="alert error">Your account is not linked to an Employee 201 File. HR must link your account before you can file a request.</div><?php else:?><div class="phase3a-form-layout"><section class="panel"><div class="panel-head"><div><h2>Request details</h2><p>The form changes based on the request type you select.</p></div><span class="badge amber">Employee request</span></div><form method="post" enctype="multipart/form-data" class="panel-body phase3a-request-form" id="payrollRequestForm"><?=csrf_field()?><input type="hidden" name="action" value="create_payroll_request">
       <div class="phase3a-employee-banner"><span class="employee-avatar"><?=e(initials(EmployeeRepository::fullName($employee)))?></span><div><strong><?=e(EmployeeRepository::fullName($employee))?></strong><span><?=e($employee['employee_no'])?> · <?=e($employee['department_name']??'No department')?> · <?=e($employee['branch_name']??'No branch')?><?=!empty($employee['area_name'])?' · '.e($employee['area_name']):''?></span></div></div>
-      <div class="phase3a-form-grid"><div class="field"><label>Request type <span class="req">*</span></label><select name="request_type_id" id="phase3aRequestType" required><option value="">Select request type</option><?php foreach($types as $t):?><option value="<?=$t['id']?>" data-code="<?=e($t['code'])?>" data-attachment="<?=$t['requires_attachment']?>"><?=e($t['name'])?></option><?php endforeach;?></select></div><div class="field"><label>Affected date <span class="req">*</span></label><input type="date" name="affected_date" required></div>
-      <div class="field"><label>Payroll cutoff</label><select name="cutoff_id"><option value="">Not applicable / Auto</option><?php foreach($cutoffs as $c):?><option value="<?=$c['id']?>"><?=e(date('M j',strtotime($c['period_start'])).' – '.date('M j, Y',strtotime($c['period_end'])))?> · <?=e(stage_label($c['status']))?></option><?php endforeach;?></select></div><div class="field"><label>Immediate Manager</label><input value="<?=e(trim(($employee['manager_first_name']??'').' '.($employee['manager_last_name']??''))?:'Not configured')?>" readonly></div></div>
+      <div class="phase3a-form-grid">
+        <div class="field">
+          <label>Request type <span class="req">*</span></label>
+          <select name="request_type_id" id="phase3aRequestType" required>
+            <option value="">Select request type</option>
+            <?php foreach($types as $t):?><option value="<?=$t['id']?>" data-code="<?=e($t['code'])?>" data-category="<?=e($t['category'])?>" data-attachment="<?=$t['requires_attachment']?>"><?=e($t['name'])?></option><?php endforeach;?>
+          </select>
+        </div>
+        <div class="field">
+          <label>Affected date <span class="req">*</span></label>
+          <input type="date" name="affected_date" id="phase3aAffectedDate" required>
+          <small>The payroll cutoff is matched automatically from this date.</small>
+        </div>
+        <div class="field phase3a-cutoff-field" id="phase3aCutoffField">
+          <label>Payroll cutoff</label>
+          <select name="cutoff_id" id="phase3aCutoff">
+            <option value="">Auto — based on affected date</option>
+            <?php $currentShown=false;$upcomingShown=false;$previousShown=false; foreach($cutoffs as $c): $state=(string)($c['filing_state']??'PREVIOUS');
+              if($state==='CURRENT'&&!$currentShown){if($previousShown||$upcomingShown)echo '</optgroup>';echo '<optgroup label="Current cutoff">';$currentShown=true;}
+              elseif($state==='UPCOMING'&&!$upcomingShown){if($previousShown||$currentShown)echo '</optgroup>';echo '<optgroup label="Upcoming cutoffs">';$upcomingShown=true;}
+              elseif($state==='PREVIOUS'&&!$previousShown){if($currentShown||$upcomingShown)echo '</optgroup>';echo '<optgroup label="Previous / missed cutoffs">';$previousShown=true;}
+            ?><option value="<?=$c['id']?>" data-start="<?=e($c['period_start'])?>" data-end="<?=e($c['period_end'])?>" data-state="<?=e($state)?>"><?=e(date('M j',strtotime($c['period_start'])).' – '.date('M j, Y',strtotime($c['period_end'])))?><?= $state==='PREVIOUS'?' · Previous':'' ?></option><?php endforeach; if($currentShown||$upcomingShown||$previousShown)echo '</optgroup>'; ?>
+          </select>
+          <small id="phase3aCutoffHelp">Choose the affected date and the system will select the correct cutoff. You may also choose a previous cutoff for a missed filing.</small>
+        </div>
+        <div class="field"><label>Immediate Manager</label><input value="<?=e(trim(($employee['manager_first_name']??'').' '.($employee['manager_last_name']??''))?:'Not configured')?>" readonly></div>
+      </div>
       <div class="phase3a-dynamic-block" data-block="TA PTA"><h3>Time adjustment</h3><p>Enter only the time fields that need correction.</p><div class="phase3a-time-grid"><div class="field"><label>Time In</label><input type="time" name="time_in"></div><div class="field"><label>Lunch Out</label><input type="time" name="lunch_out"></div><div class="field"><label>Lunch In</label><input type="time" name="lunch_in"></div><div class="field"><label>Time Out</label><input type="time" name="time_out"></div></div></div>
       <div class="phase3a-dynamic-block" data-block="OT POT"><h3>Overtime details</h3><div class="phase3a-time-grid"><div class="field"><label>OT Start</label><input type="time" name="ot_start"></div><div class="field"><label>OT End</label><input type="time" name="ot_end"></div></div></div>
       <div class="phase3a-dynamic-block" data-block="OB POB"><h3>Official business details</h3><div class="phase3a-form-grid"><div class="field"><label>Destination / Location</label><input name="destination" placeholder="Work location / destination"></div><div class="field full"><label>Purpose</label><textarea name="purpose" rows="3" placeholder="Purpose of official business"></textarea></div></div></div>
@@ -629,7 +654,57 @@ if ($page === 'employee-request-new') {
       <div class="field"><label>Reason <span class="req">*</span></label><textarea name="reason" rows="4" required placeholder="Explain the adjustment clearly."></textarea></div><div class="field"><label>Supporting attachments</label><input type="file" name="attachments[]" multiple accept="application/pdf,image/jpeg,image/png,image/webp"><small>Up to 5 files · PDF, JPG, PNG or WEBP · max 10 MB each. TA/OB evidence should be clear and readable.</small></div><div class="field"><label>Additional remarks</label><textarea name="remarks" rows="3"></textarea></div>
       <div class="phase3a-submit-bar"><div><strong>Approval route</strong><span>Immediate Manager → HR Timekeeping<?=in_array('OT',array_column($types,'code'),true)?' → Payroll when applicable':''?></span></div><button class="btn primary" type="submit">Submit request <?=icon_svg('arrow')?></button></div>
     </form></section><aside class="panel phase3a-help"><div class="panel-head"><div><h2>Before submitting</h2><p>Request evidence guide</p></div></div><div class="panel-body"><div class="phase3a-help-item"><strong>Time Adjustment</strong><span>CCTV / attendance proof for Time In or Time Out. Verified logbook for lunch corrections.</span></div><div class="phase3a-help-item"><strong>Official Business</strong><span>Attach a clear Travel Report or supporting OB document.</span></div><div class="phase3a-help-item"><strong>Approval</strong><span>Your manager approves first. HR Timekeeping receives the request only after manager approval.</span></div></div></aside></div>
-    <script>(()=>{const sel=document.getElementById('phase3aRequestType');const blocks=[...document.querySelectorAll('[data-block]')];const sync=()=>{const opt=sel.options[sel.selectedIndex];const code=opt?.dataset.code||'';blocks.forEach(b=>{b.hidden=!b.dataset.block.split(' ').includes(code)});};sel.addEventListener('change',sync);sync();})();</script><?php endif;?>
+    <script>(()=>{
+      const typeSelect=document.getElementById('phase3aRequestType');
+      const affectedDate=document.getElementById('phase3aAffectedDate');
+      const cutoffSelect=document.getElementById('phase3aCutoff');
+      const cutoffField=document.getElementById('phase3aCutoffField');
+      const cutoffHelp=document.getElementById('phase3aCutoffHelp');
+      const blocks=[...document.querySelectorAll('[data-block]')];
+      const cutoffOptions=[...cutoffSelect.options].filter(o=>o.value);
+      const inRange=(date,opt)=>date&&opt?.dataset.start&&date>=opt.dataset.start&&date<=opt.dataset.end;
+      const setHelp=(text,state='')=>{cutoffHelp.textContent=text;cutoffHelp.classList.toggle('warning',state==='warning');cutoffHelp.classList.toggle('success',state==='success');};
+      const syncType=()=>{
+        const opt=typeSelect.options[typeSelect.selectedIndex];
+        const code=opt?.dataset.code||'';
+        const category=(opt?.dataset.category||'').toUpperCase();
+        blocks.forEach(b=>{b.hidden=!b.dataset.block.split(' ').includes(code)});
+        const notApplicable=category==='LEAVE';
+        cutoffField.classList.toggle('is-disabled',notApplicable);
+        cutoffSelect.disabled=notApplicable;
+        if(notApplicable){cutoffSelect.value='';setHelp('Payroll cutoff is not applicable to this request type.');}
+        else{syncCutoffFromDate();}
+      };
+      const syncCutoffFromDate=()=>{
+        if(cutoffSelect.disabled)return;
+        const date=affectedDate.value;
+        if(!date){cutoffSelect.value='';setHelp('Choose the affected date and the system will select the correct cutoff. You may also choose a previous cutoff for a missed filing.');return;}
+        const match=cutoffOptions.find(o=>inRange(date,o));
+        if(match){
+          cutoffSelect.value=match.value;
+          const previous=match.dataset.state==='PREVIOUS';
+          setHelp(previous?'Previous cutoff matched — missed filing is allowed for this period.':'Automatically matched to the affected date.',previous?'warning':'success');
+        }else{
+          cutoffSelect.value='';
+          setHelp('The system will create and match the correct cutoff when you submit this affected date.','success');
+        }
+      };
+      const validateManualCutoff=()=>{
+        if(cutoffSelect.disabled||!cutoffSelect.value)return;
+        const opt=cutoffSelect.options[cutoffSelect.selectedIndex];
+        const date=affectedDate.value;
+        if(!date){setHelp('Selected cutoff: choose an affected date within '+opt.text.replace(' · Previous','')+'.','warning');return;}
+        if(!inRange(date,opt)){
+          setHelp('Affected date must fall within '+opt.text.replace(' · Previous','')+'.','warning');
+        }else{
+          setHelp(opt.dataset.state==='PREVIOUS'?'Previous cutoff selected — this will be treated as a missed/back-filed request.':'Cutoff matches the affected date.',opt.dataset.state==='PREVIOUS'?'warning':'success');
+        }
+      };
+      typeSelect.addEventListener('change',syncType);
+      affectedDate.addEventListener('change',syncCutoffFromDate);
+      cutoffSelect.addEventListener('change',validateManualCutoff);
+      syncType();
+    })();</script><?php endif;?>
     <?php render_portal_footer(); exit;
 }
 

@@ -108,3 +108,9 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 ## 2026-09-25 — Login portal badge cleanup
 - Removed the redundant Unified Login / portal badge from the login card.
 - Preserved unified role-based authentication and automatic dashboard routing.
+
+## 2026-09-26 · Phase 3A cutoff auto-match and missed filing
+- Payroll cutoff now auto-matches the selected affected date.
+- Employees can select previous cutoff periods for missed/back-filed TA, OB, OT and related requests.
+- Backend validates that the affected date actually belongs to the selected cutoff.
+- Historical cutoff periods are generated safely from the existing cutoff calendar rules; no schema change required.

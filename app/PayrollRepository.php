@@ -35,21 +35,83 @@ final class PayrollRepository
 
     public static function openCutoffs(): array
     {
+        return self::requestCutoffs();
+    }
+
+    /**
+     * Cutoffs available while filing a request.
+     * Includes previous periods so employees can file a missed adjustment,
+     * while the UI still auto-matches the cutoff from the affected date.
+     */
+    public static function requestCutoffs(): array
+    {
         if(!FoundationRepository::tableExists('payroll_cutoffs')) return [];
-        return db()->query("SELECT * FROM payroll_cutoffs WHERE status IN ('OPEN','UPCOMING') ORDER BY period_start DESC LIMIT 24")->fetchAll();
+        self::ensureCutoffCalendar(18,3);
+        $today=(new DateTimeImmutable('today'))->format('Y-m-d');
+        $from=(new DateTimeImmutable('first day of this month'))->modify('-18 months')->format('Y-m-d');
+        $to=(new DateTimeImmutable('last day of this month'))->modify('+3 months')->format('Y-m-d');
+        $st=db()->prepare('SELECT *, CASE WHEN period_end < ? THEN "PREVIOUS" WHEN period_start <= ? AND period_end >= ? THEN "CURRENT" ELSE "UPCOMING" END filing_state FROM payroll_cutoffs WHERE period_end >= ? AND period_start <= ?');
+        $st->execute([$today,$today,$today,$from,$to]);
+        $rows=$st->fetchAll();
+        $rank=['CURRENT'=>0,'PREVIOUS'=>1,'UPCOMING'=>2];
+        usort($rows,static function(array $a,array $b)use($rank):int{
+            $sa=(string)($a['filing_state']??'PREVIOUS');$sb=(string)($b['filing_state']??'PREVIOUS');
+            $cmp=($rank[$sa]??9)<=>($rank[$sb]??9);if($cmp!==0)return $cmp;
+            if($sa==='UPCOMING')return strcmp((string)$a['period_start'],(string)$b['period_start']);
+            return strcmp((string)$b['period_start'],(string)$a['period_start']);
+        });
+        return $rows;
     }
 
     public static function ensureCurrentCutoff(): void
     {
         if(!FoundationRepository::tableExists('payroll_cutoffs')) return;
+        self::ensureCutoffForDate((new DateTimeImmutable('today'))->format('Y-m-d'));
+    }
+
+    /** Ensure historical/current/upcoming cutoff rows exist for request filing. */
+    public static function ensureCutoffCalendar(int $monthsBack=18,int $monthsForward=3): void
+    {
+        if(!FoundationRepository::tableExists('payroll_cutoffs')) return;
+        $anchor=new DateTimeImmutable('first day of this month');
+        $startMonth=$anchor->modify('-'.max(0,$monthsBack).' months');
+        $endMonth=$anchor->modify('+'.max(0,$monthsForward).' months');
+        $st=db()->prepare('INSERT IGNORE INTO payroll_cutoffs(code,period_start,period_end,status,created_by) VALUES(?,?,?,?,?)');
+        $uid=(int)(Auth::user()['id']??0)?:null;
+        for($m=$startMonth;$m<=$endMonth;$m=$m->modify('+1 month')){
+            foreach([4,19] as $day){
+                $periodStart=$m->setDate((int)$m->format('Y'),(int)$m->format('n'),$day);
+                $periodEnd=$day===4?$periodStart->setDate((int)$periodStart->format('Y'),(int)$periodStart->format('n'),18):$periodStart->modify('+14 days');
+                self::insertCutoffPeriod($st,$periodStart,$periodEnd,$uid);
+            }
+        }
+    }
+
+    /** Return/create the cutoff that contains the supplied affected date. */
+    public static function cutoffForDate(string $date): ?array
+    {
+        $date=self::validDate($date); if(!$date)return null;
+        self::ensureCutoffForDate($date);
+        $st=db()->prepare('SELECT * FROM payroll_cutoffs WHERE period_start<=? AND period_end>=? ORDER BY period_start DESC LIMIT 1');
+        $st->execute([$date,$date]);$row=$st->fetch();return $row?:null;
+    }
+
+    private static function ensureCutoffForDate(string $date): void
+    {
+        $d=new DateTimeImmutable($date);$day=(int)$d->format('j');
+        if($day>=19){$start=$d->setDate((int)$d->format('Y'),(int)$d->format('n'),19);$end=$start->modify('+14 days');}
+        elseif($day>=4){$start=$d->setDate((int)$d->format('Y'),(int)$d->format('n'),4);$end=$d->setDate((int)$d->format('Y'),(int)$d->format('n'),18);}
+        else{$end=$d->setDate((int)$d->format('Y'),(int)$d->format('n'),3);$start=$end->modify('-14 days');}
+        $st=db()->prepare('INSERT IGNORE INTO payroll_cutoffs(code,period_start,period_end,status,created_by) VALUES(?,?,?,?,?)');
+        self::insertCutoffPeriod($st,$start,$end,(int)(Auth::user()['id']??0)?:null);
+    }
+
+    private static function insertCutoffPeriod(PDOStatement $st,DateTimeImmutable $start,DateTimeImmutable $end,?int $uid): void
+    {
         $today=new DateTimeImmutable('today');
-        $day=(int)$today->format('j');
-        if($day>=19){$start=$today->setDate((int)$today->format('Y'),(int)$today->format('n'),19);$end=$start->modify('+14 days');}
-        elseif($day>=4){$start=$today->setDate((int)$today->format('Y'),(int)$today->format('n'),4);$end=$start->modify('+14 days');}
-        else{$end=$today->setDate((int)$today->format('Y'),(int)$today->format('n'),3);$start=$end->modify('-14 days');}
+        $status=$end<$today?'CLOSED':($start<=$today&&$end>=$today?'OPEN':'UPCOMING');
         $code=$start->format('Ymd').'-'.$end->format('Ymd');
-        $st=db()->prepare("INSERT IGNORE INTO payroll_cutoffs(code,period_start,period_end,status,created_by) VALUES(?,?,?,?,?)");
-        $st->execute([$code,$start->format('Y-m-d'),$end->format('Y-m-d'),'OPEN',(int)(Auth::user()['id']??0)?:null]);
+        $st->execute([$code,$start->format('Y-m-d'),$end->format('Y-m-d'),$status,$uid]);
     }
 
     public static function myPayrollRequests(int $employeeId): array
@@ -92,7 +154,18 @@ final class PayrollRepository
         $managerUserId=self::managerApproverUserId($employee);
         if((int)$type['requires_manager_approval']===1 && !$managerUserId)throw new RuntimeException('Your assigned Immediate Manager must have an active HRIS Manager account with approval access.');
         $st=db()->prepare('SELECT COUNT(*) FROM payroll_requests WHERE employee_id=? AND request_type_id=? AND affected_date=? AND status NOT IN ("REJECTED","CANCELLED","COMPLETED")');$st->execute([$employeeId,$typeId,$affected]);if((int)$st->fetchColumn()>0)throw new RuntimeException('You already have an active request of this type for the selected date.');
-        $cutoffId=(int)($data['cutoff_id']??0)?:null;
+        $cutoffId=null;
+        if(strtoupper((string)$type['category'])!=='LEAVE'){
+            $selectedCutoffId=(int)($data['cutoff_id']??0);
+            $autoCutoff=self::cutoffForDate($affected);
+            if(!$autoCutoff)throw new RuntimeException('No payroll cutoff could be determined for the selected affected date.');
+            if($selectedCutoffId>0){
+                $st=db()->prepare('SELECT * FROM payroll_cutoffs WHERE id=? LIMIT 1');$st->execute([$selectedCutoffId]);$selected=$st->fetch();
+                if(!$selected)throw new RuntimeException('Choose a valid payroll cutoff.');
+                if($affected<(string)$selected['period_start']||$affected>(string)$selected['period_end'])throw new RuntimeException('The selected payroll cutoff does not cover the affected date. Choose a date within that cutoff or use the automatically matched cutoff.');
+                $cutoffId=(int)$selected['id'];
+            }else{$cutoffId=(int)$autoCutoff['id'];}
+        }
         if((int)$type['requires_attachment']===1 && !self::hasUpload($files)) throw new RuntimeException('This request type requires at least one supporting attachment.');
         $uid=(int)(Auth::user()['id']??0);
         db()->beginTransaction();

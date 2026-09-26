@@ -596,3 +596,10 @@ table.tbl tbody tr:hover{background:var(--hris-surface-2)}
 @media(max-width:1100px){.phase3a-form-layout,.phase3a-detail-grid{grid-template-columns:1fr}.phase3a-help{position:static}.phase3a-time-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.phase3a-leave-layout,.phase3a-leave-admin,.phase3a-approval-grid{grid-template-columns:1fr}}
 @media(max-width:720px){.phase3a-summary-grid{grid-template-columns:1fr}.phase3a-form-grid,.phase3a-detail-list,.phase3a-files{grid-template-columns:1fr}.phase3a-form-grid .full,.phase3a-detail-list .full{grid-column:auto}.phase3a-time-grid{grid-template-columns:1fr 1fr}.phase3a-submit-bar,.phase3a-list-row,.phase3a-approval-row{align-items:flex-start;flex-direction:column}.phase3a-submit-bar .btn{width:100%;justify-content:center}.phase3a-row-actions{justify-content:flex-start}.phase3a-table{min-width:720px}}
 @media(max-width:480px){.phase3a-time-grid{grid-template-columns:1fr}.phase3a-leave-balance-grid{grid-template-columns:1fr 1fr}}
+
+/* Phase 3A cutoff filing refinement — affected-date auto matching + previous cutoff filing */
+.phase3a-cutoff-field small{display:block;margin-top:6px;line-height:1.45;color:var(--hris-muted)}
+.phase3a-cutoff-field small.success{color:#198754}
+.phase3a-cutoff-field small.warning{color:#a66b00}
+.phase3a-cutoff-field.is-disabled{opacity:.72}
+.phase3a-cutoff-field.is-disabled select{background:#f5f6f8;cursor:not-allowed}
