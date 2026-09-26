@@ -61,9 +61,19 @@ final class FoundationRepository
         return db()->query('SELECT p.*,d.name department_name FROM positions p LEFT JOIN departments d ON d.id=p.department_id ORDER BY p.active DESC,p.name')->fetchAll();
     }
 
+    public static function areas(): array
+    {
+        if(!self::tableExists('areas')) return [];
+        return db()->query('SELECT * FROM areas ORDER BY active DESC,name')->fetchAll();
+    }
+
     public static function branches(): array
     {
-        return db()->query('SELECT b.*,c.name client_name FROM branches b LEFT JOIN clients c ON c.id=b.client_id ORDER BY b.active DESC,b.name')->fetchAll();
+        if(self::tableExists('areas')) {
+            $st=db()->query('SELECT b.*,c.name client_name,a.name area_name,a.code area_code FROM branches b LEFT JOIN clients c ON c.id=b.client_id LEFT JOIN areas a ON a.id=b.area_id ORDER BY b.active DESC,b.name');
+            return $st->fetchAll();
+        }
+        return db()->query('SELECT b.*,c.name client_name,NULL area_name,NULL area_code FROM branches b LEFT JOIN clients c ON c.id=b.client_id ORDER BY b.active DESC,b.name')->fetchAll();
     }
 
     public static function employmentTypes(): array
@@ -79,6 +89,7 @@ final class FoundationRepository
             'departments'=>$q('SELECT COUNT(*) FROM departments WHERE active=1'),
             'positions'=>self::tableExists('positions') ? $q('SELECT COUNT(*) FROM positions WHERE active=1') : 0,
             'branches'=>$q('SELECT COUNT(*) FROM branches WHERE active=1'),
+            'areas'=>self::tableExists('areas') ? $q('SELECT COUNT(*) FROM areas WHERE active=1') : 0,
             'employment_types'=>self::tableExists('employment_types') ? $q('SELECT COUNT(*) FROM employment_types WHERE active=1') : 0,
             'users'=>$q('SELECT COUNT(*) FROM users WHERE status="ACTIVE"'),
             'roles'=>$q('SELECT COUNT(*) FROM roles'),
@@ -116,12 +127,22 @@ final class FoundationRepository
         audit('Organization','CREATE_POSITION','position',(int)db()->lastInsertId(),['code'=>$code,'name'=>$name]);
     }
 
-    public static function createBranch(string $code,string $name,string $address): void
+    public static function createArea(string $code,string $name): void
+    {
+        if(!self::tableExists('areas')) throw new RuntimeException('Import the Phase 3A migration first.');
+        $code=strtoupper(trim($code));$name=trim($name);
+        if($code===''||$name==='') throw new RuntimeException('Area code and name are required.');
+        $st=db()->prepare('INSERT INTO areas(code,name,active) VALUES(?,?,1)');$st->execute([$code,$name]);
+        audit('Organization','CREATE_AREA','area',(int)db()->lastInsertId(),['code'=>$code,'name'=>$name]);
+    }
+
+    public static function createBranch(string $code,string $name,string $address,?int $areaId=null): void
     {
         $code=strtoupper(trim($code)); $name=trim($name); $address=trim($address);
         if($code===''||$name==='') throw new RuntimeException('Branch code and name are required.');
-        $st=db()->prepare('INSERT INTO branches(client_id,code,name,address_text,active) VALUES(NULL,?,?,?,1)'); $st->execute([$code,$name,$address ?: null]);
-        audit('Organization','CREATE_BRANCH','branch',(int)db()->lastInsertId(),['code'=>$code,'name'=>$name]);
+        $sql=self::tableExists('areas')?'INSERT INTO branches(client_id,area_id,code,name,address_text,active) VALUES(NULL,?,?,?,?,1)':'INSERT INTO branches(client_id,code,name,address_text,active) VALUES(NULL,?,?,?,1)';
+        $st=db()->prepare($sql);$st->execute(self::tableExists('areas')?[$areaId?:null,$code,$name,$address?:null]:[$code,$name,$address?:null]);
+        audit('Organization','CREATE_BRANCH','branch',(int)db()->lastInsertId(),['code'=>$code,'name'=>$name,'area_id'=>$areaId]);
     }
 
     public static function createEmploymentType(string $code,string $name): void
@@ -139,6 +160,7 @@ final class FoundationRepository
             'department'=>['departments','active'],
             'position'=>['positions','active'],
             'branch'=>['branches','active'],
+            'area'=>['areas','active'],
             'employment_type'=>['employment_types','active'],
         ];
         if(!isset($map[$entity])) throw new RuntimeException('Unsupported organization record.');

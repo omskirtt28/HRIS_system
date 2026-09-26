@@ -36,7 +36,7 @@ Keep MySQL running in XAMPP. Application links are relative, so localhost is not
 5. Run the PHP local server on port 3000.
 6. Open `http://localhost:3000`.
 
-`database/schema.sql` already includes the Phase 1 Foundation tables and demo records.
+`database/schema.sql` includes the current HRIS foundation tables and reference recruitment data used during staged development.
 
 ## Upgrade — Existing Database
 
@@ -52,22 +52,11 @@ The Phase 1 migration adds:
 - employment types;
 - HR operational role;
 - server-side tracked sessions;
-- demo HR account;
+- HR role and access-control foundation;
 - initial permission grants for existing roles.
 
-## Demo Accounts
-
-Local/demo password: **demo1234**
-
-| Experience | Email |
-|---|---|
-| Employee | `employee.demo@pmbsi.com` |
-| HR | `hr.demo@pmbsi.com` |
-| HR / Recruitment Manager | `a.domingo@pmbsi.com` |
-| HR Admin / Super Admin | `winston.cruz@pmbsi.com` |
-| Client Portal | `ops@primelogistics.com` |
-
-Remove all demo accounts before production deployment.
+## Account Setup
+Create named employee, HR, and administrator accounts through the HRIS access-control tools. Login screens no longer ship with prefilled test credentials.
 
 ## Phase 1 Foundation — Implemented
 
@@ -141,7 +130,7 @@ The UI is role-specific, but the project uses one shared authentication system, 
 ## Before Production
 
 - Set `debug=false`.
-- Remove demo users and sample recruitment records.
+- Review inactive/test accounts and remove temporary recruitment records before final production cutover.
 - Enforce HTTPS.
 - Use a dedicated least-privilege MySQL user instead of `root`.
 - Configure backups.
@@ -152,3 +141,10 @@ The UI is role-specific, but the project uses one shared authentication system, 
 
 ### PMBSI Branding
 The approved PMBSI corporate logo and favicon set are bundled with the system under `public/assets/branding/`. The public site, login screen, HRIS sidebar, meeting previews, and browser tab branding use these assets.
+
+## Phase 2C — Recruitment to Employee
+After applying `database/migrations/20260925_phase2c_recruitment_to_employee.sql`, HR users with both Recruitment Manage and Employee Create permission can convert a completed hired/deployed applicant into an Employee 201 File. The conversion is one-time, audited, duplicate-protected, can optionally create/link an Employee portal account, and can copy recruitment documents into secure employee document storage.
+
+
+## Phase 3A — Payroll & Timekeeping / Leave
+For an existing database, import only `database/migrations/20260926_phase3a_payroll_timekeeping_leave.sql` after overlaying the Phase 3A patch. Do not re-import `schema.sql` into an existing HRIS database. See `PHASE3A_TEST_GUIDE.md` for the approval-routing setup and test sequence.

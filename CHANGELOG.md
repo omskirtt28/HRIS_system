@@ -1,4 +1,13 @@
 
+## 2026-09-26 · Phase 3A — Payroll & Timekeeping + Leave Credits
+- Added employee Payroll & Timekeeping Requests with dynamic TA / OB / OT / Day-Off fields.
+- Added reporting hierarchy and Manager → HR Timekeeping approval routing.
+- Added Manager Team Approvals, HR Timekeeping queue, and Payroll processing queue.
+- Added Employee Leave Credits, leave ledger/history, leave filing, Manager → HR Leave approval, and HR credit adjustments.
+- Replaced hardcoded employee leave balances and recent activity with live Phase 3A data.
+- Added secure supporting-document uploads and request audit/history records.
+
+
 ## 2026-09-25 · Users & Access header readability fix
 - rebalanced the User Accounts column architecture so the Department header is fully readable instead of showing `DEPART...`
 - preserved Password/Actions alignment and responsive card behavior

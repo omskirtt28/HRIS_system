@@ -27,6 +27,7 @@ require_once __DIR__ . '/FoundationRepository.php';
 require_once __DIR__ . '/EmployeeRepository.php';
 require_once __DIR__ . '/Auth.php';
 require_once __DIR__ . '/RecruitmentRepository.php';
+require_once __DIR__ . '/PayrollRepository.php';
 
 try {
     $GLOBALS['pdo'] = Database::connect($base['db']);

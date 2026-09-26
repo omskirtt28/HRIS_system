@@ -74,14 +74,17 @@ final class EmployeeRepository
     public static function find(int $id): ?array
     {
         if(!self::ready()) return null;
-        $st=db()->prepare('SELECT e.*,d.name department_name,p.name position_name,b.name branch_name,b.code branch_code,et.name employment_type_name,u.email user_email,u.status user_status
+        $manager=self::columnExists('employees','manager_employee_id');
+        $managerSelect=$manager ? ',TRIM(CONCAT_WS(" ",m.first_name,m.middle_name,m.last_name,m.suffix)) manager_name,mu.email manager_email' : ',NULL manager_name,NULL manager_email';
+        $managerJoin=$manager ? ' LEFT JOIN employees m ON m.id=e.manager_employee_id LEFT JOIN users mu ON mu.id=m.user_id ' : ' ';
+        $sql='SELECT e.*,d.name department_name,p.name position_name,b.name branch_name,b.code branch_code,et.name employment_type_name,u.email user_email,u.status user_status'.$managerSelect.'
             FROM employees e
             LEFT JOIN departments d ON d.id=e.department_id
             LEFT JOIN positions p ON p.id=e.position_id
             LEFT JOIN branches b ON b.id=e.branch_id
             LEFT JOIN employment_types et ON et.id=e.employment_type_id
-            LEFT JOIN users u ON u.id=e.user_id WHERE e.id=?');
-        $st->execute([$id]); $row=$st->fetch(); return $row ?: null;
+            LEFT JOIN users u ON u.id=e.user_id'.$managerJoin.' WHERE e.id=?';
+        $st=db()->prepare($sql);$st->execute([$id]); $row=$st->fetch(); return $row ?: null;
     }
 
     public static function findByUserId(int $userId): ?array
@@ -99,7 +102,21 @@ final class EmployeeRepository
             'branches'=>FoundationRepository::branches(),
             'employment_types'=>FoundationRepository::employmentTypes(),
             'employee_users'=>self::availableEmployeeUsers($employeeId),
+            'manager_candidates'=>self::managerCandidates($employeeId),
         ];
+    }
+
+
+    public static function managerCandidates(?int $employeeId=null): array
+    {
+        if(!self::ready()) return [];
+        $sql="SELECT e.id,e.employee_no,e.first_name,e.middle_name,e.last_name,p.name position_name,u.email user_email
+              FROM employees e LEFT JOIN positions p ON p.id=e.position_id LEFT JOIN users u ON u.id=e.user_id
+              WHERE e.status IN ('ACTIVE','PROBATIONARY','ON_LEAVE')";
+        $params=[];
+        if($employeeId){$sql.=' AND e.id<>?';$params[]=$employeeId;}
+        $sql.=' ORDER BY e.last_name,e.first_name';
+        $st=db()->prepare($sql);$st->execute($params);return $st->fetchAll();
     }
 
     public static function availableEmployeeUsers(?int $employeeId=null): array
@@ -171,14 +188,19 @@ final class EmployeeRepository
         $remarks=trim((string)($data['remarks']??''));
         $before=[
             'department_id'=>$old['department_id']!==null?(int)$old['department_id']:null,'position_id'=>$old['position_id']!==null?(int)$old['position_id']:null,
-            'branch_id'=>$old['branch_id']!==null?(int)$old['branch_id']:null,'employment_type_id'=>$old['employment_type_id']!==null?(int)$old['employment_type_id']:null,'status'=>(string)$old['status']
+            'branch_id'=>$old['branch_id']!==null?(int)$old['branch_id']:null,'employment_type_id'=>$old['employment_type_id']!==null?(int)$old['employment_type_id']:null,'manager_employee_id'=>isset($old['manager_employee_id'])&&$old['manager_employee_id']!==null?(int)$old['manager_employee_id']:null,'status'=>(string)$old['status']
         ];
-        $after=['department_id'=>$departmentId,'position_id'=>$positionId,'branch_id'=>$branchId,'employment_type_id'=>$employmentTypeId,'status'=>$status];
+        $managerEmployeeId=self::columnExists('employees','manager_employee_id') ? ((int)($data['manager_employee_id']??($old['manager_employee_id']??0))?:null) : null;
+        if($managerEmployeeId===$id) throw new RuntimeException('An employee cannot be their own Immediate Manager.');
+        if($managerEmployeeId){$st=db()->prepare('SELECT COUNT(*) FROM employees WHERE id=?');$st->execute([$managerEmployeeId]);if((int)$st->fetchColumn()===0)throw new RuntimeException('Selected Immediate Manager was not found.');}
+        $after=['department_id'=>$departmentId,'position_id'=>$positionId,'branch_id'=>$branchId,'employment_type_id'=>$employmentTypeId,'manager_employee_id'=>$managerEmployeeId,'status'=>$status];
         $changed=[];foreach($before as $k=>$v) if($v!==$after[$k])$changed[]=$k;
         db()->beginTransaction();
         try{
-            $sql='UPDATE employees SET employee_no=?,user_id=?,department_id=?,position_id=?,branch_id=?,employment_type_id=?,hire_date=?,regularization_date=?,status=?,updated_by=? WHERE id=?';
-            $st=db()->prepare($sql);$st->execute([$employeeNo,$userId,$departmentId,$positionId,$branchId,$employmentTypeId,$hireDate,$regularizationDate,$status,(int)(Auth::user()['id']??0)?:null,$id]);
+            $hasManager=self::columnExists('employees','manager_employee_id');
+            $sql=$hasManager?'UPDATE employees SET employee_no=?,user_id=?,department_id=?,position_id=?,branch_id=?,employment_type_id=?,manager_employee_id=?,hire_date=?,regularization_date=?,status=?,updated_by=? WHERE id=?':'UPDATE employees SET employee_no=?,user_id=?,department_id=?,position_id=?,branch_id=?,employment_type_id=?,hire_date=?,regularization_date=?,status=?,updated_by=? WHERE id=?';
+            $params=$hasManager?[$employeeNo,$userId,$departmentId,$positionId,$branchId,$employmentTypeId,$managerEmployeeId,$hireDate,$regularizationDate,$status,(int)(Auth::user()['id']??0)?:null,$id]:[$employeeNo,$userId,$departmentId,$positionId,$branchId,$employmentTypeId,$hireDate,$regularizationDate,$status,(int)(Auth::user()['id']??0)?:null,$id];
+            $st=db()->prepare($sql);$st->execute($params);
             if($changed && self::phase2Ready()){
                 $event=self::historyEventType($changed,(string)$old['status'],$status);
                 self::addHistory($id,$event,$effectiveDate,$before,$after,$remarks?:'Employment information updated.');
@@ -321,6 +343,12 @@ final class EmployeeRepository
 
     public static function govIdTypes(): array { return self::GOV_ID_TYPES; }
     public static function documentTypes(): array { return self::DOC_TYPES; }
+
+    private static function columnExists(string $table,string $column): bool
+    {
+        $st=db()->prepare('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?');
+        $st->execute([$table,$column]);return (int)$st->fetchColumn()>0;
+    }
 
     private static function validatedEmployeeData(array $data,?int $employeeId): array
     {

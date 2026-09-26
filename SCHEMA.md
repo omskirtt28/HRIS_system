@@ -607,3 +607,6 @@ Immutable employee movement/status timeline. Each entry stores an event type, ef
 ## Phase 2C conversion fields
 `applications` now includes nullable `converted_employee_id`, `converted_at`, and `converted_by`. `converted_employee_id` is unique so one employee record cannot be attached to multiple conversion rows through this workflow. It references `employees(id)`, while `converted_by` references `users(id)`.
 
+
+## Phase 3A tables
+Phase 3A adds `areas`, branch-to-area mapping, `employees.manager_employee_id`, Payroll & Timekeeping request/type/cutoff/time-entry/attachment/approval/history tables, and Leave type/balance/credit-transaction/request/approval tables. The reporting relationship is stored once on the employee master record and is used to route manager approval. Leave balances are ledger-backed; approved paid leave creates a deduction transaction instead of overwriting an unexplained total.
