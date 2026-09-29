@@ -708,3 +708,20 @@ table.tbl tbody tr:hover{background:var(--hris-surface-2)}
 @media(max-width:1100px){.phase3a-manager-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.phase3a-manager-history-row{grid-template-columns:minmax(0,1.35fr) minmax(140px,.65fr) minmax(130px,.55fr);gap:12px}}
 @media(max-width:760px){.phase3a-manager-summary-grid{grid-template-columns:1fr 1fr}.phase3a-manager-history-row{grid-template-columns:1fr;gap:10px;align-items:start}.phase3a-manager-history-decision,.phase3a-manager-history-status{padding-top:9px;border-top:1px dashed var(--hris-line)}.phase3a-manager-history-title{align-items:flex-start;flex-wrap:wrap}.phase3a-manager-history-title strong{white-space:normal}.phase3a-manager-history-detail span+span::before{display:none}}
 @media(max-width:480px){.phase3a-manager-summary-grid{grid-template-columns:1fr}}
+
+/* Phase 3B.0 — roster-based Organization master workspace */
+.org-source-note{display:flex;align-items:flex-start;gap:12px;margin-bottom:18px;padding:14px 16px;border:1px solid #ead9aa;border-radius:14px;background:#fffaf0;color:#5d4a17}
+.org-source-note>div:first-child{width:36px;height:36px;flex:0 0 36px;display:grid;place-items:center;border-radius:10px;background:#f7e7b5}
+.org-source-note svg{width:18px;height:18px;stroke:#8a6500;fill:none}
+.org-source-note strong{display:block;font-size:12px;color:#273142;margin-bottom:4px}
+.org-source-note span{display:block;font-size:10.5px;line-height:1.55;color:#756642}
+.org-card-wide{grid-column:1/-1}
+.org-branch-add{grid-template-columns:110px minmax(150px,1.3fr) minmax(140px,1fr) minmax(150px,1fr) 120px minmax(120px,.9fr) minmax(150px,1fr) auto}
+.org-branch-list{max-height:460px}
+.org-branch-row>div:first-child{min-width:0}
+.org-branch-row>div:first-child strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.org-branch-row>div:first-child span{white-space:normal;line-height:1.45}
+.org-branch-row>div:last-child{flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:1350px){.org-branch-add{grid-template-columns:repeat(4,minmax(0,1fr))}.org-branch-add .btn{width:100%;justify-content:center}}
+@media(max-width:900px){.org-branch-add{grid-template-columns:repeat(2,minmax(0,1fr))}.org-card-wide{grid-column:auto}.org-branch-row{align-items:flex-start}.org-branch-row>div:last-child{justify-content:flex-start}}
+@media(max-width:620px){.org-branch-add{grid-template-columns:1fr}.org-source-note{padding:12px}.org-branch-row{flex-direction:column}.org-branch-row>div:last-child{width:100%}}

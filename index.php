@@ -180,6 +180,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             RecruitmentRepository::clientDecision((int)$_POST['application_id'],(string)$_POST['decision'],trim((string)($_POST['remarks']??'')));
             flash('success','Candidate decision saved.'); redirect('client-approvals');
         }
+        if ($action === 'create_business_unit') {
+            Auth::requirePermission('organization.manage');
+            FoundationRepository::createBusinessUnit((string)($_POST['code']??''),(string)($_POST['name']??''));
+            flash('success','Business unit created.'); redirect('admin-organization');
+        }
+        if ($action === 'create_legal_entity') {
+            Auth::requirePermission('organization.manage');
+            FoundationRepository::createLegalEntity((string)($_POST['code']??''),(string)($_POST['name']??''));
+            flash('success','Company / legal entity created.'); redirect('admin-organization');
+        }
         if ($action === 'create_department') {
             Auth::requirePermission('organization.manage');
             FoundationRepository::createDepartment((string)($_POST['code']??''),(string)($_POST['name']??''));
@@ -197,7 +207,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if ($action === 'create_branch') {
             Auth::requirePermission('organization.manage');
-            FoundationRepository::createBranch((string)($_POST['code']??''),(string)($_POST['name']??''),(string)($_POST['address_text']??''),(int)($_POST['area_id']??0));
+            FoundationRepository::createBranch(
+                (string)($_POST['code']??''),
+                (string)($_POST['name']??''),
+                (string)($_POST['address_text']??''),
+                (int)($_POST['area_id']??0),
+                (int)($_POST['business_unit_id']??0),
+                (int)($_POST['legal_entity_id']??0),
+                (string)($_POST['site_type']??'RETAIL_STORE')
+            );
             flash('success','Branch created.'); redirect('admin-organization');
         }
         if ($action === 'create_employment_type') {
@@ -330,7 +348,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch(Throwable $e) {
         flash('error',$e->getMessage());
         $defaultBack = match($action) {
-            'create_department','create_position','create_area','create_branch','create_employment_type','toggle_master' => 'admin-organization',
+            'create_business_unit','create_legal_entity','create_department','create_position','create_area','create_branch','create_employment_type','toggle_master' => 'admin-organization',
             'create_role','save_role_permissions' => 'admin-roles',
             'create_user','toggle_user_status','reset_user_password' => 'admin-users',
             'create_employee' => 'hr-employee-new',
@@ -1020,8 +1038,8 @@ if ($page === 'hr-employees') {
       <form method="get" class="employee-filterbar">
         <input type="hidden" name="page" value="hr-employees">
         <div class="employee-search"><?=icon_svg('search')?><input name="q" value="<?=e($filters['q'])?>" placeholder="Search employee no., name or email"></div>
-        <select name="department_id"><option value="">All departments</option><?php foreach($masters['departments'] as $x):?><option value="<?=$x['id']?>" <?=$filters['department_id']==$x['id']?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select>
-        <select name="branch_id"><option value="">All branches</option><?php foreach($masters['branches'] as $x):?><option value="<?=$x['id']?>" <?=$filters['branch_id']==$x['id']?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select>
+        <select name="department_id"><option value="">All departments</option><?php foreach($masters['departments'] as $x):if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=$filters['department_id']==$x['id']?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select>
+        <select name="branch_id"><option value="">All branches</option><?php foreach($masters['branches'] as $x):if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=$filters['branch_id']==$x['id']?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select>
         <select name="status"><option value="">All statuses</option><?php foreach(['ACTIVE'=>'Active','PROBATIONARY'=>'Probationary','ON_LEAVE'=>'On Leave','INACTIVE'=>'Inactive','RESIGNED'=>'Resigned','TERMINATED'=>'Terminated'] as $k=>$label):?><option value="<?=$k?>" <?=$filters['status']===$k?'selected':''?>><?=$label?></option><?php endforeach;?></select>
         <button class="btn sm">Filter</button><a class="btn sm ghost" href="<?=url('hr-employees')?>">Reset</a>
       </form>
@@ -1120,8 +1138,8 @@ if ($page === 'hr-employee') {
     <?php elseif($tab==='employment'):?>
       <section class="panel phase2b-form-panel"><div class="panel-head"><div><h2>Employment information</h2><p>Assignment, status, portal linkage and effective-date history.</p></div><span class="badge gray">Changes are audited</span></div><?php if(!$canManage):?><div class="panel-body"><div class="alert">You have view-only access.</div></div><?php else:?><form method="post" class="panel-body employee-form-grid"><?=csrf_field()?><input type="hidden" name="action" value="update_employee_employment"><input type="hidden" name="employee_id" value="<?=$id?>"><input type="hidden" name="return_page" value="hr-employee"><input type="hidden" name="return_id" value="<?=$id?>"><input type="hidden" name="return_tab" value="employment">
         <div class="field"><label>Employee number</label><input name="employee_no" value="<?=e($e['employee_no'])?>" required></div><div class="field"><label>Employee portal account</label><select name="user_id"><option value="">Not linked</option><?php foreach($masters['employee_users'] as $x):?><option value="<?=$x['id']?>" <?=((int)($e['user_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['full_name'])?> · <?=e($x['email'])?></option><?php endforeach;?></select></div>
-        <div class="field"><label>Department</label><select name="department_id"><option value="">Unassigned</option><?php foreach($masters['departments'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=((int)($e['department_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select></div><div class="field"><label>Position</label><select name="position_id"><option value="">Unassigned</option><?php foreach($masters['positions'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=((int)($e['position_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['name'])?><?=!empty($x['department_name'])?' · '.e($x['department_name']):''?></option><?php endforeach;?></select></div>
-        <div class="field"><label>Branch / Site</label><select name="branch_id"><option value="">Unassigned</option><?php foreach($masters['branches'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=((int)($e['branch_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select></div><div class="field"><label>Employment type</label><select name="employment_type_id"><option value="">Unassigned</option><?php foreach($masters['employment_types'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=((int)($e['employment_type_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select></div>
+        <div class="field"><label>Department</label><select name="department_id"><option value="">Unassigned</option><?php foreach($masters['departments'] as $x): $isSelected=((int)($e['department_id']??0)===(int)$x['id']); if(!$x['active']&&!$isSelected)continue;?><option value="<?=$x['id']?>" <?=$isSelected?'selected':''?>><?=e($x['name'])?><?=!$x['active']?' · Retired':''?></option><?php endforeach;?></select></div><div class="field"><label>Position</label><select name="position_id"><option value="">Unassigned</option><?php foreach($masters['positions'] as $x): $isSelected=((int)($e['position_id']??0)===(int)$x['id']); if(!$x['active']&&!$isSelected)continue;?><option value="<?=$x['id']?>" <?=$isSelected?'selected':''?>><?=e($x['name'])?><?=!empty($x['department_name'])?' · '.e($x['department_name']):''?><?=!$x['active']?' · Retired':''?></option><?php endforeach;?></select></div>
+        <div class="field"><label>Branch / Site</label><select name="branch_id"><option value="">Unassigned</option><?php foreach($masters['branches'] as $x): $isSelected=((int)($e['branch_id']??0)===(int)$x['id']); if(!$x['active']&&!$isSelected)continue;?><option value="<?=$x['id']?>" <?=$isSelected?'selected':''?>><?=e($x['name'])?><?=!$x['active']?' · Retired':''?></option><?php endforeach;?></select></div><div class="field"><label>Employment type</label><select name="employment_type_id"><option value="">Unassigned</option><?php foreach($masters['employment_types'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=((int)($e['employment_type_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select></div>
         <div class="field full reporting-manager-field">
           <div class="reporting-manager-label"><label for="manager_employee_id">Immediate Manager / Reporting To</label><span class="badge amber">Assigned by HR</span></div>
           <select id="manager_employee_id" name="manager_employee_id">
@@ -1655,16 +1673,112 @@ if ($page === 'admin-roles') {
 
 if ($page === 'admin-organization') {
     Auth::requirePermission('organization.view');
-    $departments=FoundationRepository::departments(); $positions=FoundationRepository::positions(); $areas=FoundationRepository::areas(); $branches=FoundationRepository::branches(); $types=FoundationRepository::employmentTypes();
+
+    $showRetired=((string)($_GET['show_retired']??'')==='1');
+    $businessUnits=FoundationRepository::businessUnits();
+    $legalEntities=FoundationRepository::legalEntities();
+    $departments=FoundationRepository::departments();
+    $positions=FoundationRepository::positions();
+    $areas=FoundationRepository::areas();
+    $branches=FoundationRepository::branches();
+    $types=FoundationRepository::employmentTypes();
+
+    if(!$showRetired){
+        $businessUnits=array_values(array_filter($businessUnits,fn($x)=>(int)($x['active']??0)===1));
+        $legalEntities=array_values(array_filter($legalEntities,fn($x)=>(int)($x['active']??0)===1));
+        $departments=array_values(array_filter($departments,fn($x)=>(int)($x['active']??0)===1));
+        $positions=array_values(array_filter($positions,fn($x)=>(int)($x['active']??0)===1));
+        $areas=array_values(array_filter($areas,fn($x)=>(int)($x['active']??0)===1));
+        $branches=array_values(array_filter($branches,fn($x)=>(int)($x['active']??0)===1));
+        $types=array_values(array_filter($types,fn($x)=>(int)($x['active']??0)===1));
+    }
+
     $canManage=Auth::can('organization.manage');
-    render_portal_header('admin',$page,'Organization Setup'); page_head('HR Admin / Organization','Organization Setup','<span class="badge amber">Core master data</span>'); ?>
-    <?php if(!FoundationRepository::tableExists('positions')):?><div class="alert error">Phase 1 foundation migration has not been applied. Import <code>database/migrations/20260924_phase1_foundation.sql</code>.</div><?php endif;?>
+    $orgReady=FoundationRepository::tableExists('business_units') && FoundationRepository::tableExists('legal_entities');
+    $headExtra='<span class="badge amber">Roster-based master data</span> <a class="btn sm" href="'.e(url('admin-organization',$showRetired?[]:['show_retired'=>1])).'">'.($showRetired?'Hide retired':'Show retired').'</a>';
+    render_portal_header('admin',$page,'Organization Setup');
+    page_head('HR Admin / Organization','Organization Setup',$headExtra); ?>
+
+    <?php if(!$orgReady):?>
+      <div class="alert error">Import <code>database/migrations/20260929_phase3b0_organization_master.sql</code> to load the roster-based Organization masters.</div>
+    <?php else:?>
+      <div class="org-source-note">
+        <div><?=icon_svg('building')?></div>
+        <div><strong>Employee Roster master data</strong><span>Active masters are based on the HR Employee Roster: 2 business units, 8 legal entities, 19 departments, 38 positions, and 59 branch/site records. Area assignments remain HR-managed because the roster does not contain area data.</span></div>
+      </div>
+    <?php endif;?>
+
     <div class="org-grid">
-      <section class="panel org-card"><div class="panel-head"><div><h2>Departments</h2><p><?=count($departments)?> records</p></div></div><?php if($canManage):?><form method="post" class="master-add"><?=csrf_field()?><input type="hidden" name="action" value="create_department"><input name="code" placeholder="Code" required><input name="name" placeholder="Department name" required><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?><div class="master-list"><?php foreach($departments as $x):?><div class="master-row"><div><strong><?=e($x['name'])?></strong><span><?=e($x['code'])?> · <?=$x['position_count']?> positions</span></div><div><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Inactive'?></span><?php if($canManage):?><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="department"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action" title="Toggle status">•••</button></form><?php endif;?></div></div><?php endforeach;?></div></section>
-      <section class="panel org-card"><div class="panel-head"><div><h2>Positions</h2><p><?=count($positions)?> records</p></div></div><?php if($canManage):?><form method="post" class="master-add master-add-4"><?=csrf_field()?><input type="hidden" name="action" value="create_position"><input name="code" placeholder="Code" required><input name="name" placeholder="Position name" required><select name="department_id"><option value="">No department</option><?php foreach($departments as $d):?><option value="<?=$d['id']?>"><?=e($d['name'])?></option><?php endforeach;?></select><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?><div class="master-list"><?php foreach($positions as $x):?><div class="master-row"><div><strong><?=e($x['name'])?></strong><span><?=e($x['code'])?> · <?=e($x['department_name']??'Unassigned')?></span></div><div><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Inactive'?></span><?php if($canManage):?><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="position"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action">•••</button></form><?php endif;?></div></div><?php endforeach;?></div></section>
-      <section class="panel org-card"><div class="panel-head"><div><h2>Areas</h2><p><?=count($areas)?> records</p></div></div><?php if($canManage):?><form method="post" class="master-add"><?=csrf_field()?><input type="hidden" name="action" value="create_area"><input name="code" placeholder="Code" required><input name="name" placeholder="Area name" required><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?><div class="master-list"><?php if(!$areas):?><div class="empty">Add the official PMBSI areas used for employee and branch assignment.</div><?php endif;foreach($areas as $x):?><div class="master-row"><div><strong><?=e($x['name'])?></strong><span><?=e($x['code'])?></span></div><div><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Inactive'?></span><?php if($canManage):?><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="area"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action">•••</button></form><?php endif;?></div></div><?php endforeach;?></div></section>
-      <section class="panel org-card"><div class="panel-head"><div><h2>Branches & Sites</h2><p><?=count($branches)?> records</p></div></div><?php if($canManage):?><form method="post" class="master-add master-add-4"><?=csrf_field()?><input type="hidden" name="action" value="create_branch"><input name="code" placeholder="Code" required><input name="name" placeholder="Branch name" required><select name="area_id"><option value="">No area</option><?php foreach($areas as $a):if(!$a['active'])continue;?><option value="<?=$a['id']?>"><?=e($a['name'])?></option><?php endforeach;?></select><input name="address_text" placeholder="City / address"><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?><div class="master-list"><?php foreach($branches as $x):?><div class="master-row"><div><strong><?=e($x['name'])?></strong><span><?=e($x['code'])?> · <?=e($x['area_name']??'No area')?> · <?=e($x['address_text']??'No address')?></span></div><div><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Inactive'?></span><?php if($canManage):?><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="branch"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action">•••</button></form><?php endif;?></div></div><?php endforeach;?></div></section>
-      <section class="panel org-card"><div class="panel-head"><div><h2>Employment Types</h2><p><?=count($types)?> records</p></div></div><?php if($canManage):?><form method="post" class="master-add"><?=csrf_field()?><input type="hidden" name="action" value="create_employment_type"><input name="code" placeholder="Code" required><input name="name" placeholder="Employment type" required><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?><div class="master-list"><?php foreach($types as $x):?><div class="master-row"><div><strong><?=e($x['name'])?></strong><span><?=e($x['code'])?></span></div><div><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Inactive'?></span><?php if($canManage):?><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="employment_type"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action">•••</button></form><?php endif;?></div></div><?php endforeach;?></div></section>
+      <section class="panel org-card">
+        <div class="panel-head"><div><h2>Business Units / Brands</h2><p><?=count($businessUnits)?> records</p></div></div>
+        <?php if($canManage):?><form method="post" class="master-add"><?=csrf_field()?><input type="hidden" name="action" value="create_business_unit"><input name="code" placeholder="Code" required><input name="name" placeholder="Business unit / brand" required><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?>
+        <div class="master-list"><?php foreach($businessUnits as $x):?><div class="master-row"><div><strong><?=e($x['name'])?></strong><span><?=e($x['code'])?></span></div><div><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Retired'?></span><?php if($canManage):?><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="business_unit"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action" title="Toggle status">•••</button></form><?php endif;?></div></div><?php endforeach;?></div>
+      </section>
+
+      <section class="panel org-card">
+        <div class="panel-head"><div><h2>Companies / Legal Entities</h2><p><?=count($legalEntities)?> records</p></div></div>
+        <?php if($canManage):?><form method="post" class="master-add"><?=csrf_field()?><input type="hidden" name="action" value="create_legal_entity"><input name="code" placeholder="Code" required><input name="name" placeholder="Company / legal entity" required><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?>
+        <div class="master-list"><?php foreach($legalEntities as $x):?><div class="master-row"><div><strong><?=e($x['name'])?></strong><span><?=e($x['code'])?></span></div><div><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Retired'?></span><?php if($canManage):?><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="legal_entity"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action" title="Toggle status">•••</button></form><?php endif;?></div></div><?php endforeach;?></div>
+      </section>
+
+      <section class="panel org-card">
+        <div class="panel-head"><div><h2>Departments</h2><p><?=count($departments)?> records</p></div></div>
+        <?php if($canManage):?><form method="post" class="master-add"><?=csrf_field()?><input type="hidden" name="action" value="create_department"><input name="code" placeholder="Code" required><input name="name" placeholder="Department name" required><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?>
+        <div class="master-list"><?php foreach($departments as $x):?><div class="master-row"><div><strong><?=e($x['name'])?></strong><span><?=e($x['code'])?> · <?=$x['position_count']?> positions</span></div><div><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Retired'?></span><?php if($canManage):?><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="department"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action">•••</button></form><?php endif;?></div></div><?php endforeach;?></div>
+      </section>
+
+      <section class="panel org-card">
+        <div class="panel-head"><div><h2>Positions</h2><p><?=count($positions)?> records</p></div></div>
+        <?php if($canManage):?><form method="post" class="master-add master-add-4"><?=csrf_field()?><input type="hidden" name="action" value="create_position"><input name="code" placeholder="Code" required><input name="name" placeholder="Position name" required><select name="department_id"><option value="">No default department</option><?php foreach($departments as $d):if(!$d['active'])continue;?><option value="<?=$d['id']?>"><?=e($d['name'])?></option><?php endforeach;?></select><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?>
+        <div class="master-list"><?php foreach($positions as $x):?><div class="master-row"><div><strong><?=e($x['name'])?></strong><span><?=e($x['code'])?> · <?=e($x['department_name']??'No default department')?></span></div><div><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Retired'?></span><?php if($canManage):?><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="position"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action">•••</button></form><?php endif;?></div></div><?php endforeach;?></div>
+      </section>
+
+      <section class="panel org-card org-card-wide">
+        <div class="panel-head"><div><h2>Branches & Sites</h2><p><?=count($branches)?> records · roster operational locations</p></div></div>
+        <?php if($canManage):?>
+        <form method="post" class="master-add org-branch-add"><?=csrf_field()?>
+          <input type="hidden" name="action" value="create_branch">
+          <input name="code" placeholder="Branch code (optional)">
+          <input name="name" placeholder="Branch / site name" required>
+          <select name="business_unit_id"><option value="">No default brand</option><?php foreach($businessUnits as $x):if(!$x['active'])continue;?><option value="<?=$x['id']?>"><?=e($x['name'])?></option><?php endforeach;?></select>
+          <select name="legal_entity_id"><option value="">No default company</option><?php foreach($legalEntities as $x):if(!$x['active'])continue;?><option value="<?=$x['id']?>"><?=e($x['name'])?></option><?php endforeach;?></select>
+          <select name="site_type"><option value="RETAIL_STORE">Retail Store</option><option value="HEAD_OFFICE">Head Office</option><option value="OTHER">Other</option></select>
+          <select name="area_id"><option value="">No area</option><?php foreach($areas as $a):if(!$a['active'])continue;?><option value="<?=$a['id']?>"><?=e($a['name'])?></option><?php endforeach;?></select>
+          <input name="address_text" placeholder="City / address (optional)">
+          <button class="btn primary sm"><?=icon_svg('plus')?> Add</button>
+        </form>
+        <?php endif;?>
+        <div class="master-list org-branch-list">
+          <?php foreach($branches as $x):
+            $mapStatus=(string)($x['mapping_status']??'LEGACY');
+            $mapClass=$mapStatus==='READY'?'green':($mapStatus==='LEGACY'?'gray':'amber');
+          ?>
+          <div class="master-row org-branch-row">
+            <div>
+              <strong><?=e($x['name'])?></strong>
+              <span><?=e($x['code']?:'Code pending')?> · <?=e($x['legal_entity_name']??($x['source_company_text']??'Company unassigned'))?> · <?=e($x['business_unit_name']??'Brand unassigned')?> · <?=e($x['area_name']??'Area unassigned')?></span>
+            </div>
+            <div>
+              <span class="badge gray"><?=e(ucwords(strtolower(str_replace('_',' ',(string)($x['site_type']??'RETAIL_STORE')))))?></span>
+              <span class="badge <?=$mapClass?>"><?=e(ucwords(strtolower(str_replace('_',' ',$mapStatus))))?></span>
+              <?php if($canManage):?><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="branch"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action">•••</button></form><?php endif;?>
+            </div>
+          </div>
+          <?php endforeach;?>
+        </div>
+      </section>
+
+      <section class="panel org-card">
+        <div class="panel-head"><div><h2>Areas</h2><p><?=count($areas)?> records · HR-managed</p></div></div>
+        <?php if($canManage):?><form method="post" class="master-add"><?=csrf_field()?><input type="hidden" name="action" value="create_area"><input name="code" placeholder="Code" required><input name="name" placeholder="Area name" required><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?>
+        <div class="master-list"><?php if(!$areas):?><div class="empty">The Employee Roster has no area column. Add the approved Area structure here when ready.</div><?php endif;foreach($areas as $x):?><div class="master-row"><div><strong><?=e($x['name'])?></strong><span><?=e($x['code'])?></span></div><div><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Retired'?></span><?php if($canManage):?><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="area"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action">•••</button></form><?php endif;?></div></div><?php endforeach;?></div>
+      </section>
+
+      <section class="panel org-card">
+        <div class="panel-head"><div><h2>Employment Types</h2><p><?=count($types)?> records</p></div></div>
+        <?php if($canManage):?><form method="post" class="master-add"><?=csrf_field()?><input type="hidden" name="action" value="create_employment_type"><input name="code" placeholder="Code" required><input name="name" placeholder="Employment type" required><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?>
+        <div class="master-list"><?php foreach($types as $x):?><div class="master-row"><div><strong><?=e($x['name'])?></strong><span><?=e($x['code'])?></span></div><div><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Retired'?></span><?php if($canManage):?><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="employment_type"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action">•••</button></form><?php endif;?></div></div><?php endforeach;?></div>
+      </section>
     </div>
     <?php render_portal_footer(); exit;
 }

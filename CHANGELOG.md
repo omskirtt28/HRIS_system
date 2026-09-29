@@ -167,3 +167,10 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 - Employees can select previous cutoff periods for missed/back-filed TA, OB, OT and related requests.
 - Backend validates that the affected date actually belongs to the selected cutoff.
 - Historical cutoff periods are generated safely from the existing cutoff calendar rules; no schema change required.
+
+## 2026-09-29 — Phase 3B.0 Organization Master Data
+- Rebuilt active Department, Position, and Branch / Site masters from the HR Employee Roster.
+- Added Business Units / Brands (`SilverWorks`, `Ocampo's Fine Jewellery`) and Companies / Legal Entities.
+- Preserved existing referenced legacy masters as retired records rather than deleting them.
+- Added roster lineage/mapping status to Branch / Site records and surfaced data-quality items requiring HR review.
+- Kept Area masters separate because the roster does not contain Area assignments.

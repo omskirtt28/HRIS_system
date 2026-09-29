@@ -610,3 +610,11 @@ Immutable employee movement/status timeline. Each entry stores an event type, ef
 
 ## Phase 3A tables
 Phase 3A adds `areas`, branch-to-area mapping, `employees.manager_employee_id`, Payroll & Timekeeping request/type/cutoff/time-entry/attachment/approval/history tables, and Leave type/balance/credit-transaction/request/approval tables. The reporting relationship is stored once on the employee master record and is used to route manager approval. Leave balances are ledger-backed; approved paid leave creates a deduction transaction instead of overwriting an unexplained total.
+
+## Phase 3B.0 Organization Masters
+- `business_units` — Business Unit / Brand master (`SilverWorks`, `Ocampo's Fine Jewellery`).
+- `legal_entities` — Company / legal entity master from the Employee Roster.
+- `departments` — normalized roster-derived Department master.
+- `positions` — normalized roster-derived Position master with optional default Department.
+- `branches` — roster-derived Branch / Site records with optional default Business Unit, Legal Entity, site type, source values, and mapping status.
+- Legacy referenced master rows are retained as inactive for historical/FK safety.

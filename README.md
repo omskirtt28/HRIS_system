@@ -148,3 +148,6 @@ After applying `database/migrations/20260925_phase2c_recruitment_to_employee.sql
 
 ## Phase 3A — Payroll & Timekeeping / Leave
 For an existing database, import only `database/migrations/20260926_phase3a_payroll_timekeeping_leave.sql` after overlaying the Phase 3A patch. Do not re-import `schema.sql` into an existing HRIS database. See `PHASE3A_TEST_GUIDE.md` for the approval-routing setup and test sequence.
+
+## Phase 3B.0 — Organization Masters
+The official active Organization master data is now roster-based. After overlaying the Phase 3B.0 patch, import only `database/migrations/20260929_phase3b0_organization_master.sql`. The migration includes its own verification output; do not import `schema.sql` for this update.

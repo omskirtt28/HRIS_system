@@ -16,6 +16,32 @@ final class FoundationRepository
         }
     }
 
+    public static function columnExists(string $table,string $column): bool
+    {
+        static $cache = [];
+        $key=$table.'.'.$column;
+        if (array_key_exists($key,$cache)) return $cache[$key];
+        try {
+            $st=db()->prepare('SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=? AND column_name=?');
+            $st->execute([$table,$column]);
+            return $cache[$key]=((int)$st->fetchColumn()>0);
+        } catch(Throwable) {
+            return $cache[$key]=false;
+        }
+    }
+
+    public static function businessUnits(): array
+    {
+        if(!self::tableExists('business_units')) return [];
+        return db()->query('SELECT * FROM business_units ORDER BY active DESC,sort_order,name')->fetchAll();
+    }
+
+    public static function legalEntities(): array
+    {
+        if(!self::tableExists('legal_entities')) return [];
+        return db()->query('SELECT * FROM legal_entities ORDER BY active DESC,name')->fetchAll();
+    }
+
     public static function permissionsForRole(int $roleId): array
     {
         if (!self::tableExists('permissions') || !self::tableExists('role_permissions')) return [];
@@ -52,7 +78,7 @@ final class FoundationRepository
         if (!self::tableExists('positions')) {
             return db()->query('SELECT d.*, 0 position_count FROM departments d ORDER BY d.active DESC,d.name')->fetchAll();
         }
-        return db()->query('SELECT d.*, (SELECT COUNT(*) FROM positions p WHERE p.department_id=d.id) position_count FROM departments d ORDER BY d.active DESC,d.name')->fetchAll();
+        return db()->query('SELECT d.*, (SELECT COUNT(*) FROM positions p WHERE p.department_id=d.id AND p.active=1) position_count FROM departments d ORDER BY d.active DESC,d.name')->fetchAll();
     }
 
     public static function positions(): array
@@ -69,11 +95,18 @@ final class FoundationRepository
 
     public static function branches(): array
     {
-        if(self::tableExists('areas')) {
-            $st=db()->query('SELECT b.*,c.name client_name,a.name area_name,a.code area_code FROM branches b LEFT JOIN clients c ON c.id=b.client_id LEFT JOIN areas a ON a.id=b.area_id ORDER BY b.active DESC,b.name');
-            return $st->fetchAll();
-        }
-        return db()->query('SELECT b.*,c.name client_name,NULL area_name,NULL area_code FROM branches b LEFT JOIN clients c ON c.id=b.client_id ORDER BY b.active DESC,b.name')->fetchAll();
+        $hasAreas=self::tableExists('areas') && self::columnExists('branches','area_id');
+        $hasOrg=self::tableExists('business_units') && self::tableExists('legal_entities')
+            && self::columnExists('branches','default_business_unit_id')
+            && self::columnExists('branches','default_legal_entity_id');
+        $areaJoin=$hasAreas?' LEFT JOIN areas a ON a.id=b.area_id ':'';
+        $orgJoin=$hasOrg?' LEFT JOIN business_units bu ON bu.id=b.default_business_unit_id LEFT JOIN legal_entities le ON le.id=b.default_legal_entity_id ':'';
+        $select='SELECT b.*,c.name client_name'
+            .($hasAreas?',a.name area_name,a.code area_code':',NULL area_name,NULL area_code')
+            .($hasOrg?',bu.name business_unit_name,bu.code business_unit_code,le.name legal_entity_name,le.code legal_entity_code':',NULL business_unit_name,NULL business_unit_code,NULL legal_entity_name,NULL legal_entity_code')
+            .' FROM branches b LEFT JOIN clients c ON c.id=b.client_id '.$areaJoin.$orgJoin
+            .' ORDER BY b.active DESC,b.name,COALESCE(b.code,"")';
+        return db()->query($select)->fetchAll();
     }
 
     public static function employmentTypes(): array
@@ -86,6 +119,8 @@ final class FoundationRepository
     {
         $q = fn(string $sql)=>(int)db()->query($sql)->fetchColumn();
         return [
+            'business_units'=>self::tableExists('business_units') ? $q('SELECT COUNT(*) FROM business_units WHERE active=1') : 0,
+            'legal_entities'=>self::tableExists('legal_entities') ? $q('SELECT COUNT(*) FROM legal_entities WHERE active=1') : 0,
             'departments'=>$q('SELECT COUNT(*) FROM departments WHERE active=1'),
             'positions'=>self::tableExists('positions') ? $q('SELECT COUNT(*) FROM positions WHERE active=1') : 0,
             'branches'=>$q('SELECT COUNT(*) FROM branches WHERE active=1'),
@@ -108,6 +143,26 @@ final class FoundationRepository
         if (!self::tableExists('user_sessions')) return [];
         $limit=max(1,min(300,$limit));
         return db()->query('SELECT s.*,u.full_name,u.email,r.name role_name FROM user_sessions s JOIN users u ON u.id=s.user_id JOIN roles r ON r.id=u.role_id ORDER BY s.last_activity_at DESC LIMIT '.$limit)->fetchAll();
+    }
+
+    public static function createBusinessUnit(string $code,string $name): void
+    {
+        if(!self::tableExists('business_units')) throw new RuntimeException('Import the Organization Master migration first.');
+        $code=strtoupper(trim($code));$name=trim($name);
+        if($code===''||$name==='') throw new RuntimeException('Business unit code and name are required.');
+        $st=db()->prepare('INSERT INTO business_units(code,name,active,sort_order) VALUES(?,?,1,100)');
+        $st->execute([$code,$name]);
+        audit('Organization','CREATE_BUSINESS_UNIT','business_unit',(int)db()->lastInsertId(),['code'=>$code,'name'=>$name]);
+    }
+
+    public static function createLegalEntity(string $code,string $name): void
+    {
+        if(!self::tableExists('legal_entities')) throw new RuntimeException('Import the Organization Master migration first.');
+        $code=strtoupper(trim($code));$name=trim($name);
+        if($code===''||$name==='') throw new RuntimeException('Company / legal entity code and name are required.');
+        $st=db()->prepare('INSERT INTO legal_entities(code,name,active) VALUES(?,?,1)');
+        $st->execute([$code,$name]);
+        audit('Organization','CREATE_LEGAL_ENTITY','legal_entity',(int)db()->lastInsertId(),['code'=>$code,'name'=>$name]);
     }
 
     public static function createDepartment(string $code,string $name): void
@@ -136,13 +191,25 @@ final class FoundationRepository
         audit('Organization','CREATE_AREA','area',(int)db()->lastInsertId(),['code'=>$code,'name'=>$name]);
     }
 
-    public static function createBranch(string $code,string $name,string $address,?int $areaId=null): void
+    public static function createBranch(string $code,string $name,string $address,?int $areaId=null,?int $businessUnitId=null,?int $legalEntityId=null,string $siteType='RETAIL_STORE'): void
     {
-        $code=strtoupper(trim($code)); $name=trim($name); $address=trim($address);
-        if($code===''||$name==='') throw new RuntimeException('Branch code and name are required.');
-        $sql=self::tableExists('areas')?'INSERT INTO branches(client_id,area_id,code,name,address_text,active) VALUES(NULL,?,?,?,?,1)':'INSERT INTO branches(client_id,code,name,address_text,active) VALUES(NULL,?,?,?,1)';
-        $st=db()->prepare($sql);$st->execute(self::tableExists('areas')?[$areaId?:null,$code,$name,$address?:null]:[$code,$name,$address?:null]);
-        audit('Organization','CREATE_BRANCH','branch',(int)db()->lastInsertId(),['code'=>$code,'name'=>$name,'area_id'=>$areaId]);
+        $code=strtoupper(trim($code));$name=trim($name);$address=trim($address);$siteType=strtoupper(trim($siteType));
+        if($name==='') throw new RuntimeException('Branch / site name is required.');
+        if(!in_array($siteType,['RETAIL_STORE','HEAD_OFFICE','OTHER'],true)) throw new RuntimeException('Invalid site type.');
+        if($code!=='' && self::columnExists('branches','code')) {
+            $st=db()->prepare('SELECT COUNT(*) FROM branches WHERE code=?');$st->execute([$code]);
+            if((int)$st->fetchColumn()>0) throw new RuntimeException('Branch code already exists.');
+        }
+        if(self::columnExists('branches','default_business_unit_id') && self::columnExists('branches','default_legal_entity_id')) {
+            $sql='INSERT INTO branches(client_id,area_id,default_business_unit_id,default_legal_entity_id,code,name,address_text,site_type,mapping_status,active) VALUES(NULL,?,?,?,?,?,?,?,"MANUAL",1)';
+            $st=db()->prepare($sql);
+            $st->execute([$areaId?:null,$businessUnitId?:null,$legalEntityId?:null,$code!==''?$code:null,$name,$address?:null,$siteType]);
+        } else {
+            if($code==='') throw new RuntimeException('Branch code is required until the Organization Master migration is imported.');
+            $sql=self::tableExists('areas')?'INSERT INTO branches(client_id,area_id,code,name,address_text,active) VALUES(NULL,?,?,?,?,1)':'INSERT INTO branches(client_id,code,name,address_text,active) VALUES(NULL,?,?,?,1)';
+            $st=db()->prepare($sql);$st->execute(self::tableExists('areas')?[$areaId?:null,$code,$name,$address?:null]:[$code,$name,$address?:null]);
+        }
+        audit('Organization','CREATE_BRANCH','branch',(int)db()->lastInsertId(),['code'=>$code?:null,'name'=>$name,'area_id'=>$areaId,'business_unit_id'=>$businessUnitId,'legal_entity_id'=>$legalEntityId,'site_type'=>$siteType]);
     }
 
     public static function createEmploymentType(string $code,string $name): void
@@ -157,6 +224,8 @@ final class FoundationRepository
     public static function toggleMaster(string $entity,int $id): void
     {
         $map=[
+            'business_unit'=>['business_units','active'],
+            'legal_entity'=>['legal_entities','active'],
             'department'=>['departments','active'],
             'position'=>['positions','active'],
             'branch'=>['branches','active'],
