@@ -1,0 +1,12 @@
+{
+  "name": "pmbsi/hris",
+  "description": "PMBSI HRIS payroll and biometric import",
+  "type": "project",
+  "require": {
+    "php": ">=8.2",
+    "ext-pdo": "*",
+    "ext-mbstring": "*",
+    "smalot/pdfparser": "^2.12"
+  },
+  "config": {"allow-plugins": {}, "sort-packages": true}
+}

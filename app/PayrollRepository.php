@@ -81,7 +81,7 @@ final class PayrollRepository
         for($m=$startMonth;$m<=$endMonth;$m=$m->modify('+1 month')){
             foreach([4,19] as $day){
                 $periodStart=$m->setDate((int)$m->format('Y'),(int)$m->format('n'),$day);
-                $periodEnd=$day===4?$periodStart->setDate((int)$periodStart->format('Y'),(int)$periodStart->format('n'),18):$periodStart->modify('+14 days');
+                $periodEnd=$day===4?$periodStart->setDate((int)$periodStart->format('Y'),(int)$periodStart->format('n'),18):$periodStart->modify('first day of next month')->modify('+2 days');
                 self::insertCutoffPeriod($st,$periodStart,$periodEnd,$uid);
             }
         }
@@ -99,9 +99,9 @@ final class PayrollRepository
     private static function ensureCutoffForDate(string $date): void
     {
         $d=new DateTimeImmutable($date);$day=(int)$d->format('j');
-        if($day>=19){$start=$d->setDate((int)$d->format('Y'),(int)$d->format('n'),19);$end=$start->modify('+14 days');}
+        if($day>=19){$start=$d->setDate((int)$d->format('Y'),(int)$d->format('n'),19);$end=$start->modify('first day of next month')->modify('+2 days');}
         elseif($day>=4){$start=$d->setDate((int)$d->format('Y'),(int)$d->format('n'),4);$end=$d->setDate((int)$d->format('Y'),(int)$d->format('n'),18);}
-        else{$end=$d->setDate((int)$d->format('Y'),(int)$d->format('n'),3);$start=$end->modify('-14 days');}
+        else{$end=$d->setDate((int)$d->format('Y'),(int)$d->format('n'),3);$start=$end->modify('first day of previous month')->modify('+18 days');}
         $st=db()->prepare('INSERT IGNORE INTO payroll_cutoffs(code,period_start,period_end,status,created_by) VALUES(?,?,?,?,?)');
         self::insertCutoffPeriod($st,$start,$end,(int)(Auth::user()['id']??0)?:null);
     }
@@ -141,67 +141,100 @@ final class PayrollRepository
             LEFT JOIN payroll_cutoffs pc ON pc.id=pr.cutoff_id WHERE pr.id=? LIMIT 1');
         $st->execute([$id]); $r=$st->fetch(); if(!$r)return null;
         $st=db()->prepare('SELECT * FROM payroll_request_time_entries WHERE request_id=?');$st->execute([$id]);$r['time']=$st->fetch()?:[];
+        if(PayrollAttendanceService::ready()) { $st=db()->prepare('SELECT started_at,ended_at FROM payroll_request_overtime_windows WHERE request_id=?'); $st->execute([$id]); if($window=$st->fetch()) { $r['time']['ot_start_date']=substr($window['started_at'],0,10); $r['time']['ot_end_date']=substr($window['ended_at'],0,10); } }
         $st=db()->prepare('SELECT a.*,u.full_name acted_by_name,au.full_name assigned_name FROM payroll_request_approvals a LEFT JOIN users u ON u.id=a.acted_by LEFT JOIN users au ON au.id=a.approver_user_id WHERE a.request_id=? ORDER BY a.step_no');$st->execute([$id]);$r['approvals']=$st->fetchAll();
+        $r['backpay']=PayrollAttendanceService::ready()?PayrollAttendanceService::backpayRequest($id):null;
         $st=db()->prepare('SELECT h.*,u.full_name created_by_name FROM payroll_request_history h LEFT JOIN users u ON u.id=h.created_by WHERE h.request_id=? ORDER BY h.created_at,h.id');$st->execute([$id]);$r['history']=$st->fetchAll();
         $st=db()->prepare('SELECT * FROM payroll_request_attachments WHERE request_id=? ORDER BY uploaded_at');$st->execute([$id]);$r['attachments']=$st->fetchAll();
         return $r;
     }
 
-    public static function createPayrollRequest(int $employeeId,array $data,array $files=[]): int
+    public static function createPayrollRequest(int $employeeId,array $data,array $files=[],?int $revisionId=null): int
     {
         if(!self::ready()) throw new RuntimeException('Import the Phase 3A database migration first.');
-        $employee=EmployeeRepository::find($employeeId); if(!$employee)throw new RuntimeException('Employee record not found.');
-        if((int)($employee['user_id']??0)!==(int)(Auth::user()['id']??0)) throw new RuntimeException('You can only file a request for your own employee record.');
-        $typeId=(int)($data['request_type_id']??0);$st=db()->prepare('SELECT * FROM payroll_request_types WHERE id=? AND active=1');$st->execute([$typeId]);$type=$st->fetch();if(!$type)throw new RuntimeException('Choose a valid request type.');
-        $affected=self::validDate((string)($data['affected_date']??'')); if(!$affected)throw new RuntimeException('Affected date is required.');
-        $typeCode=strtoupper((string)$type['code']);
-        $purpose=trim((string)($data['purpose']??''));
-        $reason=trim((string)($data['reason']??''));
-        if(in_array($typeCode,['OB','POB'],true)){
-            if($purpose==='')throw new RuntimeException('Purpose is required for Official Business requests.');
-            // Keep the legacy NOT NULL reason column populated for compatibility; Purpose is the employee-facing source of truth for OB/POB.
-            $reason=$purpose;
-        }elseif($reason===''){
-            throw new RuntimeException('Reason is required.');
+        $employee=EmployeeRepository::find($employeeId);
+        if(!$employee || (int)($employee['user_id']??0)!==(int)(Auth::user()['id']??0)) throw new RuntimeException('You may only file for your own employee record.');
+        $st=db()->prepare('SELECT * FROM payroll_request_types WHERE id=? AND active=1'); $st->execute([(int)($data['request_type_id']??0)]); $type=$st->fetch();
+        if(!$type) throw new RuntimeException('Choose a valid request type.');
+        $affected=self::validDate((string)($data['affected_date']??'')); if(!$affected) throw new RuntimeException('Affected date is required.');
+        $code=strtoupper((string)$type['code']);
+        $automatic=PayrollAttendanceService::ready() && PayrollAttendanceService::automaticType($code);
+        $route=$automatic?PayrollAttendanceService::route($employee):['type'=>'MANAGER','user_id'=>self::managerApproverUserId($employee)];
+        if(!$route['user_id']) throw new RuntimeException('Your Manager/ADL must be configured with an active approval account.');
+        $purpose=trim((string)($data['purpose']??'')); $reason=trim((string)($data['reason']??''));
+        if(in_array($code,['OB','POB'],true)) { if($purpose==='') throw new RuntimeException('Purpose is required for Official Business.'); $reason=$purpose; }
+        elseif($reason==='') throw new RuntimeException('Reason is required.');
+        $times=array_fill_keys(['time_in','lunch_out','lunch_in','time_out','ot_start','ot_end'],null);
+        $allowed=in_array($code,['TA','PTA'],true)?PayrollCalculator::FIELDS:(in_array($code,['OT','POT'],true)?['ot_start','ot_end']:[]);
+        foreach($allowed as $f) {
+            $value=trim((string)($data[$f]??''));
+            if($value!=='') { $times[$f]=self::validTime($value); if(!$times[$f]) throw new RuntimeException('Invalid '.str_replace('_',' ',$f).'.'); }
         }
-        if((int)$type['requires_manager_approval']===1 && empty($employee['manager_employee_id']))throw new RuntimeException('Your Immediate Manager is not configured in your employee record. Ask HR to update your Reporting To assignment.');
-        $managerUserId=self::managerApproverUserId($employee);
-        if((int)$type['requires_manager_approval']===1 && !$managerUserId)throw new RuntimeException('Your assigned Immediate Manager must have an active HRIS Manager account with approval access.');
-        $st=db()->prepare('SELECT COUNT(*) FROM payroll_requests WHERE employee_id=? AND request_type_id=? AND affected_date=? AND status NOT IN ("REJECTED","CANCELLED","COMPLETED")');$st->execute([$employeeId,$typeId,$affected]);if((int)$st->fetchColumn()>0)throw new RuntimeException('You already have an active request of this type for the selected date.');
+        if(in_array($code,['TA','PTA'],true) && !array_filter($times)) throw new RuntimeException('Enter at least one punch to correct.');
+        if(in_array($code,['OT','POT'],true) && (!$times['ot_start']||!$times['ot_end']||$times['ot_start']===$times['ot_end'])) throw new RuntimeException('Enter different OT start/end times. An earlier end means next day.');
         $cutoffId=null;
-        if(strtoupper((string)$type['category'])!=='LEAVE'){
-            $selectedCutoffId=(int)($data['cutoff_id']??0);
-            $autoCutoff=self::cutoffForDate($affected);
-            if(!$autoCutoff)throw new RuntimeException('No payroll cutoff could be determined for the selected affected date.');
-            if($selectedCutoffId>0){
-                $st=db()->prepare('SELECT * FROM payroll_cutoffs WHERE id=? LIMIT 1');$st->execute([$selectedCutoffId]);$selected=$st->fetch();
-                if(!$selected)throw new RuntimeException('Choose a valid payroll cutoff.');
-                if($affected<(string)$selected['period_start']||$affected>(string)$selected['period_end'])throw new RuntimeException('The selected payroll cutoff does not cover the affected date. Choose a date within that cutoff or use the automatically matched cutoff.');
-                $cutoffId=(int)$selected['id'];
-            }else{$cutoffId=(int)$autoCutoff['id'];}
+        if(strtoupper((string)$type['category'])!=='LEAVE') {
+            $cutoff=self::cutoffForDate($affected); if(!$cutoff) throw new RuntimeException('Cutoff could not be determined.');
+            $selected=(int)($data['cutoff_id']??0);
+            if($selected>0) { $st=db()->prepare('SELECT * FROM payroll_cutoffs WHERE id=?'); $st->execute([$selected]); $cutoff=$st->fetch(); if(!$cutoff||$affected<$cutoff['period_start']||$affected>$cutoff['period_end']) throw new RuntimeException('The selected cutoff must cover the affected date.'); }
+            $cutoffId=(int)$cutoff['id'];
         }
-        if((int)$type['requires_attachment']===1 && !self::hasUpload($files)) throw new RuntimeException('This request type requires at least one supporting attachment.');
-        $uid=(int)(Auth::user()['id']??0);
+        $claimCutoffId=null;
+        if($automatic && in_array($code,['POB','POT'],true) && $cutoffId && PayrollAttendanceService::run($cutoffId)['run_state']==='FINALIZED') {
+            $claimCutoffId=(int)($data['backpay_cutoff_id']??0);
+            if(!$claimCutoffId) throw new RuntimeException('Choose an open payout cutoff for this claim from a finalized period.');
+            $target=PayrollAttendanceService::run($claimCutoffId);
+            if($target['period_start']<=$affected) throw new RuntimeException('The payout cutoff must start after the historical affected date.');
+        }
+        $uid=(int)Auth::user()['id'];
         db()->beginTransaction();
-        try{
-            $no=self::nextRequestNo('PTR','payroll_requests');
-            $status=(int)$type['requires_manager_approval']===1?'FOR_MANAGER_APPROVAL':self::statusForApprover((string)$type['second_approver_group']);
-            $step=(int)$type['requires_manager_approval']===1?1:1;
-            $st=db()->prepare('INSERT INTO payroll_requests(request_no,employee_id,request_type_id,cutoff_id,affected_date,status,current_step,reason,remarks,submitted_at,created_by) VALUES(?,?,?,?,?,?,?,?,?,NOW(),?)');
-            $st->execute([$no,$employeeId,$typeId,$cutoffId,$affected,$status,$step,$reason,trim((string)($data['remarks']??''))?:null,$uid]);
-            $id=(int)db()->lastInsertId();
-            $st=db()->prepare('INSERT INTO payroll_request_time_entries(request_id,time_in,lunch_out,lunch_in,time_out,ot_start,ot_end,destination,purpose,original_rest_day,new_rest_day) VALUES(?,?,?,?,?,?,?,?,?,?,?)');
-            $st->execute([$id,self::validTime($data['time_in']??''),self::validTime($data['lunch_out']??''),self::validTime($data['lunch_in']??''),self::validTime($data['time_out']??''),self::validTime($data['ot_start']??''),self::validTime($data['ot_end']??''),trim((string)($data['destination']??''))?:null,$purpose?:null,self::validDate((string)($data['original_rest_day']??'')),self::validDate((string)($data['new_rest_day']??''))]);
-            $stepNo=1;
-            if((int)$type['requires_manager_approval']===1){$st=db()->prepare('INSERT INTO payroll_request_approvals(request_id,step_no,approver_type,approver_user_id,status) VALUES(?,?,?,?,"PENDING")');$st->execute([$id,$stepNo++,'MANAGER',$managerUserId]);}
-            $second=trim((string)$type['second_approver_group']);if($second!==''){$st=db()->prepare('INSERT INTO payroll_request_approvals(request_id,step_no,approver_type,status) VALUES(?,?,?,"PENDING")');$st->execute([$id,$stepNo++,$second]);}
-            if((int)$type['requires_payroll_processing']===1){$st=db()->prepare('INSERT INTO payroll_request_approvals(request_id,step_no,approver_type,status) VALUES(?,?,"PAYROLL","PENDING")');$st->execute([$id,$stepNo++]);}
-            self::addPayrollHistory($id,$status,'Request submitted.',$uid);
+        try {
+            if(PayrollAttendanceService::ready() && $cutoffId) { $actionCutoff=$claimCutoffId??$cutoffId; PayrollAttendanceService::lockOpen($actionCutoff); PayrollAttendanceService::assertTicketAllowed(['id'=>$actionCutoff]); }
+            // Lock the employee to serialize duplicate filing and revisions.
+            db()->prepare('SELECT id FROM employees WHERE id=? FOR UPDATE')->execute([$employeeId]);
+            $old=null;
+            if($revisionId) {
+                $st=db()->prepare('SELECT * FROM payroll_requests WHERE id=? FOR UPDATE'); $st->execute([$revisionId]); $old=$st->fetch();
+                if(!$old || (int)$old['employee_id']!==$employeeId || $old['status']!=='RETURNED_FOR_REVISION') throw new RuntimeException('Only your returned request can be revised.');
+                if((int)$old['request_type_id']!==(int)$type['id'] || $old['affected_date']!==$affected) throw new RuntimeException('Keep the request type and affected date when revising.');
+            }
+            $st=db()->prepare('SELECT COUNT(*) FROM payroll_requests WHERE employee_id=? AND request_type_id=? AND affected_date=? AND id<>? AND status NOT IN ("REJECTED","CANCELLED")'); $st->execute([$employeeId,$type['id'],$affected,$revisionId??0]);
+            if((int)$st->fetchColumn()) throw new RuntimeException('A request of this type already exists for this date. Open that request.');
+            $st=db()->prepare('SELECT COUNT(*) FROM payroll_request_attachments WHERE request_id=?'); $st->execute([$revisionId??0]);
+            if((int)$type['requires_attachment']===1 && !self::hasUpload($files) && !(int)$st->fetchColumn()) throw new RuntimeException('Attach supporting evidence.');
+            $status=$route['type']==='ADL'?'FOR_ADL_APPROVAL':'FOR_MANAGER_APPROVAL'; $step=1;
+            if($old) {
+                $id=$revisionId;
+                $st=db()->prepare('SELECT COALESCE(MAX(step_no),0)+1 FROM payroll_request_approvals WHERE request_id=?'); $st->execute([$id]); $step=(int)$st->fetchColumn();
+                db()->prepare('UPDATE payroll_request_approvals SET status="SKIPPED" WHERE request_id=? AND status="PENDING"')->execute([$id]);
+                db()->prepare('UPDATE payroll_requests SET cutoff_id=?,status=?,current_step=?,reason=?,remarks=?,submitted_at=NOW(),completed_at=NULL WHERE id=?')->execute([$cutoffId,$status,$step,$reason,trim((string)($data['remarks']??''))?:null,$id]);
+                self::addPayrollHistory($id,$status,'Returned request revised and resubmitted; previous approval decisions retained.',$uid);
+            } else {
+                $no=self::nextRequestNo('PTR','payroll_requests');
+                db()->prepare('INSERT INTO payroll_requests(request_no,employee_id,request_type_id,cutoff_id,affected_date,status,current_step,reason,remarks,submitted_at,created_by) VALUES(?,?,?,?,?,?,?,?,?,NOW(),?)')->execute([$no,$employeeId,$type['id'],$cutoffId,$affected,$status,$step,$reason,trim((string)($data['remarks']??''))?:null,$uid]); $id=(int)db()->lastInsertId();
+                self::addPayrollHistory($id,$status,'Request submitted.',$uid);
+            }
+            db()->prepare('INSERT INTO payroll_request_time_entries(request_id,time_in,lunch_out,lunch_in,time_out,ot_start,ot_end,destination,purpose,original_rest_day,new_rest_day) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE time_in=VALUES(time_in),lunch_out=VALUES(lunch_out),lunch_in=VALUES(lunch_in),time_out=VALUES(time_out),ot_start=VALUES(ot_start),ot_end=VALUES(ot_end),destination=VALUES(destination),purpose=VALUES(purpose),original_rest_day=VALUES(original_rest_day),new_rest_day=VALUES(new_rest_day)')->execute([$id,$times['time_in'],$times['lunch_out'],$times['lunch_in'],$times['time_out'],$times['ot_start'],$times['ot_end'],in_array($code,['OB','POB'],true)?(trim((string)($data['destination']??''))?:null):null,$purpose?:null,self::validDate((string)($data['original_rest_day']??'')),self::validDate((string)($data['new_rest_day']??''))]);
+            if($claimCutoffId) db()->prepare('INSERT INTO payroll_backpay_claims(request_id,processing_cutoff_id) VALUES(?,?) ON DUPLICATE KEY UPDATE processing_cutoff_id=VALUES(processing_cutoff_id),state="AWAITING_APPROVAL",amount=NULL,snapshot_json=NULL')->execute([$id,$claimCutoffId]);
+            if($automatic && in_array($code,['OT','POT'],true)) {
+                $site=PayrollAttendanceService::site((int)$employee['branch_id']);
+                $startDate=trim((string)($data['ot_start_date']??''));
+                $endDate=trim((string)($data['ot_end_date']??''));
+                $startAt=$startDate!==''?new DateTimeImmutable(PayrollAttendanceService::date($startDate).' '.$times['ot_start']):new DateTimeImmutable(PayrollCalculator::correctionTime($affected,$times['ot_start'],$site));
+                $endAt=$endDate!==''?new DateTimeImmutable(PayrollAttendanceService::date($endDate).' '.$times['ot_end']):new DateTimeImmutable($startAt->format('Y-m-d').' '.$times['ot_end']);
+                if($endDate==='' && $endAt<=$startAt) $endAt=$endAt->modify('+1 day');
+                if($startAt->format('Y-m-d')<$affected || $startAt->format('Y-m-d')>(new DateTimeImmutable($affected))->modify('+1 day')->format('Y-m-d') || $endAt<=$startAt || $endAt->getTimestamp()-$startAt->getTimestamp()>86400) throw new RuntimeException('OT dates must cover at most 24 hours, starting on the affected date or its overnight next day.');
+                db()->prepare('INSERT INTO payroll_request_overtime_windows(request_id,started_at,ended_at) VALUES(?,?,?) ON DUPLICATE KEY UPDATE started_at=VALUES(started_at),ended_at=VALUES(ended_at)')->execute([$id,$startAt->format('Y-m-d H:i:s'),$endAt->format('Y-m-d H:i:s')]);
+            }
+            db()->prepare('INSERT INTO payroll_request_approvals(request_id,step_no,approver_type,approver_user_id,status) VALUES(?,?,?,?,"PENDING")')->execute([$id,$step,$route['type'],$route['user_id']]);
+            if(!$automatic) {
+                $second=trim((string)$type['second_approver_group']);
+                if($second!=='') db()->prepare('INSERT INTO payroll_request_approvals(request_id,step_no,approver_type,status) VALUES(?,?,?,"PENDING")')->execute([$id,++$step,$second]);
+                if((int)$type['requires_payroll_processing']===1) db()->prepare('INSERT INTO payroll_request_approvals(request_id,step_no,approver_type,status) VALUES(?,?,"PAYROLL","PENDING")')->execute([$id,++$step]);
+            }
             if(self::hasUpload($files)) self::storePayrollAttachments($id,$files,$uid);
-            db()->commit();
-        }catch(Throwable $e){if(db()->inTransaction())db()->rollBack();throw $e;}
-        audit('Payroll & Timekeeping','SUBMIT_REQUEST','payroll_request',$id,['request_no'=>$no,'type'=>$type['code']]);
-        return $id;
+            audit('Payroll & Timekeeping',$old?'RESUBMIT_REQUEST':'SUBMIT_REQUEST','payroll_request',$id,['type'=>$code,'approver_type'=>$route['type']]); db()->commit(); return $id;
+        } catch(Throwable $e) { if(db()->inTransaction()) db()->rollBack(); throw $e; }
     }
 
     public static function managerQueue(): array
@@ -209,7 +242,7 @@ final class PayrollRepository
         if(!self::ready())return [];$uid=(int)(Auth::user()['id']??0);
         $st=db()->prepare('SELECT pr.id,pr.request_no,pr.affected_date,pr.status,pr.created_at,prt.name type_name,e.employee_no,e.first_name,e.last_name,b.name branch_name
             FROM payroll_request_approvals a JOIN payroll_requests pr ON pr.id=a.request_id JOIN payroll_request_types prt ON prt.id=pr.request_type_id JOIN employees e ON e.id=pr.employee_id LEFT JOIN branches b ON b.id=e.branch_id
-            WHERE a.approver_type="MANAGER" AND a.status="PENDING" AND a.approver_user_id=? AND pr.current_step=a.step_no ORDER BY pr.created_at');
+            WHERE a.approver_type IN ("MANAGER","ADL") AND a.status="PENDING" AND a.approver_user_id=? AND pr.current_step=a.step_no ORDER BY pr.created_at');
         $st->execute([$uid]);return $st->fetchAll();
     }
 
@@ -226,7 +259,7 @@ final class PayrollRepository
             JOIN payroll_request_types prt ON prt.id=pr.request_type_id
             JOIN employees e ON e.id=pr.employee_id
             LEFT JOIN branches b ON b.id=e.branch_id
-            WHERE a.approver_type="MANAGER" AND a.acted_by=?
+            WHERE a.approver_type IN ("MANAGER","ADL") AND a.acted_by=?
               AND a.status IN ("APPROVED","REJECTED","RETURNED")
             ORDER BY a.acted_at DESC,a.id DESC LIMIT '.$limit;
         $st=db()->prepare($sql);$st->execute([$uid]);return $st->fetchAll();
@@ -274,30 +307,41 @@ final class PayrollRepository
 
     public static function decidePayroll(int $requestId,string $decision,string $remarks=''): void
     {
-        $decision=strtoupper(trim($decision));if(!in_array($decision,['APPROVE','REJECT','RETURN'],true))throw new RuntimeException('Invalid decision.');
-        $remarks=trim($remarks);
-        if(in_array($decision,['REJECT','RETURN'],true) && $remarks==='')throw new RuntimeException('Remarks are required when returning or rejecting a request.');
-        $req=self::payrollRequest($requestId);if(!$req)throw new RuntimeException('Request not found.');
-        $step=(int)$req['current_step'];$st=db()->prepare('SELECT * FROM payroll_request_approvals WHERE request_id=? AND step_no=? AND status="PENDING" LIMIT 1');$st->execute([$requestId,$step]);$approval=$st->fetch();if(!$approval)throw new RuntimeException('This request is not awaiting approval at the current step.');
-        $uid=(int)(Auth::user()['id']??0);$type=(string)$approval['approver_type'];
-        if($type==='MANAGER' && (int)($approval['approver_user_id']??0)!==$uid)throw new RuntimeException('This request is assigned to another manager.');
-        if($type==='HR_TIMEKEEPING' && !Auth::can('payroll.approve_hr'))throw new RuntimeException('You do not have HR Timekeeping approval permission.');
-        if($type==='PAYROLL' && !Auth::can('payroll.process'))throw new RuntimeException('You do not have Payroll processing permission.');
-        db()->beginTransaction();try{
-            $newApproval=$decision==='APPROVE'?'APPROVED':($decision==='RETURN'?'RETURNED':'REJECTED');
-            $st=db()->prepare('UPDATE payroll_request_approvals SET status=?,remarks=?,acted_by=?,acted_at=NOW() WHERE id=?');$st->execute([$newApproval,$remarks?:null,$uid,$approval['id']]);
-            if($decision==='RETURN'){$newStatus='RETURNED_FOR_REVISION';$nextStep=$step;}
-            elseif($decision==='REJECT'){$newStatus='REJECTED';$nextStep=$step;}
-            else{
-                $st=db()->prepare('SELECT step_no,approver_type FROM payroll_request_approvals WHERE request_id=? AND step_no>? AND status="PENDING" ORDER BY step_no LIMIT 1');$st->execute([$requestId,$step]);$next=$st->fetch();
-                if($next){$nextStep=(int)$next['step_no'];$newStatus=self::statusForApprover((string)$next['approver_type']);}
-                else{$nextStep=$step;$newStatus='COMPLETED';}
+        if(!Auth::check()) throw new RuntimeException('Sign in first.');
+        $decision=strtoupper(trim($decision)); $remarks=trim($remarks);
+        if(!in_array($decision,['APPROVE','REJECT','RETURN'],true)) throw new RuntimeException('Invalid decision.');
+        if($decision!=='APPROVE' && $remarks==='') throw new RuntimeException('Explain a return or rejection.');
+        $req=self::payrollRequest($requestId); if(!$req) throw new RuntimeException('Request not found.');
+        db()->beginTransaction();
+        try {
+            if(PayrollAttendanceService::ready() && $req['cutoff_id']) { $claim=PayrollAttendanceService::backpayRequest($requestId); $actionCutoff=(int)($claim['processing_cutoff_id']??$req['cutoff_id']); PayrollAttendanceService::lockOpen($actionCutoff); }
+            $st=db()->prepare('SELECT * FROM payroll_requests WHERE id=? FOR UPDATE'); $st->execute([$requestId]); $fresh=$st->fetch();
+            $step=(int)$fresh['current_step'];
+            $st=db()->prepare('SELECT * FROM payroll_request_approvals WHERE request_id=? AND step_no=? AND status="PENDING" FOR UPDATE'); $st->execute([$requestId,$step]); $approval=$st->fetch();
+            if(!$approval) throw new RuntimeException('This request is no longer awaiting your decision.');
+            $uid=(int)Auth::user()['id']; $type=$approval['approver_type'];
+            $permission=match($type) {'MANAGER'=>'payroll.approve_manager','ADL'=>'payroll.approve_adl','HR_TIMEKEEPING'=>'payroll.approve_hr','PAYROLL'=>'payroll.process',default=>throw new RuntimeException('Unknown approval stage.')};
+            if(!Auth::can($permission)) throw new RuntimeException('You do not have approval permission.');
+            if(in_array($type,['MANAGER','ADL'],true) && ((int)$approval['approver_user_id']!==$uid || (int)$req['created_by']===$uid)) throw new RuntimeException('This request is assigned to another approver.');
+            $auto=PayrollAttendanceService::ready() && PayrollAttendanceService::automaticType($req['type_code']);
+            if($auto && $req['cutoff_id'] && $decision==='APPROVE') PayrollAttendanceService::assertTicketAllowed(['id'=>$actionCutoff]);
+            $newApproval=match($decision) {'APPROVE'=>'APPROVED','RETURN'=>'RETURNED',default=>'REJECTED'};
+            db()->prepare('UPDATE payroll_request_approvals SET status=?,remarks=?,acted_by=?,acted_at=NOW() WHERE id=?')->execute([$newApproval,$remarks?:null,$uid,$approval['id']]);
+            $nextStep=$step;
+            if($decision==='RETURN') $newStatus='RETURNED_FOR_REVISION';
+            elseif($decision==='REJECT') $newStatus='REJECTED';
+            elseif($auto && in_array($type,['MANAGER','ADL'],true)) {
+                db()->prepare('UPDATE payroll_request_approvals SET status="SKIPPED",remarks="Manager/ADL is the final approver under the biometric payroll workflow." WHERE request_id=? AND step_no>? AND status="PENDING"')->execute([$requestId,$step]);
+                $newStatus='APPROVED';
+            } else {
+                $st=db()->prepare('SELECT step_no,approver_type FROM payroll_request_approvals WHERE request_id=? AND step_no>? AND status="PENDING" ORDER BY step_no LIMIT 1'); $st->execute([$requestId,$step]); $next=$st->fetch();
+                if($next) { $nextStep=(int)$next['step_no']; $newStatus=self::statusForApprover($next['approver_type']); } else $newStatus='COMPLETED';
             }
-            $st=db()->prepare('UPDATE payroll_requests SET status=?,current_step=?,completed_at=? WHERE id=?');$st->execute([$newStatus,$nextStep,$newStatus==='COMPLETED'?date('Y-m-d H:i:s'):null,$requestId]);
+            db()->prepare('UPDATE payroll_requests SET status=?,current_step=?,completed_at=? WHERE id=?')->execute([$newStatus,$nextStep,in_array($newStatus,['APPROVED','COMPLETED'],true)?date('Y-m-d H:i:s'):null,$requestId]);
             self::addPayrollHistory($requestId,$newStatus,$remarks?:stage_label($newApproval).'.',$uid);
-            db()->commit();
-        }catch(Throwable $e){if(db()->inTransaction())db()->rollBack();throw $e;}
-        audit('Payroll & Timekeeping','APPROVAL_'.$decision,'payroll_request',$requestId,['step'=>$step,'approver_type'=>$type]);
+            if($auto) PayrollAttendanceService::afterApproval($requestId);
+            audit('Payroll & Timekeeping','APPROVAL_'.$decision,'payroll_request',$requestId,['step'=>$step,'approver_type'=>$type]); db()->commit();
+        } catch(Throwable $e) { if(db()->inTransaction()) db()->rollBack(); throw $e; }
     }
 
     public static function leaveTypes(): array
@@ -415,7 +459,7 @@ final class PayrollRepository
 
     private static function validTime(mixed $v): ?string
     {
-        $v=trim((string)$v);if($v==='')return null;if(preg_match('/^([01]\d|2[0-3]):[0-5]\d$/',$v))return $v.':00';return null;
+        $v=trim((string)$v);if($v==='')return null;if(preg_match('/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/',$v))return strlen($v)===5?$v.':00':$v;return null;
     }
 
     private static function managerApproverUserId(array $employee): ?int

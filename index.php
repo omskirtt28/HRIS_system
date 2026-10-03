@@ -14,6 +14,10 @@ function need_db(): void {
     exit;
 }
 
+require_once __DIR__.'/app/PayrollModule.php';
+payroll_post_action();
+payroll_render($page);
+
 // -------- actions --------
 if ($page === 'logout') { Auth::logout(); redirect('home'); }
 
@@ -127,6 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $id=PayrollRepository::createPayrollRequest((int)$employee['id'],[
                 'request_type_id'=>(int)($_POST['request_type_id']??0),
                 'cutoff_id'=>(int)($_POST['cutoff_id']??0),
+                'backpay_cutoff_id'=>(int)($_POST['backpay_cutoff_id']??0),
                 'affected_date'=>(string)($_POST['affected_date']??''),
                 'reason'=>(string)($_POST['reason']??''),
                 'remarks'=>(string)($_POST['remarks']??''),
@@ -135,12 +140,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'lunch_in'=>(string)($_POST['lunch_in']??''),
                 'time_out'=>(string)($_POST['time_out']??''),
                 'ot_start'=>(string)($_POST['ot_start']??''),
+                'ot_start_date'=>(string)($_POST['ot_start_date']??''),'ot_end_date'=>(string)($_POST['ot_end_date']??''),
                 'ot_end'=>(string)($_POST['ot_end']??''),
                 'destination'=>(string)($_POST['destination']??''),
                 'purpose'=>(string)($_POST['purpose']??''),
                 'original_rest_day'=>(string)($_POST['original_rest_day']??''),
                 'new_rest_day'=>(string)($_POST['new_rest_day']??''),
-            ],$_FILES['attachments']??[]);
+            ],$_FILES['attachments']??[], !empty($_POST['revision_id'])?(int)$_POST['revision_id']:null);
+            unset($_SESSION['payroll_request_old']);
             flash('success','Payroll & Timekeeping request submitted successfully.');
             redirect('payroll-request',['id'=>$id]);
         }
@@ -346,6 +353,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('success','Employee document deleted.'); redirect('hr-employee',['id'=>$id,'tab'=>'documents']);
         }
     } catch(Throwable $e) {
+        if($action==='create_payroll_request') $_SESSION['payroll_request_old']=$_POST;
         flash('error',$e->getMessage());
         $defaultBack = match($action) {
             'create_business_unit','create_legal_entity','create_department','create_position','create_area','create_branch','create_employment_type','toggle_master' => 'admin-organization',
@@ -361,6 +369,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             default => 'home',
         };
         $back=(string)($_POST['return_page']??$defaultBack); $params=[]; if(!empty($_POST['return_id']))$params['id']=(int)$_POST['return_id']; if(!empty($_POST['return_tab']))$params['tab']=(string)$_POST['return_tab'];
+        if($action==='create_payroll_request' && !empty($_POST['revision_id'])) $params['revision']=(int)$_POST['revision_id'];
         redirect($back,$params);
     }
 }
@@ -569,7 +578,7 @@ if ($page === 'payroll-request') {
     $id=(int)($_GET['id']??0); $r=PayrollRepository::payrollRequest($id); if(!$r){http_response_code(404);exit('Request not found');}
     $uid=(int)(Auth::user()['id']??0);
     $employee=PayrollRepository::currentEmployee(); $own=$employee && (int)$employee['id']===(int)$r['employee_id'];
-    $canManager=false; foreach($r['approvals'] as $a){if($a['approver_type']==='MANAGER' && (int)($a['approver_user_id']??0)===$uid){$canManager=true;break;}}
+    $canManager=false; foreach($r['approvals'] as $a){if(in_array($a['approver_type'],['MANAGER','ADL'],true) && (int)($a['approver_user_id']??0)===$uid){$canManager=true;break;}}
     $canHr=Auth::can('payroll.approve_hr')||Auth::can('payroll.process')||Auth::is('SUPER_ADMIN','HRIS_ADMIN');
     if(!$own&&!$canManager&&!$canHr){http_response_code(403);exit('Access denied');}
 
@@ -580,7 +589,7 @@ if ($page === 'payroll-request') {
     $canAct=false;
     if($currentApproval){
         $atype=(string)$currentApproval['approver_type'];
-        if($atype==='MANAGER')$canAct=(int)($currentApproval['approver_user_id']??0)===$uid;
+        if(in_array($atype,['MANAGER','ADL'],true))$canAct=(int)($currentApproval['approver_user_id']??0)===$uid && Auth::can($atype==='ADL'?'payroll.approve_adl':'payroll.approve_manager');
         elseif($atype==='HR_TIMEKEEPING')$canAct=Auth::can('payroll.approve_hr');
         elseif($atype==='PAYROLL')$canAct=Auth::can('payroll.process');
     }
@@ -589,7 +598,7 @@ if ($page === 'payroll-request') {
     $kind=in_array($rolePortal,['hr','admin'],true)?'hr':'employee';
     if(!$own && $canManager){$backPage='manager-approvals';$active='manager-approvals';$crumb='My Team / Approvals';}
     elseif($currentApproval && (string)$currentApproval['approver_type']==='PAYROLL' && Auth::can('payroll.process')){$backPage='hr-payroll-processing';$active='hr-payroll-processing';$crumb='Payroll / Processing';}
-    elseif(!$own && $canHr){$backPage='hr-timekeeping';$active='hr-timekeeping';$crumb='HR Portal / Timekeeping';}
+    elseif(!$own && $canHr){$backPage=PayrollAttendanceService::ready()?'payroll-cutoff':'hr-timekeeping';$active=$backPage;$crumb='HR Portal / Timekeeping';}
     else{$backPage='employee-requests';$active='employee-requests';$crumb='Employee Self-Service / Requests';}
 
     render_portal_header($kind,$active,'Request '.$r['request_no']);
@@ -647,7 +656,7 @@ if ($page === 'payroll-request') {
           <?php
             $t=$r['time'];
             $fields=[
-              'time_in'=>['Time In','time'],'lunch_out'=>['Lunch Out','time'],'lunch_in'=>['Lunch In','time'],'time_out'=>['Time Out','time'],
+              'ot_start_date'=>['OT Start Date','date'],'ot_end_date'=>['OT End Date','date'],'time_in'=>['Time In','time'],'lunch_out'=>['Lunch Out','time'],'lunch_in'=>['Lunch In','time'],'time_out'=>['Time Out','time'],
               'ot_start'=>['OT Start','time'],'ot_end'=>['OT End','time'],'destination'=>['Destination / Location','text'],'purpose'=>['Purpose','text'],
               'original_rest_day'=>['Original Rest Day','date'],'new_rest_day'=>['New Rest Day','date']
             ];
@@ -682,6 +691,14 @@ if ($page === 'payroll-request') {
       </div>
     </section>
 
+    <?php if(!empty($r['backpay'])):?><section class="panel payroll-section"><div class="panel-head"><div><h2>Previous unpaid claim</h2><p>Payout cutoff: <?=e($r['backpay']['payout_start'].' to '.$r['backpay']['payout_end'])?>. Affected date stays <?=e($r['affected_date'])?>.</p></div><span class="badge gray"><?=e(stage_label($r['backpay']['state']))?></span></div><div class="panel-body"><strong>Additional amount: <?=payroll_amount($r['backpay']['amount'])?></strong><p><?=e($r['backpay']['note']??'Waiting for final approval.')?></p></div></section><?php endif;?>
+    <?php if($own && $r['status']==='RETURNED_FOR_REVISION'):?>
+    <section class="panel payroll-section"><div class="panel-body"><p>This request was returned. Revise and resubmit the same ticket; existing evidence and approval history stay attached.</p><a class="btn primary" href="<?=url('employee-request-new',['revision'=>$r['id']])?>">Revise and resubmit</a></div></section>
+    <?php endif;?>
+    <?php if(PayrollAttendanceService::ready() && PayrollAttendanceService::automaticType($r['type_code'])):
+        $application=db()->prepare('SELECT application_state,note FROM payroll_request_applications WHERE request_id=?'); $application->execute([$r['id']]); $application=$application->fetch(); ?>
+    <section class="panel payroll-section"><div class="panel-head"><div><h2>Attendance application</h2><p><?=e($application['note']??'Approval and attendance application are tracked separately.')?></p></div><span class="badge gray"><?=e(stage_label($application['application_state']??'Awaiting approval'))?></span></div></section>
+    <?php endif;?>
     <?php if($canAct && $currentApproval):?>
     <section class="panel phase3a-section phase3a-decision-panel">
       <div class="panel-head"><div><h2><?=e(stage_label($currentApproval['approver_type']))?> review</h2><p>Review all request details and supporting evidence before recording your decision.</p></div><span class="badge amber">Action required</span></div>
@@ -747,7 +764,7 @@ if ($page === 'employee-dashboard') {
     render_portal_header('employee',$page,'Employee Home');
     dashboard_hero('Employee self-service','Good morning, '.explode(' ',trim((string)$u['name']))[0].'.','Here is your personal HR workspace for today.'); ?>
     <div class="employee-focus">
-      <section class="panel today-card"><div class="panel-head"><div><h2>Today</h2><p><?=e(date('l · F j, Y'))?></p></div><span class="status-pill">Attendance</span></div><div class="today-time"><div><div class="big phase3a-no-time">No time record yet</div><div class="smallline">Attendance & scheduling records will connect here in Phase 3B.</div></div><div style="text-align:right"><div class="smallline">Work location</div><strong style="font-size:13px"><?=e($employee['branch_name']??'Not assigned')?></strong></div></div></section>
+      <section class="panel today-card"><div class="panel-head"><div><h2>Today</h2><p><?=e(date('l · F j, Y'))?></p></div><span class="status-pill">Attendance</span></div><div class="today-time"><div><div class="big phase3a-no-time"><a href="<?=url('employee-attendance')?>">My Attendance</a></div><div class="smallline">View imported punches and approved corrections in My Attendance.</div></div><div style="text-align:right"><div class="smallline">Work location</div><strong style="font-size:13px"><?=e($employee['branch_name']??'Not assigned')?></strong></div></div></section>
       <section class="panel"><div class="panel-head"><div><h2>Leave balance</h2><p>Available credits</p></div><a class="panel-link" href="<?=url('employee-leave')?>">View details</a></div><div class="panel-body"><?php if(!$employee):?><div class="empty phase3a-dashboard-empty">Link your Employee 201 File to view leave credits.</div><?php elseif(!$displayBalances):?><div class="empty phase3a-dashboard-empty">No leave credits have been assigned yet.</div><?php else:?><div class="balance-grid"><?php foreach($displayBalances as $b):?><div class="balance-card"><strong><?=number_format((float)$b['balance'],2)?></strong><span><?=e($b['name'])?></span><?php if((float)$b['pending']>0):?><small><?=number_format((float)$b['pending'],2)?> pending</small><?php endif;?></div><?php endforeach;?></div><?php endif;?></div></section>
     </div>
     <div class="dashboard-grid equal">
@@ -763,7 +780,7 @@ if ($page === 'employee-requests') {
     render_portal_header('employee',$page,'Payroll & Timekeeping');
     page_head('Employee Self-Service / Requests','Payroll & Timekeeping','<a class="btn primary" href="'.url('employee-request-new').'">'.icon_svg('plus').' New request</a>'); ?>
     <?php if(!PayrollRepository::ready()):?><div class="alert error">Phase 3A database migration is required before Payroll & Timekeeping Requests can be used.</div><?php elseif(!$employee):?><div class="alert error">Your account is not linked to an Employee 201 File. Ask HR to link your user account under Employee → Employment before filing requests.</div><?php endif;?>
-    <div class="phase3a-summary-grid"><div class="phase3a-summary-card"><span>All requests</span><strong><?=count($requests)?></strong></div><div class="phase3a-summary-card"><span>Pending approval</span><strong><?=count(array_filter($requests,fn($x)=>str_contains((string)$x['status'],'FOR_')))?></strong></div><div class="phase3a-summary-card"><span>Completed</span><strong><?=count(array_filter($requests,fn($x)=>$x['status']==='COMPLETED'))?></strong></div></div>
+    <div class="phase3a-summary-grid"><div class="phase3a-summary-card"><span>All requests</span><strong><?=count($requests)?></strong></div><div class="phase3a-summary-card"><span>Pending approval</span><strong><?=count(array_filter($requests,fn($x)=>str_contains((string)$x['status'],'FOR_')))?></strong></div><div class="phase3a-summary-card"><span>Completed</span><strong><?=count(array_filter($requests,fn($x)=>in_array($x['status'],['APPROVED','COMPLETED'],true)))?></strong></div></div>
     <section class="panel"><div class="panel-head"><div><h2>My requests</h2><p>Track TA, OB, OT and payroll/timekeeping adjustments.</p></div></div><div class="phase3a-table-wrap"><table class="phase3a-table"><thead><tr><th>Request</th><th>Type</th><th>Affected date</th><th>Cutoff</th><th>Status</th><th>Filed</th><th></th></tr></thead><tbody><?php if(!$requests):?><tr><td colspan="7" class="empty">No Payroll & Timekeeping requests yet.</td></tr><?php endif;foreach($requests as $r):?><tr><td><strong><?=e($r['request_no'])?></strong></td><td><?=e($r['type_name'])?></td><td><?=e(date('M j, Y',strtotime($r['affected_date'])))?></td><td><?=!empty($r['cutoff_start'])?e(date('M j',strtotime($r['cutoff_start'])).' – '.date('M j',strtotime($r['cutoff_end']))):'—'?></td><td><span class="phase3a-status"><?=e(stage_label($r['status']))?></span></td><td><?=e(date('M j, g:i A',strtotime($r['created_at'])))?></td><td><a class="btn sm" href="<?=url('payroll-request',['id'=>$r['id']])?>">View</a></td></tr><?php endforeach;?></tbody></table></div></section>
     <?php render_portal_footer(); exit;
 }
@@ -772,21 +789,38 @@ if ($page === 'employee-request-new') {
     Auth::requirePermission('payroll.request_self');
     if(!PayrollRepository::ready())throw new RuntimeException('Import the Phase 3A database migration first.');
     $employee=PayrollRepository::currentEmployee();$types=PayrollRepository::requestTypes();$cutoffs=PayrollRepository::requestCutoffs();
+    $revision=null;
+    if(!empty($_GET['revision'])) {
+        $revision=PayrollRepository::payrollRequest((int)$_GET['revision']);
+        if(!$employee || !$revision || (int)$revision['employee_id']!==(int)$employee['id'] || $revision['status']!=='RETURNED_FOR_REVISION') { http_response_code(403); exit('Only your returned request may be revised.'); }
+    }
+    $formValues=$revision?array_merge($revision,$revision['time']):[];
+    if($revision && !empty($revision['backpay'])) $formValues['backpay_cutoff_id']=$revision['backpay']['processing_cutoff_id'];
+    if(!$revision && !empty($_GET['date'])) $formValues['affected_date']=(string)$_GET['date'];
+    $formValues=array_merge($formValues,$_SESSION['payroll_request_old']??[]);
+    unset($_SESSION['payroll_request_old']);
+    $selectedCode=!empty($formValues['request_type_id'])?'':(string)($_GET['type']??($revision['type_code']??''));
+    $approverName=trim(($employee['manager_first_name']??'').' '.($employee['manager_last_name']??''));
+    if($employee && PayrollAttendanceService::ready()) {
+        try { $assigned=PayrollAttendanceService::route($employee); $aq=db()->prepare('SELECT full_name FROM users WHERE id=?'); $aq->execute([$assigned['user_id']]); $approverName=$assigned['type'].' · '.(string)$aq->fetchColumn(); }
+        catch(Throwable $e) { $approverName=$e->getMessage(); }
+    }
+
     render_portal_header('employee','employee-requests','New Payroll & Timekeeping Request');
     page_head('Employee Self-Service / Requests','New Payroll & Timekeeping Request','<a class="btn" href="'.url('employee-requests').'">Cancel</a>'); ?>
-    <?php if(!$employee):?><div class="alert error">Your account is not linked to an Employee 201 File. HR must link your account before you can file a request.</div><?php else:?><div class="phase3a-form-layout"><section class="panel"><div class="panel-head"><div><h2>Request details</h2><p>The form changes based on the request type you select.</p></div><span class="badge amber">Employee request</span></div><form method="post" enctype="multipart/form-data" class="panel-body phase3a-request-form" id="payrollRequestForm"><?=csrf_field()?><input type="hidden" name="action" value="create_payroll_request">
+    <?php if(!$employee):?><div class="alert error">Your account is not linked to an Employee 201 File. HR must link your account before you can file a request.</div><?php else:?><div class="phase3a-form-layout"><section class="panel"><div class="panel-head"><div><h2>Request details</h2><p>The form changes based on the request type you select.</p></div><span class="badge amber">Employee request</span></div><form method="post" enctype="multipart/form-data" class="panel-body phase3a-request-form" id="payrollRequestForm"><?=csrf_field()?><input type="hidden" name="action" value="create_payroll_request"><?php if($revision):?><input type="hidden" name="revision_id" value="<?=$revision['id']?>"><?php endif;?>
       <div class="phase3a-employee-banner"><span class="employee-avatar"><?=e(initials(EmployeeRepository::fullName($employee)))?></span><div><strong><?=e(EmployeeRepository::fullName($employee))?></strong><span><?=e($employee['employee_no'])?> · <?=e($employee['department_name']??'No department')?> · <?=e($employee['branch_name']??'No branch')?><?=!empty($employee['area_name'])?' · '.e($employee['area_name']):''?></span></div></div>
       <div class="phase3a-form-grid">
         <div class="field">
           <label>Request type <span class="req">*</span></label>
-          <select name="request_type_id" id="phase3aRequestType" required>
+          <select name="request_type_id" id="phase3aRequestType" required <?=$revision?'disabled':''?>>
             <option value="">Select request type</option>
-            <?php foreach($types as $t):?><option value="<?=$t['id']?>" data-code="<?=e($t['code'])?>" data-category="<?=e($t['category'])?>" data-attachment="<?=$t['requires_attachment']?>"><?=e($t['name'])?></option><?php endforeach;?>
-          </select>
+            <?php foreach($types as $t):?><option value="<?=$t['id']?>" data-code="<?=e($t['code'])?>" data-category="<?=e($t['category'])?>" data-attachment="<?=$revision&&!empty($revision['attachments'])?0:$t['requires_attachment']?>" <?=((int)($formValues['request_type_id']??0)===(int)$t['id']||$selectedCode===$t['code'])?'selected':''?>><?=e($t['name'])?></option><?php endforeach;?>
+          </select><?php if($revision):?><input type="hidden" name="request_type_id" value="<?=$revision['request_type_id']?>"><?php endif;?>
         </div>
         <div class="field">
           <label>Affected date <span class="req">*</span></label>
-          <input type="date" name="affected_date" id="phase3aAffectedDate" required>
+          <input type="date" name="affected_date" id="phase3aAffectedDate" value="<?=e($formValues['affected_date']??'')?>" <?=$revision?'readonly':''?> required>
           <small>The payroll cutoff is matched automatically from this date.</small>
         </div>
         <div class="field phase3a-cutoff-field" id="phase3aCutoffField">
@@ -801,15 +835,15 @@ if ($page === 'employee-request-new') {
           </select>
           <small id="phase3aCutoffHelp">Choose the affected date and the system will select the correct cutoff. You may also choose a previous cutoff for a missed filing.</small>
         </div>
-        <div class="field"><label>Immediate Manager</label><input value="<?=e(trim(($employee['manager_first_name']??'').' '.($employee['manager_last_name']??''))?:'Not configured')?>" readonly></div>
+        <div class="field"><label>Assigned payroll approver</label><input value="<?=e($approverName?:'Not configured')?>" readonly></div>
       </div>
-      <div class="phase3a-dynamic-block" data-block="TA PTA"><h3>Time adjustment</h3><p>Enter only the time fields that need correction.</p><div class="phase3a-time-grid"><div class="field"><label>Time In</label><input type="time" name="time_in"></div><div class="field"><label>Lunch Out</label><input type="time" name="lunch_out"></div><div class="field"><label>Lunch In</label><input type="time" name="lunch_in"></div><div class="field"><label>Time Out</label><input type="time" name="time_out"></div></div></div>
-      <div class="phase3a-dynamic-block" data-block="OT POT"><h3>Overtime details</h3><div class="phase3a-time-grid"><div class="field"><label>OT Start</label><input type="time" name="ot_start"></div><div class="field"><label>OT End</label><input type="time" name="ot_end"></div></div></div>
-      <div class="phase3a-dynamic-block" data-block="OB POB"><h3>Official business details</h3><div class="phase3a-form-grid"><div class="field"><label>Destination / Location</label><input name="destination" placeholder="Work location / destination"></div><div class="field full"><label>Purpose <span class="req">*</span></label><textarea name="purpose" id="phase3aPurpose" rows="3" placeholder="Purpose of official business"></textarea></div></div></div>
+      <div class="phase3a-dynamic-block" data-block="TA PTA"><h3>Time adjustment</h3><p>Enter only the time fields that need correction.</p><div class="phase3a-time-grid"><div class="field"><label>Time In</label><input type="time" name="time_in" value="<?=e(substr((string)($formValues['time_in']??''),0,5))?>"></div><div class="field"><label>Lunch Out</label><input type="time" name="lunch_out" value="<?=e(substr((string)($formValues['lunch_out']??''),0,5))?>"></div><div class="field"><label>Lunch In</label><input type="time" name="lunch_in" value="<?=e(substr((string)($formValues['lunch_in']??''),0,5))?>"></div><div class="field"><label>Time Out</label><input type="time" name="time_out" value="<?=e(substr((string)($formValues['time_out']??''),0,5))?>"></div></div></div>
+      <div class="phase3a-dynamic-block" data-block="POB POT"><h3>Previous unpaid claim</h3><p>If the affected cutoff is finalized, choose the open cutoff where the additional payment will be processed. Historical attendance stays locked.</p><div class="field"><label>Payout cutoff (for finalized historical periods)</label><select name="backpay_cutoff_id"><option value="">Same affected cutoff if still open</option><?php foreach($cutoffs as $c):?><option value="<?=$c['id']?>" <?=(int)($formValues['backpay_cutoff_id']??0)===(int)$c['id']?'selected':''?>><?=e($c['period_start'].' to '.$c['period_end'])?></option><?php endforeach;?></select></div></div><div class="phase3a-dynamic-block" data-block="OT POT"><h3>Overtime details</h3><p>Use actual dates for overnight OT. A blank end date with an earlier end time means next day.</p><div class="phase3a-time-grid"><div class="field"><label>OT Start Date (optional)</label><input type="date" name="ot_start_date" value="<?=e($formValues['ot_start_date']??'')?>"></div><div class="field"><label>OT End Date (optional)</label><input type="date" name="ot_end_date" value="<?=e($formValues['ot_end_date']??'')?>"></div></div><div class="phase3a-time-grid"><div class="field"><label>OT Start</label><input type="time" name="ot_start" value="<?=e(substr((string)($formValues['ot_start']??''),0,5))?>"></div><div class="field"><label>OT End</label><input type="time" name="ot_end" value="<?=e(substr((string)($formValues['ot_end']??''),0,5))?>"></div></div></div>
+      <div class="phase3a-dynamic-block" data-block="OB POB"><h3>Official business details</h3><p>Approved OB covers the scheduled day. For a missing punch only, file TA with the actual time.</p><div class="phase3a-form-grid"><div class="field"><label>Destination / Location</label><input name="destination" value="<?=e($formValues['destination']??'')?>" placeholder="Work location / destination"></div><div class="field full"><label>Purpose <span class="req">*</span></label><textarea name="purpose" id="phase3aPurpose" rows="3" placeholder="Purpose of official business"><?=e($formValues['purpose']??'')?></textarea></div></div></div>
       <div class="phase3a-dynamic-block" data-block="CHANGE_DAY_OFF"><h3>Rest day adjustment</h3><div class="phase3a-time-grid"><div class="field"><label>Original rest day</label><input type="date" name="original_rest_day"></div><div class="field"><label>New rest day</label><input type="date" name="new_rest_day"></div></div></div>
-      <div class="field" id="phase3aReasonField"><label>Reason <span class="req">*</span></label><textarea name="reason" id="phase3aReason" rows="4" required placeholder="Explain the adjustment clearly."></textarea></div><div class="field"><label id="phase3aAttachmentLabel">Supporting attachments</label><input type="file" id="phase3aAttachments" name="attachments[]" multiple accept="application/pdf,image/jpeg,image/png,image/webp"><small id="phase3aAttachmentHelp">Up to 5 files · PDF, JPG, PNG or WEBP · max 10 MB each. TA/OB evidence should be clear and readable.</small></div><div class="field"><label>Additional remarks</label><textarea name="remarks" rows="3"></textarea></div>
-      <div class="phase3a-submit-bar"><div><strong>Approval route</strong><span>Immediate Manager → HR Timekeeping<?=in_array('OT',array_column($types,'code'),true)?' → Payroll when applicable':''?></span></div><button class="btn primary" type="submit">Submit request <?=icon_svg('arrow')?></button></div>
-    </form></section><aside class="panel phase3a-help"><div class="panel-head"><div><h2>Before submitting</h2><p>Request evidence guide</p></div></div><div class="panel-body"><div class="phase3a-help-item"><strong>Time Adjustment</strong><span>CCTV / attendance proof for Time In or Time Out. Verified logbook for lunch corrections.</span></div><div class="phase3a-help-item"><strong>Official Business</strong><span>Attach a clear Travel Report or supporting OB document.</span></div><div class="phase3a-help-item"><strong>Approval</strong><span>Your manager approves first. HR Timekeeping receives the request only after manager approval.</span></div></div></aside></div>
+      <div class="field" id="phase3aReasonField"><label>Reason <span class="req">*</span></label><textarea name="reason" id="phase3aReason" rows="4" required placeholder="Explain the adjustment clearly."><?=e($formValues['reason']??'')?></textarea></div><div class="field"><label id="phase3aAttachmentLabel">Supporting attachments</label><input type="file" id="phase3aAttachments" name="attachments[]" multiple accept="application/pdf,image/jpeg,image/png,image/webp"><small id="phase3aAttachmentHelp">Up to 5 files · PDF, JPG, PNG or WEBP · max 10 MB each. TA/OB evidence should be clear and readable.</small></div><div class="field"><label>Additional remarks</label><textarea name="remarks" rows="3"><?=e($formValues['remarks']??'')?></textarea></div>
+      <div class="phase3a-submit-bar"><div><strong>Approval route</strong><span><?=PayrollAttendanceService::ready()?'Branch ADL / Head Office Manager → automatic cutoff matching (TA / OB / OT)':'Immediate Manager → HR Timekeeping → Payroll when applicable'?></span></div><button class="btn primary" type="submit">Submit request <?=icon_svg('arrow')?></button></div>
+    </form></section><aside class="panel phase3a-help"><div class="panel-head"><div><h2>Before submitting</h2><p>Request evidence guide</p></div></div><div class="panel-body"><div class="phase3a-help-item"><strong>Time Adjustment</strong><span>CCTV / attendance proof for Time In or Time Out. Verified logbook for lunch corrections.</span></div><div class="phase3a-help-item"><strong>Official Business</strong><span>Attach a clear Travel Report or supporting OB document.</span></div><div class="phase3a-help-item"><strong>Approval</strong><span><?=PayrollAttendanceService::ready()?'Branch ADL or Head Office Manager approves TA/OB/OT. Approved corrections wait for import or apply to matching attendance.':'Your manager approves first. HR Timekeeping receives the request after manager approval.'?></span></div></div></aside></div>
     <script>(()=>{
       const typeSelect=document.getElementById('phase3aRequestType');
       const affectedDate=document.getElementById('phase3aAffectedDate');
@@ -829,7 +863,7 @@ if ($page === 'employee-request-new') {
         const opt=typeSelect.options[typeSelect.selectedIndex];
         const code=opt?.dataset.code||'';
         const category=(opt?.dataset.category||'').toUpperCase();
-        blocks.forEach(b=>{b.hidden=!b.dataset.block.split(' ').includes(code)});
+        blocks.forEach(b=>{b.hidden=!b.dataset.block.split(' ').includes(code);b.querySelectorAll('input,textarea,select').forEach(input=>input.disabled=b.hidden)});
         const officialBusiness=['OB','POB'].includes(code);
         if(reasonField) reasonField.hidden=officialBusiness;
         if(reasonInput){reasonInput.required=!officialBusiness;if(officialBusiness)reasonInput.value='';}
@@ -886,7 +920,7 @@ if ($page === 'employee-leave') {
 }
 
 if ($page === 'manager-approvals') {
-    Auth::requirePermission('payroll.approve_manager');
+    if(!Auth::can('payroll.approve_manager')&&!Auth::can('payroll.approve_adl')) { http_response_code(403); exit('Access denied'); }
     $payroll=PayrollRepository::managerQueue();
     $leave=PayrollRepository::leaveQueue('MANAGER');
     $payrollHistory=PayrollRepository::managerPayrollHistory();
@@ -999,6 +1033,7 @@ if ($page === 'hr-timekeeping') {
     <?php render_portal_footer();exit;
 }
 
+if ($page === 'hr-payroll-processing' && PayrollAttendanceService::ready()) redirect('payroll-cutoff');
 if ($page === 'hr-payroll-processing') {
     Auth::requirePermission('payroll.process');$queue=PayrollRepository::ready()?PayrollRepository::hrPayrollQueue('PAYROLL'):[];
     render_portal_header('hr',$page,'Payroll Processing');page_head('HR Portal / Payroll & Timekeeping','Payroll Processing Queue'); ?>
