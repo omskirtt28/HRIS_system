@@ -43,6 +43,21 @@ final class PayrollCalculator
         };
         $walk(0,0,$empty);
         if (!$candidates) return ['original'=>$empty,'effective'=>array_replace($empty,$corrections),'issues'=>['INVALID_PUNCH_SEQUENCE']];
+        if ($corrections && count($candidates)>1) {
+            // An approved TA for missing slots should retain the actual IN/OUT events
+            // in the remaining slots, rather than treating those events as replaced.
+            // Equally plausible mappings still require review; no punch time is invented.
+            $fewestReplacements=PHP_INT_MAX; $preserved=[];
+            foreach ($candidates as $candidate) {
+                $replacements=0;
+                foreach ($corrections as $field=>$value) {
+                    if ($candidate[$field]!==null && $candidate[$field]!==$value) $replacements++;
+                }
+                if ($replacements<$fewestReplacements) { $fewestReplacements=$replacements; $preserved=[]; }
+                if ($replacements===$fewestReplacements) $preserved[]=$candidate;
+            }
+            $candidates=$preserved;
+        }
         $original=$candidates[0];
         foreach (self::FIELDS as $f) foreach ($candidates as $candidate) if ($candidate[$f] !== $original[$f]) { $original[$f]=null; break; }
         return ['original'=>$original,'effective'=>array_replace($original,$corrections),'issues'=>count($candidates)>1?['AMBIGUOUS_PUNCHES']:[]];

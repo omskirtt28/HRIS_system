@@ -31,7 +31,9 @@ require_once __DIR__ . '/PayrollRepository.php';
 if (is_file(dirname(__DIR__).'/vendor/autoload.php')) require_once dirname(__DIR__).'/vendor/autoload.php';
 require_once __DIR__.'/BiometricParser.php';
 require_once __DIR__.'/PayrollCalculator.php';
+require_once __DIR__.'/PayrollAttendanceReview.php';
 require_once __DIR__.'/PayrollAttendanceService.php';
+require_once __DIR__.'/EmployeeAttendanceService.php';
 
 try {
     $GLOBALS['pdo'] = Database::connect($base['db']);

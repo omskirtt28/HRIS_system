@@ -1,1 +1,71 @@
 .payroll-section{margin:20px 0}.payroll-toolbar{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin:18px 0}.payroll-toolbar .field{min-width:240px;margin:0}.payroll-toolbar form{margin:0}.payroll-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin:20px 0}.payroll-banner{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:16px 20px;border:1px solid var(--hris-line);border-radius:12px;background:var(--hris-surface)}.payroll-banner span{color:var(--hris-muted);font-size:13px}.payroll-table-scroll{overflow:auto}.payroll-table-scroll table{width:100%}.payroll-table-scroll td small{display:block;max-width:300px;margin-top:4px;color:var(--hris-muted);font-size:11px}.payroll-attendance-table{min-width:1050px}.payroll-issue-row td{background:rgba(245,158,11,.07)}.payroll-missing{color:#b45309;font-weight:700}.payroll-form{max-width:1050px}.payroll-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.payroll-form .field{margin-bottom:16px}.payroll-inline-form{display:flex;align-items:end;gap:12px;flex-wrap:wrap}.payroll-inline-form .field{margin-bottom:0}.payroll-checks{display:flex;gap:16px;flex-wrap:wrap;padding:12px;margin:8px 0 20px;border:1px solid var(--hris-line);border-radius:8px}.payroll-checks label{display:flex;gap:6px;align-items:center}.payroll-table-scroll input[type=number]{min-width:110px;max-width:180px}details.payroll-section summary{cursor:pointer}.payroll-form .small{margin:12px 0 18px}.payroll-metrics .metric-value{font-size:24px}@media(max-width:1000px){.payroll-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.payroll-form-grid,.payroll-metrics{grid-template-columns:1fr}.payroll-toolbar .field{min-width:0;width:100%}.payroll-inline-form .field{width:100%}}
+.employee-attendance-intro{padding:16px 20px;border:1px solid var(--hris-line);border-radius:12px;background:var(--hris-surface)}
+.employee-attendance-intro strong{font-size:14px}.employee-attendance-intro p,.employee-attendance-help{color:var(--hris-muted);font-size:13px;line-height:1.65;margin:8px 0 0}
+.employee-attendance-help{margin:16px 0}.employee-attendance-filters,.employee-attendance-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:16px 0}
+.employee-attendance-days{display:grid;gap:16px}.employee-attendance-day .panel-head{gap:14px;align-items:flex-start}.employee-attendance-day .panel-head h2{font-size:16px}.employee-attendance-day .panel-head p{line-height:1.5;overflow-wrap:anywhere}
+.employee-attendance-day.has-issue{border-left:4px solid #f59e0b}.employee-attendance-times{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.employee-attendance-time{padding:12px;border:1px solid var(--hris-line);border-radius:10px;min-width:0}.employee-attendance-time span,.employee-attendance-time small{display:block;color:var(--hris-muted);font-size:12px;line-height:1.5;overflow-wrap:anywhere}.employee-attendance-time strong{display:block;font-size:17px;margin:5px 0}
+.employee-attendance-time.is-missing{border-color:rgba(245,158,11,.45);background:rgba(245,158,11,.06)}.employee-attendance-time.is-missing strong{color:#b45309}.employee-attendance-time .employee-attendance-adjusted{color:#087f5b}
+.employee-attendance-note{font-size:13px;line-height:1.65;margin:14px 0}.employee-attendance-ot{padding:12px 14px;background:rgba(245,158,11,.09);border-radius:8px;font-size:13px;line-height:1.65}
+.employee-attendance-tickets{margin:16px 0;padding:14px;background:var(--hris-surface);border:1px solid var(--hris-line);border-radius:10px}.employee-attendance-tickets>strong{font-size:12px}.employee-attendance-tickets>div{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px;font-size:13px}.employee-attendance-tickets small{flex-basis:100%;color:var(--hris-muted);line-height:1.6}
+.employee-attendance-raw{border-top:1px solid var(--hris-line);padding-top:12px;font-size:13px}.employee-attendance-raw summary{cursor:pointer;color:var(--hris-muted);font-weight:600;padding:4px 0}.employee-attendance-raw table{margin-top:12px;min-width:460px}
+.employee-attendance-home-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.employee-attendance-home-stats strong{display:block;font-size:24px}.employee-attendance-home-stats span{font-size:12px;color:var(--hris-muted)}
+.employee-attendance-import-flow{padding:0 20px;color:var(--hris-muted);font-size:13px;line-height:1.65}
+@media(max-width:800px){.employee-attendance-times{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:480px){.employee-attendance-day .panel-head{flex-wrap:wrap}.employee-attendance-time{padding:10px}.employee-attendance-time strong{font-size:15px}.employee-attendance-home-stats{gap:8px}}
+
+/* Employee attendance: original logs first, review one day at a time. */
+.employee-attendance-cutoff{margin:0 0 20px}
+.employee-attendance-cutoff .field{min-width:280px;max-width:440px;flex:1}
+.employee-attendance-cutoff label,.employee-attendance-review-filter label{display:block;font-size:13px;font-weight:600;margin-bottom:7px}
+.employee-attendance-cutoff select,.employee-attendance-review-filter select{width:100%}
+.employee-attendance-tabs{display:flex;gap:6px;border-bottom:1px solid var(--hris-line);margin-bottom:20px}
+.employee-attendance-tabs>a{display:flex;align-items:center;justify-content:center;min-height:48px;padding:12px 18px;border-bottom:3px solid transparent;color:var(--hris-muted);font-size:14px;font-weight:600;text-decoration:none}
+.employee-attendance-tabs>a:hover{background:var(--hris-surface-2);color:var(--hris-text)}
+.employee-attendance-tabs>a.is-active{border-bottom-color:var(--hris-brand);color:var(--hris-text)}
+.employee-attendance-tabs>a:focus-visible,.employee-attendance-review-day>summary:focus-visible,.employee-biometric-source>summary:focus-visible{outline:2px solid var(--hris-brand-strong);outline-offset:3px;border-radius:5px}
+.employee-biometric-panel .panel-head{align-items:center;gap:12px}
+.employee-biometric-panel .panel-head h2{font-size:17px}
+.employee-biometric-panel .panel-head p{font-size:13px;line-height:1.5}
+.employee-biometric-table{width:100%;border-collapse:collapse;table-layout:fixed;min-width:0}
+.employee-biometric-table th,.employee-biometric-table td{padding:14px 18px;text-align:left;border-bottom:1px solid var(--hris-line);vertical-align:top;overflow-wrap:anywhere}
+.employee-biometric-table th{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;background:var(--hris-surface-2);color:var(--hris-muted)}
+.employee-biometric-table td{font-size:14px;line-height:1.5}
+.employee-biometric-table th:nth-child(1){width:27%}.employee-biometric-table th:nth-child(2){width:23%}.employee-biometric-table th:nth-child(3){width:20%}.employee-biometric-table th:nth-child(4){width:30%}
+.employee-biometric-table tbody tr:last-child td{border-bottom:0}
+.employee-biometric-label{font-weight:600;color:var(--hris-text)}
+.employee-biometric-source>summary{cursor:pointer;color:var(--hris-text);font-size:13px;text-decoration:underline;text-underline-offset:3px;min-height:28px}
+.employee-biometric-source>div{margin-top:10px;max-width:260px;font-size:13px;line-height:1.6;overflow-wrap:anywhere}
+.employee-biometric-table .employee-biometric-source small{display:block;color:var(--hris-muted);font-size:12px;line-height:1.6;margin-top:6px;overflow-wrap:anywhere}
+.employee-attendance-raw .employee-biometric-table{min-width:0}
+.employee-attendance-simple-help,.employee-attendance-action-help{font-size:13px;color:var(--hris-muted);line-height:1.65;margin:14px 0 18px}
+.employee-attendance-simple-help a{color:var(--hris-text);text-decoration:underline;text-underline-offset:3px;font-weight:600}
+.employee-attendance-review-filter{display:flex;align-items:end;flex-wrap:wrap;gap:10px;margin:18px 0}
+.employee-attendance-review-filter .field{min-width:230px;max-width:400px;flex:1;margin:0}
+.employee-attendance-review-list{display:grid;gap:10px}
+.employee-attendance-review-day{overflow:visible}
+.employee-attendance-review-day>summary{display:grid;grid-template-columns:minmax(0,1fr) auto 64px;gap:18px;align-items:center;cursor:pointer;padding:16px 20px;list-style:none;border-radius:var(--hris-radius)}
+.employee-attendance-review-day>summary::-webkit-details-marker{display:none}
+.employee-attendance-review-day>summary:hover{background:var(--hris-surface-2)}
+.employee-attendance-review-date{font-size:14px;font-weight:600;line-height:1.5}
+.employee-attendance-review-date small{display:block;font-size:12px;font-weight:400;color:var(--hris-muted);margin-top:3px}
+.employee-attendance-review-toggle{color:var(--hris-text);font-size:13px;font-weight:600;text-align:right;text-decoration:underline;text-underline-offset:3px}
+.employee-attendance-review-toggle .when-open,.employee-attendance-review-day[open] .employee-attendance-review-toggle .when-closed{display:none}
+.employee-attendance-review-day[open] .employee-attendance-review-toggle .when-open{display:inline}
+.employee-attendance-review-body{padding:18px 20px;border-top:1px solid var(--hris-line)}
+.employee-attendance-detail-heading{font-size:13px;font-weight:600;margin:0 0 12px}
+.employee-attendance-review-body .employee-attendance-tickets>strong{font-size:13px}
+.employee-attendance-review-body .employee-attendance-tickets small{font-size:13px}
+.employee-attendance-review-body .employee-attendance-raw summary{font-size:13px;color:var(--hris-text);padding:8px 0}
+.employee-attendance-review-body .employee-attendance-actions .btn{min-height:36px;font-size:13px}
+.employee-attendance-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(max-width:600px){
+  .employee-attendance-cutoff .field{min-width:0;max-width:none}
+  .employee-attendance-tabs{gap:0}.employee-attendance-tabs>a{flex:1;padding:12px 8px;font-size:13px;text-align:center}
+  .employee-biometric-table th,.employee-biometric-table td{padding:12px 10px;font-size:13px}
+  .employee-biometric-table th{font-size:12px}.employee-biometric-source>summary{font-size:12px}
+  .employee-attendance-review-day>summary{grid-template-columns:minmax(0,1fr) 58px;gap:8px 12px;padding:14px}
+  .employee-attendance-review-day>summary>.badge{grid-column:1;justify-self:start}
+  .employee-attendance-review-toggle{grid-column:2;grid-row:1 / 3;align-self:center}
+  .employee-attendance-review-body{padding:16px 14px}
+  .employee-attendance-review-filter .field{min-width:0}
+}

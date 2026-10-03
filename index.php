@@ -579,7 +579,8 @@ if ($page === 'payroll-request') {
     $uid=(int)(Auth::user()['id']??0);
     $employee=PayrollRepository::currentEmployee(); $own=$employee && (int)$employee['id']===(int)$r['employee_id'];
     $canManager=false; foreach($r['approvals'] as $a){if(in_array($a['approver_type'],['MANAGER','ADL'],true) && (int)($a['approver_user_id']??0)===$uid){$canManager=true;break;}}
-    $canHr=Auth::can('payroll.approve_hr')||Auth::can('payroll.process')||Auth::is('SUPER_ADMIN','HRIS_ADMIN');
+    $canLeaveHr=strtoupper((string)$r['category'])==='LEAVE' && Auth::can('leave.approve_hr');
+    $canHr=$canLeaveHr||Auth::can('payroll.approve_hr')||Auth::can('payroll.process')||Auth::is('SUPER_ADMIN','HRIS_ADMIN');
     if(!$own&&!$canManager&&!$canHr){http_response_code(403);exit('Access denied');}
 
     $currentApproval=null;
@@ -592,11 +593,13 @@ if ($page === 'payroll-request') {
         if(in_array($atype,['MANAGER','ADL'],true))$canAct=(int)($currentApproval['approver_user_id']??0)===$uid && Auth::can($atype==='ADL'?'payroll.approve_adl':'payroll.approve_manager');
         elseif($atype==='HR_TIMEKEEPING')$canAct=Auth::can('payroll.approve_hr');
         elseif($atype==='PAYROLL')$canAct=Auth::can('payroll.process');
+        elseif($atype==='HR_LEAVE')$canAct=$canLeaveHr && !$own && (int)$r['created_by']!==$uid;
     }
 
     $rolePortal=(string)(Auth::user()['role_portal']??'');
     $kind=in_array($rolePortal,['hr','admin'],true)?'hr':'employee';
     if(!$own && $canManager){$backPage='manager-approvals';$active='manager-approvals';$crumb='My Team / Approvals';}
+    elseif(!$own && $canLeaveHr){$backPage='hr-leave';$active='hr-leave';$crumb='HR / Payroll / Leave';}
     elseif($currentApproval && (string)$currentApproval['approver_type']==='PAYROLL' && Auth::can('payroll.process')){$backPage='hr-payroll-processing';$active='hr-payroll-processing';$crumb='Payroll / Processing';}
     elseif(!$own && $canHr){$backPage=PayrollAttendanceService::ready()?'payroll-cutoff':'hr-timekeeping';$active=$backPage;$crumb='HR Portal / Timekeeping';}
     else{$backPage='employee-requests';$active='employee-requests';$crumb='Employee Self-Service / Requests';}
@@ -691,13 +694,13 @@ if ($page === 'payroll-request') {
       </div>
     </section>
 
-    <?php if(!empty($r['backpay'])):?><section class="panel payroll-section"><div class="panel-head"><div><h2>Previous unpaid claim</h2><p>Payout cutoff: <?=e($r['backpay']['payout_start'].' to '.$r['backpay']['payout_end'])?>. Affected date stays <?=e($r['affected_date'])?>.</p></div><span class="badge gray"><?=e(stage_label($r['backpay']['state']))?></span></div><div class="panel-body"><strong>Additional amount: <?=payroll_amount($r['backpay']['amount'])?></strong><p><?=e($r['backpay']['note']??'Waiting for final approval.')?></p></div></section><?php endif;?>
+    <?php if(!empty($r['backpay'])):?><section class="panel payroll-section"><div class="panel-head"><div><h2>Previous unpaid claim</h2><p>Payout cutoff: <?=e($r['backpay']['payout_start'].' to '.$r['backpay']['payout_end'])?>. Affected date stays <?=e($r['affected_date'])?>.</p></div><span class="badge gray"><?=e(stage_label(PayrollAttendanceService::reviewOnly()?$r['status']:$r['backpay']['state']))?></span></div><div class="panel-body"><?php if(PayrollAttendanceService::reviewOnly()):?><strong>Amount for manual HR Payroll review</strong><p>After Manager/ADL approval, this claim appears in the processing cutoff for HR Payroll. Amount computation is deferred; original finalized attendance remains unchanged.</p><?php else:?><strong>Additional amount: <?=payroll_amount($r['backpay']['amount'])?></strong><p><?=e($r['backpay']['note']??'Waiting for final approval.')?></p><?php endif;?></div></section><?php endif;?>
     <?php if($own && $r['status']==='RETURNED_FOR_REVISION'):?>
     <section class="panel payroll-section"><div class="panel-body"><p>This request was returned. Revise and resubmit the same ticket; existing evidence and approval history stay attached.</p><a class="btn primary" href="<?=url('employee-request-new',['revision'=>$r['id']])?>">Revise and resubmit</a></div></section>
     <?php endif;?>
     <?php if(PayrollAttendanceService::ready() && PayrollAttendanceService::automaticType($r['type_code'])):
-        $application=db()->prepare('SELECT application_state,note FROM payroll_request_applications WHERE request_id=?'); $application->execute([$r['id']]); $application=$application->fetch(); ?>
-    <section class="panel payroll-section"><div class="panel-head"><div><h2>Attendance application</h2><p><?=e($application['note']??'Approval and attendance application are tracked separately.')?></p></div><span class="badge gray"><?=e(stage_label($application['application_state']??'Awaiting approval'))?></span></div></section>
+        $application=PayrollAttendanceService::requestApplication((int)$r['id']); ?>
+    <section class="panel payroll-section"><div class="panel-head"><div><h2>Attendance application</h2><p><?=e($application['note']??'Approval and attendance application are tracked separately.')?></p></div><span class="badge gray"><?=e(stage_label($application['application_state']??'Awaiting approval'))?></span></div><?php if(!empty($application['attendance_id']) && (($own&&Auth::can('attendance.view_self'))||Auth::can('payroll.process')||Auth::can('attendance.view_all'))):?><div class="panel-body"><a class="btn primary" href="<?=url('payroll-attendance-day',['id'=>$application['attendance_id']])?>">View updated attendance</a><p class="small muted">Biometric import preview shows the original uploaded file. Approved ticket times appear in daily attendance.</p></div><?php endif;?></section>
     <?php endif;?>
     <?php if($canAct && $currentApproval):?>
     <section class="panel phase3a-section phase3a-decision-panel">
@@ -745,7 +748,7 @@ if ($page === 'payroll-attachment') {
     need_db();if(!Auth::check())redirect('login');$id=(int)($_GET['id']??0);
     $st=db()->prepare('SELECT a.*,pr.employee_id FROM payroll_request_attachments a JOIN payroll_requests pr ON pr.id=a.request_id WHERE a.id=?');$st->execute([$id]);$a=$st->fetch();if(!$a){http_response_code(404);exit('File not found');}
     $emp=PayrollRepository::currentEmployee();$allowed=$emp&&(int)$emp['id']===(int)$a['employee_id'];
-    if(!$allowed){$r=PayrollRepository::payrollRequest((int)$a['request_id']);foreach($r['approvals']??[] as $ap){if((int)($ap['approver_user_id']??0)===(int)(Auth::user()['id']??0))$allowed=true;}$allowed=$allowed||Auth::can('payroll.approve_hr')||Auth::can('payroll.process')||Auth::is('SUPER_ADMIN','HRIS_ADMIN');}
+    if(!$allowed){$r=PayrollRepository::payrollRequest((int)$a['request_id']);foreach($r['approvals']??[] as $ap){if((int)($ap['approver_user_id']??0)===(int)(Auth::user()['id']??0))$allowed=true;}$allowed=$allowed||(strtoupper((string)($r['category']??''))==='LEAVE' && Auth::can('leave.approve_hr'))||Auth::can('payroll.approve_hr')||Auth::can('payroll.process')||Auth::is('SUPER_ADMIN','HRIS_ADMIN');}
     if(!$allowed){http_response_code(403);exit('Access denied');}$path=__DIR__.'/storage/payroll_requests/'.$a['stored_name'];if(!is_file($path)){http_response_code(404);exit('File missing');}
     header('Content-Type: '.$a['mime_type']);header('Content-Disposition: inline; filename="'.rawurlencode($a['original_name']).'"');header('X-Content-Type-Options: nosniff');readfile($path);exit;
 }
@@ -761,10 +764,11 @@ if ($page === 'employee-dashboard') {
     $leaveBalances=$employee?PayrollRepository::leaveBalances((int)$employee['id']):[];
     $displayBalances=array_slice($leaveBalances,0,2);
     $recentRequests=$employee?array_slice(PayrollRepository::myPayrollRequests((int)$employee['id']),0,3):[];
+    $attendanceHome=$employee && Auth::can('attendance.view_self') && PayrollAttendanceService::ready()?EmployeeAttendanceService::current():null;
     render_portal_header('employee',$page,'Employee Home');
     dashboard_hero('Employee self-service','Good morning, '.explode(' ',trim((string)$u['name']))[0].'.','Here is your personal HR workspace for today.'); ?>
     <div class="employee-focus">
-      <section class="panel today-card"><div class="panel-head"><div><h2>Today</h2><p><?=e(date('l · F j, Y'))?></p></div><span class="status-pill">Attendance</span></div><div class="today-time"><div><div class="big phase3a-no-time"><a href="<?=url('employee-attendance')?>">My Attendance</a></div><div class="smallline">View imported punches and approved corrections in My Attendance.</div></div><div style="text-align:right"><div class="smallline">Work location</div><strong style="font-size:13px"><?=e($employee['branch_name']??'Not assigned')?></strong></div></div></section>
+      <?php if(Auth::can('attendance.view_self')): employee_attendance_home($attendanceHome); else:?><section class="panel today-card"><div class="panel-head"><div><h2>Today</h2><p><?=e(date('l · F j, Y'))?></p></div></div><div class="panel-body"><p>Assigned workplace: <?=e($employee['branch_name']??'Not assigned')?></p></div></section><?php endif;?>
       <section class="panel"><div class="panel-head"><div><h2>Leave balance</h2><p>Available credits</p></div><a class="panel-link" href="<?=url('employee-leave')?>">View details</a></div><div class="panel-body"><?php if(!$employee):?><div class="empty phase3a-dashboard-empty">Link your Employee 201 File to view leave credits.</div><?php elseif(!$displayBalances):?><div class="empty phase3a-dashboard-empty">No leave credits have been assigned yet.</div><?php else:?><div class="balance-grid"><?php foreach($displayBalances as $b):?><div class="balance-card"><strong><?=number_format((float)$b['balance'],2)?></strong><span><?=e($b['name'])?></span><?php if((float)$b['pending']>0):?><small><?=number_format((float)$b['pending'],2)?> pending</small><?php endif;?></div><?php endforeach;?></div><?php endif;?></div></section>
     </div>
     <div class="dashboard-grid equal">
@@ -799,6 +803,13 @@ if ($page === 'employee-request-new') {
     if(!$revision && !empty($_GET['date'])) $formValues['affected_date']=(string)$_GET['date'];
     $formValues=array_merge($formValues,$_SESSION['payroll_request_old']??[]);
     unset($_SESSION['payroll_request_old']);
+    if(!$revision && empty($formValues['cutoff_id']) && !empty($_GET['cutoff_id'])) {
+        foreach($cutoffs as $cutoff) if((int)$cutoff['id']===(int)$_GET['cutoff_id'] && ($formValues['affected_date']??'')>=$cutoff['period_start'] && ($formValues['affected_date']??'')<=$cutoff['period_end']) { $formValues['cutoff_id']=$cutoff['id']; break; }
+    }
+    $attendanceContext=null;
+    if($employee && Auth::can('attendance.view_self') && PayrollAttendanceService::ready() && !empty($formValues['affected_date'])) {
+        foreach($cutoffs as $cutoff) if($formValues['affected_date']>=$cutoff['period_start'] && $formValues['affected_date']<=$cutoff['period_end'] && (empty($formValues['cutoff_id']) || (int)$formValues['cutoff_id']===(int)$cutoff['id'])) { $attendanceContext=EmployeeAttendanceService::cutoff((int)$cutoff['id']); break; }
+    }
     $selectedCode=!empty($formValues['request_type_id'])?'':(string)($_GET['type']??($revision['type_code']??''));
     $approverName=trim(($employee['manager_first_name']??'').' '.($employee['manager_last_name']??''));
     if($employee && PayrollAttendanceService::ready()) {
@@ -808,6 +819,7 @@ if ($page === 'employee-request-new') {
 
     render_portal_header('employee','employee-requests','New Payroll & Timekeeping Request');
     page_head('Employee Self-Service / Requests','New Payroll & Timekeeping Request','<a class="btn" href="'.url('employee-requests').'">Cancel</a>'); ?>
+    <?php if($attendanceContext) employee_attendance_request_context($attendanceContext,(string)$formValues['affected_date']);?>
     <?php if(!$employee):?><div class="alert error">Your account is not linked to an Employee 201 File. HR must link your account before you can file a request.</div><?php else:?><div class="phase3a-form-layout"><section class="panel"><div class="panel-head"><div><h2>Request details</h2><p>The form changes based on the request type you select.</p></div><span class="badge amber">Employee request</span></div><form method="post" enctype="multipart/form-data" class="panel-body phase3a-request-form" id="payrollRequestForm"><?=csrf_field()?><input type="hidden" name="action" value="create_payroll_request"><?php if($revision):?><input type="hidden" name="revision_id" value="<?=$revision['id']?>"><?php endif;?>
       <div class="phase3a-employee-banner"><span class="employee-avatar"><?=e(initials(EmployeeRepository::fullName($employee)))?></span><div><strong><?=e(EmployeeRepository::fullName($employee))?></strong><span><?=e($employee['employee_no'])?> · <?=e($employee['department_name']??'No department')?> · <?=e($employee['branch_name']??'No branch')?><?=!empty($employee['area_name'])?' · '.e($employee['area_name']):''?></span></div></div>
       <div class="phase3a-form-grid">
@@ -831,7 +843,7 @@ if ($page === 'employee-request-new') {
               if($state==='CURRENT'&&!$currentShown){if($previousShown||$upcomingShown)echo '</optgroup>';echo '<optgroup label="Current cutoff">';$currentShown=true;}
               elseif($state==='UPCOMING'&&!$upcomingShown){if($previousShown||$currentShown)echo '</optgroup>';echo '<optgroup label="Upcoming cutoffs">';$upcomingShown=true;}
               elseif($state==='PREVIOUS'&&!$previousShown){if($currentShown||$upcomingShown)echo '</optgroup>';echo '<optgroup label="Previous / missed cutoffs">';$previousShown=true;}
-            ?><option value="<?=$c['id']?>" data-start="<?=e($c['period_start'])?>" data-end="<?=e($c['period_end'])?>" data-state="<?=e($state)?>"><?=e(date('M j',strtotime($c['period_start'])).' – '.date('M j, Y',strtotime($c['period_end'])))?><?= $state==='PREVIOUS'?' · Previous':'' ?></option><?php endforeach; if($currentShown||$upcomingShown||$previousShown)echo '</optgroup>'; ?>
+            ?><option value="<?=$c['id']?>" data-start="<?=e($c['period_start'])?>" data-end="<?=e($c['period_end'])?>" data-state="<?=e($state)?>" <?=(int)($formValues['cutoff_id']??0)===(int)$c['id']?'selected':''?>><?=e(date('M j',strtotime($c['period_start'])).' – '.date('M j, Y',strtotime($c['period_end'])))?><?= $state==='PREVIOUS'?' · Previous':'' ?></option><?php endforeach; if($currentShown||$upcomingShown||$previousShown)echo '</optgroup>'; ?>
           </select>
           <small id="phase3aCutoffHelp">Choose the affected date and the system will select the correct cutoff. You may also choose a previous cutoff for a missed filing.</small>
         </div>
@@ -881,7 +893,8 @@ if ($page === 'employee-request-new') {
         if(cutoffSelect.disabled)return;
         const date=affectedDate.value;
         if(!date){cutoffSelect.value='';setHelp('Choose the affected date and the system will select the correct cutoff. You may also choose a previous cutoff for a missed filing.');return;}
-        const match=cutoffOptions.find(o=>inRange(date,o));
+        const selected=cutoffSelect.options[cutoffSelect.selectedIndex];
+        const match=inRange(date,selected)?selected:cutoffOptions.find(o=>inRange(date,o));
         if(match){
           cutoffSelect.value=match.value;
           const previous=match.dataset.state==='PREVIOUS';
@@ -904,6 +917,7 @@ if ($page === 'employee-request-new') {
       };
       typeSelect.addEventListener('change',syncType);
       affectedDate.addEventListener('change',syncCutoffFromDate);
+      affectedDate.addEventListener('change',()=>{const context=document.getElementById('employee-attendance-request-context');if(context)context.hidden=context.dataset.date!==affectedDate.value;});
       cutoffSelect.addEventListener('change',validateManualCutoff);
       syncType();
     })();</script><?php endif;?>
@@ -914,7 +928,7 @@ if ($page === 'employee-leave') {
     Auth::requirePermission('leave.view_self');$employee=PayrollRepository::ready()?PayrollRepository::currentEmployee():null;$balances=$employee?PayrollRepository::leaveBalances((int)$employee['id']):[];$history=$employee?PayrollRepository::leaveTransactions((int)$employee['id']):[];$requests=$employee?PayrollRepository::myLeaveRequests((int)$employee['id']):[];$types=PayrollRepository::leaveTypes();
     render_portal_header('employee',$page,'Leave');page_head('Employee Self-Service / Leave','Leave & Credits'); ?>
     <?php if(!PayrollRepository::ready()):?><div class="alert error">Import the Phase 3A database migration to activate leave credits and leave requests.</div><?php elseif(!$employee):?><div class="alert error">Your account is not linked to an Employee 201 File yet.</div><?php else:?><div class="phase3a-leave-balance-grid"><?php foreach($balances as $b):?><div class="phase3a-leave-card"><span><?=e($b['name'])?></span><strong><?=number_format((float)$b['balance'],2)?></strong><small><?=number_format((float)$b['pending'],2)?> pending</small></div><?php endforeach;?></div>
-    <div class="phase3a-leave-layout"><section class="panel"><div class="panel-head"><div><h2>Apply for leave</h2><p>Manager approval followed by HR Leave approval.</p></div></div><form method="post" class="panel-body"><?=csrf_field()?><input type="hidden" name="action" value="create_leave_request"><div class="field"><label>Leave type</label><select name="leave_type_id" required><option value="">Select leave type</option><?php foreach($types as $t):?><option value="<?=$t['id']?>"><?=e($t['name'])?></option><?php endforeach;?></select></div><div class="split"><div class="field"><label>From</label><input type="date" name="date_from" required></div><div class="field"><label>To</label><input type="date" name="date_to" required></div></div><div class="field"><label>Reason</label><textarea name="reason" rows="4" required></textarea></div><button class="btn primary">Submit leave request</button></form></section><section class="panel"><div class="panel-head"><div><h2>Leave history</h2><p>Current and previous requests.</p></div></div><div class="phase3a-list"><?php if(!$requests):?><div class="empty">No leave requests yet.</div><?php endif;foreach($requests as $r):?><div class="phase3a-list-row"><div><strong><?=e($r['leave_type_name'])?></strong><span><?=e(date('M j',strtotime($r['date_from'])))?> – <?=e(date('M j, Y',strtotime($r['date_to'])))?> · <?=e((string)$r['days'])?> day(s)</span></div><span class="phase3a-status"><?=e(stage_label($r['status']))?></span></div><?php endforeach;?></div></section></div>
+    <div class="phase3a-leave-layout"><section class="panel"><div class="panel-head"><div><h2>Apply for leave</h2><p>Your Manager approves first. HR or Payroll gives final approval.</p></div></div><form method="post" class="panel-body"><?=csrf_field()?><input type="hidden" name="action" value="create_leave_request"><div class="field"><label>Leave type</label><select name="leave_type_id" required><option value="">Select leave type</option><?php foreach($types as $t):?><option value="<?=$t['id']?>"><?=e($t['name'])?></option><?php endforeach;?></select></div><div class="split"><div class="field"><label>From</label><input type="date" name="date_from" required></div><div class="field"><label>To</label><input type="date" name="date_to" required></div></div><div class="field"><label>Reason</label><textarea name="reason" rows="4" required></textarea></div><button class="btn primary">Submit leave request</button></form></section><section class="panel"><div class="panel-head"><div><h2>Leave history</h2><p>Current and previous requests.</p></div></div><div class="phase3a-list"><?php if(!$requests):?><div class="empty">No leave requests yet.</div><?php endif;foreach($requests as $r):?><div class="phase3a-list-row"><div><strong><?=e($r['leave_type_name'])?></strong><span><?=e(date('M j',strtotime($r['date_from'])))?> – <?=e(date('M j, Y',strtotime($r['date_to'])))?> · <?=e((string)$r['days'])?> day(s)</span></div><span class="phase3a-status"><?=e(stage_label($r['status']))?></span></div><?php endforeach;?></div></section></div>
     <section class="panel phase3a-section"><div class="panel-head"><div><h2>Leave credit transactions</h2><p>Every credit and deduction is traceable.</p></div></div><div class="phase3a-table-wrap"><table class="phase3a-table"><thead><tr><th>Date</th><th>Leave type</th><th>Transaction</th><th>Amount</th><th>Reason</th></tr></thead><tbody><?php if(!$history):?><tr><td colspan="5" class="empty">No leave credit transactions yet.</td></tr><?php endif;foreach($history as $h):?><tr><td><?=e(date('M j, Y',strtotime($h['created_at'])))?></td><td><?=e($h['leave_type_name'])?></td><td><?=e(stage_label($h['transaction_type']))?></td><td class="mono"><?=((float)$h['amount']>0?'+':'')?><?=number_format((float)$h['amount'],2)?></td><td><?=e($h['reason'])?></td></tr><?php endforeach;?></tbody></table></div></section><?php endif;?>
     <?php render_portal_footer(); exit;
 }
@@ -1042,10 +1056,36 @@ if ($page === 'hr-payroll-processing') {
 }
 
 if ($page === 'hr-leave') {
-    Auth::requirePermission('leave.approve_hr');$queue=PayrollRepository::ready()?PayrollRepository::leaveQueue('HR_LEAVE'):[];$employees=PayrollRepository::allActiveEmployees();$types=PayrollRepository::leaveTypes();
-    render_portal_header('hr',$page,'Leave Administration');page_head('HR Portal / Leave','Leave Administration'); ?>
+    Auth::requirePermission('leave.approve_hr');$queue=PayrollRepository::ready()?PayrollRepository::leaveApprovalQueue():[];$employees=PayrollRepository::allActiveEmployees();$types=PayrollRepository::leaveTypes();
+    render_portal_header('hr',$page,'Leave Approvals');page_head('HR / Payroll / Leave','Leave Approvals'); ?>
     <?php if(!PayrollRepository::ready()):?><div class="alert error">Import the Phase 3A database migration first.</div><?php endif;?>
-    <div class="phase3a-leave-admin"><section class="panel"><div class="panel-head"><div><h2>For HR Leave Approval</h2><p>Manager-approved leave requests.</p></div><span class="badge amber"><?=count($queue)?> pending</span></div><div class="phase3a-list"><?php if(!$queue):?><div class="empty">No leave requests are waiting for HR Leave.</div><?php endif;foreach($queue as $r):?><div class="phase3a-approval-row"><div><strong><?=e($r['first_name'].' '.$r['last_name'])?></strong><span><?=e($r['employee_no'])?> · <?=e($r['leave_type_name'])?> · <?=e($r['days'])?> day(s)</span><small><?=e(date('M j',strtotime($r['date_from'])))?> – <?=e(date('M j, Y',strtotime($r['date_to'])))?></small></div><div class="phase3a-row-actions"><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="leave_request_decision"><input type="hidden" name="request_id" value="<?=$r['id']?>"><input type="hidden" name="decision" value="APPROVE"><input type="hidden" name="return_page" value="hr-leave"><button class="btn primary sm">Approve</button></form><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="leave_request_decision"><input type="hidden" name="request_id" value="<?=$r['id']?>"><input type="hidden" name="decision" value="REJECT"><input type="hidden" name="return_page" value="hr-leave"><button class="btn sm">Reject</button></form></div></div><?php endforeach;?></div></section>
+    <div>
+    <section class="panel payroll-section">
+      <div class="panel-head"><div><h2>Pending requests</h2><p>Leave requests and leave credit corrections approved by the Manager.</p></div><span class="badge amber"><?=count($queue)?> pending</span></div>
+      <div class="phase3a-table-wrap"><table class="phase3a-table">
+        <thead><tr><th>Request</th><th>Employee</th><th>Type</th><th>Date</th><th>Reason</th><th>Action</th></tr></thead>
+        <tbody>
+        <?php if(!$queue):?><tr><td colspan="6" class="empty">No requests waiting for final leave approval. The Manager must approve first.</td></tr><?php endif;?>
+        <?php foreach($queue as $r): $isCorrection=$r['approval_kind']==='PAYROLL'; ?>
+          <tr>
+            <td><strong><?=e($r['request_no'])?></strong></td>
+            <td><strong><?=e($r['first_name'].' '.$r['last_name'])?></strong><div class="tiny muted"><?=e($r['employee_no'])?></div></td>
+            <td><?=e($r['type_name'])?></td>
+            <td><?php if($isCorrection):?><?=e(date('M j, Y',strtotime($r['affected_date'])))?><?php else:?><?=e(date('M j',strtotime($r['date_from'])))?> – <?=e(date('M j, Y',strtotime($r['date_to'])))?><div class="tiny muted"><?=e($r['days'])?> day(s)</div><?php endif;?></td>
+            <td><?=nl2br(e($r['reason']))?></td>
+            <td><div class="phase3a-row-actions">
+              <?php if($isCorrection):?>
+                <a class="btn primary sm" href="<?=url('payroll-request',['id'=>$r['id']])?>">Review request</a>
+              <?php else:?>
+                <form method="post"><?=csrf_field()?><input type="hidden" name="action" value="leave_request_decision"><input type="hidden" name="request_id" value="<?=$r['id']?>"><input type="hidden" name="decision" value="APPROVE"><input type="hidden" name="return_page" value="hr-leave"><button class="btn primary sm">Approve</button></form>
+                <form method="post"><?=csrf_field()?><input type="hidden" name="action" value="leave_request_decision"><input type="hidden" name="request_id" value="<?=$r['id']?>"><input type="hidden" name="decision" value="REJECT"><input type="hidden" name="return_page" value="hr-leave"><button class="btn sm">Reject</button></form>
+              <?php endif;?>
+            </div></td>
+          </tr>
+        <?php endforeach;?>
+        </tbody>
+      </table></div>
+    </section>
     <?php if(Auth::can('leave.credits.manage')):?><section class="panel"><div class="panel-head"><div><h2>Leave Credit Adjustment</h2><p>Every manual adjustment is added to the employee credit ledger.</p></div></div><form method="post" class="panel-body"><?=csrf_field()?><input type="hidden" name="action" value="adjust_leave_credit"><div class="field"><label>Employee</label><select name="employee_id" required><option value="">Select employee</option><?php foreach($employees as $e):?><option value="<?=$e['id']?>"><?=e($e['employee_no'].' · '.EmployeeRepository::fullName($e))?></option><?php endforeach;?></select></div><div class="field"><label>Leave type</label><select name="leave_type_id" required><option value="">Select leave type</option><?php foreach($types as $t):?><option value="<?=$t['id']?>"><?=e($t['name'])?></option><?php endforeach;?></select></div><div class="field"><label>Adjustment</label><input type="number" name="amount" step="0.25" required placeholder="Example: 5 or -1"></div><div class="field"><label>Reason</label><textarea name="reason" rows="3" required placeholder="Annual credit allocation, correction, carry-over..."></textarea></div><button class="btn primary">Save credit adjustment</button></form></section><?php endif;?></div>
     <?php render_portal_footer();exit;
 }
@@ -1149,7 +1189,7 @@ if ($page === 'hr-employee') {
     <?php if($tab==='overview'):?>
       <div class="dashboard-grid equal employee-profile-grid">
         <section class="panel"><div class="panel-head"><div><h2>Employee overview</h2><p>Current master-data assignment</p></div><?php if($canManage):?><a class="panel-link" href="<?=url('hr-employee',['id'=>$id,'tab'=>'employment'])?>">Edit employment</a><?php endif;?></div><div class="panel-body employee-detail-list">
-          <div><span>Employee number</span><strong><?=e($e['employee_no'])?></strong></div><div><span>Department</span><strong><?=e($e['department_name']??'Unassigned')?></strong></div><div><span>Position</span><strong><?=e($e['position_name']??'Unassigned')?></strong></div><div><span>Branch / Site</span><strong><?=e($e['branch_name']??'Unassigned')?></strong></div><div><span>Employment type</span><strong><?=e($e['employment_type_name']??'Unassigned')?></strong></div><div><span>Immediate Manager</span><strong><?=e($e['manager_name']??'Unassigned')?></strong></div><div><span>Hire date</span><strong><?=e(date('F j, Y',strtotime($e['hire_date'])))?></strong></div>
+          <div><span>Employee number</span><strong><?=e($e['employee_no'])?></strong></div><div><span>Department</span><strong><?=e($e['department_name']??'Unassigned')?></strong></div><div><span>Position</span><strong><?=e($e['position_name']??'Unassigned')?></strong></div><div><span>Branch / Site</span><strong><?=e($e['branch_name']??'Unassigned')?></strong></div><div><span>Employment type</span><strong><?=e($e['employment_type_name']??'Unassigned')?></strong></div><div><span>Reporting To</span><strong><?=e($e['manager_name']??'Unassigned')?></strong></div><div><span>Hire date</span><strong><?=e(date('F j, Y',strtotime($e['hire_date'])))?></strong></div>
         </div></section>
         <section class="panel"><div class="panel-head"><div><h2>Contact & access</h2><p>Employee contact and portal link</p></div><?php if($canManage):?><a class="panel-link" href="<?=url('hr-employee',['id'=>$id,'tab'=>'personal'])?>">Edit profile</a><?php endif;?></div><div class="panel-body employee-detail-list">
           <div><span>Company email</span><strong><?=e($e['company_email']??'Not provided')?></strong></div><div><span>Personal email</span><strong><?=e($e['personal_email']??'Not provided')?></strong></div><div><span>Mobile number</span><strong><?=e($e['mobile_no']??'Not provided')?></strong></div><div><span>Portal account</span><strong><?=e($e['user_email']??'Not linked')?></strong></div><div><span>Portal status</span><strong><?=e($e['user_status']??'—')?></strong></div><div><span>201 File records</span><strong><?=count($govIds)?> IDs · <?=count($contacts)?> contacts · <?=count($documents)?> docs</strong></div>
@@ -1176,7 +1216,7 @@ if ($page === 'hr-employee') {
         <div class="field"><label>Department</label><select name="department_id"><option value="">Unassigned</option><?php foreach($masters['departments'] as $x): $isSelected=((int)($e['department_id']??0)===(int)$x['id']); if(!$x['active']&&!$isSelected)continue;?><option value="<?=$x['id']?>" <?=$isSelected?'selected':''?>><?=e($x['name'])?><?=!$x['active']?' · Retired':''?></option><?php endforeach;?></select></div><div class="field"><label>Position</label><select name="position_id"><option value="">Unassigned</option><?php foreach($masters['positions'] as $x): $isSelected=((int)($e['position_id']??0)===(int)$x['id']); if(!$x['active']&&!$isSelected)continue;?><option value="<?=$x['id']?>" <?=$isSelected?'selected':''?>><?=e($x['name'])?><?=!empty($x['department_name'])?' · '.e($x['department_name']):''?><?=!$x['active']?' · Retired':''?></option><?php endforeach;?></select></div>
         <div class="field"><label>Branch / Site</label><select name="branch_id"><option value="">Unassigned</option><?php foreach($masters['branches'] as $x): $isSelected=((int)($e['branch_id']??0)===(int)$x['id']); if(!$x['active']&&!$isSelected)continue;?><option value="<?=$x['id']?>" <?=$isSelected?'selected':''?>><?=e($x['name'])?><?=!$x['active']?' · Retired':''?></option><?php endforeach;?></select></div><div class="field"><label>Employment type</label><select name="employment_type_id"><option value="">Unassigned</option><?php foreach($masters['employment_types'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=((int)($e['employment_type_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select></div>
         <div class="field full reporting-manager-field">
-          <div class="reporting-manager-label"><label for="manager_employee_id">Immediate Manager / Reporting To</label><span class="badge amber">Assigned by HR</span></div>
+          <div class="reporting-manager-label"><label for="manager_employee_id">Reporting To / Manager or ADL</label><span class="badge amber">Assigned by HR</span></div>
           <select id="manager_employee_id" name="manager_employee_id">
             <option value="">Unassigned</option>
             <optgroup label="Available for approval routing">
@@ -1185,16 +1225,16 @@ if ($page === 'hr-employee') {
             <?php endforeach;?>
             </optgroup>
             <?php $hasUnavailable=false; foreach($masters['manager_candidates'] as $m){if((int)($m['manager_ready']??0)!==1 || ($m['user_status']??'')!=='ACTIVE'){$hasUnavailable=true;break;}} if($hasUnavailable):?>
-            <optgroup label="Not ready — account/manager access required">
+            <optgroup label="Not ready — account/approval access required">
             <?php foreach($masters['manager_candidates'] as $m): if((int)($m['manager_ready']??0)===1 && ($m['user_status']??'')==='ACTIVE')continue; $mn=EmployeeRepository::fullName($m);?>
-              <option value="<?=$m['id']?>" disabled><?=e($mn)?> · <?=e($m['employee_no'])?> · <?=empty($m['user_email'])?'No linked account':'Manager access required'?></option>
+              <option value="<?=$m['id']?>" disabled><?=e($mn)?> · <?=e($m['employee_no'])?> · <?=empty($m['user_email'])?'No linked account':'Approval access required'?></option>
             <?php endforeach;?>
             </optgroup>
             <?php endif;?>
           </select>
           <div class="reporting-manager-help">
             <span><?=icon_svg('shield')?></span>
-            <div><strong>HR controls the reporting line.</strong><small>Payroll & Timekeeping, OB, TA and Leave requests route first to this manager. The selected manager must have an active linked HRIS account with Manager / Immediate Head approval access.</small></div>
+            <div><strong>HR controls the reporting line.</strong><small>Head Office payroll tickets use the assigned Manager; branch tickets use the assigned ADL. Select an active linked account with the matching approval permission. Leave retains its separate approval requirements.</small></div>
           </div>
         </div>
         <div class="field"><label>Hire date</label><input type="date" name="hire_date" value="<?=e($e['hire_date'])?>" required></div><div class="field"><label>Regularization date</label><input type="date" name="regularization_date" value="<?=e($e['regularization_date']??'')?>"></div><div class="field"><label>Employee status</label><select name="status"><?php foreach(['ACTIVE'=>'Active','PROBATIONARY'=>'Probationary','ON_LEAVE'=>'On Leave','INACTIVE'=>'Inactive','RESIGNED'=>'Resigned','TERMINATED'=>'Terminated'] as $v=>$l):?><option value="<?=$v?>" <?=$e['status']===$v?'selected':''?>><?=$l?></option><?php endforeach;?></select></div><div class="field"><label>Effective date of this change</label><input type="date" name="effective_date" value="<?=e(date('Y-m-d'))?>"></div><div class="field full"><label>Change remarks</label><textarea name="remarks" rows="3" placeholder="Example: Transferred to Makati HQ; promoted to HR Associate."></textarea><small>When department, position, branch, employment type, or status changes, HRIS creates an employment history entry automatically.</small></div>

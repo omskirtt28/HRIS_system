@@ -217,10 +217,10 @@ final class PayrollRepository
             db()->prepare('INSERT INTO payroll_request_time_entries(request_id,time_in,lunch_out,lunch_in,time_out,ot_start,ot_end,destination,purpose,original_rest_day,new_rest_day) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE time_in=VALUES(time_in),lunch_out=VALUES(lunch_out),lunch_in=VALUES(lunch_in),time_out=VALUES(time_out),ot_start=VALUES(ot_start),ot_end=VALUES(ot_end),destination=VALUES(destination),purpose=VALUES(purpose),original_rest_day=VALUES(original_rest_day),new_rest_day=VALUES(new_rest_day)')->execute([$id,$times['time_in'],$times['lunch_out'],$times['lunch_in'],$times['time_out'],$times['ot_start'],$times['ot_end'],in_array($code,['OB','POB'],true)?(trim((string)($data['destination']??''))?:null):null,$purpose?:null,self::validDate((string)($data['original_rest_day']??'')),self::validDate((string)($data['new_rest_day']??''))]);
             if($claimCutoffId) db()->prepare('INSERT INTO payroll_backpay_claims(request_id,processing_cutoff_id) VALUES(?,?) ON DUPLICATE KEY UPDATE processing_cutoff_id=VALUES(processing_cutoff_id),state="AWAITING_APPROVAL",amount=NULL,snapshot_json=NULL')->execute([$id,$claimCutoffId]);
             if($automatic && in_array($code,['OT','POT'],true)) {
-                $site=PayrollAttendanceService::site((int)$employee['branch_id']);
+                $site=PayrollAttendanceService::site((int)$employee['branch_id'])??[];
                 $startDate=trim((string)($data['ot_start_date']??''));
                 $endDate=trim((string)($data['ot_end_date']??''));
-                $startAt=$startDate!==''?new DateTimeImmutable(PayrollAttendanceService::date($startDate).' '.$times['ot_start']):new DateTimeImmutable(PayrollCalculator::correctionTime($affected,$times['ot_start'],$site));
+                $startAt=$startDate!==''?new DateTimeImmutable(PayrollAttendanceService::date($startDate).' '.$times['ot_start']):new DateTimeImmutable(PayrollAttendanceService::reviewOnly()?PayrollAttendanceReview::correctionTime($affected,$times['ot_start'],$site):PayrollCalculator::correctionTime($affected,$times['ot_start'],$site));
                 $endAt=$endDate!==''?new DateTimeImmutable(PayrollAttendanceService::date($endDate).' '.$times['ot_end']):new DateTimeImmutable($startAt->format('Y-m-d').' '.$times['ot_end']);
                 if($endDate==='' && $endAt<=$startAt) $endAt=$endAt->modify('+1 day');
                 if($startAt->format('Y-m-d')<$affected || $startAt->format('Y-m-d')>(new DateTimeImmutable($affected))->modify('+1 day')->format('Y-m-d') || $endAt<=$startAt || $endAt->getTimestamp()-$startAt->getTimestamp()>86400) throw new RuntimeException('OT dates must cover at most 24 hours, starting on the affected date or its overnight next day.');
@@ -320,9 +320,11 @@ final class PayrollRepository
             $st=db()->prepare('SELECT * FROM payroll_request_approvals WHERE request_id=? AND step_no=? AND status="PENDING" FOR UPDATE'); $st->execute([$requestId,$step]); $approval=$st->fetch();
             if(!$approval) throw new RuntimeException('This request is no longer awaiting your decision.');
             $uid=(int)Auth::user()['id']; $type=$approval['approver_type'];
-            $permission=match($type) {'MANAGER'=>'payroll.approve_manager','ADL'=>'payroll.approve_adl','HR_TIMEKEEPING'=>'payroll.approve_hr','PAYROLL'=>'payroll.process',default=>throw new RuntimeException('Unknown approval stage.')};
+            $permission=match($type) {'MANAGER'=>'payroll.approve_manager','ADL'=>'payroll.approve_adl','HR_TIMEKEEPING'=>'payroll.approve_hr','PAYROLL'=>'payroll.process','HR_LEAVE'=>'leave.approve_hr',default=>throw new RuntimeException('Unknown approval stage.')};
             if(!Auth::can($permission)) throw new RuntimeException('You do not have approval permission.');
             if(in_array($type,['MANAGER','ADL'],true) && ((int)$approval['approver_user_id']!==$uid || (int)$req['created_by']===$uid)) throw new RuntimeException('This request is assigned to another approver.');
+            if($type==='HR_LEAVE' && strtoupper((string)$req['category'])!=='LEAVE') throw new RuntimeException('This request is not a leave ticket.');
+            if($type==='HR_LEAVE' && ((int)$fresh['created_by']===$uid || (int)(self::currentEmployee()['id']??0)===(int)$fresh['employee_id'])) throw new RuntimeException('Another approver must review your own leave correction.');
             $auto=PayrollAttendanceService::ready() && PayrollAttendanceService::automaticType($req['type_code']);
             if($auto && $req['cutoff_id'] && $decision==='APPROVE') PayrollAttendanceService::assertTicketAllowed(['id'=>$actionCutoff]);
             $newApproval=match($decision) {'APPROVE'=>'APPROVED','RETURN'=>'RETURNED',default=>'REJECTED'};
@@ -395,6 +397,31 @@ final class PayrollRepository
     {
         if(!FoundationRepository::tableExists('leave_request_approvals'))return [];$uid=(int)(Auth::user()['id']??0);
         $sql='SELECT lr.*,lt.name leave_type_name,e.employee_no,e.first_name,e.last_name,b.name branch_name,a.step_no FROM leave_request_approvals a JOIN leave_requests lr ON lr.id=a.request_id JOIN leave_types lt ON lt.id=lr.leave_type_id JOIN employees e ON e.id=lr.employee_id LEFT JOIN branches b ON b.id=e.branch_id WHERE a.approver_type=? AND a.status="PENDING" AND lr.current_step=a.step_no';$params=[$type];if($type==='MANAGER'){$sql.=' AND a.approver_user_id=?';$params[]=$uid;}$sql.=' ORDER BY lr.created_at';$st=db()->prepare($sql);$st->execute($params);return $st->fetchAll();
+    }
+
+    /** The final leave queue includes both leave applications and leave correction tickets. */
+    public static function leaveApprovalQueue(): array
+    {
+        Auth::requirePermission('leave.approve_hr');
+        if(!self::ready()) return [];
+        $queue=[];
+        foreach(self::leaveQueue('HR_LEAVE') as $row) {
+            if($row['status']!=='FOR_HR_LEAVE_APPROVAL') continue;
+            $queue[]=$row+['approval_kind'=>'LEAVE','type_name'=>$row['leave_type_name']];
+        }
+        $q=db()->prepare('SELECT pr.*,prt.name type_name,e.employee_no,e.first_name,e.last_name,b.name branch_name
+            FROM payroll_requests pr
+            JOIN payroll_request_types prt ON prt.id=pr.request_type_id
+            JOIN payroll_request_approvals a ON a.request_id=pr.id AND a.step_no=pr.current_step
+            JOIN employees e ON e.id=pr.employee_id
+            LEFT JOIN branches b ON b.id=e.branch_id
+            WHERE prt.category="LEAVE" AND pr.status="FOR_HR_LEAVE_APPROVAL"
+              AND a.approver_type="HR_LEAVE" AND a.status="PENDING"
+            ORDER BY pr.created_at,pr.id');
+        $q->execute();
+        foreach($q->fetchAll() as $row) $queue[]=$row+['approval_kind'=>'PAYROLL'];
+        usort($queue,static fn($a,$b)=>strcmp((string)$a['created_at'],(string)$b['created_at']) ?: strcmp($a['request_no'],$b['request_no']));
+        return $queue;
     }
 
     public static function decideLeave(int $requestId,string $decision,string $remarks=''): void

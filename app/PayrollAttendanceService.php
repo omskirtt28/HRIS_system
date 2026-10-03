@@ -3,15 +3,173 @@ declare(strict_types=1);
 
 final class PayrollAttendanceService
 {
+    public static function reviewOnly(): bool { return true; }
+
+    public static function automaticImportReady(): bool
+    {
+        static $ready=null;
+        if($ready!==null) return $ready;
+        if(!FoundationRepository::columnExists('attendance_imports','source_covered_through')) return $ready=false;
+        $q=db()->prepare('SELECT IS_NULLABLE FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=? AND column_name=?');
+        $q->execute(['attendance_imports','branch_id']); return $ready=$q->fetchColumn()==='YES';
+    }
+
+    private static function requireAutomaticImport(): void
+    {
+        if(!self::automaticImportReady()) throw new RuntimeException('Import database/migrations/20261004_payroll_automatic_import_fix.sql first, then refresh. Existing attendance and tickets stay available.');
+    }
+
+    /** One Payroll action publishes matched logs to employee attendance; there is no send step. */
+    public static function automaticImport(int $cutoffId,array $file): int
+    {
+        Auth::requirePermission('payroll.biometric_import'); self::requireReady(); self::requireAutomaticImport();
+        $id=self::prepareImport($cutoffId,$file);
+        self::commitImport($id,'');
+        return $id;
+    }
+
+    private static function iniBytes(string $value): int
+    {
+        $value=trim($value);
+        if($value==='' || (float)$value<=0) return 0;
+        $unit=strtolower(substr($value,-1));
+        $factor=match($unit) { 'g'=>1024*1024*1024,'m'=>1024*1024,'k'=>1024,default=>1 };
+        return (int)((float)$value*$factor);
+    }
+
+    /** Keep the picker and server checks within this server's PHP upload limits. */
+    public static function uploadLimits(): array
+    {
+        $fileBytes=20*1024*1024;
+        $phpFileBytes=self::iniBytes((string)ini_get('upload_max_filesize'));
+        if($phpFileBytes>0) $fileBytes=min($fileBytes,$phpFileBytes);
+        $postBytes=self::iniBytes((string)ini_get('post_max_size'));
+        $totalBytes=100*1024*1024;
+        if($postBytes>0) $totalBytes=min($totalBytes,max(0,$postBytes-64*1024));
+        $fileBytes=min($fileBytes,$totalBytes);
+        return ['files'=>min(10,max(0,(int)ini_get('max_file_uploads'))),'file_bytes'=>$fileBytes,'total_bytes'=>$totalBytes,'post_bytes'=>$postBytes,'enabled'=>filter_var(ini_get('file_uploads'),FILTER_VALIDATE_BOOLEAN) && $fileBytes>0];
+    }
+
+    public static function uploadSizeLabel(int $bytes): string
+    {
+        if($bytes<1024*1024) return (string)floor($bytes/1024).' KB';
+        return rtrim(rtrim(number_format(floor($bytes/1024/1024*10)/10,1,'.',''),'0'),'.').' MB';
+    }
+
+    /** Accept both the multiple-file picker and the older single-file form. */
+    public static function importFiles(array $upload,int $selectedCount=0): array
+    {
+        $limits=self::uploadLimits();
+        if(!$limits['enabled'] || !$limits['files']) throw new RuntimeException('File uploads are disabled on this server. Ask your system administrator to enable them.');
+        $files=[];
+        if(isset($upload['name']) && is_array($upload['name'])) {
+            if(count($upload['name'])>$limits['files']) throw new RuntimeException('Choose up to '.$limits['files'].' files at a time.');
+            foreach($upload['name'] as $key=>$name) {
+                $file=[];
+                foreach(['name','tmp_name','error','size'] as $field) {
+                    if(!isset($upload[$field]) || !is_array($upload[$field]) || !array_key_exists($key,$upload[$field]) || !is_scalar($upload[$field][$key])) throw new RuntimeException('The upload is incomplete. Select the files again.');
+                    $file[$field]=$upload[$field][$key];
+                }
+                if((int)$file['error']!==UPLOAD_ERR_NO_FILE) $files[]=$file;
+            }
+        } elseif(isset($upload['name']) && is_scalar($upload['name'])) {
+            foreach(['tmp_name','error','size'] as $field) if(!isset($upload[$field]) || !is_scalar($upload[$field])) throw new RuntimeException('The upload is incomplete. Select the files again.');
+            if((int)$upload['error']!==UPLOAD_ERR_NO_FILE) $files[]=$upload;
+        }
+        if(!$files) throw new RuntimeException('Choose at least one PDF, CSV or XLSX file.');
+        if(count($files)>$limits['files'] || $selectedCount>$limits['files']) throw new RuntimeException('Choose up to '.$limits['files'].' files at a time.');
+        if($selectedCount>0 && $selectedCount!==count($files)) throw new RuntimeException('Some files did not reach the server. Select fewer files and try again. No files were imported.');
+        $total=0;
+        foreach($files as $file) $total+=max(0,(int)$file['size']);
+        if($total>$limits['total_bytes']) throw new RuntimeException('The selected files are too large together. Keep the total below '.self::uploadSizeLabel($limits['total_bytes']).' or upload fewer files. No files were imported.');
+        return $files;
+    }
+
+    private static function validateImportFile(array $file): string
+    {
+        $error=(int)($file['error']??UPLOAD_ERR_NO_FILE);
+        $limit=self::uploadLimits()['file_bytes'];
+        if(in_array($error,[UPLOAD_ERR_INI_SIZE,UPLOAD_ERR_FORM_SIZE],true)) throw new RuntimeException('This file is too large. Maximum: '.self::uploadSizeLabel($limit).' per file.');
+        if($error===UPLOAD_ERR_PARTIAL) throw new RuntimeException('This file did not finish uploading. Select it again and retry.');
+        if(in_array($error,[UPLOAD_ERR_NO_TMP_DIR,UPLOAD_ERR_CANT_WRITE,UPLOAD_ERR_EXTENSION],true)) throw new RuntimeException('The server could not save this upload. Ask your system administrator to check upload storage.');
+        if($error!==UPLOAD_ERR_OK || !is_uploaded_file((string)($file['tmp_name']??''))) throw new RuntimeException('Choose a valid biometric upload.');
+        if((int)($file['size']??0)>$limit) throw new RuntimeException('Maximum: '.self::uploadSizeLabel($limit).' per file.');
+        $ext=strtolower(pathinfo((string)$file['name'],PATHINFO_EXTENSION));
+        if(!in_array($ext,['pdf','csv','xlsx'],true)) throw new RuntimeException('Upload PDF, CSV or XLSX.');
+        $mime=(new finfo(FILEINFO_MIME_TYPE))->file((string)$file['tmp_name']);
+        $allowed=['pdf'=>['application/pdf'],'csv'=>['text/plain','text/csv','application/csv','application/vnd.ms-excel'],'xlsx'=>['application/zip','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']];
+        if(!in_array($mime,$allowed[$ext],true)) throw new RuntimeException('File content does not match the chosen format.');
+        return $ext;
+    }
+
+    private static function existingImport(int $cutoffId,string $hash): ?array
+    {
+        $q=db()->prepare('SELECT id,state FROM attendance_imports WHERE cutoff_id=? AND file_hash=? AND state<>"EXPIRED" ORDER BY id DESC LIMIT 1');
+        $q->execute([$cutoffId,$hash]); return $q->fetch()?:null;
+    }
+
+    /** Files are independent: keep valid imports and explain each failed file. */
+    public static function importFileResult(int $cutoffId,array $file,bool $publish): array
+    {
+        Auth::requirePermission('payroll.biometric_import'); self::requireReady(); self::requireAutomaticImport();
+        $result=['name'=>mb_substr(basename((string)$file['name']),0,255),'state'=>'ERROR','id'=>0,'message'=>''];
+        $hash=null;
+        try {
+            self::validateImportFile($file);
+            $hash=hash_file('sha256',(string)$file['tmp_name']);
+            if($hash===false) throw new RuntimeException('This file could not be read. Select it again and retry.');
+            $existing=self::existingImport($cutoffId,$hash);
+            if($existing) {
+                $result['id']=(int)$existing['id'];
+                if($existing['state']==='IMPORTED') return array_replace($result,['state'=>'DUPLICATE','message'=>'Already imported. No extra logs were added.']);
+                if($existing['state']!=='PREVIEW') throw new RuntimeException('Open this file in import history to check its status.');
+            } else {
+                $result['id']=self::prepareImport($cutoffId,$file);
+            }
+            if(!$publish) return array_replace($result,['state'=>'PREVIEW','message'=>'Ready to review. Logs have not been added to employee attendance.']);
+            self::commitImport($result['id'],'');
+        } catch(Throwable $e) {
+            // A concurrent upload may have saved this same file after the initial check.
+            // Also retain a preview link when saving attendance failed after parsing.
+            if($hash!==null && $hash!==false) {
+                try {
+                    $existing=self::existingImport($cutoffId,$hash);
+                    if($existing) {
+                        $result['id']=(int)$existing['id'];
+                        if($existing['state']==='IMPORTED') return array_replace($result,['state'=>'DUPLICATE','message'=>'Already imported. No extra logs were added.']);
+                    }
+                } catch(Throwable $lookupError) { /* Preserve the original file error. */ }
+            }
+            $result['message']=$e->getMessage();
+            if($result['id']>0) $result['message'].=' Open the saved file below to review or retry.';
+            return $result;
+        }
+        $result['state']='IMPORTED';
+        $result['message']='Logs saved. Matched employees can view them now.';
+        try {
+            $delivery=self::importDeliverySummary($result['id']);
+            $result['message']=(int)$delivery['saved_rows'].' new logs saved; '.(int)$delivery['duplicates'].' duplicate logs skipped. '.(int)$delivery['employees'].' employees matched.';
+            if((int)$delivery['unknown_rows']) $result['message'].=' '.(int)$delivery['unknown_rows'].' logs need an Employee Number match.';
+        } catch(Throwable $summaryError) { /* The import is already committed. */ }
+        return $result;
+    }
+
+    public static function importDeliverySummary(int $importId): array
+    {
+        Auth::requirePermission('payroll.biometric_import');
+        $q=db()->prepare('SELECT COUNT(DISTINCT employee_id) employees,COALESCE(SUM(row_state="IMPORTED"),0) saved_rows,COALESCE(SUM(row_state="DUPLICATE"),0) duplicates,COALESCE(SUM(row_state="UNMAPPED"),0) unknown_rows FROM attendance_import_rows WHERE import_id=?');
+        $q->execute([$importId]); return $q->fetch();
+    }
+
     public static function ready(): bool
     {
-        foreach(['payroll_site_settings','payroll_biometric_mappings','payroll_employee_rates','payroll_rate_rules','payroll_settings','payroll_holidays','payroll_cutoff_runs','attendance_imports','attendance_import_rows','attendance_punches','attendance_daily','payroll_request_applications','payroll_cutoff_snapshots','payroll_attendance_resolutions','payroll_daily_dispositions','payroll_cutoff_site_coverage','payroll_request_overtime_windows','payroll_request_pay_rules','payroll_backpay_claims','payroll_punch_selections'] as $table) if(!FoundationRepository::tableExists($table)) return false;
+        foreach(['payroll_site_settings','payroll_biometric_mappings','payroll_employee_rates','payroll_rate_rules','payroll_settings','payroll_holidays','payroll_cutoff_runs','attendance_imports','attendance_import_rows','attendance_punches','attendance_daily','payroll_request_applications','payroll_cutoff_snapshots','payroll_attendance_resolutions','payroll_daily_dispositions','payroll_cutoff_site_coverage','payroll_request_overtime_windows','payroll_request_pay_rules','payroll_backpay_claims','payroll_punch_selections','payroll_cutoff_log_confirmations'] as $table) if(!FoundationRepository::tableExists($table)) return false;
         return PayrollRepository::ready();
     }
 
     public static function requireReady(): void
     {
-        if(!self::ready()) throw new RuntimeException('Import database/migrations/20261002_payroll_biometric_workflow.sql into the existing Phase 3A HRIS database first.');
+        if(!self::ready()) throw new RuntimeException('Attendance database update is incomplete. For the multi-location update, apply database/migrations/20261003_payroll_log_source_coverage.sql. Initial payroll installs also require database/migrations/20261002_payroll_biometric_workflow.sql.');
     }
 
     public static function automaticType(string $code): bool { return in_array(strtoupper($code),['TA','PTA','OB','POB','OT','POT'],true); }
@@ -19,24 +177,44 @@ final class PayrollAttendanceService
     public static function route(array $employee): array
     {
         self::requireReady();
-        $site=self::site((int)($employee['branch_id']??0));
-        if(!$site) throw new RuntimeException('HR Payroll must configure the employee branch/Head Office in Payroll Setup first.');
-        $kind=$site['workplace']==='HEAD_OFFICE'?'MANAGER':'ADL';
-        $uid=(int)($site['approver_user_id']??0);
-        if($kind==='MANAGER') {
-            $st=db()->prepare('SELECT user_id FROM employees WHERE id=? AND status IN ("ACTIVE","PROBATIONARY")');
-            $st->execute([(int)($employee['manager_employee_id']??0)]); $uid=(int)$st->fetchColumn();
-        }
-        if(!$uid || $uid===(int)($employee['user_id']??0)) throw new RuntimeException('Assign an active '.($kind==='ADL'?'branch ADL':'reporting Manager').' other than the requester.');
+        $branchId=(int)($employee['branch_id']??0);
+        $st=db()->prepare('SELECT * FROM branches WHERE id=?'); $st->execute([$branchId]); $branch=$st->fetch();
+        if(!$branch) throw new RuntimeException('Assign the employee branch/Head Office in Employee 201 first.');
+        $site=self::site($branchId);
+        $headOffice=self::isHeadOffice($branch,$site??[]);
+        $kind=$headOffice?'MANAGER':'ADL';
+        $st=db()->prepare('SELECT user_id FROM employees WHERE id=? AND status IN ("ACTIVE","PROBATIONARY","ON_LEAVE")');
+        $st->execute([(int)($employee['manager_employee_id']??0)]); $uid=(int)$st->fetchColumn();
+        // Retain an existing branch ADL assignment while new reporting lines use Employee 201.
+        if(!$uid && !$headOffice) $uid=(int)($site['approver_user_id']??0);
+        if(!$uid || $uid===(int)($employee['user_id']??0)) throw new RuntimeException('HR must assign the active '.($kind==='ADL'?'ADL':'Manager').' in Employee 201 → Reporting To. The requester cannot approve their own ticket.');
         $st=db()->prepare('SELECT u.id,r.code FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=? AND u.status="ACTIVE" AND (r.code="SUPER_ADMIN" OR EXISTS (SELECT 1 FROM role_permissions rp JOIN permissions p ON p.id=rp.permission_id WHERE rp.role_id=u.role_id AND p.code=?))');
         $st->execute([$uid,$kind==='ADL'?'payroll.approve_adl':'payroll.approve_manager']);
         if(!$st->fetch()) throw new RuntimeException('The assigned '.$kind.' needs an active account and the corresponding payroll approval permission.');
         return ['type'=>$kind,'user_id'=>$uid];
     }
 
+    private static function isHeadOffice(array $branch,array $site): bool
+    {
+        if(!empty($branch['site_type'])) return $branch['site_type']==='HEAD_OFFICE';
+        return ($branch['code']??'')==='HEAD_OFFICE' || ($site['workplace']??'')==='HEAD_OFFICE';
+    }
+
     public static function site(int $branchId): ?array
     {
         $st=db()->prepare('SELECT * FROM payroll_site_settings WHERE branch_id=?'); $st->execute([$branchId]); return $st->fetch()?:null;
+    }
+
+    /** The assigned workplace supplies the schedule, regardless of the punch location. */
+    public static function attendancePolicy(int $branchId): array
+    {
+        $q=db()->prepare('SELECT * FROM branches WHERE id=?'); $q->execute([$branchId]);
+        $branch=$q->fetch()?:[]; $site=self::site($branchId)??[];
+        if(self::reviewOnly() && self::isHeadOffice($branch,$site)) {
+            $policy=require dirname(__DIR__).'/config/payroll_attendance.php';
+            $site=array_replace($site,$policy['head_office']); $site['workplace']='HEAD_OFFICE';
+        }
+        return $site+['branch_id'=>$branchId];
     }
 
     private static function requireImportSite(int $branchId): void
@@ -54,11 +232,52 @@ final class PayrollAttendanceService
 
     private static function updateCoverage(int $cutoffId): void
     {
-        $run=self::run($cutoffId);
-        $q=db()->prepare('SELECT COUNT(DISTINCT e.branch_id) sites,COUNT(DISTINCT cov.branch_id) covered,MIN(cov.covered_through) through_date FROM employees e JOIN payroll_biometric_mappings m ON m.employee_id=e.id LEFT JOIN payroll_cutoff_site_coverage cov ON cov.branch_id=e.branch_id AND cov.cutoff_id=? WHERE e.hire_date<=? AND (e.status IN ("ACTIVE","PROBATIONARY","ON_LEAVE") OR EXISTS(SELECT 1 FROM attendance_daily d WHERE d.employee_id=e.id AND d.cutoff_id=?))');
-        $q->execute([$cutoffId,$run['period_end'],$cutoffId]); $r=$q->fetch();
-        $date=(int)$r['sites']>0 && (int)$r['sites']===(int)$r['covered']?$r['through_date']:null;
+        $q=db()->prepare('SELECT * FROM payroll_cutoff_log_confirmations WHERE cutoff_id=?'); $q->execute([$cutoffId]); $confirmation=$q->fetch();
+        $date=$confirmation && hash_equals($confirmation['source_hash'],self::sourceFingerprint($cutoffId))?$confirmation['covered_through']:null;
         db()->prepare('UPDATE payroll_cutoff_runs SET covered_through=? WHERE cutoff_id=?')->execute([$date,$cutoffId]);
+    }
+
+    public static function sourceCoverage(int $cutoffId): array
+    {
+        $q=db()->prepare('SELECT b.id branch_id,b.name source_location,COUNT(i.id) export_count,cov.covered_through FROM attendance_imports i JOIN branches b ON b.id=i.branch_id LEFT JOIN payroll_cutoff_site_coverage cov ON cov.cutoff_id=i.cutoff_id AND cov.branch_id=i.branch_id WHERE i.cutoff_id=? AND i.state="IMPORTED" GROUP BY b.id,b.name,cov.covered_through ORDER BY b.id');
+        $q->execute([$cutoffId]); $sources=$q->fetchAll();
+        if(self::automaticImportReady()) {
+            $q=db()->prepare('SELECT id import_id,NULL branch_id,CONCAT("Automatic file: ",original_name) source_location,1 export_count,source_covered_through covered_through FROM attendance_imports WHERE cutoff_id=? AND branch_id IS NULL AND state="IMPORTED" ORDER BY id');
+            $q->execute([$cutoffId]); $sources=array_merge($sources,$q->fetchAll());
+        }
+        return $sources;
+    }
+
+    private static function sourceFingerprint(int $cutoffId): string
+    {
+        $q=db()->prepare('SELECT id,branch_id,file_hash,row_count,imported_at FROM attendance_imports WHERE cutoff_id=? AND state="IMPORTED" ORDER BY id'); $q->execute([$cutoffId]);
+        // Physical file expiry and later ID mapping do not change the retained log sources.
+        $exports=$q->fetchAll();
+        $coverage=array_map(static fn($source)=>array_intersect_key($source,array_flip(['import_id','branch_id','export_count','covered_through'])),self::sourceCoverage($cutoffId));
+        return hash('sha256',json_encode([$exports,$coverage],JSON_THROW_ON_ERROR));
+    }
+
+    public static function confirmCoverage(int $cutoffId,string $coveredThrough): void
+    {
+        Auth::requirePermission('payroll.process'); self::requireReady(); $coveredThrough=self::date($coveredThrough);
+        $owned=!db()->inTransaction(); if($owned) db()->beginTransaction();
+        try {
+            $run=self::lockOpen($cutoffId);
+            if($coveredThrough<$run['period_start']||$coveredThrough>$run['period_end']||$coveredThrough>=date('Y-m-d')) throw new RuntimeException('Confirm only completed days within this cutoff.');
+            $sources=self::sourceCoverage($cutoffId);
+            if(!$sources) throw new RuntimeException('Import the biometric exports before confirming cutoff coverage.');
+            if(!self::automaticImportReady()) foreach($sources as $source) if(empty($source['covered_through'])||$source['covered_through']<$coveredThrough) throw new RuntimeException('Complete the '.$source['source_location'].' export through '.$coveredThrough.' before confirming all locations.');
+            // Automatic imports publish logs immediately. This separate Payroll confirmation
+            // states that all required emailed files are received, not that every date has punches.
+            if(self::automaticImportReady()) {
+                db()->prepare('UPDATE attendance_imports SET source_covered_through=GREATEST(COALESCE(source_covered_through,?),?) WHERE cutoff_id=? AND branch_id IS NULL AND state="IMPORTED"')->execute([$coveredThrough,$coveredThrough,$cutoffId]);
+                db()->prepare('INSERT INTO payroll_cutoff_site_coverage(cutoff_id,branch_id,covered_through) SELECT DISTINCT cutoff_id,branch_id,? FROM attendance_imports WHERE cutoff_id=? AND branch_id IS NOT NULL AND state="IMPORTED" ON DUPLICATE KEY UPDATE covered_through=GREATEST(covered_through,VALUES(covered_through))')->execute([$coveredThrough,$cutoffId]);
+            }
+            db()->prepare('INSERT INTO payroll_cutoff_log_confirmations(cutoff_id,covered_through,source_hash,confirmed_by) VALUES(?,?,?,?) ON DUPLICATE KEY UPDATE covered_through=VALUES(covered_through),source_hash=VALUES(source_hash),confirmed_by=VALUES(confirmed_by),confirmed_at=NOW()')->execute([$cutoffId,$coveredThrough,self::sourceFingerprint($cutoffId),(int)Auth::user()['id']]);
+            self::rebuild($cutoffId);
+            audit('Payroll','CONFIRM_LOG_COVERAGE','payroll_cutoff',$cutoffId,['covered_through'=>$coveredThrough,'source_locations'=>array_column($sources,'branch_id')]);
+            if($owned) db()->commit();
+        } catch(Throwable $e) { if($owned&&db()->inTransaction()) db()->rollBack(); throw $e; }
     }
 
     public static function lockOpen(int $cutoffId): array
@@ -76,20 +295,18 @@ final class PayrollAttendanceService
         if(!empty($r['ticket_deadline']) && new DateTimeImmutable('now')>new DateTimeImmutable($r['ticket_deadline'])) throw new RuntimeException('The ticket/approval deadline for this cutoff has passed. HR Payroll must explicitly extend it before a late filing or approval.');
     }
 
-    public static function prepareImport(int $cutoffId,array $file,int $branchId): int
+    public static function prepareImport(int $cutoffId,array $file,int $branchId=0): int
     {
         Auth::requirePermission('payroll.biometric_import'); self::requireReady(); self::run($cutoffId);
-        // Raw logs may be imported before schedule setup; calculation still flags SCHEDULE_NOT_CONFIGURED.
-        self::requireImportSite($branchId);
-        if(($file['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK || !is_uploaded_file((string)($file['tmp_name']??''))) throw new RuntimeException('Choose a valid biometric upload.');
-        if((int)($file['size']??0)>20*1024*1024) throw new RuntimeException('Biometric uploads must be 20 MB or smaller.');
-        $ext=strtolower(pathinfo((string)$file['name'],PATHINFO_EXTENSION));
-        if(!in_array($ext,['pdf','csv','xlsx'],true)) throw new RuntimeException('Upload PDF, CSV or XLSX.');
-        $mime=(new finfo(FILEINFO_MIME_TYPE))->file((string)$file['tmp_name']);
-        $allowed=['pdf'=>['application/pdf'],'csv'=>['text/plain','text/csv','application/csv','application/vnd.ms-excel'],'xlsx'=>['application/zip','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']];
-        if(!in_array($mime,$allowed[$ext],true)) throw new RuntimeException('File content does not match the chosen format.');
+        // Identity / assigned workplace come from Employee 201. A file without a
+        // declared physical device location is retained without inventing one.
+        if($branchId>0) self::requireImportSite($branchId); else self::requireAutomaticImport();
+        $sourceBranch=$branchId>0?$branchId:null;
+        $ext=self::validateImportFile($file);
         $hash=hash_file('sha256',(string)$file['tmp_name']);
-        $st=db()->prepare('SELECT id,state FROM attendance_imports WHERE cutoff_id=? AND branch_id=? AND file_hash=?'); $st->execute([$cutoffId,$branchId,$hash]);
+        $duplicateSql='SELECT id,state FROM attendance_imports WHERE cutoff_id=? AND file_hash=?'.($sourceBranch!==null?' AND branch_id=?':'').' ORDER BY (state<>"EXPIRED") DESC,id DESC LIMIT 1';
+        $duplicateArgs=[$cutoffId,$hash]; if($sourceBranch!==null) $duplicateArgs[]=$sourceBranch;
+        $st=db()->prepare($duplicateSql); $st->execute($duplicateArgs);
         $old=$st->fetch();
         if($old && $old['state']!=='EXPIRED') throw new RuntimeException('This file already has import #'.$old['id'].'. Open its preview/history rather than importing it twice.');
         $rows=BiometricParser::parse((string)$file['tmp_name'],$ext);
@@ -100,27 +317,27 @@ final class PayrollAttendanceService
         try {
             self::lockOpen($cutoffId);
             // Recheck under the cutoff lock: simultaneous uploads must never overwrite a committed import.
-            $st=db()->prepare('SELECT id,state FROM attendance_imports WHERE cutoff_id=? AND branch_id=? AND file_hash=? FOR UPDATE'); $st->execute([$cutoffId,$branchId,$hash]); $current=$st->fetch();
+            $st=db()->prepare($duplicateSql.' FOR UPDATE'); $st->execute($duplicateArgs); $current=$st->fetch();
             if($current && $current['state']!=='EXPIRED') throw new RuntimeException('This file already has import #'.$current['id'].'.');
             $name=mb_substr(basename((string)$file['name']),0,255); $actor=(int)Auth::user()['id'];
             if($current) {
                 $id=(int)$current['id'];
                 db()->prepare('DELETE FROM attendance_import_rows WHERE import_id=?')->execute([$id]);
-                db()->prepare('UPDATE attendance_imports SET state="PREVIEW",original_name=?,stored_name=?,row_count=?,created_by=?,created_at=NOW(),expires_at=DATE_ADD(NOW(),INTERVAL 2 HOUR),deleted_at=NULL WHERE id=?')->execute([$name,$stored,count($rows),$actor,$id]);
+                $clearCoverage=self::automaticImportReady()?',source_covered_through=NULL':'';
+                db()->prepare('UPDATE attendance_imports SET branch_id=?,state="PREVIEW",original_name=?,stored_name=?,row_count=?,created_by=?,created_at=NOW(),expires_at=DATE_ADD(NOW(),INTERVAL 2 HOUR),deleted_at=NULL'.$clearCoverage.' WHERE id=?')->execute([$sourceBranch,$name,$stored,count($rows),$actor,$id]);
             } else {
                 $st=db()->prepare('INSERT INTO attendance_imports(cutoff_id,branch_id,original_name,stored_name,file_hash,row_count,created_by,expires_at) VALUES(?,?,?,?,?,?,?,DATE_ADD(NOW(),INTERVAL 2 HOUR))');
-                $st->execute([$cutoffId,$branchId,$name,$stored,$hash,count($rows),$actor]); $id=(int)db()->lastInsertId();
+                $st->execute([$cutoffId,$sourceBranch,$name,$stored,$hash,count($rows),$actor]); $id=(int)db()->lastInsertId();
             }
             $insert=db()->prepare('INSERT INTO attendance_import_rows(import_id,row_no,biometric_id,punched_at,punch_status,employee_id,row_state) VALUES(?,?,?,?,?,?,?)');
             $mapping=db()->query('SELECT biometric_id,employee_id FROM payroll_biometric_mappings')->fetchAll(PDO::FETCH_KEY_PAIR);
             $cutoff=self::run($cutoffId);
-            $employeeSites=db()->query('SELECT id,branch_id FROM employees')->fetchAll(PDO::FETCH_KEY_PAIR);
             foreach($rows as $i=>$r) {
                 $date=substr($r['punched_at'],0,10);
                 // Next-day punches may belong to overnight duty on the cutoff's last day.
                 if($date<$cutoff['period_start']||$date>(new DateTimeImmutable($cutoff['period_end']))->modify('+1 day')->format('Y-m-d')) throw new RuntimeException('Row '.($i+1).' is outside this cutoff (including its overnight tail). Choose the correct cutoff or split the export.');
                 $employee=$mapping[$r['biometric_id']]??null;
-                $state=!$employee?'UNMAPPED':((int)($employeeSites[$employee]??0)===$branchId?'READY':'SITE_MISMATCH');
+                $state=$employee?'READY':'UNMAPPED';
                 $insert->execute([$id,$i+1,$r['biometric_id'],$r['punched_at'],$r['punch_status'],$employee,$state]);
             }
             audit('Payroll','BIOMETRIC_PREVIEW','attendance_import',$id,['rows'=>count($rows),'cutoff_id'=>$cutoffId]); db()->commit(); return $id;
@@ -129,7 +346,7 @@ final class PayrollAttendanceService
 
     public static function import(int $id): array
     {
-        $st=db()->prepare('SELECT i.*,b.name branch_name,u.full_name uploaded_by FROM attendance_imports i JOIN branches b ON b.id=i.branch_id JOIN users u ON u.id=i.created_by WHERE i.id=?'); $st->execute([$id]); $r=$st->fetch(); if(!$r) throw new RuntimeException('Import not found.'); return $r;
+        $st=db()->prepare('SELECT i.*,COALESCE(b.name,"Automatic employee matching · all assigned sites") branch_name,u.full_name uploaded_by FROM attendance_imports i LEFT JOIN branches b ON b.id=i.branch_id JOIN users u ON u.id=i.created_by WHERE i.id=?'); $st->execute([$id]); $r=$st->fetch(); if(!$r) throw new RuntimeException('Import not found.'); return $r;
     }
 
     private static function previewMatchingSql(): string
@@ -140,9 +357,9 @@ final class PayrollAttendanceService
             COALESCE(mapped.employee_no,exact_employee.employee_no) employee_no,
             CONCAT_WS(" ",COALESCE(mapped.first_name,exact_employee.first_name),COALESCE(mapped.last_name,exact_employee.last_name)) employee_name,
             COALESCE(mapped.branch_id,exact_employee.branch_id) employee_branch_id,b.name employee_branch_name,
+            CASE WHEN i.branch_id IS NOT NULL AND COALESCE(mapped.id,exact_employee.id) IS NOT NULL AND COALESCE(mapped.branch_id,exact_employee.branch_id,0)<>i.branch_id THEN 1 ELSE 0 END other_log_location,
             CASE WHEN mapped.id IS NOT NULL THEN "BIOMETRIC_MAPPING" WHEN exact_employee.id IS NOT NULL THEN "EMPLOYEE_NUMBER" ELSE "UNMAPPED" END match_source,
-            CASE WHEN COALESCE(mapped.id,exact_employee.id) IS NULL THEN "UNMAPPED"
-                 WHEN COALESCE(mapped.branch_id,exact_employee.branch_id,0)<>i.branch_id THEN "SITE_MISMATCH" ELSE "READY" END current_match_state
+            CASE WHEN COALESCE(mapped.id,exact_employee.id) IS NULL THEN "UNMAPPED" ELSE "READY" END current_match_state
             FROM attendance_import_rows r JOIN attendance_imports i ON i.id=r.import_id
             LEFT JOIN payroll_biometric_mappings m ON m.biometric_id=r.biometric_id
             LEFT JOIN employees mapped ON mapped.id=m.employee_id
@@ -180,7 +397,7 @@ final class PayrollAttendanceService
         $st=db()->prepare('SELECT r.*,CONCAT_WS(" ",e.first_name,e.last_name) employee_name,e.employee_no,b.name employee_branch_name FROM attendance_import_rows r LEFT JOIN employees e ON e.id=r.employee_id LEFT JOIN branches b ON b.id=e.branch_id WHERE r.import_id=? ORDER BY r.row_no LIMIT 250'); $st->execute([$id]); return $st->fetchAll();
     }
 
-    private static function autoMapEmployeeNumbers(int $importId,int $branchId): int
+    private static function autoMapEmployeeNumbers(int $importId): int
     {
         // Persist exact matches only when HR confirms the import, inside the same transaction.
         // INSERT IGNORE respects both identity uniqueness constraints if another user maps concurrently.
@@ -189,26 +406,27 @@ final class PayrollAttendanceService
             JOIN employees e ON e.employee_no=r.biometric_id AND BINARY e.employee_no=BINARY r.biometric_id
             LEFT JOIN payroll_biometric_mappings by_id ON by_id.biometric_id=r.biometric_id
             LEFT JOIN payroll_biometric_mappings by_employee ON by_employee.employee_id=e.id
-            WHERE r.import_id=? AND e.branch_id=? AND by_id.employee_id IS NULL AND by_employee.employee_id IS NULL');
-        $st->execute([(int)Auth::user()['id'],$importId,$branchId]); return $st->rowCount();
+            WHERE r.import_id=? AND by_id.employee_id IS NULL AND by_employee.employee_id IS NULL');
+        $st->execute([(int)Auth::user()['id'],$importId]); return $st->rowCount();
     }
 
-    public static function commitImport(int $id,string $coveredThrough): void
+    public static function commitImport(int $id,string $coveredThrough,bool $allLocationsComplete=false): void
     {
-        Auth::requirePermission('payroll.biometric_import'); self::requireReady(); $coveredThrough=self::date($coveredThrough);
+        Auth::requirePermission('payroll.biometric_import'); self::requireReady();
+        $coveredThrough=trim($coveredThrough); if($coveredThrough!=='') $coveredThrough=self::date($coveredThrough);
+        $import=self::import($id);
         db()->beginTransaction();
         try {
-            $import=self::import($id); $run=self::lockOpen((int)$import['cutoff_id']);
+            $run=self::lockOpen((int)$import['cutoff_id']);
             $st=db()->prepare('SELECT *,expires_at<=NOW() preview_expired FROM attendance_imports WHERE id=? FOR UPDATE'); $st->execute([$id]); $import=$st->fetch();
             if($import['state']!=='PREVIEW') throw new RuntimeException('This import was already committed or expired.');
             if((int)$import['preview_expired']) throw new RuntimeException('Preview expired. Use a fresh export.');
-            self::requireImportSite((int)$import['branch_id']);
-            if($coveredThrough<$run['period_start']||$coveredThrough>$run['period_end']||$coveredThrough>=date('Y-m-d')) throw new RuntimeException('Coverage must be a completed day within this cutoff. Today remains awaiting logs.');
-            $st=db()->prepare('SELECT matching.biometric_id,matching.employee_name,matching.employee_branch_name FROM ('.self::previewMatchingSql().' WHERE r.import_id=?) matching WHERE current_match_state="SITE_MISMATCH" LIMIT 1'); $st->execute([$id]); $wrongSite=$st->fetch();
-            if($wrongSite) throw new RuntimeException('Biometric ID '.$wrongSite['biometric_id'].' matches '.$wrongSite['employee_name'].' at '.($wrongSite['employee_branch_name']?:'an unassigned site').'. Choose the matching site for the export, or split the file by site before confirming.');
-            $autoMapped=self::autoMapEmployeeNumbers($id,(int)$import['branch_id']);
+            $automatic=empty($import['branch_id']);
+            if($automatic) self::requireAutomaticImport(); else self::requireImportSite((int)$import['branch_id']);
+            if((!$automatic || $allLocationsComplete) && $coveredThrough==='') throw new RuntimeException('Choose the completed-through date for source confirmation. Automatic imports can publish logs now and confirm all files later in Payroll Cutoffs.');
+            if($coveredThrough!=='' && ($coveredThrough<$run['period_start']||$coveredThrough>$run['period_end']||$coveredThrough>=date('Y-m-d'))) throw new RuntimeException('Coverage must be a completed day within this cutoff.');
+            $autoMapped=self::autoMapEmployeeNumbers($id);
             $st=db()->prepare('UPDATE attendance_import_rows r LEFT JOIN payroll_biometric_mappings m ON m.biometric_id=r.biometric_id SET r.employee_id=m.employee_id,r.row_state=IF(m.employee_id IS NULL,"UNMAPPED","READY") WHERE r.import_id=?'); $st->execute([$id]);
-            $mismatch=db()->prepare('SELECT COUNT(*) FROM attendance_import_rows r JOIN employees e ON e.id=r.employee_id WHERE r.import_id=? AND COALESCE(e.branch_id,0)<>?'); $mismatch->execute([$id,$import['branch_id']]); if((int)$mismatch->fetchColumn()) throw new RuntimeException('A biometric ID is mapped to another site. Correct mapping or split the export.');
             $rows=db()->prepare('SELECT * FROM attendance_import_rows WHERE import_id=? ORDER BY id'); $rows->execute([$id]);
             $insert=db()->prepare('INSERT IGNORE INTO attendance_punches(employee_id,punched_at,punch_status,import_row_id) VALUES(?,?,?,?)');
             $update=db()->prepare('UPDATE attendance_import_rows SET row_state=? WHERE id=?');
@@ -217,9 +435,10 @@ final class PayrollAttendanceService
                 $insert->execute([$r['employee_id'],$r['punched_at'],$r['punch_status'],$r['id']]); $update->execute([$insert->rowCount()?'IMPORTED':'DUPLICATE',$r['id']]);
             }
             db()->prepare('UPDATE attendance_imports SET state="IMPORTED",imported_at=NOW(),expires_at=DATE_ADD(NOW(),INTERVAL 48 HOUR) WHERE id=?')->execute([$id]);
-            db()->prepare('INSERT INTO payroll_cutoff_site_coverage(cutoff_id,branch_id,covered_through) VALUES(?,?,?) ON DUPLICATE KEY UPDATE covered_through=GREATEST(covered_through,VALUES(covered_through))')->execute([$run['id'],$import['branch_id'],$coveredThrough]);
-            self::updateCoverage((int)$run['id']);
-            self::rebuild((int)$run['id']);
+            if($automatic) db()->prepare('UPDATE attendance_imports SET source_covered_through=? WHERE id=?')->execute([$coveredThrough!==''?$coveredThrough:null,$id]);
+            else db()->prepare('INSERT INTO payroll_cutoff_site_coverage(cutoff_id,branch_id,covered_through) VALUES(?,?,?) ON DUPLICATE KEY UPDATE covered_through=GREATEST(covered_through,VALUES(covered_through))')->execute([$run['id'],$import['branch_id'],$coveredThrough]);
+            if($allLocationsComplete) self::confirmCoverage((int)$run['id'],$coveredThrough);
+            else self::rebuild((int)$run['id']);
             audit('Payroll','BIOMETRIC_IMPORT','attendance_import',$id,['cutoff_id'=>(int)$run['id'],'covered_through'=>$coveredThrough,'employee_number_mappings_created'=>$autoMapped]); db()->commit();
         } catch(Throwable $e) { if(db()->inTransaction()) db()->rollBack(); throw $e; }
     }
@@ -241,10 +460,9 @@ final class PayrollAttendanceService
             if($owner && $owner!==$employeeId) throw new RuntimeException('That biometric ID belongs to another employee.');
             if($existing) db()->prepare('UPDATE payroll_biometric_mappings SET biometric_id=?,updated_by=? WHERE employee_id=?')->execute([$biometric,(int)Auth::user()['id'],$employeeId]);
             else db()->prepare('INSERT INTO payroll_biometric_mappings(employee_id,biometric_id,updated_by) VALUES(?,?,?)')->execute([$employeeId,$biometric,(int)Auth::user()['id']]);
-            $pending=db()->prepare('SELECT r.*,i.cutoff_id,i.branch_id import_branch_id FROM attendance_import_rows r JOIN attendance_imports i ON i.id=r.import_id WHERE r.biometric_id=? AND r.row_state="UNMAPPED" AND i.state="IMPORTED"'); $pending->execute([$biometric]); $cutoffs=[];
+            $pending=db()->prepare('SELECT r.*,i.cutoff_id FROM attendance_import_rows r JOIN attendance_imports i ON i.id=r.import_id WHERE r.biometric_id=? AND r.row_state="UNMAPPED" AND i.state="IMPORTED"'); $pending->execute([$biometric]); $cutoffs=[];
             foreach($pending->fetchAll() as $r) {
                 self::lockOpen((int)$r['cutoff_id']);
-                if((int)self::employee($employeeId)['branch_id']!==(int)$r['import_branch_id']) throw new RuntimeException('This unknown ID came from a different site import. Correct the site/mapping before importing.');
                 $q=db()->prepare('INSERT IGNORE INTO attendance_punches(employee_id,punched_at,punch_status,import_row_id) VALUES(?,?,?,?)'); $q->execute([$employeeId,$r['punched_at'],$r['punch_status'],$r['id']]);
                 db()->prepare('UPDATE attendance_import_rows SET employee_id=?,row_state=? WHERE id=?')->execute([$employeeId,$q->rowCount()?'IMPORTED':'DUPLICATE',$r['id']]); $cutoffs[(int)$r['cutoff_id']]=true;
             }
@@ -263,9 +481,13 @@ final class PayrollAttendanceService
         $minutes=self::number($data['break_minutes']??'',0,240);
         $days=array_values(array_unique(array_map('intval',(array)($data['workdays']??[])))); sort($days);
         if(!$days || min($days)<1 || max($days)>7) throw new RuntimeException('Select scheduled workdays.');
-        $uid=(int)($data['approver_user_id']??0)?:null;
+        // Head Office always follows Employee 201 Reporting To; ignore a stale ADL form value.
+        $uid=$kind==='BRANCH'?((int)($data['approver_user_id']??0)?:null):null;
         if($kind==='BRANCH' && !$uid) throw new RuntimeException('Select the branch ADL account.');
-        if($uid) { $q=db()->prepare('SELECT id FROM users WHERE id=? AND status="ACTIVE"'); $q->execute([$uid]); if(!$q->fetch()) throw new RuntimeException('Choose an active approver account.'); }
+        if($uid) {
+            $q=db()->prepare('SELECT u.id FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=? AND u.status="ACTIVE" AND (r.code="SUPER_ADMIN" OR EXISTS (SELECT 1 FROM role_permissions rp JOIN permissions p ON p.id=rp.permission_id WHERE rp.role_id=u.role_id AND p.code="payroll.approve_adl"))');
+            $q->execute([$uid]); if(!$q->fetch()) throw new RuntimeException('Choose an active ADL account with Payroll → Approve branch payroll tickets permission.');
+        }
         $window=PayrollCalculator::window('2000-01-01',['shift_start'=>$start,'shift_end'=>$end]);
         if(($window[1]->getTimestamp()-$window[0]->getTimestamp())/60 <= $minutes) throw new RuntimeException('Break duration must be shorter than the shift.');
         $q=db()->prepare('INSERT INTO payroll_site_settings(branch_id,workplace,approver_user_id,shift_start,shift_end,break_minutes,workdays,updated_by) VALUES(?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE workplace=VALUES(workplace),approver_user_id=VALUES(approver_user_id),shift_start=VALUES(shift_start),shift_end=VALUES(shift_end),break_minutes=VALUES(break_minutes),workdays=VALUES(workdays),updated_by=VALUES(updated_by)');
@@ -347,7 +569,18 @@ final class PayrollAttendanceService
         $sql='SELECT e.*,s.workplace,s.shift_start,s.shift_end,s.break_minutes,s.workdays FROM employees e JOIN payroll_biometric_mappings m ON m.employee_id=e.id LEFT JOIN payroll_site_settings s ON s.branch_id=e.branch_id WHERE e.hire_date<=? AND (e.status IN ("ACTIVE","PROBATIONARY","ON_LEAVE") OR EXISTS (SELECT 1 FROM attendance_daily d WHERE d.employee_id=e.id AND d.cutoff_id='.(int)$cutoffId.'))';
         $args=[$run['period_end']]; if($onlyEmployee!==null) { $sql.=' AND e.id=?'; $args[]=$onlyEmployee; }
         $q=db()->prepare($sql.' ORDER BY e.id'); $q->execute($args);
-        return ['run'=>$run,'employees'=>$q->fetchAll(),'rules'=>self::rules(),'settings'=>self::settings()];
+        $employees=$q->fetchAll();
+        if(self::reviewOnly()) {
+            $policy=require dirname(__DIR__).'/config/payroll_attendance.php';
+            $branches=db()->query('SELECT * FROM branches')->fetchAll(PDO::FETCH_UNIQUE);
+            foreach($employees as &$employee) {
+                $branch=$branches[(int)$employee['branch_id']]??[];
+                if(self::isHeadOffice($branch,$employee)) {
+                    $employee=array_replace($employee,$policy['head_office']); $employee['workplace']='HEAD_OFFICE';
+                }
+            } unset($employee);
+        }
+        return ['run'=>$run,'employees'=>$employees,'rules'=>self::reviewOnly()?[]:self::rules(),'settings'=>self::reviewOnly()?[]:self::settings()];
     }
 
     public static function rebuild(int $cutoffId,?int $onlyEmployee=null): void
@@ -368,7 +601,7 @@ final class PayrollAttendanceService
         $run=$context['run']; $id=(int)$e['id'];
         $q=db()->prepare('SELECT work_date FROM attendance_daily WHERE employee_id=? AND work_date BETWEEN ? AND ? AND cutoff_id<>? LIMIT 1'); $q->execute([$id,$run['period_start'],$run['period_end'],$run['id']]);
         if($q->fetchColumn()) throw new RuntimeException('This cutoff overlaps another attendance cutoff. Correct the cutoff calendar before recalculating.');
-        $coverage=db()->prepare('SELECT covered_through FROM payroll_cutoff_site_coverage WHERE cutoff_id=? AND branch_id=?'); $coverage->execute([$run['id'],$e['branch_id']]); $siteCovered=$coverage->fetchColumn()?:null;
+        $siteCovered=$run['covered_through'];
         $q=db()->prepare('SELECT * FROM payroll_daily_dispositions WHERE employee_id=? AND work_date BETWEEN ? AND ?'); $q->execute([$id,$run['period_start'],$run['period_end']]); $dispositions=[]; foreach($q->fetchAll() as $x) $dispositions[$x['work_date'].'|'.$x['source_hash']]=$x;
         $requests=self::approvedRequests($id,$run['period_start'],$run['period_end']); $grouped=[];
         foreach($requests as $r) $grouped[$r['affected_date']][]=$r;
@@ -379,12 +612,15 @@ final class PayrollAttendanceService
             if(!empty($e['shift_start']) && !empty($e['shift_end']) && $e['shift_end']<$e['shift_start'] && $clock<$e['shift_start']) $day=(new DateTimeImmutable($day))->modify('-1 day')->format('Y-m-d');
             else {
                 $previous=(new DateTimeImmutable($day))->modify('-1 day')->format('Y-m-d');
-                foreach($grouped[$previous]??[] as $r) if(in_array($r['type_code'],['OT','POT'],true) && (($r['ended_at']??'')!=='' ? substr($r['ended_at'],0,10)===$day && $p['punched_at']<=$r['ended_at'] : (!empty($r['ot_start']) && !empty($r['ot_end']) && $r['ot_end']<=$r['ot_start'] && $clock<=$r['ot_end']))) { $day=$previous; break; }
+                foreach($grouped[$previous]??[] as $r) if(in_array($r['type_code'],['OT','POT'],true) && (($r['ended_at']??'')!=='' ? substr($r['ended_at'],0,10)===$day && $p['punched_at']>=$r['started_at'] && $p['punched_at']<=$r['ended_at'] : (!empty($r['ot_start']) && !empty($r['ot_end']) && $r['ot_end']<=$r['ot_start'] && $clock<=$r['ot_end']))) { $day=$previous; break; }
             }
             $punchDays[$day][]=$p;
         }
-        $q=db()->prepare('SELECT * FROM payroll_employee_rates WHERE employee_id=? AND effective_from<=? AND COALESCE(effective_to,"9999-12-31")>=? ORDER BY effective_from DESC'); $q->execute([$id,$run['period_end'],$run['period_start']]); $rates=$q->fetchAll();
-        $q=db()->prepare('SELECT * FROM payroll_holidays WHERE holiday_date BETWEEN ? AND ? AND (branch_id IS NULL OR branch_id=?) ORDER BY branch_id IS NULL DESC'); $q->execute([$run['period_start'],(new DateTimeImmutable($run['period_end']))->modify('+1 day')->format('Y-m-d'),$e['branch_id']]); $holidays=[]; foreach($q->fetchAll() as $h) $holidays[$h['holiday_date']]=$h['day_type'];
+        $rates=[]; $holidays=[];
+        if(!self::reviewOnly()) {
+            $q=db()->prepare('SELECT * FROM payroll_employee_rates WHERE employee_id=? AND effective_from<=? AND COALESCE(effective_to,"9999-12-31")>=? ORDER BY effective_from DESC'); $q->execute([$id,$run['period_end'],$run['period_start']]); $rates=$q->fetchAll();
+            $q=db()->prepare('SELECT * FROM payroll_holidays WHERE holiday_date BETWEEN ? AND ? AND (branch_id IS NULL OR branch_id=?) ORDER BY branch_id IS NULL DESC'); $q->execute([$run['period_start'],(new DateTimeImmutable($run['period_end']))->modify('+1 day')->format('Y-m-d'),$e['branch_id']]); foreach($q->fetchAll() as $h) $holidays[$h['holiday_date']]=$h['day_type'];
+        }
         $q=db()->prepare('SELECT date_from,date_to FROM leave_requests WHERE employee_id=? AND status="APPROVED" AND date_from<=? AND date_to>=?'); $q->execute([$id,$run['period_end'],$run['period_start']]); $leaves=$q->fetchAll();
         $q=db()->prepare('SELECT * FROM payroll_attendance_resolutions WHERE employee_id=? AND work_date BETWEEN ? AND ?'); $q->execute([$id,$run['period_start'],$run['period_end']]); $resolutions=[]; foreach($q->fetchAll() as $r) $resolutions[$r['work_date']][$r['punch_field'].'|'.$r['source_hash']]=$r;
         $q=db()->prepare('SELECT * FROM payroll_punch_selections WHERE employee_id=? AND work_date BETWEEN ? AND ?'); $q->execute([$id,$run['period_start'],$run['period_end']]); $selections=[]; foreach($q->fetchAll() as $x) $selections[$x['work_date'].'|'.$x['source_hash']]=$x;
@@ -399,36 +635,92 @@ final class PayrollAttendanceService
             $rawPunches=$punchDays[$date]??[]; $punchHash=hash('sha256',json_encode($rawPunches,JSON_THROW_ON_ERROR)); $effectivePunches=$rawPunches;
             $selection=$selections[$date.'|'.$punchHash]??null;
             if($selection) { $effectivePunches=[]; foreach(PayrollCalculator::FIELDS as $field) foreach($rawPunches as $p) if((int)$p['id']===(int)($selection[$field]??0)) { $p['punch_status']=strtoupper($field); $effectivePunches[]=$p; break; } }
-            $calc=PayrollCalculator::calculate($date,$e,$effectivePunches,$grouped[$date]??[],$rate,$context['rules'],$context['settings'],$holidays,$resolutions[$date]??[],$covered,$leave);
+            $calc=self::reviewOnly()?PayrollAttendanceReview::calculate($date,$e,$effectivePunches,$grouped[$date]??[],$resolutions[$date]??[],$covered,$leave):PayrollCalculator::calculate($date,$e,$effectivePunches,$grouped[$date]??[],$rate,$context['rules'],$context['settings'],$holidays,$resolutions[$date]??[],$covered,$leave);
             $hash=hash('sha256',json_encode([$punchDays[$date]??[],$grouped[$date]??[]],JSON_THROW_ON_ERROR));
             if($covered && isset($dispositions[$date.'|'.$hash]) && !$leave && !array_filter($grouped[$date]??[],static fn($r)=>in_array($r['type_code'],['OB','POB'],true))) {
                 $attendanceIssues=['AMBIGUOUS_PUNCHES','INVALID_PUNCH_SEQUENCE','EXTRA_PUNCHES_REVIEW','LATE','UNDERTIME','EXCESS_BREAK'];
                 $calc['issues']=array_values(array_filter($calc['issues'],static fn($i)=>!str_starts_with($i,'MISSING_')&&!in_array($i,$attendanceIssues,true)));
-                $calc['regular_minutes']=0; $calc['regular_amount']=0; $calc['late_minutes']=0; $calc['undertime_minutes']=0;
+                $calc['regular_minutes']=0; $calc['regular_amount']=self::reviewOnly()?null:0; $calc['late_minutes']=0; $calc['undertime_minutes']=0;
                 $calc['sources'][]=['type'=>'ZERO_CREDIT','note'=>$dispositions[$date.'|'.$hash]['remarks'],'actor'=>(int)$dispositions[$date.'|'.$hash]['recorded_by']];
-                if(!$calc['issues']) $calc['state']='ZERO_CREDIT';
+                if(!array_diff($calc['issues'],['AWAITING_LOGS'])) { $calc['issues']=[]; $calc['state']='ZERO_CREDIT'; }
             }
             $calc['rate_snapshot']['attendance_source_hash']=$hash; $calc['rate_snapshot']['punch_source_hash']=$punchHash; $calc['rate_snapshot']['raw_punch_ids']=array_column($rawPunches,'id');
             if($selection) $calc['sources'][]=['type'=>'VERIFIED_PUNCH_SELECTION','actor'=>(int)$selection['recorded_by'],'note'=>$selection['remarks']];
             $calc['issues_json']=json_encode($calc['issues'],JSON_THROW_ON_ERROR); $calc['sources_json']=json_encode($calc['sources'],JSON_THROW_ON_ERROR); $calc['rate_snapshot_json']=json_encode($calc['rate_snapshot'],JSON_THROW_ON_ERROR);
             $values=['cutoff_id'=>(int)$run['id'],'employee_id'=>$id,'work_date'=>$date]+$calc; $save->execute(array_map(static fn($f)=>$values[$f],$fields));
             foreach($grouped[$date]??[] as $r) {
-                $state=!$covered && empty($punchDays[$date])?'WAITING_FOR_IMPORT':($calc['state']==='ISSUES'?'NEEDS_REVIEW':'APPLIED');
-                $apply->execute([$r['id'],$state,$state==='APPLIED'?'Applied to cutoff attendance.':($state==='WAITING_FOR_IMPORT'?'Approved; waiting for biometric coverage.':'Attendance issues require review.')]);
+                if(self::reviewOnly()) {
+                    $application=self::attendanceApplication($calc,!empty($rawPunches),(bool)$covered);
+                    $apply->execute([$r['id'],$application['application_state'],$application['note']]);
+                } else {
+                    $state=!$covered && empty($punchDays[$date])?'WAITING_FOR_IMPORT':($calc['state']==='ISSUES'?'NEEDS_REVIEW':'APPLIED');
+                    $apply->execute([$r['id'],$state,$state==='APPLIED'?'Applied to cutoff attendance.':($state==='WAITING_FOR_IMPORT'?'Approved; waiting for biometric coverage.':'Attendance issues require review.')]);
+                }
             }
         }
+        foreach($requests as $request) if($request['affected_date']<$e['hire_date']) {
+            $apply->execute([$request['id'],'NEEDS_REVIEW','The affected date is before the Employee 201 hire date. HR must verify the employee record or ticket date.']);
+        }
+    }
+
+    private static function attendanceApplication(array $day,bool $hasRaw,bool $covered): array
+    {
+        if(!in_array($day['state'],['ISSUES','AWAITING_LOGS'],true)) {
+            return ['application_state'=>'APPLIED','note'=>'Approved ticket applied to daily attendance.'.(!$covered?' Complete the biometric source uploads separately before finalizing the cutoff.':'')];
+        }
+        $issues=$day['issues']??[];
+        $waitingIssues=array_filter($issues,static fn($issue)=>!str_starts_with($issue,'MISSING_') && !in_array($issue,['AWAITING_LOGS','OT_ATTENDANCE_MISMATCH'],true));
+        if(!$hasRaw && !$covered && !$waitingIssues) return ['application_state'=>'WAITING_FOR_IMPORT','note'=>'Approved ticket times are saved in attendance. Import biometric logs to complete the remaining punches or OT matching.'];
+        return ['application_state'=>'NEEDS_REVIEW','note'=>'Approved ticket is linked to attendance; missing punches or conflicts still require review.'];
+    }
+
+    private static function applicationFromRow(array $row): array
+    {
+        $application=['application_state'=>$row['application_state']??'WAITING_FOR_IMPORT','note'=>$row['application_note']??'Approved; waiting for biometric matching. Import logs or refresh attendance.'];
+        if(!in_array($row['status'],['APPROVED','COMPLETED'],true)) return ['application_state'=>in_array($row['status'],['REJECTED','CANCELLED'],true)?'REJECTED':'AWAITING_APPROVAL','note'=>'Request has not completed final approval.'];
+        if(self::reviewOnly() && !empty($row['processing_cutoff_id'])) return ['application_state'=>'NEEDS_REVIEW','note'=>'Approved historical unpaid claim. HR Payroll reviews the amount manually; original finalized attendance stays locked.'];
+        if($row['affected_date']<$row['hire_date']) return ['application_state'=>'NEEDS_REVIEW','note'=>'Affected date is before the Employee 201 hire date. HR must verify the record or ticket date.'];
+        $sources=json_decode($row['attendance_sources']??'[]',true)?:[];
+        if(self::reviewOnly() && !empty($row['attendance_state']) && in_array((int)$row['id'],array_map('intval',array_column($sources,'id')),true)) {
+            // Read the actual matching day, so an old coverage status cannot hide an applied ticket.
+            $snapshot=json_decode($row['attendance_snapshot']??'{}',true)?:[];
+            $application=self::attendanceApplication(['state'=>$row['attendance_state'],'issues'=>json_decode($row['attendance_issues']??'[]',true)?:[]],!empty($snapshot['raw_punch_ids']),!empty($snapshot['coverage_confirmed']));
+        }
+        return $application;
+    }
+
+    public static function requestApplication(int $requestId): ?array
+    {
+        $q=db()->prepare('SELECT pr.id,pr.status,pr.affected_date,e.hire_date,bc.processing_cutoff_id,pa.application_state,pa.note application_note,d.id attendance_id,d.state attendance_state,d.issues_json attendance_issues,d.sources_json attendance_sources,d.rate_snapshot_json attendance_snapshot FROM payroll_requests pr JOIN employees e ON e.id=pr.employee_id LEFT JOIN payroll_backpay_claims bc ON bc.request_id=pr.id LEFT JOIN payroll_request_applications pa ON pa.request_id=pr.id LEFT JOIN attendance_daily d ON d.employee_id=pr.employee_id AND d.work_date=pr.affected_date AND d.cutoff_id=pr.cutoff_id WHERE pr.id=?');
+        $q->execute([$requestId]); $row=$q->fetch();
+        return $row?self::applicationFromRow($row)+['attendance_id'=>$row['attendance_id']]:null;
     }
 
     public static function afterApproval(int $requestId): void
     {
         if(!self::ready()) return;
-        $q=db()->prepare('SELECT employee_id,cutoff_id,status FROM payroll_requests WHERE id=?'); $q->execute([$requestId]); $r=$q->fetch();
+        $q=db()->prepare('SELECT pr.employee_id,pr.cutoff_id,pr.status,pr.affected_date,e.hire_date FROM payroll_requests pr JOIN employees e ON e.id=pr.employee_id WHERE pr.id=?'); $q->execute([$requestId]); $r=$q->fetch();
         if(!$r||!$r['cutoff_id']) return;
         $claim=self::backpayRequest($requestId);
-        if($claim) { self::rebuild((int)$claim['processing_cutoff_id']); return; }
+        if($claim) { if(self::reviewOnly()) self::rebuildBackpay((int)$claim['processing_cutoff_id']); else self::rebuild((int)$claim['processing_cutoff_id']); return; }
         db()->prepare('INSERT IGNORE INTO payroll_request_applications(request_id) VALUES(?)')->execute([$requestId]);
         self::rebuild((int)$r['cutoff_id'],(int)$r['employee_id']);
         if(!in_array($r['status'],['APPROVED','COMPLETED'],true)) db()->prepare('UPDATE payroll_request_applications SET application_state=?,note="Request has not completed final approval." WHERE request_id=?')->execute([$r['status']==='REJECTED'?'REJECTED':'AWAITING_APPROVAL',$requestId]);
+        elseif($r['affected_date']<$r['hire_date']) db()->prepare('UPDATE payroll_request_applications SET application_state="NEEDS_REVIEW",note="Affected date is before the Employee 201 hire date. HR Payroll must verify the record or ticket date." WHERE request_id=?')->execute([$requestId]);
+    }
+
+    /** Final Manager/ADL approvals are visible to HR even before biometric import. */
+    public static function cutoffTickets(int $cutoffId,?int $employeeId=null): array
+    {
+        $sql='SELECT pr.id,pr.request_no,pr.employee_id,pr.affected_date,pr.status,t.code type_code,t.name type_name,e.employee_no,CONCAT_WS(" ",e.first_name,e.last_name) employee_name,e.hire_date,bc.processing_cutoff_id,pa.application_state,pa.note application_note,d.state attendance_state,d.issues_json attendance_issues,d.sources_json attendance_sources,d.rate_snapshot_json attendance_snapshot FROM payroll_requests pr JOIN payroll_request_types t ON t.id=pr.request_type_id JOIN employees e ON e.id=pr.employee_id LEFT JOIN payroll_backpay_claims bc ON bc.request_id=pr.id LEFT JOIN payroll_request_applications pa ON pa.request_id=pr.id LEFT JOIN attendance_daily d ON d.employee_id=pr.employee_id AND d.work_date=pr.affected_date AND d.cutoff_id=pr.cutoff_id WHERE ((bc.request_id IS NULL AND pr.cutoff_id=?) OR bc.processing_cutoff_id=?) AND pr.status IN ("APPROVED","COMPLETED") AND EXISTS (SELECT 1 FROM payroll_request_approvals a WHERE a.request_id=pr.id AND a.approver_type IN ("MANAGER","ADL") AND a.status="APPROVED")';
+        $args=[$cutoffId,$cutoffId];
+        if($employeeId!==null) { $sql.=' AND pr.employee_id=?'; $args[]=$employeeId; }
+        $q=db()->prepare($sql.' ORDER BY pr.affected_date,pr.id'); $q->execute($args); $tickets=$q->fetchAll();
+        foreach($tickets as &$ticket) {
+            $application=self::applicationFromRow($ticket);
+            $ticket['application_state']=$application['application_state']; $ticket['application_note']=$application['note'];
+        } unset($ticket);
+        return $tickets;
     }
 
     public static function backpayRequest(int $requestId): ?array
@@ -443,6 +735,16 @@ final class PayrollAttendanceService
 
     private static function rebuildBackpay(int $cutoffId): void
     {
+        // Historical unpaid claims remain visible for HR Payroll's manual amount review.
+        if(self::reviewOnly()) {
+            $apply=db()->prepare('INSERT INTO payroll_request_applications(request_id,application_state,note) VALUES(?,?,?) ON DUPLICATE KEY UPDATE application_state=VALUES(application_state),note=VALUES(note)');
+            foreach(self::backpayRows($cutoffId) as $claim) {
+                $approved=in_array($claim['request_status'],['APPROVED','COMPLETED'],true);
+                $state=$approved?'NEEDS_REVIEW':(in_array($claim['request_status'],['REJECTED','CANCELLED'],true)?'REJECTED':'AWAITING_APPROVAL');
+                $apply->execute([$claim['request_id'],$state,$approved?'Approved historical unpaid claim for HR Payroll manual amount review. Original finalized attendance stays locked.':'Claim has not completed final approval.']);
+            }
+            return;
+        }
         $save=db()->prepare('UPDATE payroll_backpay_claims SET amount=?,state=?,note=?,snapshot_json=?,computed_at=NOW() WHERE request_id=?');
         $application=db()->prepare('INSERT INTO payroll_request_applications(request_id,application_state,note) VALUES(?,?,?) ON DUPLICATE KEY UPDATE application_state=VALUES(application_state),note=VALUES(note)');
         foreach(self::backpayRows($cutoffId) as $claim) {
@@ -509,16 +811,26 @@ final class PayrollAttendanceService
     public static function detail(int $id): array
     {
         $d=self::daily($id); $context=self::context((int)$d['cutoff_id'],(int)$d['employee_id']);
-        $q=db()->prepare('SELECT p.* FROM attendance_punches p WHERE p.employee_id=? AND p.punched_at BETWEEN ? AND ? ORDER BY p.punched_at');
-        $q->execute([$d['employee_id'],$d['work_date'].' 00:00:00',(new DateTimeImmutable($d['work_date']))->modify('+1 day')->format('Y-m-d').' 23:59:59']);
+        $snapshot=json_decode($d['rate_snapshot_json']??'{}',true)?:[];
+        $sql='SELECT p.*,i.branch_id source_branch_id,i.original_name source_file,COALESCE(b.name,"Not supplied in export") source_location FROM attendance_punches p JOIN attendance_import_rows r ON r.id=p.import_row_id JOIN attendance_imports i ON i.id=r.import_id LEFT JOIN branches b ON b.id=i.branch_id WHERE p.employee_id=?';
+        $args=[$d['employee_id']];
+        if(array_key_exists('raw_punch_ids',$snapshot)) {
+            $ids=array_values(array_unique(array_map('intval',$snapshot['raw_punch_ids'])));
+            $sql.=$ids?' AND p.id IN ('.implode(',',array_fill(0,count($ids),'?')).')':' AND 1=0';
+            array_push($args,...$ids);
+        } else {
+            $sql.=' AND p.punched_at BETWEEN ? AND ?';
+            $args[]=$d['work_date'].' 00:00:00'; $args[]=(new DateTimeImmutable($d['work_date']))->modify('+1 day')->format('Y-m-d').' 23:59:59';
+        }
+        $q=db()->prepare($sql.' ORDER BY p.punched_at,p.id'); $q->execute($args);
         $d['punches']=$q->fetchAll();
         $d['requests']=self::approvedRequests((int)$d['employee_id'],$d['work_date'],$d['work_date']);
         $d['conflicts']=[];
         // Stored snapshots contain every raw/approved source; recompute conflict fingerprints without mutations.
         if($context['employees']) {
             $site=$context['employees'][0]; $proposals=[];
-            if(!empty($site['shift_start'])&&!empty($site['shift_end'])) {
-                foreach($d['requests'] as $r) if(in_array($r['type_code'],['TA','PTA'],true)) foreach(PayrollCalculator::FIELDS as $f) if(!empty($r[$f])) $proposals[$f][]=['request_id'=>(int)$r['id'],'value'=>PayrollCalculator::correctionTime($d['work_date'],$r[$f],$site)];
+            if(self::reviewOnly() || (!empty($site['shift_start'])&&!empty($site['shift_end']))) {
+                foreach($d['requests'] as $r) if(in_array($r['type_code'],['TA','PTA'],true)) foreach(PayrollCalculator::FIELDS as $f) if(!empty($r[$f])) $proposals[$f][]=['request_id'=>(int)$r['id'],'value'=>self::reviewOnly()?PayrollAttendanceReview::correctionTime($d['work_date'],$r[$f],$site):PayrollCalculator::correctionTime($d['work_date'],$r[$f],$site)];
                 foreach($proposals as $f=>$list) if(in_array('CORRECTION_CONFLICT_'.strtoupper($f),json_decode($d['issues_json'],true)?:[],true)) $d['conflicts'][$f]=['raw'=>$d['original_'.$f],'proposals'=>$list,'hash'=>hash('sha256',json_encode([$d['original_'.$f],$list],JSON_THROW_ON_ERROR))];
             }
         }
@@ -554,12 +866,12 @@ final class PayrollAttendanceService
         db()->beginTransaction();
         try {
             $d=self::daily($dailyId); self::lockOpen((int)$d['cutoff_id']); self::rebuild((int)$d['cutoff_id'],(int)$d['employee_id']); $d=self::daily($dailyId);
-            $e=self::employee((int)$d['employee_id']); $q=db()->prepare('SELECT covered_through FROM payroll_cutoff_site_coverage WHERE cutoff_id=? AND branch_id=?'); $q->execute([$d['cutoff_id'],$e['branch_id']]); $through=$q->fetchColumn();
-            if(!$through||$d['work_date']>$through) throw new RuntimeException('Import complete site coverage before recording a zero-credit disposition.');
+            $through=self::run((int)$d['cutoff_id'])['covered_through'];
+            if(!$through||$d['work_date']>$through) throw new RuntimeException('Confirm that all biometric source exports are complete before recording zero attendance credit.');
             foreach(self::approvedRequests((int)$d['employee_id'],$d['work_date'],$d['work_date']) as $r) if(in_array($r['type_code'],['OB','POB'],true)) throw new RuntimeException('This date has approved Official Business coverage. Resolve its tickets before recording zero credit.');
             if($d['state']==='APPROVED_LEAVE') throw new RuntimeException('This date has approved leave coverage.');
             $snapshot=json_decode($d['rate_snapshot_json'],true)?:[]; $hash=$snapshot['attendance_source_hash']??null;
-            if(!$hash) throw new RuntimeException('Recalculate this attendance day first.');
+            if(!$hash) throw new RuntimeException('Refresh this attendance day first.');
             if(!hash_equals($hash,$expectedHash)) throw new RuntimeException('Attendance sources changed. Refresh this day before recording zero credit.');
             db()->prepare('INSERT INTO payroll_daily_dispositions(employee_id,work_date,source_hash,remarks,recorded_by) VALUES(?,?,?,?,?) ON DUPLICATE KEY UPDATE remarks=VALUES(remarks),recorded_by=VALUES(recorded_by),recorded_at=NOW()')->execute([$d['employee_id'],$d['work_date'],$hash,mb_substr($remarks,0,255),(int)Auth::user()['id']]);
             self::rebuild((int)$d['cutoff_id'],(int)$d['employee_id']); audit('Payroll','ZERO_CREDIT_DISPOSITION','attendance_daily',$dailyId,['reason'=>mb_substr($remarks,0,255)]); db()->commit();
@@ -611,11 +923,16 @@ final class PayrollAttendanceService
             if((int)$q->fetchColumn()) throw new RuntimeException('Map all active employees to biometric IDs before finalizing.');
             $q=db()->prepare('SELECT COUNT(*) FROM attendance_import_rows r JOIN attendance_imports i ON i.id=r.import_id WHERE i.cutoff_id=? AND i.state="IMPORTED" AND r.row_state="UNMAPPED"'); $q->execute([$cutoffId]); if((int)$q->fetchColumn()) throw new RuntimeException('Resolve unknown biometric IDs first.');
             $q=db()->prepare('SELECT COUNT(*) FROM payroll_requests pr LEFT JOIN payroll_backpay_claims bc ON bc.request_id=pr.id WHERE (pr.cutoff_id=? OR bc.processing_cutoff_id=?) AND pr.status NOT IN ("APPROVED","COMPLETED","REJECTED","CANCELLED")'); $q->execute([$cutoffId,$cutoffId]); if((int)$q->fetchColumn()) throw new RuntimeException('Resolve pending/returned tickets before finalizing.');
-            $q=db()->prepare('SELECT COUNT(*) FROM payroll_backpay_claims WHERE processing_cutoff_id=? AND state NOT IN ("READY","NO_BALANCE","REJECTED")'); $q->execute([$cutoffId]); if((int)$q->fetchColumn()) throw new RuntimeException('Resolve back-pay claim issues before finalizing.');
-            $q=db()->prepare('SELECT COUNT(*) FROM attendance_daily WHERE cutoff_id=? AND (state IN ("ISSUES","AWAITING_LOGS") OR regular_amount IS NULL OR ot_amount IS NULL OR night_amount IS NULL)'); $q->execute([$cutoffId]); if((int)$q->fetchColumn()) throw new RuntimeException('Resolve attendance issues and missing computation settings before finalizing.');
+            if(self::reviewOnly()) {
+                $q=db()->prepare('SELECT COUNT(*) FROM payroll_requests pr JOIN payroll_request_types t ON t.id=pr.request_type_id LEFT JOIN payroll_backpay_claims bc ON bc.request_id=pr.id LEFT JOIN payroll_request_applications pa ON pa.request_id=pr.id WHERE pr.cutoff_id=? AND bc.request_id IS NULL AND t.code IN ("TA","PTA","OB","POB","OT","POT") AND pr.status IN ("APPROVED","COMPLETED") AND COALESCE(pa.application_state,"")<>"APPLIED"'); $q->execute([$cutoffId]);
+                if((int)$q->fetchColumn()) throw new RuntimeException('Review approved tickets that have not applied to attendance, including hire-date or biometric matching issues.');
+            }
+            if(!self::reviewOnly()) { $q=db()->prepare('SELECT COUNT(*) FROM payroll_backpay_claims WHERE processing_cutoff_id=? AND state NOT IN ("READY","NO_BALANCE","REJECTED")'); $q->execute([$cutoffId]); if((int)$q->fetchColumn()) throw new RuntimeException('Resolve back-pay claim issues before finalizing.'); }
+            $condition=self::reviewOnly()?'state="ISSUES"':'(state IN ("ISSUES","AWAITING_LOGS") OR regular_amount IS NULL OR ot_amount IS NULL OR night_amount IS NULL)';
+            $q=db()->prepare('SELECT COUNT(*) FROM attendance_daily WHERE cutoff_id=? AND '.$condition); $q->execute([$cutoffId]); if((int)$q->fetchColumn()) throw new RuntimeException('Resolve missing or conflicting attendance before finalizing.');
             $q=db()->prepare('SELECT * FROM attendance_daily WHERE cutoff_id=? ORDER BY id'); $q->execute([$cutoffId]); $rows=$q->fetchAll(); if(!$rows) throw new RuntimeException('No attendance records to finalize.');
             $save=db()->prepare('INSERT INTO payroll_cutoff_snapshots(cutoff_id,employee_id,work_date,snapshot_json) VALUES(?,?,?,?)'); foreach($rows as $r) $save->execute([$cutoffId,$r['employee_id'],$r['work_date'],json_encode($r,JSON_THROW_ON_ERROR)]);
-            db()->prepare('UPDATE payroll_cutoff_runs SET state="FINALIZED",finalized_at=NOW(),finalized_by=? WHERE cutoff_id=?')->execute([(int)Auth::user()['id'],$cutoffId]); audit('Payroll','FINALIZE_CUTOFF','payroll_cutoff',$cutoffId,['records'=>count($rows)]); db()->commit();
+            db()->prepare('UPDATE payroll_cutoff_runs SET state="FINALIZED",finalized_at=NOW(),finalized_by=? WHERE cutoff_id=?')->execute([(int)Auth::user()['id'],$cutoffId]); audit('Payroll',self::reviewOnly()?'FINALIZE_ATTENDANCE':'FINALIZE_CUTOFF','payroll_cutoff',$cutoffId,['records'=>count($rows)]); db()->commit();
         } catch(Throwable $e) { if(db()->inTransaction()) db()->rollBack(); throw $e; }
     }
 

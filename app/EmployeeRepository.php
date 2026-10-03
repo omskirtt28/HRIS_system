@@ -112,7 +112,7 @@ final class EmployeeRepository
         if(!self::ready()) return [];
         $sql="SELECT e.id,e.employee_no,e.first_name,e.middle_name,e.last_name,p.name position_name,
                      u.email user_email,u.status user_status,r.code role_code,r.name role_name,
-                     MAX(CASE WHEN r.code='SUPER_ADMIN' OR pm.code='payroll.approve_manager' THEN 1 ELSE 0 END) manager_ready
+                     MAX(CASE WHEN r.code='SUPER_ADMIN' OR pm.code IN ('payroll.approve_manager','payroll.approve_adl') THEN 1 ELSE 0 END) manager_ready
               FROM employees e
               LEFT JOIN positions p ON p.id=e.position_id
               LEFT JOIN users u ON u.id=e.user_id
@@ -129,9 +129,9 @@ final class EmployeeRepository
     private static function validateImmediateManager(?int $managerEmployeeId,int $employeeId): void
     {
         if(!$managerEmployeeId)return;
-        if($managerEmployeeId===$employeeId)throw new RuntimeException('An employee cannot be their own Immediate Manager.');
+        if($managerEmployeeId===$employeeId)throw new RuntimeException('An employee cannot be their own Reporting To approver.');
         $sql="SELECT e.id,e.status,u.id user_id,u.status user_status,r.code role_code,
-                    MAX(CASE WHEN r.code='SUPER_ADMIN' OR p.code='payroll.approve_manager' THEN 1 ELSE 0 END) manager_ready
+                    MAX(CASE WHEN r.code='SUPER_ADMIN' OR p.code IN ('payroll.approve_manager','payroll.approve_adl') THEN 1 ELSE 0 END) manager_ready
               FROM employees e
               LEFT JOIN users u ON u.id=e.user_id
               LEFT JOIN roles r ON r.id=u.role_id
@@ -141,10 +141,10 @@ final class EmployeeRepository
               GROUP BY e.id,e.status,u.id,u.status,r.code
               LIMIT 1";
         $st=db()->prepare($sql);$st->execute([$managerEmployeeId]);$row=$st->fetch();
-        if(!$row)throw new RuntimeException('Selected Immediate Manager was not found.');
-        if(!in_array((string)$row['status'],['ACTIVE','PROBATIONARY','ON_LEAVE'],true))throw new RuntimeException('Selected Immediate Manager is not an active employee.');
-        if(empty($row['user_id'])||(string)$row['user_status']!=='ACTIVE')throw new RuntimeException('Selected Immediate Manager must have an active linked HRIS account.');
-        if((int)$row['manager_ready']!==1)throw new RuntimeException('Selected Immediate Manager does not have Manager / Immediate Head approval access. Ask an administrator to update the account role or permissions first.');
+        if(!$row)throw new RuntimeException('Selected Reporting To approver was not found.');
+        if(!in_array((string)$row['status'],['ACTIVE','PROBATIONARY','ON_LEAVE'],true))throw new RuntimeException('Selected Reporting To approver is not an active employee.');
+        if(empty($row['user_id'])||(string)$row['user_status']!=='ACTIVE')throw new RuntimeException('Selected Reporting To approver must have an active linked HRIS account.');
+        if((int)$row['manager_ready']!==1)throw new RuntimeException('Selected Reporting To approver does not have Manager or branch ADL approval access. Ask an administrator to update the account role or permissions first.');
     }
 
     public static function availableEmployeeUsers(?int $employeeId=null): array
