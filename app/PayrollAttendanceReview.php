@@ -15,15 +15,17 @@ final class PayrollAttendanceReview
         $issues=[]; $sources=[]; $proposals=[]; $conflicts=[]; $ots=[]; $ob=false;
         foreach($requests as $r) {
             $code=(string)$r['type_code']; $sources[]=['id'=>(int)$r['id'],'no'=>$r['request_no'],'type'=>$code];
-            if(in_array($code,['TA','PTA'],true)) foreach(PayrollCalculator::FIELDS as $f) if(!empty($r[$f])) $proposals[$f][]=['request_id'=>(int)$r['id'],'value'=>self::correctionTime($date,(string)$r[$f],$site)];
             if(in_array($code,['OB','POB'],true)) $ob=true;
             if(in_array($code,['OT','POT'],true)) $ots[]=$r;
         }
-        $preferred=[]; foreach($proposals as $f=>$list) $preferred[$f]=$list[0]['value'];
         $raw=PayrollCalculator::assign($punches,[]);
+        $allowObOut=$raw['original']['time_out']===null && !$raw['issues'];
+        $proposals=PayrollCalculator::timeProposals($date,$site,$requests,$allowObOut,$raw['original']);
+        $preferred=[]; foreach($proposals as $f=>$list) $preferred[$f]=$list[0]['value'];
         $assigned=PayrollCalculator::assign($punches,$preferred);
         $original=$assigned['original'];
         foreach(PayrollCalculator::FIELDS as $f) if($raw['original'][$f]!==null) $original[$f]=$raw['original'][$f];
+        foreach(PayrollCalculator::FIELDS as $f) if($original[$f]!==null) unset($proposals[$f],$preferred[$f]);
         $effective=array_replace($original,$preferred); $issues=$assigned['issues'];
         foreach($proposals as $f=>$list) {
             if(count(array_unique(array_column($list,'value')))>1 || ($original[$f]!==null && $original[$f]!==$preferred[$f])) {
@@ -33,7 +35,7 @@ final class PayrollAttendanceReview
                     if(empty($resolution['request_id'])) $effective[$f]=$original[$f];
                     else foreach($list as $proposal) if((int)$proposal['request_id']===(int)$resolution['request_id']) $effective[$f]=$proposal['value'];
                 } else {
-                    // Keep the biometric value until HR verifies a conflicting approved correction.
+                    // Competing approved times for a missing slot still need Payroll review.
                     $effective[$f]=$original[$f];
                     $issues[]='CORRECTION_CONFLICT_'.strtoupper($f); $conflicts[$f]=['hash'=>$hash,'raw'=>$original[$f],'proposals'=>$list];
                 }
@@ -63,9 +65,12 @@ final class PayrollAttendanceReview
             if($leave) $issues[]='OB_LEAVE_OVERLAP';
             $late=0; $under=0;
             $issues=array_values(array_diff($issues,['LATE','UNDERTIME','EXCESS_BREAK']));
-            if(!$ots) $issues=array_values(array_diff($issues,['AMBIGUOUS_PUNCHES','INVALID_PUNCH_SEQUENCE','EXTRA_PUNCHES_REVIEW']));
+            if(!$ots && !PayrollCalculator::timeOutFromOb($requests,$proposals,$effective['time_out'])) $issues=array_values(array_diff($issues,['AMBIGUOUS_PUNCHES','INVALID_PUNCH_SEQUENCE','EXTRA_PUNCHES_REVIEW']));
         }
         if($leave) { $worked=0; $late=0; $under=0; $issues=array_values(array_diff($issues,['LATE','UNDERTIME','EXCESS_BREAK'])); }
+        // Preserve the morning interval; an OB end time alone does not verify
+        // overtime in the afternoon interval that ends at this added Out.
+        if(PayrollCalculator::timeOutFromOb($requests,$proposals,$effective['time_out'])) $intervals=array_slice($intervals,0,1);
         $verifiedOt=0; $otReview=[]; $used=[];
         foreach($ots as $ot) {
             if(empty($ot['ot_start'])||empty($ot['ot_end'])) { $issues[]='OT_TIMES_MISSING'; continue; }
@@ -94,7 +99,7 @@ final class PayrollAttendanceReview
             'regular_amount'=>null,'ot_amount'=>null,'night_amount'=>null];
         foreach(PayrollCalculator::FIELDS as $f) { $result[$f]=$effective[$f]; $result['original_'.$f]=$original[$f]; }
         return $result+['state'=>$state,'issues'=>$issues,'sources'=>$sources,'conflicts'=>$conflicts,'day_type'=>'ATTENDANCE_REVIEW',
-            'rate_snapshot'=>['workflow'=>'ATTENDANCE_REVIEW_ONLY','site'=>array_intersect_key($site,array_flip(['branch_id','workplace','shift_start','shift_end','break_minutes'])),'has_schedule'=>$hasSchedule,'ot_review'=>$otReview,'coverage_confirmed'=>$covered]];
+            'rate_snapshot'=>['workflow'=>'ATTENDANCE_REVIEW_ONLY','site'=>array_intersect_key($site,array_flip(['branch_id','workplace','shift_start','shift_end','break_minutes'])),'has_schedule'=>$hasSchedule,'ot_review'=>$otReview,'coverage_confirmed'=>$covered,'ob_time_out_allowed'=>$allowObOut,'missing_punches_only'=>true]];
     }
 
     private static function minutes(DateTimeImmutable $a,DateTimeImmutable $b): int { return max(0,(int)floor(($b->getTimestamp()-$a->getTimestamp())/60)); }

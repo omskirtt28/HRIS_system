@@ -62,9 +62,11 @@ function employee_attendance_raw_table(array $logs): void
 
 function employee_attendance_log_count(array $model): string
 {
-    $logs=count($model['logs']); $leaveDays=count($model['leave_days']); $parts=[];
+    $logs=count($model['logs']); $added=count($model['adjustments']??[]); $leaveDays=count($model['leave_days']); $obDays=count($model['ob_days']); $parts=[];
     if($logs) $parts[]=$logs.($logs===1?' log':' logs');
+    if($added) $parts[]=$added.($added===1?' added log':' added logs');
     if($leaveDays) $parts[]=$leaveDays.($leaveDays===1?' leave day':' leave days');
+    if($obDays) $parts[]=$obDays.($obDays===1?' OB day':' OB days');
     return implode(' · ',$parts);
 }
 
@@ -79,6 +81,40 @@ function employee_attendance_log_table(array $entries): void
           <td><details class="employee-biometric-source"><summary>Details<span class="employee-attendance-sr-only">: <?=e(date('M j, Y',strtotime($entry['date'])))?> approved leave</span></summary>
             <div><?php foreach($entry['leaves'] as $leave):?><span><?=e($leave['leave_type_name'])?> · Approved</span><small><?=e($leave['request_no'])?></small><?php endforeach;?>
               <?php if($entry['before_hire']):?><small>This date is before your hire date. Ask HR to check it.</small><?php elseif($entry['closed_unapplied']):?><small>This cutoff is closed. Ask Payroll to check this leave against the saved attendance.</small><?php endif;?>
+            </div>
+          </details></td>
+        </tr>
+        <?php elseif($entry['kind']==='ADJUSTMENT'):
+          $hasTa=(bool)array_filter($entry['time_sources'],static fn($source)=>in_array($source['type_code'],['TA','PTA'],true));
+          $hasOb=$entry['obs'] || (bool)array_filter($entry['time_sources'],static fn($source)=>in_array($source['type_code'],['OB','POB'],true));
+          $timeSourceIds=array_map('intval',array_column($entry['time_sources'],'id')); ?>
+        <tr><td><time datetime="<?=e($entry['date'])?>"><?=e(date('M j, Y',strtotime($entry['date'])))?></time></td>
+          <td><time datetime="<?=e(str_replace(' ','T',$entry['punched_at']))?>"><?=e(date('g:i A',strtotime($entry['punched_at'])))?></time></td>
+          <td><span class="employee-biometric-label"><?=e($entry['event'])?></span> <?php if($hasTa):?><span class="badge green">TA</span><?php endif;?> <?php if($hasOb):?><span class="badge green">OB</span><?php endif;?></td>
+          <td><details class="employee-biometric-source"><summary>Details<span class="employee-attendance-sr-only">: <?=e(date('M j, Y g:i A',strtotime($entry['punched_at'])))?> approved <?=e(employee_attendance_field_labels()[$entry['field']])?></span></summary>
+            <div><?php foreach($entry['time_sources'] as $source):?><span><?=e(employee_attendance_field_labels()[$entry['field']])?> from approved <?=e($source['type_code'])?></span><small><?=e($source['request_no'])?></small><?php endforeach;?>
+              <?php if($entry['date']!==$entry['work_date']):?><small>Work date: <?=e(date('M j, Y',strtotime($entry['work_date'])))?></small><?php endif;?>
+              <?php foreach($entry['obs'] as $ob):?><?php if(!in_array((int)$ob['id'],$timeSourceIds,true)):?><span>Approved <?=e($ob['type_code'])?></span><small><?=e($ob['request_no'])?></small><?php endif;?><?php if(!empty($ob['destination'])):?><small><?=e($ob['destination'])?></small><?php endif;?><?php endforeach;?>
+              <small>This approved time fills a missing log. Your biometric logs are kept.</small>
+              <?php if($entry['closed_unapplied']):?><small>This cutoff is closed. Ask Payroll to check the OB request against the saved attendance.</small>
+              <?php elseif($entry['needs_review']):?><small>Payroll needs to check the other logs or requests for this day.</small><?php endif;?>
+              <?php if(Auth::can('payroll.request_self')):?><small><a href="<?=url('payroll-request',['id'=>$entry['time_sources'][0]['id']])?>">View request</a></small><?php endif;?>
+            </div>
+          </details></td>
+        </tr>
+        <?php elseif($entry['kind']==='OB'): ?>
+        <tr><td><time datetime="<?=e($entry['date'])?>"><?=e(date('M j, Y',strtotime($entry['date'])))?></time></td>
+          <td><?php if($entry['time_out']):?><time datetime="<?=e(str_replace(' ','T',$entry['time_out']))?>"><?=e(date('g:i A',strtotime($entry['time_out'])))?></time><?php else:?><span aria-label="No approved Time Out added">—</span><?php endif;?></td>
+          <td><?php if($entry['time_out']):?><span class="employee-biometric-label">OUT</span> <?php endif;?><span class="badge green">OB</span></td>
+          <td><details class="employee-biometric-source"><summary>Details<span class="employee-attendance-sr-only">: <?=e(date('M j, Y',strtotime($entry['date'])))?> approved OB</span></summary>
+            <div><?php foreach($entry['time_sources'] as $source):?><span>Time Out from approved <?=e($source['type_code'])?></span><small><?=e($source['request_no'])?></small><?php endforeach;?>
+              <?php if($entry['date']!==$entry['work_date']):?><small>Work date: <?=e(date('M j, Y',strtotime($entry['work_date'])))?></small><?php endif;?>
+              <?php foreach($entry['obs'] as $ob):?><span>Approved <?=e($ob['type_code'])?></span><small><?=e($ob['request_no'])?></small><?php if(!empty($ob['destination'])):?><small><?=e($ob['destination'])?></small><?php endif;?><?php endforeach;?>
+              <?php if($entry['before_hire']):?><small>This date is before your hire date. Ask HR to check it.</small>
+              <?php elseif($entry['closed_unapplied']):?><small>This cutoff is closed. Ask Payroll to check this OB against the saved attendance.</small>
+              <?php elseif($entry['needs_review']):?><small>Payroll needs to check the other logs or requests for this day.</small>
+              <?php elseif(!$entry['time_out']):?><small>Your original logs are kept. An OUT is added only when a missing Time Out has an approved time.</small><?php endif;?>
+              <?php if(Auth::can('payroll.request_self')):?><small><a href="<?=url('payroll-request',['id'=>$entry['obs'][0]['id']])?>">View OB request</a></small><?php endif;?>
             </div>
           </details></td>
         </tr>
@@ -184,9 +220,9 @@ function employee_attendance_page(array $cutoffs,int $cutoffId,array $model,stri
       <a href="<?=url('employee-attendance',['cutoff_id'=>$cutoffId,'tab'=>'review'])?>" class="<?=$tab==='review'?'is-active':''?>" <?=$tab==='review'?'aria-current="page"':''?>>Check Attendance</a>
     </nav>
     <?php if($tab==='logs'):?>
-      <section class="panel employee-biometric-panel"><div class="panel-head"><div><h2>My Logs</h2><p>Your biometric logs and approved leave for this cutoff.</p></div><?php if($model['entries']):?><span class="badge gray"><?=e(employee_attendance_log_count($model))?></span><?php endif;?></div>
+      <section class="panel employee-biometric-panel"><div class="panel-head"><div><h2>My Logs</h2><p>Your biometric logs and approved TA, OB and leave for this cutoff.</p></div><?php if($model['entries']):?><span class="badge gray"><?=e(employee_attendance_log_count($model))?></span><?php endif;?></div>
         <?php if($model['entries']): employee_attendance_log_table($model['entries']); else:?>
-          <div class="empty"><p>No logs or approved leave for this cutoff yet.</p><p>Choose another cutoff or ask Payroll if the file has been uploaded.</p>
+          <div class="empty"><p>No logs or approved TA, OB or leave for this cutoff yet.</p><p>Choose another cutoff or ask Payroll if the file has been uploaded.</p>
           <?php if($model['latest_entry_cutoff'] && (int)$model['latest_entry_cutoff']['id']!==$cutoffId):?><a class="btn sm" href="<?=url('employee-attendance',['cutoff_id'=>$model['latest_entry_cutoff']['id'],'tab'=>'logs'])?>">View my logs: <?=e(employee_attendance_cutoff_label($model['latest_entry_cutoff']))?></a><?php endif;?></div>
         <?php endif;?>
       </section>
@@ -215,10 +251,10 @@ function employee_attendance_page(array $cutoffs,int $cutoffId,array $model,stri
 function employee_attendance_home(?array $model): void
 {
     $target=$model && !$model['entries'] && $model['latest_entry_cutoff']?$model['latest_entry_cutoff']:($model['run']??null); ?>
-    <section class="panel today-card"><div class="panel-head"><div><h2>My Logs</h2><p><?=$model?e(employee_attendance_cutoff_label($model['run'])):'Logs and approved leave'?></p></div><a class="panel-link" href="<?=url('employee-attendance',$target?['cutoff_id'=>$target['id'],'tab'=>'logs']:[])?>">View logs</a></div><div class="panel-body">
+    <section class="panel today-card"><div class="panel-head"><div><h2>My Logs</h2><p><?=$model?e(employee_attendance_cutoff_label($model['run'])):'Logs and approved requests'?></p></div><a class="panel-link" href="<?=url('employee-attendance',$target?['cutoff_id'=>$target['id'],'tab'=>'logs']:[])?>">View logs</a></div><div class="panel-body">
     <?php if(!$model):?><p class="small muted">HR must link your account to your employee record before you can see your logs and approved leave.</p><?php else:?>
-      <p class="employee-attendance-note"><?=$model['entries']?e(employee_attendance_log_count($model)).' in this cutoff.':'No logs or approved leave for this cutoff yet.'?></p>
-      <?php if(!$model['entries'] && $model['latest_entry_cutoff']):?><p class="small muted">You have logs or approved leave for <?=e(employee_attendance_cutoff_label($model['latest_entry_cutoff']))?>. Open View logs.</p><?php endif;?>
+      <p class="employee-attendance-note"><?=$model['entries']?e(employee_attendance_log_count($model)).' in this cutoff.':'No logs or approved TA, OB or leave for this cutoff yet.'?></p>
+      <?php if(!$model['entries'] && $model['latest_entry_cutoff']):?><p class="small muted">You have logs or approved requests for <?=e(employee_attendance_cutoff_label($model['latest_entry_cutoff']))?>. Open View logs.</p><?php endif;?>
       <p class="small muted">Open Check Attendance if you need to file a request.</p>
     <?php endif;?></div></section>
 <?php }
@@ -228,7 +264,7 @@ function employee_attendance_request_context(array $model,string $date): void
     $day=null; foreach($model['days'] as $item) if($item['date']===$date) { $day=$item; break; }
     if(!$day) return; ?>
     <section class="panel payroll-section" id="employee-attendance-request-context" data-date="<?=e($date)?>">
-      <div class="panel-head"><div><h2>Your attendance: <?=e(date('M j, Y',strtotime($date)))?></h2><p>Enter only the actual times that need fixing.</p></div><a class="panel-link" href="<?=url('employee-attendance',['cutoff_id'=>$model['run']['id'],'tab'=>'review','day'=>$date]).'#attendance-'.e($date)?>">Back to this day</a></div>
+      <div class="panel-head"><div><h2>Your attendance: <?=e(date('M j, Y',strtotime($date)))?></h2><p>Fill only missing logs. Your existing biometric times are kept.</p></div><a class="panel-link" href="<?=url('employee-attendance',['cutoff_id'=>$model['run']['id'],'tab'=>'review','day'=>$date]).'#attendance-'.e($date)?>">Back to this day</a></div>
       <div class="panel-body"><?php employee_attendance_times($day);?>
         <?php if($day['leaves']):?><p class="small muted">Approved leave: <?=e(implode(', ',array_unique(array_column($day['leaves'],'leave_type_name'))))?>.</p><?php endif;?>
         <?php if($day['ambiguous']):?><p class="small muted">Check the actual IN/OUT logs before choosing which time to fix.</p><?php elseif($day['missing'] && $day['has_evidence'] && !in_array($day['state'],['APPROVED_LEAVE','APPROVED_OB','ZERO_CREDIT'],true)):?><p class="small muted">Missing: <?=e(implode(', ',employee_attendance_missing_names($day)))?>.</p><?php endif;?>

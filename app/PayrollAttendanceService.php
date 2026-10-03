@@ -830,7 +830,8 @@ final class PayrollAttendanceService
         if($context['employees']) {
             $site=$context['employees'][0]; $proposals=[];
             if(self::reviewOnly() || (!empty($site['shift_start'])&&!empty($site['shift_end']))) {
-                foreach($d['requests'] as $r) if(in_array($r['type_code'],['TA','PTA'],true)) foreach(PayrollCalculator::FIELDS as $f) if(!empty($r[$f])) $proposals[$f][]=['request_id'=>(int)$r['id'],'value'=>self::reviewOnly()?PayrollAttendanceReview::correctionTime($d['work_date'],$r[$f],$site):PayrollCalculator::correctionTime($d['work_date'],$r[$f],$site)];
+                $original=[]; foreach(PayrollCalculator::FIELDS as $field) $original[$field]=$d['original_'.$field];
+                $proposals=PayrollCalculator::timeProposals($d['work_date'],$site,$d['requests'],(bool)($snapshot['ob_time_out_allowed']??empty($d['original_time_out'])),$original);
                 foreach($proposals as $f=>$list) if(in_array('CORRECTION_CONFLICT_'.strtoupper($f),json_decode($d['issues_json'],true)?:[],true)) $d['conflicts'][$f]=['raw'=>$d['original_'.$f],'proposals'=>$list,'hash'=>hash('sha256',json_encode([$d['original_'.$f],$list],JSON_THROW_ON_ERROR))];
             }
         }

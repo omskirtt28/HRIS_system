@@ -4,7 +4,7 @@ declare(strict_types=1);
 /** Read-only, account-scoped cutoff attendance. Employee IDs never come from the browser. */
 final class EmployeeAttendanceService
 {
-    public const LABELS=['time_in'=>'Time In','lunch_out'=>'Lunch Out','lunch_in'=>'Lunch In','time_out'=>'Time Out'];
+    public const LABELS=['time_in'=>'Time In','lunch_out'=>'Break Out','lunch_in'=>'Break In','time_out'=>'Time Out'];
 
     public static function defaultCutoff(array $cutoffs): int
     {
@@ -36,18 +36,20 @@ final class EmployeeAttendanceService
             $snapshot=json_decode($row['rate_snapshot_json']??'{}',true)?:[];
             foreach($snapshot['raw_punch_ids']??[] as $id) $punchDates[(int)$id]=$row['work_date'];
         }
-        $q=db()->prepare('SELECT pr.id,pr.request_no,pr.affected_date,pr.status,t.code type_code,t.name type_name,ow.started_at,ow.ended_at
+        $q=db()->prepare('SELECT pr.id,pr.request_no,pr.affected_date,pr.status,t.code type_code,t.name type_name,ow.started_at,ow.ended_at,te.time_in,te.lunch_out,te.lunch_in,te.time_out,te.destination,te.purpose
             FROM payroll_requests pr JOIN payroll_request_types t ON t.id=pr.request_type_id
             LEFT JOIN payroll_request_overtime_windows ow ON ow.request_id=pr.id
+            LEFT JOIN payroll_request_time_entries te ON te.request_id=pr.id
             WHERE pr.employee_id=? AND pr.affected_date BETWEEN ? AND ? ORDER BY pr.affected_date,pr.id DESC');
         $q->execute([$employeeId,$run['period_start'],$run['period_end']]); $tickets=$q->fetchAll();
         $approved=[]; foreach(PayrollAttendanceService::cutoffTickets($cutoffId,$employeeId) as $ticket) $approved[(int)$ticket['id']]=$ticket;
-        $ticketDays=[];
+        $ticketDays=[]; $obDays=[];
         foreach($tickets as $ticket) {
             $application=$approved[(int)$ticket['id']]??[];
             $ticket['application_state']=$application['application_state']??null;
             $ticket['application_note']=$application['application_note']??null;
             $ticketDays[$ticket['affected_date']][]=$ticket;
+            if(isset($approved[(int)$ticket['id']]) && in_array($ticket['type_code'],['OB','POB'],true)) $obDays[$ticket['affected_date']][]=$ticket;
         }
         // Actual leave requests are separate from Leave Credit Correction tickets.
         // Read final approvals directly so existing leave appears without a re-import.
@@ -81,14 +83,57 @@ final class EmployeeAttendanceService
         $closed=($run['run_state']??'')==='FINALIZED';
         $late=!empty($run['ticket_deadline']) && new DateTimeImmutable('now')>new DateTimeImmutable($run['ticket_deadline']);
         $canFile=Auth::can('payroll.request_self') && !$closed && !$late;
+        // Older open days may contain conflicts from TA values entered for known slots.
+        // Apply the missing-only rule to the display without writing attendance or changing a closed snapshot.
+        if(!$closed) foreach($byDate as $date=>$row) {
+            if(!empty($employee['hire_date']) && $date<$employee['hire_date']) continue;
+            $byDate[$date]=self::missingOnlyDisplayRow($row,$ticketDays[$date]??[],$approved,$leaveDays[$date]??[],$obDays[$date]??[]);
+        }
         // Display entries never become device punches or change a payroll snapshot.
-        $entries=[];
+        $entries=[]; $adjustments=[]; $obOutDays=[];
         foreach($logs as $punch) $entries[]=['kind'=>'BIOMETRIC','date'=>substr($punch['punched_at'],0,10),'punch'=>$punch];
         foreach($leaveDays as $date=>$leaves) $entries[]=['kind'=>'LEAVE','date'=>$date,'leaves'=>$leaves,
             'before_hire'=>!empty($employee['hire_date']) && $date<$employee['hire_date'],
             'closed_unapplied'=>$closed && ($byDate[$date]['state']??'')!=='APPROVED_LEAVE'];
+        foreach($byDate as $date=>$row) {
+            if(!empty($employee['hire_date']) && $date<$employee['hire_date']) continue;
+            $sourceIds=array_map('intval',array_column(json_decode($row['sources_json']??'[]',true)?:[],'id'));
+            $issues=json_decode($row['issues_json']??'[]',true)?:[];
+            if(in_array('INVALID_PUNCH_SEQUENCE',$issues,true) || !self::validTimeOrder($row)) continue;
+            $snapshot=json_decode($row['rate_snapshot_json']??'{}',true)?:[]; $daySite=$snapshot['site']??$site;
+            foreach(self::LABELS as $field=>$label) {
+                if(!empty($row['original_'.$field]) || empty($row[$field]) || in_array('CORRECTION_CONFLICT_'.strtoupper($field),$issues,true)) continue;
+                $timeSources=[];
+                foreach($ticketDays[$date]??[] as $ticket) {
+                    $allowed=in_array($ticket['type_code'],['TA','PTA'],true)
+                        || ($field==='time_out' && in_array($ticket['type_code'],['OB','POB'],true));
+                    if(!$allowed || !isset($approved[(int)$ticket['id']]) || !in_array((int)$ticket['id'],$sourceIds,true) || empty($ticket[$field])) continue;
+                    if(PayrollAttendanceReview::correctionTime($date,$ticket[$field],$daySite)===$row[$field]) $timeSources[]=$ticket;
+                }
+                if(!$timeSources) continue;
+                $event=in_array($field,['time_in','lunch_in'],true)?'IN':'OUT'; $alreadyLogged=false;
+                foreach($rawDays[$date]??[] as $punch) if($punch['punched_at']===$row[$field] && in_array($punch['punch_status'],[$event,strtoupper($field)],true)) { $alreadyLogged=true; break; }
+                if($alreadyLogged) continue;
+                $obs=$field==='time_out'?($obDays[$date]??[]):[];
+                $entry=['kind'=>'ADJUSTMENT','date'=>substr($row[$field],0,10),'work_date'=>$date,
+                    'punched_at'=>$row[$field],'field'=>$field,'event'=>$event,'time_sources'=>$timeSources,'obs'=>$obs,
+                    'needs_review'=>$row['state']==='ISSUES',
+                    'closed_unapplied'=>$closed && (bool)array_diff(array_map('intval',array_column($obs,'id')),$sourceIds)];
+                $entries[]=$entry; $adjustments[]=$entry;
+                if($obs) $obOutDays[$date]=true;
+            }
+        }
+        foreach($obDays as $date=>$obs) {
+            if(isset($obOutDays[$date])) continue;
+            $row=$byDate[$date]??null; $sourceIds=array_map('intval',array_column(json_decode($row['sources_json']??'[]',true)?:[],'id'));
+            $entries[]=['kind'=>'OB','date'=>$date,'work_date'=>$date,
+                'time_out'=>null,'obs'=>$obs,'time_sources'=>[],
+                'before_hire'=>!empty($employee['hire_date']) && $date<$employee['hire_date'],
+                'needs_review'=>($row['state']??'')==='ISSUES',
+                'closed_unapplied'=>$closed && (bool)array_diff(array_map('intval',array_column($obs,'id')),$sourceIds)];
+        }
         usort($entries,static fn($a,$b)=>strcmp($a['date'],$b['date'])
-            ?: strcmp($a['punch']['punched_at']??'',$b['punch']['punched_at']??'')
+            ?: strcmp($a['punch']['punched_at']??$a['punched_at']??'',$b['punch']['punched_at']??$b['punched_at']??'')
             ?: (($a['punch']['id']??0)<=>($b['punch']['id']??0)));
         $days=[]; $totals=['with_logs'=>0,'incomplete'=>0,'ot_review'=>0,'pending'=>0,'no_logs'=>0];
         foreach($tickets as $ticket) if(!in_array($ticket['status'],['APPROVED','COMPLETED','REJECTED','CANCELLED'],true)) $totals['pending']++;
@@ -138,14 +183,51 @@ final class EmployeeAttendanceService
             EXISTS (SELECT 1 FROM attendance_daily d WHERE d.cutoff_id=c.id AND d.employee_id=? AND d.state<>"AWAITING_LOGS")
             OR EXISTS (SELECT 1 FROM attendance_punches p JOIN attendance_import_rows r ON r.id=p.import_row_id JOIN attendance_imports i ON i.id=r.import_id WHERE i.cutoff_id=c.id AND i.state="IMPORTED" AND p.employee_id=?)
             OR EXISTS (SELECT 1 FROM leave_requests lr WHERE lr.employee_id=? AND lr.status="APPROVED" AND lr.date_from<=c.period_end AND lr.date_to>=c.period_start)
+            OR EXISTS (SELECT 1 FROM payroll_requests pr JOIN payroll_request_types t ON t.id=pr.request_type_id WHERE pr.employee_id=? AND pr.cutoff_id=c.id AND pr.affected_date BETWEEN c.period_start AND c.period_end AND t.code IN ("TA","PTA","OB","POB") AND pr.status IN ("APPROVED","COMPLETED") AND NOT EXISTS (SELECT 1 FROM payroll_backpay_claims bc WHERE bc.request_id=pr.id) AND EXISTS (SELECT 1 FROM payroll_request_approvals a WHERE a.request_id=pr.id AND a.approver_type IN ("MANAGER","ADL") AND a.status="APPROVED"))
             ORDER BY c.period_start DESC LIMIT 1');
-        $q->execute([$employeeId,$employeeId,$employeeId]); $latest=$q->fetch()?:null;
+        $q->execute([$employeeId,$employeeId,$employeeId,$employeeId]); $latest=$q->fetch()?:null;
         $q=db()->prepare('SELECT c.id,c.period_start,c.period_end FROM payroll_cutoffs c WHERE
             EXISTS (SELECT 1 FROM attendance_punches p JOIN attendance_import_rows r ON r.id=p.import_row_id JOIN attendance_imports i ON i.id=r.import_id WHERE i.cutoff_id=c.id AND i.state="IMPORTED" AND p.employee_id=?)
             OR EXISTS (SELECT 1 FROM leave_requests lr WHERE lr.employee_id=? AND lr.status="APPROVED" AND lr.date_from<=c.period_end AND lr.date_to>=c.period_start)
+            OR EXISTS (SELECT 1 FROM payroll_requests pr JOIN payroll_request_types t ON t.id=pr.request_type_id WHERE pr.employee_id=? AND pr.cutoff_id=c.id AND pr.affected_date BETWEEN c.period_start AND c.period_end AND t.code IN ("TA","PTA","OB","POB") AND pr.status IN ("APPROVED","COMPLETED") AND NOT EXISTS (SELECT 1 FROM payroll_backpay_claims bc WHERE bc.request_id=pr.id) AND EXISTS (SELECT 1 FROM payroll_request_approvals a WHERE a.request_id=pr.id AND a.approver_type IN ("MANAGER","ADL") AND a.status="APPROVED"))
             ORDER BY c.period_start DESC LIMIT 1');
-        $q->execute([$employeeId,$employeeId]); $latestEntries=$q->fetch()?:null;
-        return ['employee'=>$employee,'run'=>$run,'days'=>$days,'logs'=>$logs,'leave_days'=>$leaveDays,'entries'=>$entries,'totals'=>$totals,'types'=>$types,'closed'=>$closed,'deadline_passed'=>$late,'latest_cutoff'=>$latest,'latest_entry_cutoff'=>$latestEntries];
+        $q->execute([$employeeId,$employeeId,$employeeId]); $latestEntries=$q->fetch()?:null;
+        return ['employee'=>$employee,'run'=>$run,'days'=>$days,'logs'=>$logs,'adjustments'=>$adjustments,'leave_days'=>$leaveDays,'ob_days'=>$obDays,'entries'=>$entries,'totals'=>$totals,'types'=>$types,'closed'=>$closed,'deadline_passed'=>$late,'latest_cutoff'=>$latest,'latest_entry_cutoff'=>$latestEntries];
+    }
+
+    /** Read-only compatibility for TA approvals saved before the missing-only rule. */
+    private static function missingOnlyDisplayRow(array $row,array $tickets,array $approved,array $leaves,array $obs): array
+    {
+        $snapshot=json_decode($row['rate_snapshot_json']??'{}',true)?:[];
+        if(!empty($snapshot['missing_punches_only'])) return $row;
+        $sourceIds=array_map('intval',array_column(json_decode($row['sources_json']??'[]',true)?:[],'id'));
+        $hasTa=false;
+        foreach($tickets as $ticket) if(isset($approved[(int)$ticket['id']]) && in_array((int)$ticket['id'],$sourceIds,true) && in_array($ticket['type_code'],['TA','PTA'],true)) { $hasTa=true; break; }
+        if(!$hasTa) return $row;
+        $issues=json_decode($row['issues_json']??'[]',true)?:[]; $ignoredConflict=false;
+        foreach(PayrollCalculator::FIELDS as $field) if(!empty($row['original_'.$field])) {
+            $row[$field]=$row['original_'.$field];
+            $issue='CORRECTION_CONFLICT_'.strtoupper($field);
+            if(in_array($issue,$issues,true)) { $issues=array_values(array_diff($issues,[$issue])); $ignoredConflict=true; }
+        }
+        if($ignoredConflict && self::validTimeOrder($row)) $issues=array_values(array_diff($issues,['INVALID_PUNCH_SEQUENCE']));
+        $row['issues_json']=json_encode($issues,JSON_THROW_ON_ERROR);
+        $blocking=array_diff($issues,['LATE','UNDERTIME','EXCESS_BREAK']);
+        if($ignoredConflict && $row['state']==='ISSUES' && !$blocking) {
+            $added=false; foreach(PayrollCalculator::FIELDS as $field) if(empty($row['original_'.$field]) && !empty($row[$field])) $added=true;
+            $row['state']=$leaves?'APPROVED_LEAVE':($obs?'APPROVED_OB':($added?'CORRECTED':'COMPLETE'));
+        }
+        return $row;
+    }
+
+    private static function validTimeOrder(array $row): bool
+    {
+        $previous=null; $previousField=null;
+        foreach(PayrollCalculator::FIELDS as $field) if(!empty($row[$field])) {
+            if($previous!==null && ($row[$field]<$previous || ($row[$field]===$previous && !($previousField==='lunch_out' && $field==='lunch_in')))) return false;
+            $previous=$row[$field]; $previousField=$field;
+        }
+        return true;
     }
 
     private static function punchDay(array $punch,array $site,array $tickets): string

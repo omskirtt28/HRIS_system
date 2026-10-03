@@ -29,7 +29,9 @@ final class PayrollCalculator
         $candidates = [];
         $walk = static function(int $n, int $slot, array $map) use (&$walk, &$candidates, $punches, $corrections): void {
             if ($n === count($punches)) {
-                $merged = array_replace($map,$corrections);
+                // Submitted TA defaults cannot replace a device event in this mapping.
+                $merged = $map;
+                foreach ($corrections as $field=>$value) if ($merged[$field]===null) $merged[$field]=$value;
                 $values = array_values(array_filter($merged, static fn($v) => $v !== null));
                 for ($i=1; $i<count($values); $i++) if ($values[$i] < $values[$i-1]) return;
                 $candidates[] = $map; return;
@@ -60,7 +62,35 @@ final class PayrollCalculator
         }
         $original=$candidates[0];
         foreach (self::FIELDS as $f) foreach ($candidates as $candidate) if ($candidate[$f] !== $original[$f]) { $original[$f]=null; break; }
-        return ['original'=>$original,'effective'=>array_replace($original,$corrections),'issues'=>count($candidates)>1?['AMBIGUOUS_PUNCHES']:[]];
+        $effective=$original;
+        foreach ($corrections as $field=>$value) if ($effective[$field]===null) $effective[$field]=$value;
+        return ['original'=>$original,'effective'=>$effective,'issues'=>count($candidates)>1?['AMBIGUOUS_PUNCHES']:[]];
+    }
+
+    /** Approved times fill missing slots only; known device times are always kept. */
+    public static function timeProposals(string $date,array $site,array $requests,bool $allowObOut,array $original): array
+    {
+        $proposals=[];
+        foreach($requests as $r) {
+            $fields=match($r['type_code']) {'TA','PTA'=>self::FIELDS,'OB','POB'=>$allowObOut?['time_out']:[],default=>[]};
+            foreach($fields as $field) if(empty($original[$field]) && !empty($r[$field])) {
+                $value=!empty($site['shift_start'])&&!empty($site['shift_end'])?self::correctionTime($date,$r[$field],$site):(new DateTimeImmutable($date.' '.$r[$field]))->format('Y-m-d H:i:s');
+                $proposals[$field][]=['request_id'=>(int)$r['id'],'value'=>$value];
+            }
+        }
+        return $proposals;
+    }
+
+    public static function timeOutFromOb(array $requests,array $proposals,?string $value): bool
+    {
+        if(!$value) return false;
+        $types=array_column($requests,'type_code','id'); $ob=false;
+        foreach($proposals['time_out']??[] as $proposal) if($proposal['value']===$value) {
+            $type=$types[$proposal['request_id']]??'';
+            if(in_array($type,['TA','PTA'],true)) return false;
+            if(in_array($type,['OB','POB'],true)) $ob=true;
+        }
+        return $ob;
     }
 
     public static function calculate(string $date, array $site, array $punches, array $requests, ?array $rate, array $rules, array $settings, array $holidays, array $resolutions, bool $covered, bool $leave): array
@@ -83,18 +113,21 @@ final class PayrollCalculator
         foreach($requests as $r) {
             $code=(string)$r['type_code']; $sources[]=['id'=>(int)$r['id'],'no'=>$r['request_no'],'type'=>$code];
             if(in_array($code,['POB','POT'],true) && ($r['pay_treatment']??'REVIEW')==='REVIEW') { $issues[]='PAY_TREATMENT_NOT_CONFIGURED_'.$code; $payReview=true; }
-            if(in_array($code,['TA','PTA'],true)) foreach(self::FIELDS as $f) if(!empty($r[$f])) $proposals[$f][]=['request_id'=>(int)$r['id'],'value'=>self::correctionTime($date,(string)$r[$f],$site)];
             if(in_array($code,['OB','POB'],true)) { $ob=true; if(($r['pay_treatment']??'PAYABLE')==='NO_PAY') $obUnpaid=true; }
             if(in_array($code,['OT','POT'],true)) $ots[]=$r;
         }
+        $rawAssignment=self::assign($punches,[]);
+        $allowObOut=$rawAssignment['original']['time_out']===null && !$rawAssignment['issues'];
+        $proposals=self::timeProposals($date,$site,$requests,$allowObOut,$rawAssignment['original']);
         $preferred=[];
         foreach($proposals as $f=>$list) $preferred[$f]=$list[0]['value'];
         // Corrections disambiguate missing slots, while raw values remain separately visible.
-        $rawAssignment=self::assign($punches,[]);
         $assignment=self::assign($punches,$preferred);
         // A bad requested correction must not erase an otherwise unambiguous raw record.
         $original=$assignment['original'];
         foreach(self::FIELDS as $field) if($rawAssignment['original'][$field]!==null) $original[$field]=$rawAssignment['original'][$field];
+        // An approved time may clarify a generic IN/OUT. Keep the newly identified device slot too.
+        foreach(self::FIELDS as $field) if($original[$field]!==null) unset($proposals[$field],$preferred[$field]);
         $effective=array_replace($original,$preferred);
         $issues=array_merge($issues,$assignment['issues']);
         foreach($proposals as $f=>$list) {
@@ -107,6 +140,7 @@ final class PayrollCalculator
                     if(empty($resolution['request_id'])) $effective[$f]=$raw;
                     else foreach($list as $proposal) if((int)$proposal['request_id']===(int)$resolution['request_id']) $effective[$f]=$proposal['value'];
                 } else {
+                    $effective[$f]=$raw;
                     $issues[]='CORRECTION_CONFLICT_'.strtoupper($f);
                     $conflicts[$f]=['hash'=>$hash,'raw'=>$raw,'proposals'=>$list];
                 }
@@ -135,9 +169,12 @@ final class PayrollCalculator
             $regular=max(0,self::minutes($shiftStart,$shiftEnd)-(int)$site['break_minutes']); $late=0; $under=0;
             // Approved OB authorizes regular coverage, never invented biometric punches/OT evidence.
             if($obUnpaid) $regular=0;
-            if(!$ots) $issues=array_values(array_diff($issues,['AMBIGUOUS_PUNCHES','INVALID_PUNCH_SEQUENCE','EXTRA_PUNCHES_REVIEW']));
+            if(!$ots && !self::timeOutFromOb($requests,$proposals,$effective['time_out'])) $issues=array_values(array_diff($issues,['AMBIGUOUS_PUNCHES','INVALID_PUNCH_SEQUENCE','EXTRA_PUNCHES_REVIEW']));
         }
         if($leave) { $regular=0; $late=0; $under=0; }
+        // Keep the morning evidence. The afternoon ending in an OB-added Out
+        // cannot by itself verify overtime.
+        if(self::timeOutFromOb($requests,$proposals,$effective['time_out'])) $intervals=array_slice($intervals,0,1);
         if($off && !$ob) $regular=0;
         $result=$zero; $result['regular_minutes']=$regular; $result['late_minutes']=$late; $result['undertime_minutes']=$under;
         $hourly=$rate ? (float)$rate['salary_amount']/(float)$rate['hourly_divisor'] : null;
@@ -195,7 +232,7 @@ final class PayrollCalculator
         if($issues===['AWAITING_LOGS'] || (!$covered&&!$punches&&!$requests)) $state='AWAITING_LOGS';
         foreach(self::FIELDS as $f) { $result[$f]=$effective[$f]; $result['original_'.$f]=$original[$f]; }
         $siteSnapshot=array_intersect_key($site,array_flip(['branch_id','workplace','shift_start','shift_end','break_minutes','workdays']));
-        return $result+['state'=>$state,'issues'=>$issues,'sources'=>$sources,'conflicts'=>$conflicts,'day_type'=>$dayType,'rate_snapshot'=>['rate'=>$rate,'hourly_rate'=>$hourly,'rules'=>$rules,'night_period'=>$settings,'site'=>$siteSnapshot]];
+        return $result+['state'=>$state,'issues'=>$issues,'sources'=>$sources,'conflicts'=>$conflicts,'day_type'=>$dayType,'rate_snapshot'=>['rate'=>$rate,'hourly_rate'=>$hourly,'rules'=>$rules,'night_period'=>$settings,'site'=>$siteSnapshot,'ob_time_out_allowed'=>$allowObOut,'missing_punches_only'=>true]];
     }
 
     private static function isNight(DateTimeImmutable $t,array $settings): bool

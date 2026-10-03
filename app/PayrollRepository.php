@@ -165,9 +165,9 @@ final class PayrollRepository
         if(in_array($code,['OB','POB'],true)) { if($purpose==='') throw new RuntimeException('Purpose is required for Official Business.'); $reason=$purpose; }
         elseif($reason==='') throw new RuntimeException('Reason is required.');
         $times=array_fill_keys(['time_in','lunch_out','lunch_in','time_out','ot_start','ot_end'],null);
-        $allowed=in_array($code,['TA','PTA'],true)?PayrollCalculator::FIELDS:(in_array($code,['OT','POT'],true)?['ot_start','ot_end']:[]);
+        $allowed=match($code) {'TA','PTA'=>PayrollCalculator::FIELDS,'OT','POT'=>['ot_start','ot_end'],'OB','POB'=>['time_out'],default=>[]};
         foreach($allowed as $f) {
-            $value=trim((string)($data[$f]??''));
+            $value=trim((string)(in_array($code,['OB','POB'],true)?($data['ob_time_out']??$data[$f]??''):($data[$f]??'')));
             if($value!=='') { $times[$f]=self::validTime($value); if(!$times[$f]) throw new RuntimeException('Invalid '.str_replace('_',' ',$f).'.'); }
         }
         if(in_array($code,['TA','PTA'],true) && !array_filter($times)) throw new RuntimeException('Enter at least one punch to correct.');
