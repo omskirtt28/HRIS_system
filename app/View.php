@@ -98,7 +98,7 @@ function nav_config(string $kind): array {
         ['Access Control',[['Users','admin-users','users',false,'users.view'],['Roles & Permissions','admin-roles','shield',false,'roles.view'],['Security & Sessions','admin-security','shield',false,'audit.view']]],
         ['Organization',[['Organization Setup','admin-organization','building',false,'organization.view']]],
         ['Payroll',[['Biometric Import','payroll-import','file',false,'payroll.biometric_import'],['Payroll Cutoffs','payroll-cutoff','briefcase',false,'payroll.process'],['Leave Approvals','hr-leave','calendar',false,'leave.approve_hr']]],
-        ['Operations',[['Audit Logs','admin-audit','audit',false,'audit.view']]]
+        ['Operations',[['Audit Logs','admin-audit','audit',false,'audit.view'],['Clear Test Data','admin-clear-data','shield',false,'system.test_data.clear']]]
       ]]
     ];
     return $base[$kind] ?? $base['employee'];
@@ -113,7 +113,7 @@ function render_portal_header(string $kind,string $active,string $title): void {
     $c=nav_config($kind); render_head($title);
     $search=['employee'=>'Search your HRIS…','hr'=>'Search employees, applicants, requests…','client'=>'Search candidates…','admin'=>'Search users, branches, settings…'][$kind] ?? 'Search HRIS…'; ?>
 <div class="shell"><aside class="side" id="side"><a href="<?=url($kind.'-dashboard')?>" class="brand brand-portal" aria-label="Prime Mover Business Solutions, Inc."><img src="public/assets/branding/pmbsi-logo-transparent-v2.png" alt="Prime Mover Business Solutions, Inc." class="brand-full-logo"><span class="brand-portal-meta"><strong><?=e($c['title'])?></strong><span class="sub brand-portal-sub"><?=e($c['sub'])?></span></span></a>
-<div class="navs"><?php foreach($c['groups'] as [$group,$items]): ?><div class="nav-group"><div class="gl"><?=e($group)?></div><?php foreach($items as $item): [$label,$page,$icon,$disabled,$permission]=array_pad($item,5,null); if($page==='manager-approvals'){if(!Auth::can('payroll.approve_manager')&&!Auth::can('payroll.approve_adl'))continue;}elseif($permission && !Auth::can($permission)) continue; ?>
+<div class="navs"><?php foreach($c['groups'] as [$group,$items]): ?><div class="nav-group"><div class="gl"><?=e($group)?></div><?php foreach($items as $item): [$label,$page,$icon,$disabled,$permission]=array_pad($item,5,null); if($page==='admin-clear-data' && (!class_exists(AdminDataResetService::class) || !AdminDataResetService::canAccess())) continue; if($page==='manager-approvals'){if(!Auth::can('payroll.approve_manager')&&!Auth::can('payroll.approve_adl'))continue;}elseif($permission && !Auth::can($permission)) continue; ?>
 <a href="<?=$disabled?'#':url($page)?>" class="nav-item <?=$active===$page?'active':''?> <?=$disabled?'disabled':''?>"><span class="ni"><?=icon_svg($icon)?></span><span><?=e($label)?></span><?=$disabled?'<span class="soon">Soon</span>':''?></a>
 <?php endforeach;?></div><?php endforeach;?></div>
 <div class="side-footer"><div class="prof"><span class="avatar"><?=e(initials($u['name']))?></span><div style="min-width:0"><div class="small" style="font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#f2f4f7"><?=e($u['name'])?></div><div class="tiny muted"><?=e($u['role_name'])?></div></div></div><a href="<?=url('logout')?>" class="sidebar-logout"><?=icon_svg('logout')?><span>Log out</span></a></div></aside>

@@ -132,9 +132,17 @@ final class EmployeeAttendanceService
                 'needs_review'=>($row['state']??'')==='ISSUES',
                 'closed_unapplied'=>$closed && (bool)array_diff(array_map('intval',array_column($obs,'id')),$sourceIds)];
         }
-        usort($entries,static fn($a,$b)=>strcmp($a['date'],$b['date'])
-            ?: strcmp($a['punch']['punched_at']??$a['punched_at']??'',$b['punch']['punched_at']??$b['punched_at']??'')
-            ?: (($a['punch']['id']??0)<=>($b['punch']['id']??0)));
+        usort($entries,static function(array $a,array $b): int {
+            $aTime=$a['punch']['punched_at']??$a['punched_at']??'';
+            $bTime=$b['punch']['punched_at']??$b['punched_at']??'';
+            // An OB remark without a clock time belongs below the same day's logs.
+            $aObRemark=$a['kind']==='OB' && $aTime==='';
+            $bObRemark=$b['kind']==='OB' && $bTime==='';
+            return strcmp($a['date'],$b['date'])
+                ?: ($aObRemark<=>$bObRemark)
+                ?: strcmp($aTime,$bTime)
+                ?: (($a['punch']['id']??0)<=>($b['punch']['id']??0));
+        });
         $days=[]; $totals=['with_logs'=>0,'incomplete'=>0,'ot_review'=>0,'pending'=>0,'no_logs'=>0];
         foreach($tickets as $ticket) if(!in_array($ticket['status'],['APPROVED','COMPLETED','REJECTED','CANCELLED'],true)) $totals['pending']++;
         for($date=new DateTimeImmutable($run['period_start']);$date<=new DateTimeImmutable(min($run['period_end'],date('Y-m-d')));$date=$date->modify('+1 day')) {

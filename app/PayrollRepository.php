@@ -170,6 +170,7 @@ final class PayrollRepository
             $value=trim((string)(in_array($code,['OB','POB'],true)?($data['ob_time_out']??$data[$f]??''):($data[$f]??'')));
             if($value!=='') { $times[$f]=self::validTime($value); if(!$times[$f]) throw new RuntimeException('Invalid '.str_replace('_',' ',$f).'.'); }
         }
+        if(in_array($code,['OB','POB'],true) && !$times['time_out']) throw new RuntimeException('Enter your actual Time Out for Official Business.');
         if(in_array($code,['TA','PTA'],true) && !array_filter($times)) throw new RuntimeException('Enter at least one punch to correct.');
         if(in_array($code,['OT','POT'],true) && (!$times['ot_start']||!$times['ot_end']||$times['ot_start']===$times['ot_end'])) throw new RuntimeException('Enter different OT start/end times. An earlier end means next day.');
         $cutoffId=null;
@@ -325,6 +326,10 @@ final class PayrollRepository
             if(in_array($type,['MANAGER','ADL'],true) && ((int)$approval['approver_user_id']!==$uid || (int)$req['created_by']===$uid)) throw new RuntimeException('This request is assigned to another approver.');
             if($type==='HR_LEAVE' && strtoupper((string)$req['category'])!=='LEAVE') throw new RuntimeException('This request is not a leave ticket.');
             if($type==='HR_LEAVE' && ((int)$fresh['created_by']===$uid || (int)(self::currentEmployee()['id']??0)===(int)$fresh['employee_id'])) throw new RuntimeException('Another approver must review your own leave correction.');
+            if($decision==='APPROVE' && in_array($req['type_code'],['OB','POB'],true)) {
+                $st=db()->prepare('SELECT time_out FROM payroll_request_time_entries WHERE request_id=? FOR UPDATE'); $st->execute([$requestId]);
+                if(!self::validTime($st->fetchColumn())) throw new RuntimeException('This OB has no actual Time Out. Return it for revision so the employee can add the time.');
+            }
             $auto=PayrollAttendanceService::ready() && PayrollAttendanceService::automaticType($req['type_code']);
             if($auto && $req['cutoff_id'] && $decision==='APPROVE') PayrollAttendanceService::assertTicketAllowed(['id'=>$actionCutoff]);
             $newApproval=match($decision) {'APPROVE'=>'APPROVED','RETURN'=>'RETURNED',default=>'REJECTED'};

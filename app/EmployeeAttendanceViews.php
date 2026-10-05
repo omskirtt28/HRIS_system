@@ -113,7 +113,7 @@ function employee_attendance_log_table(array $entries): void
               <?php if($entry['before_hire']):?><small>This date is before your hire date. Ask HR to check it.</small>
               <?php elseif($entry['closed_unapplied']):?><small>This cutoff is closed. Ask Payroll to check this OB against the saved attendance.</small>
               <?php elseif($entry['needs_review']):?><small>Payroll needs to check the other logs or requests for this day.</small>
-              <?php elseif(!$entry['time_out']):?><small>Your original logs are kept. An OUT is added only when a missing Time Out has an approved time.</small><?php endif;?>
+              <?php elseif(!$entry['time_out']):?><small>An OUT is added only when a missing Time Out has an approved time. If this older OB has no saved time, file TA for the missing Time Out.</small><?php endif;?>
               <?php if(Auth::can('payroll.request_self')):?><small><a href="<?=url('payroll-request',['id'=>$entry['obs'][0]['id']])?>">View OB request</a></small><?php endif;?>
             </div>
           </details></td>
