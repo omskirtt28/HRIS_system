@@ -47,7 +47,7 @@ function render_head(string $title): void { ?>
 <link rel="apple-touch-icon" sizes="180x180" href="public/assets/branding/apple-touch-icon.png?v=20260924-logo-transparency-fix-v2">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="public/assets/app.css"><link rel="stylesheet" href="public/assets/hris-modern.css?v=20260926-phase3a-v1"><link rel="stylesheet" href="public/assets/phase2b.css?v=20260924-phase2b-201file"><link rel="stylesheet" href="public/assets/sidebar-logout.css?v=20260924-sidebar-logout"><link rel="stylesheet" href="public/assets/payroll.css?v=20261004-attendance-tabs"><script src="public/assets/payroll.js?v=20261004-multiple-import" defer></script>
+<link rel="stylesheet" href="public/assets/app.css"><link rel="stylesheet" href="public/assets/hris-modern.css?v=20260926-phase3a-v1"><link rel="stylesheet" href="public/assets/phase2b.css?v=20260924-phase2b-201file"><link rel="stylesheet" href="public/assets/employee-directory.css?v=20261010-directory-ui-v1"><link rel="stylesheet" href="public/assets/sidebar-logout.css?v=20260924-sidebar-logout"><link rel="stylesheet" href="public/assets/payroll.css?v=20261004-attendance-tabs"><script src="public/assets/payroll.js?v=20261004-multiple-import" defer></script>
 <style>.alert{padding:11px 14px;border-radius:10px;margin-bottom:14px;font-size:12.5px}.req{color:var(--red)}.actions-inline{display:flex;gap:6px;flex-wrap:wrap}.nowrap{white-space:nowrap}.empty{padding:36px;text-align:center;color:var(--hris-muted)}form.inline{display:inline}.status-select{min-width:150px}</style>
 </head><body><div id="toast" class="toast"></div>
 <?php }
@@ -122,6 +122,14 @@ function render_portal_header(string $kind,string $active,string $title): void {
 <div class="profile-menu"><button class="profile-trigger" type="button" onclick="toggleProfileMenu()"><span class="avatar"><?=e(initials($u['name']))?></span><span class="ptxt"><strong><?=e($u['name'])?></strong><span><?=e($u['role_name'])?></span></span><?=icon_svg('chevron')?></button><div class="profile-pop" id="profilePop"><a href="#"><?=icon_svg('user')?>Profile</a><button type="button" onclick="toggleTheme()"><?=icon_svg('moon')?>Appearance</button></div></div></div></div><main class="content"><?php render_flashes(); }
 
 function render_portal_footer(): void { ?></main></div></div><script src="public/assets/hris-app.js?v=20261003"></script></body></html><?php }
+function employee_roster_detail_labels(array $issues): array
+{
+    $labels=['name'=>'Name','employee_no'=>'Employee code','hire_date'=>'Start date','department_id'=>'Department','position_id'=>'Position','branch_id'=>'Branch / Site','business_unit_id'=>'Brand / Client','legal_entity_id'=>'Employer'];
+    $result=[];
+    foreach($issues as $field=>$note) $result[$field]=$labels[$field] ?? ucwords(str_replace('_',' ',(string)$field));
+    return $result;
+}
+
 function page_head(string $crumb,string $title,string $actions=''): void { ?><div class="pagehead"><div><div class="crumb"><?=e($crumb)?></div><h1><?=e($title)?></h1></div><?php if($actions):?><div class="actions"><?=$actions?></div><?php endif;?></div><?php }
 function dashboard_hero(string $eyebrow,string $title,string $subtitle,string $actions=''): void { ?><div class="dashboard-hero"><div><div class="eyebrow"><?=e($eyebrow)?></div><h1><?=e($title)?></h1><p><?=e($subtitle)?></p></div><?php if($actions):?><div class="hero-actions"><?=$actions?></div><?php endif;?></div><?php }
 function metric_card(string $label,string|int $value,string $foot='',string $icon='chart',string $tone=''): void { ?><div class="metric-card"><div class="metric-top"><div class="metric-label"><?=e($label)?></div><div class="metric-icon"><?=icon_svg($icon)?></div></div><div class="metric-value"><?=e((string)$value)?></div><?php if($foot):?><div class="metric-foot"><span class="<?=e($tone)?>"><?=e($foot)?></span></div><?php endif;?></div><?php }

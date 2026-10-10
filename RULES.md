@@ -276,3 +276,9 @@ Use only the approved PMBSI assets in `public/assets/branding/` for system ident
 - Recruitment documents may be copied into Employee Documents while the original recruitment files remain intact.
 - The conversion and resulting employee record remain auditable and cross-linked.
 
+## UI/UX in every feature patch
+
+- Include the user-facing UI/UX when adding or changing a function. Follow `UI_UX_PATCH_GUIDELINES.md` and the existing PMBSI design.
+- Use simple English, readable spacing and labels, clear next actions, and layouts that work on narrow screens.
+- Keep employment status separate from missing-detail notices. Badges must stay readable on one line.
+- Respect the user's selected testing and installation workflow. Report honestly when visual or application testing was not performed.

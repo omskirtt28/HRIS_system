@@ -447,7 +447,8 @@ final class PayrollAttendanceService
     {
         Auth::requirePermission('payroll.configure'); self::requireReady();
         $biometric=trim($biometric); if(!preg_match('/^[A-Za-z0-9_-]{1,50}$/',$biometric)) throw new RuntimeException('Enter a valid biometric ID.');
-        self::employee($employeeId);
+        $employee=self::employee($employeeId);
+        if(empty($employee['employee_no'])) throw new RuntimeException('Confirm this employee\'s real Employee Code in Employee 201 before matching biometric logs.');
         db()->beginTransaction();
         try {
             $old=db()->prepare('SELECT biometric_id FROM payroll_biometric_mappings WHERE employee_id=?'); $old->execute([$employeeId]); $existing=$old->fetchColumn();

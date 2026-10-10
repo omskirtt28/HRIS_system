@@ -1,0 +1,11 @@
+.roster-toolbar,.roster-form-actions,.roster-pagination{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:18px 0;flex-wrap:wrap}
+.roster-toolbar strong{overflow-wrap:anywhere}.roster-toolbar .tiny{margin-top:5px}.roster-upload{max-width:1000px}
+.roster-note{background:var(--bg,#f6f7f9);border:1px solid var(--border,#e6e8ed);border-radius:10px;padding:14px;margin:14px 0;font-size:13px;line-height:1.65;overflow-wrap:anywhere}
+.roster-tabs{margin-bottom:20px}.roster-filters{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}.roster-filters .btn span{margin-left:8px;opacity:.75}
+.roster-table-wrap{overflow:auto}.roster-table{min-width:850px}.roster-table td{vertical-align:top}.roster-table small,.roster-match-row small{display:block;color:var(--muted,#798492);font-size:12px;margin-top:5px}
+.roster-error-row td{padding-top:0;color:#b45309;background:#fffaf2;font-size:12px;white-space:normal}.roster-pagination{padding:4px 20px;font-size:13px}.roster-pagination>div{display:flex;gap:8px}
+.roster-matches,.roster-current{border:1px solid var(--border,#e6e8ed);border-radius:10px;margin:12px 0;overflow:hidden}.roster-matches summary,.roster-current summary{cursor:pointer;padding:14px;font-weight:600;font-size:14px}.roster-matches summary .badge{margin-left:10px}
+.roster-match-list{padding:0 14px}.roster-match-row{display:grid;grid-template-columns:minmax(200px,1fr) minmax(250px,1fr);gap:20px;align-items:center;padding:12px 0;border-top:1px solid var(--border,#e6e8ed)}
+.roster-match-row strong{font-size:13px}.roster-match-row select{width:100%}.roster-current .roster-note{border:0;border-radius:0;margin:0}.roster-edit-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 20px}.roster-edit-grid .field{margin:0}.roster-edit-grid input,.roster-edit-grid select{width:100%}
+.roster-check{display:flex;align-items:flex-start;gap:10px;margin:15px 0;font-size:13px;line-height:1.6}.roster-check input[type=checkbox]{width:auto;height:auto;flex:none;margin-top:4px;accent-color:#f4a900}.roster-commit button{margin-top:8px}.roster-form-actions{justify-content:flex-start}
+@media(max-width:760px){.roster-edit-grid,.roster-match-row{grid-template-columns:1fr}.roster-match-row{gap:8px}.roster-filters .btn{flex-grow:1}.roster-toolbar{align-items:flex-start}.roster-matches summary{line-height:1.7}}

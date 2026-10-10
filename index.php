@@ -16,6 +16,8 @@ function need_db(): void {
 
 require_once __DIR__.'/app/AdminDataResetModule.php';
 admin_data_reset_handle($page);
+require_once __DIR__.'/app/EmployeeRosterImportModule.php';
+employee_roster_handle($page);
 require_once __DIR__.'/app/PayrollModule.php';
 payroll_post_action();
 payroll_render($page);
@@ -315,6 +317,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             EmployeeRepository::updateEmployment($id,[
                 'employee_no'=>(string)($_POST['employee_no']??''),'user_id'=>(int)($_POST['user_id']??0),'department_id'=>(int)($_POST['department_id']??0),
                 'position_id'=>(int)($_POST['position_id']??0),'branch_id'=>(int)($_POST['branch_id']??0),'employment_type_id'=>(int)($_POST['employment_type_id']??0),'manager_employee_id'=>(int)($_POST['manager_employee_id']??0),
+                'business_unit_id'=>(int)($_POST['business_unit_id']??0),'legal_entity_id'=>(int)($_POST['legal_entity_id']??0),
                 'hire_date'=>(string)($_POST['hire_date']??''),'regularization_date'=>(string)($_POST['regularization_date']??''),'status'=>(string)($_POST['status']??'ACTIVE'),
                 'effective_date'=>(string)($_POST['effective_date']??''),'remarks'=>(string)($_POST['remarks']??''),
             ]);
@@ -1104,28 +1107,51 @@ if ($page === 'hr-employees') {
         'employment_type_id'=>(int)($_GET['employment_type_id']??0),
         'status'=>(string)($_GET['status']??''),
     ];
+    $filters['needs_details']=!empty($_GET['needs_details']);
     $employees=$ready?EmployeeRepository::directory($filters):[];
     $summary=$ready?EmployeeRepository::summary():['total'=>0,'active'=>0,'probationary'=>0,'inactive'=>0,'new_this_month'=>0];
     $masters=EmployeeRepository::masters();
     $canManage=Auth::can('employees.manage');
     render_portal_header('hr',$page,'Employee Directory');
-    page_head('HR Portal / People','Employee Directory',$canManage?'<a href="'.url('hr-employee-new').'" class="btn primary">'.icon_svg('plus').' Add employee</a>':''); ?>
+    $employeeActions=$canManage?'<a href="'.url('hr-employee-new').'" class="btn primary">'.icon_svg('plus').' Add employee</a>':'';
+    if($canManage && Auth::can('employees.import')) $employeeActions='<a href="'.url('hr-employee-import').'" class="btn">'.icon_svg('file').' Import Excel</a>'.$employeeActions;
+    page_head('HR Portal / People','Employee Directory',$employeeActions); ?>
     <?php if(!$ready):?><div class="alert error">Phase 2A database migration is required. Import <code>database/migrations/20260924_phase2a_employees.sql</code> in phpMyAdmin.</div><?php endif;?>
     <div class="metric-grid employee-metrics"><?php metric_card('Total employees',$summary['total'],'Employee master records','users'); metric_card('Active',$summary['active'],'Currently active','check','up'); metric_card('Probationary',$summary['probationary'],'Under probationary status','clock'); metric_card('New this month',$summary['new_this_month'],'Based on hire date','user-plus'); ?></div>
-    <section class="panel employee-directory-panel">
-      <div class="panel-head"><div><h2>Employee master list</h2><p>Search and filter employee records across the organization.</p></div><span class="badge gray"><?=count($employees)?> shown</span></div>
+    <nav class="employee-tabs employee-directory-tabs" aria-label="Employee lists">
+      <a class="<?=empty($filters['needs_details'])?'active':''?>" href="<?=url('hr-employees')?>" <?=empty($filters['needs_details'])?'aria-current="page"':''?>>All employees <span class="directory-tab-count"><?=(int)$summary['total']?></span></a>
+      <a class="<?=!empty($filters['needs_details'])?'active':''?>" href="<?=url('hr-employees',['needs_details'=>1])?>" <?=!empty($filters['needs_details'])?'aria-current="page"':''?>>Needs details <span class="directory-tab-count"><?=(int)($summary['needs_details'] ?? 0)?></span></a>
+    </nav>
+    <section class="panel employee-directory-panel employee-directory-refresh">
+      <div class="panel-head"><div><h2><?=!empty($filters['needs_details'])?'Employees to update':'Employee master list'?></h2><p><?=!empty($filters['needs_details'])?'These employees are already saved. Finish their missing details in Employee 201.':'Find an employee or open their Employee 201.'?></p></div><span class="badge gray"><?=count($employees)?> shown</span></div>
       <form method="get" class="employee-filterbar">
-        <input type="hidden" name="page" value="hr-employees">
-        <div class="employee-search"><?=icon_svg('search')?><input name="q" value="<?=e($filters['q'])?>" placeholder="Search employee no., name or email"></div>
-        <select name="department_id"><option value="">All departments</option><?php foreach($masters['departments'] as $x):if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=$filters['department_id']==$x['id']?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select>
-        <select name="branch_id"><option value="">All branches</option><?php foreach($masters['branches'] as $x):if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=$filters['branch_id']==$x['id']?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select>
-        <select name="status"><option value="">All statuses</option><?php foreach(['ACTIVE'=>'Active','PROBATIONARY'=>'Probationary','ON_LEAVE'=>'On Leave','INACTIVE'=>'Inactive','RESIGNED'=>'Resigned','TERMINATED'=>'Terminated'] as $k=>$label):?><option value="<?=$k?>" <?=$filters['status']===$k?'selected':''?>><?=$label?></option><?php endforeach;?></select>
-        <button class="btn sm">Filter</button><a class="btn sm ghost" href="<?=url('hr-employees')?>">Reset</a>
+        <input type="hidden" name="page" value="hr-employees"><?php if(!empty($filters['needs_details'])):?><input type="hidden" name="needs_details" value="1"><?php endif;?>
+        <div class="directory-filter-field directory-search-field"><label for="directory-search">Search employees</label><div class="employee-search"><?=icon_svg('search')?><input id="directory-search" name="q" value="<?=e($filters['q'])?>" placeholder="Employee code, name or email"></div></div>
+        <div class="directory-filter-field"><label for="directory-department">Department</label><select id="directory-department" name="department_id"><option value="">All departments</option><?php foreach($masters['departments'] as $x):if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=$filters['department_id']==$x['id']?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select></div>
+        <div class="directory-filter-field"><label for="directory-branch">Branch / Site</label><select id="directory-branch" name="branch_id"><option value="">All branches</option><?php foreach($masters['branches'] as $x):if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=$filters['branch_id']==$x['id']?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select></div>
+        <div class="directory-filter-field"><label for="directory-status">Status</label><select id="directory-status" name="status"><option value="">All statuses</option><?php foreach(['ACTIVE'=>'Active','PROBATIONARY'=>'Probationary','ON_LEAVE'=>'On Leave','INACTIVE'=>'Inactive','RESIGNED'=>'Resigned','TERMINATED'=>'Terminated'] as $k=>$label):?><option value="<?=$k?>" <?=$filters['status']===$k?'selected':''?>><?=e($label)?></option><?php endforeach;?></select></div>
+        <div class="directory-filter-actions"><button class="btn sm" type="submit">Apply filters</button><a class="btn sm ghost" href="<?=url('hr-employees',!empty($filters['needs_details'])?['needs_details'=>1]:[])?>">Reset</a></div>
       </form>
-      <?php if(!$employees):?><div class="empty employee-empty"><?= $ready ? 'No employee records match the current filters.' : 'Employee directory will be available after the Phase 2A migration.' ?></div><?php else:?><div class="employee-table-wrap"><table class="tbl employee-table"><thead><tr><th>Employee</th><th>Employment</th><th>Department / Position</th><th>Branch</th><th>Hire date</th><th>Status</th><th></th></tr></thead><tbody><?php foreach($employees as $e): $name=EmployeeRepository::fullName($e); $tone=in_array($e['status'],['ACTIVE','PROBATIONARY'],true)?'green':'gray'; ?><tr>
-        <td><a class="employee-cell" href="<?=url('hr-employee',['id'=>$e['id']])?>"><span class="employee-avatar"><?=e(initials($name))?></span><span><strong><?=e($name)?></strong><small><?=e($e['employee_no'])?><?=!empty($e['company_email'])?' · '.e($e['company_email']):''?></small></span></a></td>
-        <td><?=e($e['employment_type_name']??'—')?></td><td><strong><?=e($e['department_name']??'Unassigned')?></strong><div class="tiny muted"><?=e($e['position_name']??'No position')?></div></td><td><?=e($e['branch_name']??'Unassigned')?></td><td><?=e(date('M j, Y',strtotime($e['hire_date'])))?></td><td><span class="badge <?=$tone?>"><?=e(stage_label($e['status']))?></span></td><td><a href="<?=url('hr-employee',['id'=>$e['id']])?>" class="employee-open" aria-label="Open employee"><?=icon_svg('arrow')?></a></td>
-      </tr><?php endforeach;?></tbody></table></div><?php endif;?>
+      <?php if(!$employees):?><div class="empty employee-empty"><?=!$ready?'Employee directory will be available after the Phase 2A migration.':(!empty($filters['needs_details']) && empty($filters['q']) && empty($filters['department_id']) && empty($filters['branch_id']) && empty($filters['status']) && empty($filters['employment_type_id'])?'No employees need follow-up details.':'No employees match these filters. Try another name or reset the filters.')?></div><?php else:?>
+      <div class="employee-table-wrap" role="region" aria-label="Employee list" tabindex="0"><table class="tbl employee-table"><caption class="directory-sr-only">Employee profiles. Status shows employment status; Details shows information still needed in Employee 201.</caption><thead><tr><th scope="col">Employee</th><th scope="col">Employment</th><th scope="col">Department / Position</th><th scope="col">Branch / Site</th><th scope="col">Start date</th><th scope="col">Status</th><th scope="col">Details</th><th scope="col"><span class="directory-sr-only">Actions</span></th></tr></thead><tbody>
+      <?php foreach($employees as $e):
+        $name=EmployeeRepository::fullName($e); $tone=in_array($e['status'],['ACTIVE','PROBATIONARY'],true)?'green':'gray';
+        $pending=EmployeeRepository::rosterIssues($e); $needsDetails=!empty($e['roster_needs_details']);
+        $pendingLabels=employee_roster_detail_labels($pending); $editTab=isset($pending['name'])?'personal':'employment';
+        $actionLabel=$needsDetails?($canManage?'Update details':'View details'):'Open 201';
+        $profileParams=['id'=>$e['id']]; if($needsDetails) $profileParams['tab']=$editTab;
+      ?>
+      <tr>
+        <td class="directory-identity-cell" data-label="Employee"><a class="employee-cell" href="<?=url('hr-employee',['id'=>$e['id']])?>"><span class="employee-avatar"><?=e(initials($name))?></span><span><strong><?=e($name)?></strong><small><?=e($e['employee_no'] ?: 'Code to follow')?><?=!empty($e['company_email'])?' · '.e($e['company_email']):''?></small></span></a></td>
+        <td data-label="Employment"><?=e($e['employment_type_name']??'Not set')?></td>
+        <td data-label="Department / Position"><strong><?=e($e['department_name']??'Not set')?></strong><div class="directory-secondary"><?=e($e['position_name']??'Position to follow')?></div></td>
+        <td data-label="Branch / Site"><?=e($e['branch_name']??'Not set')?></td>
+        <td class="directory-date-cell" data-label="Start date"><?=e(!empty($e['hire_date']) ? date('M j, Y',strtotime($e['hire_date'])) : 'To follow')?></td>
+        <td class="directory-status-cell" data-label="Status"><span class="badge <?=$tone?>"><?=e(stage_label($e['status']))?></span></td>
+        <td class="directory-details-cell" data-label="Details"><?php if($needsDetails):?><span class="employee-followup-badge">Needs details</span><span class="directory-secondary" title="<?=e(implode(', ',array_values($pendingLabels)))?>"><?=count($pending) ? count($pending).' '.(count($pending)===1?'item':'items').' to finish' : 'Open 201 to check'?></span><?php else:?><span class="directory-secondary">No pending items</span><?php endif;?></td>
+        <td class="directory-action-cell" data-label="Actions"><a class="btn sm directory-profile-link <?=$needsDetails?'directory-update-link':''?>" href="<?=url('hr-employee',$profileParams)?>" aria-label="<?=e($actionLabel.' for '.$name)?>"><?=e($actionLabel)?><?=icon_svg('arrow')?></a></td>
+      </tr>
+      <?php endforeach;?></tbody></table></div><?php endif;?>
     </section>
     <?php render_portal_footer(); exit;
 }
@@ -1180,12 +1206,29 @@ if ($page === 'hr-employee') {
     $govIds=$phase2Ready?EmployeeRepository::governmentIds($id):[]; $contacts=$phase2Ready?EmployeeRepository::emergencyContacts($id):[];
     $documents=$phase2Ready?EmployeeRepository::documents($id):[]; $history=$phase2Ready?EmployeeRepository::history($id):[]; $auditTrail=EmployeeRepository::auditTrail($id);
     $recruitmentSource=RecruitmentRepository::employeeSource($id);
+    $rosterIssues=EmployeeRepository::rosterIssues($e);
     render_portal_header('hr','hr-employees','Employee 201 File');
     page_head('HR Portal / People / Employees','Employee 201 File','<a href="'.url('hr-employees').'" class="btn">Back to directory</a>'); ?>
+    <?php if($rosterIssues):$followupLabels=employee_roster_detail_labels($rosterIssues);?>
+    <section class="panel employee-followup-panel">
+      <div class="panel-head"><div><h2>Finish employee details</h2><p>This employee is already saved. Update the items below when available.</p></div><span class="employee-followup-badge"><?=count($rosterIssues)?> <?=count($rosterIssues)===1?'item':'items'?> to finish</span></div>
+      <div class="panel-body">
+        <ul class="employee-followup-fields" aria-label="Details to finish"><?php foreach($followupLabels as $label):?><li><?=e($label)?></li><?php endforeach;?></ul>
+        <?php if($canManage):?><div class="employee-followup-actions">
+          <?php if(isset($rosterIssues['name'])):?><a class="btn sm primary" href="<?=url('hr-employee',['id'=>$id,'tab'=>'personal'])?>">Update personal info</a><?php endif;?>
+          <?php if(count($rosterIssues)> (isset($rosterIssues['name'])?1:0)):?><a class="btn sm <?=isset($rosterIssues['name'])?'':'primary'?>" href="<?=url('hr-employee',['id'=>$id,'tab'=>'employment'])?>">Update employment details</a><?php endif;?>
+        </div><?php endif;?>
+        <details class="employee-followup-notes"><summary>View Excel notes</summary>
+          <?php if(empty($e['employee_no']) && !empty($e['roster_original_code'])):?><p>Excel Employee Code: <strong><?=e($e['roster_original_code'])?></strong> (needs confirmation).</p><?php endif;?>
+          <ul><?php foreach($rosterIssues as $field=>$issue):?><li><strong><?=e($followupLabels[$field])?>:</strong> <?=e($issue)?></li><?php endforeach;?></ul>
+        </details>
+      </div>
+    </section>
+    <?php endif;?>
     <?php if(!$phase2Ready):?><div class="alert error">Phase 2B database migration is required. Import <code>database/migrations/20260924_phase2b_201_file.sql</code> in phpMyAdmin to activate the complete 201 File tabs.</div><?php endif;?>
     <section class="panel employee-profile-head phase2b-profile-head"><div class="employee-profile-main">
       <?php if(!empty($e['profile_photo_stored_name'])):?><img class="employee-profile-photo" src="<?=url('hr-employee-photo',['id'=>$id])?>" alt="<?=e($name)?>"><?php else:?><span class="employee-profile-avatar"><?=e(initials($name))?></span><?php endif;?>
-      <div class="employee-profile-copy"><div class="employee-profile-title"><h2><?=e($name)?></h2><span class="badge <?=$tone?>"><?=e(stage_label($e['status']))?></span></div><p><?=e($e['employee_no'])?> · <?=e($e['position_name']??'No position assigned')?> · <?=e($e['department_name']??'No department assigned')?></p><div class="employee-profile-meta"><span><?=icon_svg('building')?> <?=e($e['branch_name']??'No branch')?></span><span><?=icon_svg('briefcase')?> <?=e($e['employment_type_name']??'No employment type')?></span><span><?=icon_svg('calendar')?> Hired <?=e(date('M j, Y',strtotime($e['hire_date'])))?></span></div></div>
+      <div class="employee-profile-copy"><div class="employee-profile-title"><h2><?=e($name)?></h2><span class="badge <?=$tone?>"><?=e(stage_label($e['status']))?></span><?php if($rosterIssues):?><span class="employee-followup-badge">Needs details</span><?php endif;?></div><p><?=e($e['employee_no'] ?: 'Code to follow')?> · <?=e($e['position_name']??'No position assigned')?> · <?=e($e['department_name']??'No department assigned')?></p><div class="employee-profile-meta"><span><?=icon_svg('building')?> <?=e($e['branch_name']??'No branch')?></span><span><?=icon_svg('briefcase')?> <?=e($e['employment_type_name']??'No employment type')?></span><span><?=icon_svg('calendar')?> Hired <?=e(!empty($e['hire_date']) ? date('M j, Y',strtotime($e['hire_date'])) : 'To follow')?></span></div></div>
       <div class="employee-profile-completeness"><span>201 File</span><strong><?=$phase2Ready?'Active':'Migration needed'?></strong><small><?=count($documents)?> docs · <?=count($govIds)?> IDs</small></div>
     </div></section>
     <nav class="employee-tabs phase2b-tabs"><?php foreach(['overview'=>'Overview','personal'=>'Personal Info','employment'=>'Employment','government'=>'Government IDs','emergency'=>'Emergency Contact','documents'=>'Documents','history'=>'History','audit'=>'Audit Trail'] as $key=>$label):?><a href="<?=url('hr-employee',['id'=>$id,'tab'=>$key])?>" class="<?=$tab===$key?'active':''?>"><?=e($label)?></a><?php endforeach;?></nav>
@@ -1193,7 +1236,11 @@ if ($page === 'hr-employee') {
     <?php if($tab==='overview'):?>
       <div class="dashboard-grid equal employee-profile-grid">
         <section class="panel"><div class="panel-head"><div><h2>Employee overview</h2><p>Current master-data assignment</p></div><?php if($canManage):?><a class="panel-link" href="<?=url('hr-employee',['id'=>$id,'tab'=>'employment'])?>">Edit employment</a><?php endif;?></div><div class="panel-body employee-detail-list">
-          <div><span>Employee number</span><strong><?=e($e['employee_no'])?></strong></div><div><span>Department</span><strong><?=e($e['department_name']??'Unassigned')?></strong></div><div><span>Position</span><strong><?=e($e['position_name']??'Unassigned')?></strong></div><div><span>Branch / Site</span><strong><?=e($e['branch_name']??'Unassigned')?></strong></div><div><span>Employment type</span><strong><?=e($e['employment_type_name']??'Unassigned')?></strong></div><div><span>Reporting To</span><strong><?=e($e['manager_name']??'Unassigned')?></strong></div><div><span>Hire date</span><strong><?=e(date('F j, Y',strtotime($e['hire_date'])))?></strong></div>
+          <div><span>Employee number</span><strong><?=e($e['employee_no'] ?: 'To follow')?></strong></div><div><span>Department</span><strong><?=e($e['department_name']??'Unassigned')?></strong></div><div><span>Position</span><strong><?=e($e['position_name']??'Unassigned')?></strong></div><div><span>Branch / Site</span><strong><?=e($e['branch_name']??'Unassigned')?></strong></div><div><span>Branch code</span><strong><?=e($e['branch_code']??'Not set')?></strong></div><div><span>Employment type</span><strong><?=e($e['employment_type_name']??'Unassigned')?></strong></div><div><span>Reporting To</span><strong><?=e($e['manager_name']??'Unassigned')?></strong></div><div><span>Hire date</span><strong><?=e(!empty($e['hire_date']) ? date('F j, Y',strtotime($e['hire_date'])) : 'To follow')?></strong></div>
+          <?php if(array_key_exists('roster_group',$e)): $rosterCompany=EmployeeRosterImportService::companyDetails($e); ?>
+          <div><span>Brand / Client</span><strong><?=e($rosterCompany['brand'])?></strong></div><div><span>Employer</span><strong><?=e($rosterCompany['employer'])?></strong></div>
+          <?php if(!empty($e['roster_group'])):?><div><span>Roster group</span><strong><?=e($e['roster_group']==='HO'?'Head Office':'Retail')?></strong></div><div><span>Name in roster</span><strong><?=e($e['roster_full_name']??'')?></strong></div><?php endif;?>
+          <?php endif;?>
         </div></section>
         <section class="panel"><div class="panel-head"><div><h2>Contact & access</h2><p>Employee contact and portal link</p></div><?php if($canManage):?><a class="panel-link" href="<?=url('hr-employee',['id'=>$id,'tab'=>'personal'])?>">Edit profile</a><?php endif;?></div><div class="panel-body employee-detail-list">
           <div><span>Company email</span><strong><?=e($e['company_email']??'Not provided')?></strong></div><div><span>Personal email</span><strong><?=e($e['personal_email']??'Not provided')?></strong></div><div><span>Mobile number</span><strong><?=e($e['mobile_no']??'Not provided')?></strong></div><div><span>Portal account</span><strong><?=e($e['user_email']??'Not linked')?></strong></div><div><span>Portal status</span><strong><?=e($e['user_status']??'—')?></strong></div><div><span>201 File records</span><strong><?=count($govIds)?> IDs · <?=count($contacts)?> contacts · <?=count($documents)?> docs</strong></div>
@@ -1216,9 +1263,10 @@ if ($page === 'hr-employee') {
 
     <?php elseif($tab==='employment'):?>
       <section class="panel phase2b-form-panel"><div class="panel-head"><div><h2>Employment information</h2><p>Assignment, status, portal linkage and effective-date history.</p></div><span class="badge gray">Changes are audited</span></div><?php if(!$canManage):?><div class="panel-body"><div class="alert">You have view-only access.</div></div><?php else:?><form method="post" class="panel-body employee-form-grid"><?=csrf_field()?><input type="hidden" name="action" value="update_employee_employment"><input type="hidden" name="employee_id" value="<?=$id?>"><input type="hidden" name="return_page" value="hr-employee"><input type="hidden" name="return_id" value="<?=$id?>"><input type="hidden" name="return_tab" value="employment">
-        <div class="field"><label>Employee number</label><input name="employee_no" value="<?=e($e['employee_no'])?>" required></div><div class="field"><label>Employee portal account</label><select name="user_id"><option value="">Not linked</option><?php foreach($masters['employee_users'] as $x):?><option value="<?=$x['id']?>" <?=((int)($e['user_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['full_name'])?> · <?=e($x['email'])?></option><?php endforeach;?></select></div>
+        <div class="field"><label>Employee number</label><input name="employee_no" value="<?=e($e['employee_no'])?>" <?=empty($e['employee_no']) && !empty($e['roster_needs_details'])?'':'required'?>></div><div class="field"><label>Employee portal account</label><select name="user_id"><option value="">Not linked</option><?php foreach($masters['employee_users'] as $x):?><option value="<?=$x['id']?>" <?=((int)($e['user_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['full_name'])?> · <?=e($x['email'])?></option><?php endforeach;?></select></div>
         <div class="field"><label>Department</label><select name="department_id"><option value="">Unassigned</option><?php foreach($masters['departments'] as $x): $isSelected=((int)($e['department_id']??0)===(int)$x['id']); if(!$x['active']&&!$isSelected)continue;?><option value="<?=$x['id']?>" <?=$isSelected?'selected':''?>><?=e($x['name'])?><?=!$x['active']?' · Retired':''?></option><?php endforeach;?></select></div><div class="field"><label>Position</label><select name="position_id"><option value="">Unassigned</option><?php foreach($masters['positions'] as $x): $isSelected=((int)($e['position_id']??0)===(int)$x['id']); if(!$x['active']&&!$isSelected)continue;?><option value="<?=$x['id']?>" <?=$isSelected?'selected':''?>><?=e($x['name'])?><?=!empty($x['department_name'])?' · '.e($x['department_name']):''?><?=!$x['active']?' · Retired':''?></option><?php endforeach;?></select></div>
         <div class="field"><label>Branch / Site</label><select name="branch_id"><option value="">Unassigned</option><?php foreach($masters['branches'] as $x): $isSelected=((int)($e['branch_id']??0)===(int)$x['id']); if(!$x['active']&&!$isSelected)continue;?><option value="<?=$x['id']?>" <?=$isSelected?'selected':''?>><?=e($x['name'])?><?=!$x['active']?' · Retired':''?></option><?php endforeach;?></select></div><div class="field"><label>Employment type</label><select name="employment_type_id"><option value="">Unassigned</option><?php foreach($masters['employment_types'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=((int)($e['employment_type_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select></div>
+        <?php if(array_key_exists('business_unit_id',$e)):?><div class="field"><label>Brand / Client</label><select name="business_unit_id"><option value="">Not set</option><?php foreach($masters['business_units'] as $company):$isCompanySelected=((int)($e['business_unit_id']??0)===(int)$company['id']);if(!$company['active']&&!$isCompanySelected)continue;?><option value="<?=$company['id']?>" <?=$isCompanySelected?'selected':''?>><?=e($company['name'])?><?=!$company['active']?' · Retired':''?></option><?php endforeach;?></select></div><div class="field"><label>Employer</label><select name="legal_entity_id"><option value="">Not set</option><?php foreach($masters['legal_entities'] as $company):$isCompanySelected=((int)($e['legal_entity_id']??0)===(int)$company['id']);if(!$company['active']&&!$isCompanySelected)continue;?><option value="<?=$company['id']?>" <?=$isCompanySelected?'selected':''?>><?=e($company['name'])?><?=!$company['active']?' · Retired':''?></option><?php endforeach;?></select></div><?php endif;?>
         <div class="field full reporting-manager-field">
           <div class="reporting-manager-label"><label for="manager_employee_id">Reporting To / Manager or ADL</label><span class="badge amber">Assigned by HR</span></div>
           <select id="manager_employee_id" name="manager_employee_id">
@@ -1241,7 +1289,7 @@ if ($page === 'hr-employee') {
             <div><strong>HR controls the reporting line.</strong><small>Head Office payroll tickets use the assigned Manager; branch tickets use the assigned ADL. Select an active linked account with the matching approval permission. Leave retains its separate approval requirements.</small></div>
           </div>
         </div>
-        <div class="field"><label>Hire date</label><input type="date" name="hire_date" value="<?=e($e['hire_date'])?>" required></div><div class="field"><label>Regularization date</label><input type="date" name="regularization_date" value="<?=e($e['regularization_date']??'')?>"></div><div class="field"><label>Employee status</label><select name="status"><?php foreach(['ACTIVE'=>'Active','PROBATIONARY'=>'Probationary','ON_LEAVE'=>'On Leave','INACTIVE'=>'Inactive','RESIGNED'=>'Resigned','TERMINATED'=>'Terminated'] as $v=>$l):?><option value="<?=$v?>" <?=$e['status']===$v?'selected':''?>><?=$l?></option><?php endforeach;?></select></div><div class="field"><label>Effective date of this change</label><input type="date" name="effective_date" value="<?=e(date('Y-m-d'))?>"></div><div class="field full"><label>Change remarks</label><textarea name="remarks" rows="3" placeholder="Example: Transferred to Makati HQ; promoted to HR Associate."></textarea><small>When department, position, branch, employment type, or status changes, HRIS creates an employment history entry automatically.</small></div>
+        <div class="field"><label>Hire date</label><input type="date" name="hire_date" value="<?=e($e['hire_date'])?>" <?=!empty($e['roster_needs_details'])?'':'required'?>></div><div class="field"><label>Regularization date</label><input type="date" name="regularization_date" value="<?=e($e['regularization_date']??'')?>"></div><div class="field"><label>Employee status</label><select name="status"><?php foreach(['ACTIVE'=>'Active','PROBATIONARY'=>'Probationary','ON_LEAVE'=>'On Leave','INACTIVE'=>'Inactive','RESIGNED'=>'Resigned','TERMINATED'=>'Terminated'] as $v=>$l):?><option value="<?=$v?>" <?=$e['status']===$v?'selected':''?>><?=$l?></option><?php endforeach;?></select></div><div class="field"><label>Effective date of this change</label><input type="date" name="effective_date" value="<?=e(date('Y-m-d'))?>"></div><div class="field full"><label>Change remarks</label><textarea name="remarks" rows="3" placeholder="Example: Transferred to Makati HQ; promoted to HR Associate."></textarea><small>When department, position, branch, employment type, or status changes, HRIS creates an employment history entry automatically.</small></div>
         <div class="phase2b-form-actions full"><button class="btn primary" type="submit">Save employment changes</button></div>
       </form><?php endif;?></section>
 

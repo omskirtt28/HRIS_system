@@ -35,15 +35,18 @@ final class EmployeeRepository
 
     public static function summary(): array
     {
-        if(!self::ready()) return ['total'=>0,'active'=>0,'probationary'=>0,'inactive'=>0,'new_this_month'=>0];
+        $defaults=['total'=>0,'active'=>0,'probationary'=>0,'inactive'=>0,'new_this_month'=>0,'needs_details'=>0];
+        if(!self::ready()) return $defaults;
+        $followup=self::columnExists('employees','roster_needs_details') ? 'SUM(roster_needs_details=1)' : '0';
         $row=db()->query("SELECT
             COUNT(*) total,
             SUM(status='ACTIVE') active,
             SUM(status='PROBATIONARY') probationary,
             SUM(status IN ('INACTIVE','RESIGNED','TERMINATED')) inactive,
-            SUM(YEAR(hire_date)=YEAR(CURDATE()) AND MONTH(hire_date)=MONTH(CURDATE())) new_this_month
+            SUM(YEAR(hire_date)=YEAR(CURDATE()) AND MONTH(hire_date)=MONTH(CURDATE())) new_this_month,
+            ".$followup." needs_details
             FROM employees")->fetch() ?: [];
-        return array_map('intval',array_merge(['total'=>0,'active'=>0,'probationary'=>0,'inactive'=>0,'new_this_month'=>0],$row));
+        return array_map('intval',array_merge($defaults,$row));
     }
 
     public static function directory(array $filters=[]): array
@@ -54,7 +57,12 @@ final class EmployeeRepository
         if($q!=='') {
             $where[]='(e.employee_no LIKE ? OR e.first_name LIKE ? OR e.middle_name LIKE ? OR e.last_name LIKE ? OR e.company_email LIKE ? OR e.personal_email LIKE ?)';
             $like='%'.$q.'%'; $params=array_merge($params,[$like,$like,$like,$like,$like,$like]);
+            if(self::columnExists('employees','roster_source_key')) {
+                $where[count($where)-1]='('.$where[count($where)-1].' OR e.roster_full_name LIKE ? OR e.roster_original_code LIKE ?)';
+                $params[]=$like; $params[]=$like;
+            }
         }
+        if(!empty($filters['needs_details']) && self::columnExists('employees','roster_needs_details')) $where[]='e.roster_needs_details=1';
         foreach(['department_id'=>'e.department_id','branch_id'=>'e.branch_id','employment_type_id'=>'e.employment_type_id'] as $key=>$col) {
             $v=(int)($filters[$key]??0); if($v>0){$where[]="$col=?";$params[]=$v;}
         }
@@ -103,6 +111,8 @@ final class EmployeeRepository
             'employment_types'=>FoundationRepository::employmentTypes(),
             'employee_users'=>self::availableEmployeeUsers($employeeId),
             'manager_candidates'=>self::managerCandidates($employeeId),
+            'business_units'=>FoundationRepository::businessUnits(),
+            'legal_entities'=>FoundationRepository::legalEntities(),
         ];
     }
 
@@ -182,6 +192,66 @@ final class EmployeeRepository
         return $id;
     }
 
+    /** Called inside the roster transaction; accounts and unrelated 201 details stay intact. */
+    public static function importRosterRecord(array $data, ?int $existingId, int $importId): int
+    {
+        Auth::requirePermission('employees.import');
+        Auth::requirePermission('employees.manage');
+        if (!db()->inTransaction()) throw new RuntimeException('A roster import must be saved as one transaction.');
+        $code = strtoupper(trim((string)($data['employee_no'] ?? ''))) ?: null;
+        $pending = $data['roster_pending'] ?? [];
+        if (!$code && !isset($pending['employee_no'])) throw new RuntimeException('An unknown Employee Code must have an identity follow-up mark.');
+        if ($code && !preg_match('/^[A-Z0-9_-]{1,50}$/D',$code)) throw new RuntimeException('Check the Employee Code.');
+        if (!preg_match('/^[a-f0-9]{64}$/D',(string)($data['roster_source_key'] ?? ''))) throw new RuntimeException('The roster source is missing. Reload the preview.');
+        foreach (['first_name'=>100,'middle_name'=>100,'last_name'=>100,'suffix'=>30,'roster_full_name'=>190] as $field=>$limit) if (mb_strlen((string)($data[$field] ?? '')) > $limit) throw new RuntimeException('A roster name field is too long.');
+        $data['hire_date'] = self::dateOrNull((string)($data['hire_date'] ?? ''));
+        $old = null;
+        if ($existingId) {
+            $st = db()->prepare('SELECT * FROM employees WHERE id=? FOR UPDATE');
+            $st->execute([$existingId]); $old = $st->fetch();
+            if (!$old || !$code || empty($old['employee_no']) || strcasecmp($old['employee_no'],$code) !== 0) throw new RuntimeException('The existing employee no longer matches this code. Reload the preview.');
+            // An incomplete source row does not clear previously confirmed employee details.
+            foreach (['hire_date','department_id','position_id','branch_id','business_unit_id','legal_entity_id'] as $field) if (empty($data[$field]) && !empty($old[$field])) $data[$field]=$old[$field];
+            if (isset($pending['name'])) foreach (['first_name','middle_name','last_name','suffix'] as $field) $data[$field]=(string)($old[$field] ?? '');
+        }
+        foreach (['department_id'=>'departments','position_id'=>'positions','branch_id'=>'branches','business_unit_id'=>'business_units','legal_entity_id'=>'legal_entities'] as $field=>$table) {
+            if (empty($data[$field])) continue;
+            $st = db()->prepare('SELECT active FROM '.$table.' WHERE id=?'); $st->execute([(int)$data[$field]]);
+            if ((int)$st->fetchColumn() !== 1) throw new RuntimeException('An employee assignment is no longer active. Reload the preview.');
+        }
+        if (!empty($data['position_id']) && !empty($data['department_id'])) {
+            $st=db()->prepare('SELECT department_id FROM positions WHERE id=?'); $st->execute([$data['position_id']]); $department=$st->fetchColumn();
+            if ($department && (int)$department !== (int)$data['department_id']) throw new RuntimeException('The position does not belong to this department.');
+        }
+        if (!$existingId) {
+            if (!$pending) $existingId = self::create(array_merge($data,['status'=>'ACTIVE','user_id'=>null]));
+            else {
+                $actor=(int)Auth::user()['id'];
+                $st=db()->prepare('INSERT INTO employees(employee_no,user_id,first_name,middle_name,last_name,suffix,department_id,position_id,branch_id,hire_date,status,created_by,updated_by) VALUES(?,NULL,?,?,?,?,?,?,?,?,"ACTIVE",?,?)');
+                $st->execute([$code,$data['first_name'],$data['middle_name'] ?: null,$data['last_name'],$data['suffix'] ?: null,$data['department_id'],$data['position_id'],$data['branch_id'],$data['hire_date'],$actor,$actor]);
+                $existingId=(int)db()->lastInsertId();
+                self::addHistory($existingId,'ROSTER_IMPORT',date('Y-m-d'),null,$data+['status'=>'ACTIVE'],'Roster imported; missing details will be completed in Employee 201.');
+            }
+        } else {
+            $st = db()->prepare('UPDATE employees SET first_name=?,middle_name=?,last_name=?,suffix=?,department_id=?,position_id=?,branch_id=?,hire_date=?,updated_by=? WHERE id=?');
+            $st->execute([$data['first_name'],$data['middle_name'] ?: null,$data['last_name'],$data['suffix'] ?: null,$data['department_id'],$data['position_id'],$data['branch_id'],$data['hire_date'],(int)Auth::user()['id'],$existingId]);
+            self::addHistory($existingId,'ROSTER_IMPORT',date('Y-m-d'),$old,array_merge($old,$data),'Reviewed employee roster import #'.$importId.'.');
+        }
+        // Each sheet supplies only one kind of COMPANY. Keep the other existing value.
+        $brand = $data['business_unit_id'] ?? ($old['business_unit_id'] ?? null);
+        $employer = $data['legal_entity_id'] ?? ($old['legal_entity_id'] ?? null);
+        $st = db()->prepare('UPDATE employees SET business_unit_id=?,legal_entity_id=?,roster_full_name=?,roster_group=?,roster_original_code=?,roster_source_key=COALESCE(roster_source_key,?),roster_pending_json=?,roster_needs_details=? WHERE id=?');
+        $st->execute([$brand,$employer,$data['roster_full_name'],$data['roster_group'],mb_substr((string)($data['roster_original_code'] ?? ''),0,50) ?: null,$data['roster_source_key'],json_encode($pending,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$pending ? 1 : 0,$existingId]);
+        self::refreshRosterDetails($existingId);
+        $changes = [];
+        foreach (['first_name','middle_name','last_name','suffix','department_id','position_id','branch_id','hire_date','business_unit_id','legal_entity_id'] as $field) {
+            $after = $field === 'business_unit_id' ? $brand : ($field === 'legal_entity_id' ? $employer : ($data[$field] ?? null));
+            if (($old[$field] ?? null) != $after) $changes[$field] = ['before'=>$old[$field] ?? null,'after'=>$after];
+        }
+        audit('Employees',$old ? 'UPDATE_FROM_ROSTER' : 'CREATE_FROM_ROSTER','employee',$existingId,['import_id'=>$importId,'changes'=>$changes]);
+        return $existingId;
+    }
+
     public static function updatePersonal(int $id,array $data): void
     {
         self::requirePhase2Employee($id);
@@ -203,8 +273,17 @@ final class EmployeeRepository
             $personalEmail?:null,$companyEmail?:null,trim((string)($data['address_text']??''))?:null,trim((string)($data['permanent_address_text']??''))?:null,
             (int)(Auth::user()['id']??0) ?: null,$id
         ];
-        try{$st=db()->prepare($sql);$st->execute($params);}catch(PDOException $e){self::throwDuplicateEmployee($e);throw $e;}
-        audit('Employees','UPDATE_PERSONAL','employee',$id,['name_before'=>self::fullName($old),'name_after'=>trim($first.' '.$last)]);
+        db()->beginTransaction();
+        try {
+            $st=db()->prepare($sql);$st->execute($params);
+            self::refreshRosterDetails($id,true);
+            audit('Employees','UPDATE_PERSONAL','employee',$id,['name_before'=>self::fullName($old),'name_after'=>trim($first.' '.$last)]);
+            db()->commit();
+        } catch(Throwable $error) {
+            if(db()->inTransaction()) db()->rollBack();
+            if($error instanceof PDOException) self::throwDuplicateEmployee($error);
+            throw $error;
+        }
     }
 
     public static function updateEmployment(int $id,array $data): void
@@ -228,13 +307,23 @@ final class EmployeeRepository
             $sql=$hasManager?'UPDATE employees SET employee_no=?,user_id=?,department_id=?,position_id=?,branch_id=?,employment_type_id=?,manager_employee_id=?,hire_date=?,regularization_date=?,status=?,updated_by=? WHERE id=?':'UPDATE employees SET employee_no=?,user_id=?,department_id=?,position_id=?,branch_id=?,employment_type_id=?,hire_date=?,regularization_date=?,status=?,updated_by=? WHERE id=?';
             $params=$hasManager?[$employeeNo,$userId,$departmentId,$positionId,$branchId,$employmentTypeId,$managerEmployeeId,$hireDate,$regularizationDate,$status,(int)(Auth::user()['id']??0)?:null,$id]:[$employeeNo,$userId,$departmentId,$positionId,$branchId,$employmentTypeId,$hireDate,$regularizationDate,$status,(int)(Auth::user()['id']??0)?:null,$id];
             $st=db()->prepare($sql);$st->execute($params);
+            if(self::columnExists('employees','business_unit_id') && self::columnExists('employees','legal_entity_id')) {
+                $companyValues=[];
+                foreach (['business_unit_id'=>'business_units','legal_entity_id'=>'legal_entities'] as $field=>$table) {
+                    $value=(int)($data[$field] ?? ($old[$field] ?? 0)) ?: null;
+                    if($value) { $check=db()->prepare('SELECT active FROM '.$table.' WHERE id=?'); $check->execute([$value]); $active=$check->fetchColumn(); if($active===false || ((int)$active!==1 && $value!==(int)($old[$field] ?? 0))) throw new RuntimeException('Choose an active company.'); }
+                    $companyValues[]=$value;
+                }
+                db()->prepare('UPDATE employees SET business_unit_id=?,legal_entity_id=? WHERE id=?')->execute([$companyValues[0],$companyValues[1],$id]);
+            }
+            self::refreshRosterDetails($id);
             if($changed && self::phase2Ready()){
                 $event=self::historyEventType($changed,(string)$old['status'],$status);
                 self::addHistory($id,$event,$effectiveDate,$before,$after,$remarks?:'Employment information updated.');
             }
             db()->commit();
         }catch(Throwable $e){if(db()->inTransaction())db()->rollBack();if($e instanceof PDOException)self::throwDuplicateEmployee($e);throw $e;}
-        audit('Employees','UPDATE_EMPLOYMENT','employee',$id,['changed'=>$changed,'effective_date'=>$effectiveDate,'remarks'=>$remarks]);
+        audit('Employees','UPDATE_EMPLOYMENT','employee',$id,['changed'=>$changed,'effective_date'=>$effectiveDate,'remarks'=>$remarks,'employee_no_before'=>$old['employee_no'],'employee_no_after'=>$employeeNo,'hire_date_before'=>$old['hire_date'],'hire_date_after'=>$hireDate,'company_before'=>[$old['business_unit_id'] ?? null,$old['legal_entity_id'] ?? null],'company_after'=>$companyValues ?? [],'needs_details_before'=>(int)($old['roster_needs_details'] ?? 0),'needs_details_after'=>(int)(self::find($id)['roster_needs_details'] ?? 0)]);
     }
 
     public static function uploadProfilePhoto(int $id,array $file): void
@@ -365,7 +454,35 @@ final class EmployeeRepository
 
     public static function fullName(array $e): string
     {
+        $issues=self::rosterIssues($e);
+        if (!empty($e['roster_full_name']) && (empty($e['first_name']) || empty($e['last_name']) || isset($issues['name']))) return trim($e['roster_full_name']);
         return trim(implode(' ',array_filter([(string)($e['first_name']??''),(string)($e['middle_name']??''),(string)($e['last_name']??''),(string)($e['suffix']??'')])));
+    }
+
+    public static function rosterIssues(array $employee): array
+    {
+        $issues=json_decode((string)($employee['roster_pending_json'] ?? ''),true);
+        return is_array($issues) ? $issues : [];
+    }
+
+    private static function refreshRosterDetails(int $id, bool $nameConfirmed = false): void
+    {
+        if(!self::columnExists('employees','roster_source_key')) return;
+        $employee=self::find($id);
+        if(!$employee || empty($employee['roster_source_key'])) return;
+        $issues=self::rosterIssues($employee);
+        if(!empty($employee['employee_no']) && preg_match('/^[A-Z0-9_-]{1,50}$/D',$employee['employee_no'])) unset($issues['employee_no']);
+        else $issues['employee_no']=$issues['employee_no'] ?? 'Enter and confirm the real Employee Code in Employment.';
+        if(!empty($employee['hire_date'])) unset($issues['hire_date']);
+        else $issues['hire_date']=$issues['hire_date'] ?? 'Add the real Start Date in Employment.';
+        if(!empty($employee['first_name']) && !empty($employee['last_name'])) { if($nameConfirmed) unset($issues['name']); }
+        else $issues['name']=$issues['name'] ?? 'Complete the name fields in Personal Info.';
+        foreach (['department_id'=>'Department','position_id'=>'Position','branch_id'=>'Branch / Site',($employee['roster_group']==='RETAIL' ? 'business_unit_id' : 'legal_entity_id')=>'Company'] as $field=>$label) {
+            if(!empty($employee[$field])) unset($issues[$field]);
+            else $issues[$field]=$issues[$field] ?? 'Complete '.$label.' in Employment.';
+        }
+        $st=db()->prepare('UPDATE employees SET roster_pending_json=?,roster_needs_details=? WHERE id=?');
+        $st->execute([json_encode($issues,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$issues ? 1 : 0,$id]);
     }
 
     public static function govIdTypes(): array { return self::GOV_ID_TYPES; }
@@ -380,14 +497,23 @@ final class EmployeeRepository
     private static function validatedEmployeeData(array $data,?int $employeeId): array
     {
         $first=trim((string)($data['first_name']??''));$middle=trim((string)($data['middle_name']??''));$last=trim((string)($data['last_name']??''));$suffix=trim((string)($data['suffix']??''));
-        if($first===''||$last==='')throw new RuntimeException('First name and last name are required.');
-        $employeeNo=strtoupper(trim((string)($data['employee_no']??''))) ?: self::nextEmployeeNo();
-        $hireDate=self::dateOrNull((string)($data['hire_date']??''));if(!$hireDate)throw new RuntimeException('Enter a valid hire date.');
+        $pending=self::rosterIssues($data);
+        $followup=$employeeId && !empty($data['roster_source_key']) && !empty($data['roster_needs_details']);
+        if(($first===''||$last==='') && !$followup)throw new RuntimeException('First name and last name are required.');
+        $employeeNo=strtoupper(trim((string)($data['employee_no']??'')));
+        if($employeeNo==='') {
+            if($followup && isset($pending['employee_no'])) $employeeNo=null;
+            elseif($employeeId) throw new RuntimeException('Enter the real Employee Code.');
+            else $employeeNo=self::nextEmployeeNo();
+        }
+        if(!empty($data['roster_source_key']) && $employeeNo && !preg_match('/^[A-Z0-9_-]{1,50}$/D',$employeeNo)) throw new RuntimeException('Enter a valid Employee Code.');
+        $hireDate=self::dateOrNull((string)($data['hire_date']??''));if(!$hireDate && !$followup)throw new RuntimeException('Enter a valid hire date.');
         $regularizationDate=self::dateOrNull((string)($data['regularization_date']??''));
         $companyEmail=strtolower(trim((string)($data['company_email']??'')));$personalEmail=strtolower(trim((string)($data['personal_email']??'')));
         foreach([$companyEmail,$personalEmail] as $email)if($email!==''&&!filter_var($email,FILTER_VALIDATE_EMAIL))throw new RuntimeException('Enter a valid email address.');
         $status=strtoupper(trim((string)($data['status']??'ACTIVE')));if(!in_array($status,self::STATUSES,true))throw new RuntimeException('Invalid employee status.');
         $userId=(int)($data['user_id']??0)?:null;$departmentId=(int)($data['department_id']??0)?:null;$positionId=(int)($data['position_id']??0)?:null;$branchId=(int)($data['branch_id']??0)?:null;$employmentTypeId=(int)($data['employment_type_id']??0)?:null;
+        if($followup && $userId && (!$employeeNo || !$hireDate || !$first || !$last || isset($pending['name']))) throw new RuntimeException('Confirm the Employee Code, name and Start Date before linking a portal account.');
         if($employeeId){$st=db()->prepare('SELECT COUNT(*) FROM employees WHERE employee_no=? AND id<>?');$st->execute([$employeeNo,$employeeId]);if((int)$st->fetchColumn()>0)throw new RuntimeException('Employee number already exists.');}
         if($userId){$sql='SELECT COUNT(*) FROM employees WHERE user_id=?'.($employeeId?' AND id<>?':'');$st=db()->prepare($sql);$st->execute($employeeId?[$userId,$employeeId]:[$userId]);if((int)$st->fetchColumn()>0)throw new RuntimeException('That user account is already linked to an employee.');}
         if($positionId&&$departmentId){$st=db()->prepare('SELECT department_id FROM positions WHERE id=?');$st->execute([$positionId]);$pd=$st->fetchColumn();if($pd!==false&&$pd!==null&&(int)$pd!==$departmentId)throw new RuntimeException('Selected position does not belong to the selected department.');}
