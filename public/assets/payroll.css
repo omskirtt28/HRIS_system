@@ -58,6 +58,79 @@
 .employee-attendance-review-body .employee-attendance-raw summary{font-size:13px;color:var(--hris-text);padding:8px 0}
 .employee-attendance-review-body .employee-attendance-actions .btn{min-height:36px;font-size:13px}
 .employee-attendance-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.employee-attendance-table-panel{overflow:visible}
+.employee-attendance-table-panel .panel-head{align-items:center;gap:12px}
+.employee-attendance-table-panel .panel-head h2{font-size:17px}
+.employee-attendance-table-panel .panel-head p{font-size:13px}
+.employee-attendance-cutoff-table{width:100%;border-collapse:collapse;font-size:13px;table-layout:auto}
+.employee-attendance-cutoff-table thead th{font-size:12px;font-weight:600;background:var(--hris-surface-2);color:var(--hris-muted);text-align:left}
+.employee-attendance-cutoff-table th,.employee-attendance-cutoff-table td{padding:16px 9px;vertical-align:top;border-bottom:1px solid var(--hris-line);line-height:1.6}
+.employee-attendance-cutoff-table th:first-child{padding-left:18px}
+.employee-attendance-cutoff-table th[scope=row]{font-weight:600;text-align:left;white-space:nowrap}
+.employee-attendance-cutoff-table small{display:block;font-size:12px;font-weight:400;color:var(--hris-muted)}
+.employee-attendance-cutoff-table .attendance-clock{font-variant-numeric:tabular-nums;white-space:nowrap}
+.employee-attendance-cutoff-table .attendance-clock small{white-space:normal}
+.attendance-clock-value{display:inline-flex!important;flex-wrap:wrap;align-items:center;gap:6px;color:var(--hris-text)!important;font-size:inherit!important;white-space:nowrap}
+.attendance-clock-value .attendance-time-source{display:inline-flex!important;align-items:center;background:var(--hris-info-soft);color:var(--hris-info);font-size:11px;font-weight:600;padding:2px 6px;line-height:1.4;border-radius:5px;white-space:nowrap}
+.attendance-clock-value .attendance-time-source.is-ob{background:var(--hris-success-soft);color:var(--hris-success)}
+.employee-attendance-cutoff-table .attendance-missing{color:var(--hris-warning);font-weight:600}
+.employee-attendance-cutoff-table .needs-attention{background:var(--hris-warning-soft)}
+.employee-attendance-cutoff-table .badge{white-space:nowrap}
+.attendance-ticket-stage{color:var(--hris-muted);white-space:normal;font-size:12px}
+.attendance-row-actions{display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-width:100px}
+.attendance-row-actions .btn{min-height:34px;font-size:12px;padding:7px 10px}
+.attendance-details-link{font-size:12px;color:var(--hris-text);text-decoration:underline;text-underline-offset:3px}
+.employee-attendance-request-menu{max-width:100%;font-size:12px}
+.employee-attendance-request-menu summary{display:flex;gap:5px;align-items:center;justify-content:space-between;cursor:pointer;list-style:none;min-height:34px;padding:7px 10px;background:var(--hris-surface);border:1px solid var(--hris-line);border-radius:8px;white-space:nowrap;font-weight:600;color:var(--hris-text)}
+.employee-attendance-request-menu summary::-webkit-details-marker{display:none}
+.employee-attendance-request-menu summary svg{width:14px;height:14px}
+.employee-attendance-request-menu>div{display:flex;flex-direction:column;gap:6px;margin-top:7px}
+.employee-attendance-request-menu summary:focus-visible,.attendance-details-link:focus-visible{outline:2px solid var(--hris-brand-strong);outline-offset:3px}
+.employee-ta-block .employee-attendance-times{margin:12px 0}
+.employee-ta-heading{font-size:13px;font-weight:600;margin:20px 0 0}
+.employee-ta-help{font-size:13px;color:var(--hris-muted);line-height:1.6;margin:14px 0}
+.employee-ta-inputs .field{max-width:300px}
+.employee-ta-block [hidden]{display:none!important}
+.employee-ta-block[aria-busy=true]{opacity:.75}
+.payroll-ticket-flow{display:flex;flex-wrap:wrap;align-items:center;gap:9px 12px;font-size:13px;color:var(--hris-muted);padding:14px 16px;margin-bottom:18px;border:1px solid var(--hris-line);border-radius:10px;background:var(--hris-surface)}
+.payroll-ticket-flow>span{display:inline-flex;gap:7px;align-items:center;line-height:1.6}
+.payroll-ticket-flow .is-current{color:var(--hris-warning);font-weight:600}
+.payroll-ticket-flow svg{width:16px;height:16px;flex-shrink:0}
+.payroll-ticket-attendance-summary{margin:0 0 20px}
+.payroll-ticket-attendance-summary .panel-body>p{margin-top:12px}
+.payroll-ticket-review-panel .panel-head{align-items:center;gap:14px}
+.payroll-ticket-review-panel .panel-head p{max-width:620px;line-height:1.6}
+.payroll-ticket-review-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px}
+.payroll-ticket-review-table th,.payroll-ticket-review-table td{padding:16px;vertical-align:top;border-bottom:1px solid var(--hris-line);text-align:left;overflow-wrap:anywhere;line-height:1.6}
+.payroll-ticket-review-table thead th{font-size:12px;background:var(--hris-surface-2);color:var(--hris-muted);font-weight:600}
+.payroll-ticket-review-table th:first-child{width:21%}.payroll-ticket-review-table th:nth-child(2){width:21%}.payroll-ticket-review-table th:nth-child(4){width:20%}
+.payroll-ticket-review-table small{display:block;font-size:12px;color:var(--hris-muted);margin-top:4px}
+.payroll-ticket-review-table .btn{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.payroll-ticket-review-table .btn svg{width:14px;height:14px}
+.phase3a-review-main .panel-head p,.phase3a-decision-panel .panel-head p{font-size:12px;line-height:1.6}
+@media(max-width:1200px){
+  .payroll-ticket-review-table,.payroll-ticket-review-table tbody{display:block}
+  .payroll-ticket-review-table thead{display:none}
+  .payroll-ticket-review-table tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding:18px;border-bottom:1px solid var(--hris-line)}
+  .payroll-ticket-review-table td{display:block;border:0;padding:0;min-width:0}
+  .payroll-ticket-review-table td:before{content:attr(data-label);display:block;font-size:12px;color:var(--hris-muted);margin-bottom:4px}
+  .payroll-ticket-review-table td:last-child{grid-column:1/-1}
+  .payroll-ticket-review-table td:last-child:before{display:none}
+}
+@media(pointer:coarse){.payroll-ticket-review-table .btn{min-height:44px}}
+@media(max-width:1100px){
+  .employee-attendance-cutoff-table,.employee-attendance-cutoff-table tbody{display:block}
+  .employee-attendance-cutoff-table thead{display:none}
+  .employee-attendance-cutoff-table tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding:18px;border-bottom:1px solid var(--hris-line)}
+  .employee-attendance-cutoff-table th[scope=row],.employee-attendance-cutoff-table td{display:block;padding:0;border:0;min-width:0}
+  .employee-attendance-cutoff-table th[scope=row]{grid-column:1/-1}
+  .employee-attendance-cutoff-table th[scope=row] small{display:inline;margin-left:8px}
+  .employee-attendance-cutoff-table td:before{content:attr(data-label);display:block;font-size:12px;color:var(--hris-muted);margin-bottom:4px;font-variant-numeric:normal}
+  .employee-attendance-cutoff-table td:last-child{grid-column:1/-1}
+  .employee-attendance-cutoff-table td:last-child:before{display:none}
+  .attendance-row-actions{flex-direction:row;align-items:center;flex-wrap:wrap;gap:12px}
+}
+@media(pointer:coarse){.attendance-row-actions .btn,.employee-attendance-request-menu summary,.attendance-details-link{min-height:44px}.attendance-details-link{display:inline-flex;align-items:center}.employee-ta-inputs input[type=time]{font-size:16px;min-height:44px}}
 @media(max-width:600px){
   .employee-attendance-cutoff .field{min-width:0;max-width:none}
   .employee-attendance-tabs{gap:0}.employee-attendance-tabs>a{flex:1;padding:12px 8px;font-size:13px;text-align:center}
@@ -69,3 +142,5 @@
   .employee-attendance-review-body{padding:16px 14px}
   .employee-attendance-review-filter .field{min-width:0}
 }
+.cutoff-export-panel{border-top:3px solid #f5a400}.cutoff-eyebrow{font-size:11px;font-weight:700;letter-spacing:.12em;color:var(--hris-muted);margin:0 0 6px}.cutoff-counts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:20px}.cutoff-counts>div{padding:16px;border:1px solid var(--hris-line);border-radius:12px;background:var(--hris-surface)}.cutoff-counts strong{display:block;font-size:24px;line-height:1.2}.cutoff-counts span{display:block;font-size:12px;color:var(--hris-muted);margin-top:6px}.cutoff-preparation{border:1px solid #f6d9a4;background:rgba(245,164,0,.06);border-radius:10px;padding:14px 18px;margin-bottom:18px}.cutoff-preparation ul{font-size:13px;line-height:1.7;margin:8px 0 0;padding-left:18px}.cutoff-ready{color:#078368;font-size:14px;display:flex;gap:8px;align-items:center}.cutoff-generate{display:flex;flex-wrap:wrap;align-items:center;gap:18px;margin:18px 0}.cutoff-check{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;line-height:1.5}.cutoff-check input{width:16px;height:16px;accent-color:#e49a00;flex-shrink:0}.cutoff-bulk-bar{display:flex;flex-wrap:wrap;gap:14px;align-items:center;background:rgba(245,164,0,.04);padding:14px 20px;border-block:1px solid var(--hris-line)}.cutoff-bulk-bar>span{font-size:13px;color:var(--hris-muted)}.cutoff-bulk-bar>.btn.primary{margin-left:auto}.cutoff-details{margin-top:16px}.cutoff-details>summary{padding:16px 20px;cursor:pointer;font-size:14px;font-weight:600;display:list-item;list-style-position:inside}.cutoff-details>summary>span{font-size:12px;font-weight:400;color:var(--hris-muted);margin-left:10px}.cutoff-group-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:12px 20px 20px}.cutoff-group-grid>div{padding:12px 14px;border:1px solid var(--hris-line);border-radius:10px}.cutoff-group-grid strong{display:block;font-size:13px}.cutoff-group-grid span{display:block;font-size:12px;color:var(--hris-muted);margin-top:5px}.cutoff-pagination{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:16px 20px;border-top:1px solid var(--hris-line);font-size:13px;color:var(--hris-muted)}.cutoff-pagination>span{margin-right:auto}.cutoff-payments .badge{white-space:nowrap}.cutoff-export-panel .btn:disabled,.cutoff-generate .btn:disabled,.cutoff-bulk-bar .btn:disabled,[data-cutoff-submit]:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}.payroll-ticket-review-table .cutoff-check{margin:4px 0}
+@media(max-width:800px){.cutoff-counts{grid-template-columns:repeat(2,minmax(0,1fr))}.cutoff-group-grid{grid-template-columns:1fr}.cutoff-generate{align-items:stretch;flex-direction:column}.cutoff-bulk-bar>.btn.primary{margin-left:0}.cutoff-export-panel>.panel-head{flex-wrap:wrap;gap:12px}}

@@ -8,7 +8,7 @@ final class AdminDataResetService
     private const BACKUP_LIFETIME=48*60*60;
     private const GROUPS=[
         'Payroll tickets'=>['payroll_requests','payroll_request_approvals','payroll_request_attachments','payroll_request_time_entries','payroll_request_history','payroll_request_applications','payroll_request_overtime_windows','payroll_backpay_claims','payroll_attendance_resolutions'],
-        'Attendance and imports'=>['attendance_daily','attendance_imports','attendance_import_rows','attendance_punches','payroll_cutoff_runs','payroll_cutoff_site_coverage','payroll_cutoff_snapshots','payroll_cutoff_log_confirmations','payroll_daily_dispositions','payroll_punch_selections'],
+        'Attendance and imports'=>['attendance_daily','attendance_imports','attendance_import_rows','attendance_punches','payroll_cutoff_runs','payroll_cutoff_site_coverage','payroll_cutoff_snapshots','payroll_cutoff_log_confirmations','payroll_daily_dispositions','payroll_punch_selections','payroll_cutoff_export_payments','payroll_cutoff_export_batches','payroll_cutoff_day_reviews'],
         'Leave'=>['leave_requests','leave_request_approvals','leave_credit_transactions'],
         'Recruitment'=>['applicants','applications','application_documents','application_stage_history','screening_reviews','interviews','endorsements','client_reviews','offers','deployments','job_openings','manpower_requests'],
     ];

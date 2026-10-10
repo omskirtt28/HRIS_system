@@ -88,7 +88,8 @@ final class EmployeeDirectoryService
         foreach ($departments as $key=>$department) foreach ($department['ids'] as $id) $departmentLookup[$id] = $key;
 
         // Current Employee 201 assignments own placement. Roster sheet is only a fallback.
-        $ho = '(UPPER(TRIM(b.name))="HEAD OFFICE" OR UPPER(TRIM(COALESCE(b.code,""))) IN ("HO","HEAD-OFFICE","HEAD_OFFICE"))';
+        $hoName='UPPER(TRIM(REPLACE(REPLACE(COALESCE(b.name,""),CHAR(39),""),"’","")))';
+        $ho = '('.$hoName.' IN ("HEAD OFFICE","SW HEAD OFFICE","HEAD OFFICE SW","OCAMPOS HEAD OFFICE","HEAD OFFICE OCAMPOS","OCAMPO HEAD OFFICE","HEAD OFFICE OCAMPO") OR UPPER(TRIM(COALESCE(b.code,""))) IN ("HO","HEAD-OFFICE","HEAD_OFFICE","SW_HO","SWHO","OC_HO","OCHO","OCAMPOS_HO","OCAMPOS_HEAD_OFFICE"))';
         if (self::has('branches','site_type')) $ho = '('.$ho.' OR b.site_type="HEAD_OFFICE")';
         $retail = $hasArea ? 'b.area_id IS NOT NULL' : '0=1';
         if (self::has('branches','site_type')) $retail = '('.$retail.' OR b.site_type="RETAIL_STORE")';
@@ -152,9 +153,9 @@ final class EmployeeDirectoryService
             $state['group']=EmployeeDirectoryPlacement::isHeadOffice($state['group'])?$state['group']:'SW_HO'; $state['branch_id']=0; $state['area_id']=0;
             if($state['department']!=='') $state['main_department']=$departments[$state['department']]['main'] ?? '';
         }
-        $directMarketing=EmployeeDirectoryPlacement::isHeadOffice($state['group']) && $state['main_department']==='MARKETING';
-        if($directMarketing) $state['department']='';
-        $result['list'] = $directMarketing || $state['branch_id'] > 0 || $state['department'] !== '' || in_array($state['group'], ['ALL','UNASSIGNED','MANAGERS','ADL'], true) || $state['view']==='list';
+        $directEmployees=EmployeeDirectoryPlacement::isHeadOffice($state['group']) && !empty($mainDepartments[$state['main_department']]['direct']);
+        if($directEmployees) $state['department']='';
+        $result['list'] = $directEmployees || $state['branch_id'] > 0 || $state['department'] !== '' || in_array($state['group'], ['ALL','UNASSIGNED','MANAGERS','ADL'], true) || $state['view']==='list';
         $base = ['group'=>$state['group']];
         if ($state['needs_details']) $base['needs_details']=1;
         if ($state['status'] !== '') $base['status']=$state['status'];
@@ -210,8 +211,8 @@ final class EmployeeDirectoryService
                 $main=$mainDepartments[$state['main_department']];
                 $result['title']=$main['name']; $result['subtitle']='Choose a team to view its employees.'; $result['grid_label']='teams';
                 $result['crumbs'][]=['label'=>$main['name'],'params'=>$base+['main_department'=>$state['main_department']]];
-                if($directMarketing) {
-                    $result['subtitle']='Marketing, Digital Marketing and VM & Creatives employees.';
+                if($directEmployees) {
+                    $result['subtitle']=$state['main_department']==='MARKETING' ? 'Marketing, Digital Marketing and VM & Creatives employees.' : $main['name'].' employees.';
                     $result['parent']=$base; $result['back_label']=EmployeeDirectoryPlacement::GROUPS[$state['group']];
                 } else foreach($departments as $key=>$department) {
                     if($department['main']!==$state['main_department'] || (!$department['active'] && !$department['count'])) continue;
@@ -222,7 +223,7 @@ final class EmployeeDirectoryService
                 foreach($mainDepartments as $code=>$main) {
                     $count=0;
                     foreach($departments as $department) if($department['main']===$code) $count+=$department['count'];
-                    $result['cards'][]=['title'=>$main['name'],'detail'=>$main['detail'],'count'=>$count,'params'=>$base+['main_department'=>$code],'action'=>$code==='MARKETING'?'Open employees':'Open teams','icon'=>$main['icon'],'notice'=>'','section'=>'Main departments','order'=>array_search($code,array_keys($mainDepartments),true)];
+                    $result['cards'][]=['title'=>$main['name'],'detail'=>$main['detail'],'count'=>$count,'params'=>$base+['main_department'=>$code],'action'=>!empty($main['direct'])?'Open employees':'Open teams','icon'=>$main['icon'],'notice'=>'','section'=>'Main departments','order'=>array_search($code,array_keys($mainDepartments),true)];
                 }
                 foreach($departments as $key=>$department) {
                     if($department['main']!=='' || !$department['count']) continue;

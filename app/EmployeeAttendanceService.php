@@ -6,6 +6,36 @@ final class EmployeeAttendanceService
 {
     public const LABELS=['time_in'=>'Time In','lunch_out'=>'Break Out','lunch_in'=>'Break In','time_out'=>'Time Out'];
 
+    /** Own-account, read-only filing context; call again under the cutoff lock on submit. */
+    public static function requestTimes(string $date,int $cutoffId=0): array
+    {
+        Auth::requirePermission('payroll.request_self');
+        PayrollAttendanceService::requireReady();
+        $date=PayrollAttendanceService::date($date);
+        $employee=PayrollRepository::currentEmployee();
+        if(!$employee) throw new RuntimeException('Ask HR to link your account to your Employee 201 record.');
+        $q=db()->prepare('SELECT id FROM payroll_cutoffs WHERE period_start<=? AND period_end>=?'.($cutoffId?' AND id=?':'').' ORDER BY period_start DESC LIMIT 1');
+        $args=[$date,$date]; if($cutoffId) $args[]=$cutoffId;
+        $q->execute($args); $matched=(int)$q->fetchColumn();
+        if($cutoffId && !$matched) throw new RuntimeException('Choose a cutoff that includes the affected date.');
+        $values=array_fill_keys(PayrollCalculator::FIELDS,null);
+        if($matched) {
+            $q=db()->prepare('SELECT * FROM attendance_daily WHERE employee_id=? AND cutoff_id=? AND work_date=?');
+            $q->execute([(int)$employee['id'],$matched,$date]); $row=$q->fetch();
+            if($row) {
+                foreach(PayrollCalculator::FIELDS as $field) $values[$field]=$row['original_'.$field]?:($row[$field]??null);
+            } else {
+                $q=db()->prepare('SELECT p.* FROM attendance_punches p JOIN attendance_import_rows r ON r.id=p.import_row_id JOIN attendance_imports i ON i.id=r.import_id WHERE p.employee_id=? AND i.state="IMPORTED" AND p.punched_at>=? AND p.punched_at<? ORDER BY p.punched_at,p.id');
+                $q->execute([(int)$employee['id'],$date.' 00:00:00',(new DateTimeImmutable($date))->modify('+2 days')->format('Y-m-d').' 00:00:00']);
+                $policy=PayrollAttendanceService::attendancePolicy((int)($employee['branch_id']??0));
+                $punches=array_values(array_filter($q->fetchAll(),static fn($punch)=>self::punchDay($punch,$policy,[])===$date));
+                $values=PayrollCalculator::assign($punches,[])['original'];
+            }
+        }
+        return ['date'=>$date,'cutoff_id'=>$matched,'values'=>$values,
+            'missing'=>array_values(array_filter(PayrollCalculator::FIELDS,static fn($field)=>empty($values[$field])))];
+    }
+
     public static function defaultCutoff(array $cutoffs): int
     {
         $today=date('Y-m-d');
@@ -168,19 +198,22 @@ final class EmployeeAttendanceService
             $incomplete=$hasEvidence && !$coveredByTicket && ($missing || $state==='ISSUES');
             $locations=[]; foreach($raw as $punch) $locations[(int)$punch['source_branch_id']]=$punch['source_location']??'Unknown location';
             $otherSite=(bool)array_filter(array_keys($locations),static fn($id)=>$id>0 && $id!==(int)($employee['branch_id']??0));
-            $snapshot=$row?(json_decode($row['rate_snapshot_json']??'{}',true)?:[]):[];
-            $daySite=$snapshot['site']??$site;
-            $otMinutes=(!$missing && !$incomplete && !$coveredByTicket && !$beforeHire && $row)?self::outsideSchedule($key,$values,$daySite):0;
+            // A late OUT is not proof of overtime. Employees file actual OT manually.
+            $otMinutes=0;
             $active=[];
             foreach($dayTickets as $ticket) if(!in_array($ticket['status'],['REJECTED','CANCELLED'],true)) {
                 $family=match($ticket['type_code']) {'TA','PTA'=>'TA','OB','POB'=>'OB','OT','POT'=>'OT',default=>$ticket['type_code']};
                 $active[$family]??=$ticket;
             }
-            $otReview=$otMinutes>0 && !isset($active['OT']);
+            $otReview=false;
+            $timeSources=[];
+            foreach($adjustments as $entry) if($entry['work_date']===$key) {
+                $timeSources[$entry['field']]=array_values(array_unique(array_map(static fn($source)=>in_array($source['type_code'],['OB','POB'],true)?'OB':'TA',$entry['time_sources'])));
+            }
             $day=['date'=>$key,'row'=>$row,'values'=>$values,'issues'=>$issues,'raw'=>$raw,'tickets'=>$dayTickets,'leaves'=>$dayLeaves,
                 'locations'=>$locations,'other_site'=>$otherSite,'missing'=>$missing,'ambiguous'=>$ambiguous,'incomplete'=>(bool)$incomplete,
                 'before_hire'=>$beforeHire,'has_evidence'=>(bool)$hasEvidence,'state'=>$state,'ot_minutes'=>$otMinutes,'ot_review'=>$otReview,
-                'can_file'=>$canFile&&!$beforeHire,'active'=>$active];
+                'can_file'=>$canFile&&!$beforeHire,'active'=>$active,'time_sources'=>$timeSources];
             $days[]=$day;
             if($raw) $totals['with_logs']++;
             if($incomplete) $totals['incomplete']++;

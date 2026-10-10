@@ -57,7 +57,7 @@ function render_head(string $title): void { ?>
 <link rel="apple-touch-icon" sizes="180x180" href="public/assets/branding/apple-touch-icon.png?v=20260924-logo-transparency-fix-v2">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="public/assets/app.css"><link rel="stylesheet" href="public/assets/hris-modern.css?v=20260926-phase3a-v1"><link rel="stylesheet" href="public/assets/phase2b.css?v=20260924-phase2b-201file"><link rel="stylesheet" href="public/assets/employee-directory.css?v=20261010-company-groups-adl-v1"><link rel="stylesheet" href="public/assets/sidebar-logout.css?v=20260924-sidebar-logout"><link rel="stylesheet" href="public/assets/payroll.css?v=20261004-attendance-tabs"><script src="public/assets/payroll.js?v=20261004-multiple-import" defer></script>
+<link rel="stylesheet" href="public/assets/app.css"><link rel="stylesheet" href="public/assets/hris-modern.css?v=20260926-phase3a-v1"><link rel="stylesheet" href="public/assets/phase2b.css?v=20260924-phase2b-201file"><link rel="stylesheet" href="public/assets/employee-directory.css?v=20261010-company-groups-adl-v1"><link rel="stylesheet" href="public/assets/sidebar-logout.css?v=20260924-sidebar-logout"><link rel="stylesheet" href="public/assets/payroll.css?v=20261011-complete-cutoff"><script src="public/assets/payroll.js?v=20261011-complete-cutoff" defer></script>
 <link rel="stylesheet" href="public/assets/employee-delete.css?v=20261010-v1">
 <style>.alert{padding:11px 14px;border-radius:10px;margin-bottom:14px;font-size:12.5px}.req{color:var(--red)}.actions-inline{display:flex;gap:6px;flex-wrap:wrap}.nowrap{white-space:nowrap}.empty{padding:36px;text-align:center;color:var(--hris-muted)}form.inline{display:inline}.status-select{min-width:150px}</style>
 </head><body><div id="toast" class="toast"></div>
@@ -95,7 +95,7 @@ function nav_config(string $kind): array {
       'hr'=>['title'=>'PMBSI HRIS','sub'=>'Human Resources','groups'=>[
         ['Overview',[['Dashboard','hr-dashboard','home',false,'dashboard.hr.view']]],
         ['People',[['Employees','hr-employees','users',false,'employees.view_all'],['Attendance','payroll-cutoff','clock',false,'payroll.process'],['HR Requests','#','clipboard',true,'requests.manage']]],
-        ['Payroll & Timekeeping',[['Timekeeping Queue','hr-timekeeping','clock',false,'payroll.approve_hr'],['Biometric Import','payroll-import','file',false,'payroll.biometric_import'],['Payroll Cutoffs','payroll-cutoff','briefcase',false,'payroll.process'],['Leave Approvals','hr-leave','calendar',false,'leave.approve_hr'],['Team Approvals','manager-approvals','check-square',false,'payroll.approve_manager']]],
+        ['Payroll & Timekeeping',[['Payroll Ticket Review','hr-timekeeping','clipboard',false,'payroll.approve_hr'],['Biometric Import','payroll-import','file',false,'payroll.biometric_import'],['Payroll Cutoffs','payroll-cutoff','briefcase',false,'payroll.process'],['Leave Approvals','hr-leave','calendar',false,'leave.approve_hr'],['Team Approvals','manager-approvals','check-square',false,'payroll.approve_manager']]],
         ['Recruitment',[['Manpower Requests','hr-manpower','briefcase',false,'recruitment.view'],['Applicants','hr-applicants','user-plus',false,'recruitment.view'],['Pipeline','hr-pipeline','pipeline',false,'recruitment.view'],['Endorsements','hr-endorsements','check-square',false,'recruitment.view']]],
         ['HR Operations',[['Employee Relations','#','shield',true,null],['Performance','#','chart',true,null],['Training','#','book',true,null],['Offboarding','#','file',true,null]]],
         ['Insights',[['Reports','hr-reports','chart',false,'reports.view']]]
@@ -108,7 +108,7 @@ function nav_config(string $kind): array {
         ['Overview',[['Dashboard','admin-dashboard','home',false,'dashboard.admin.view']]],
         ['Access Control',[['Users','admin-users','users',false,'users.view'],['Roles & Permissions','admin-roles','shield',false,'roles.view'],['Security & Sessions','admin-security','shield',false,'audit.view']]],
         ['Organization',[['Employees','hr-employees','users',false,'employees.view_all'],['Organization Setup','admin-organization','building',false,'organization.view']]],
-        ['Payroll',[['Biometric Import','payroll-import','file',false,'payroll.biometric_import'],['Payroll Cutoffs','payroll-cutoff','briefcase',false,'payroll.process'],['Leave Approvals','hr-leave','calendar',false,'leave.approve_hr']]],
+        ['Payroll',[['Payroll Ticket Review','hr-timekeeping','clipboard',false,'payroll.approve_hr'],['Biometric Import','payroll-import','file',false,'payroll.biometric_import'],['Payroll Cutoffs','payroll-cutoff','briefcase',false,'payroll.process'],['Leave Approvals','hr-leave','calendar',false,'leave.approve_hr']]],
         ['Operations',[['Audit Logs','admin-audit','audit',false,'audit.view'],['Clear Test Data','admin-clear-data','shield',false,'system.test_data.clear']]]
       ]]
     ];

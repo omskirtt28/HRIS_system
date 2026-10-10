@@ -8,6 +8,18 @@ function payroll_review_ot_minutes(array $row): int
 
 function payroll_review_page(string $page,string $kind,array $cutoffs,int $cutoffId,array $run,array $rows,bool $employeePage,?array $employee,string $filter): void
 {
+    $exportModel=null;
+    if(!$employeePage && PayrollCutoffExportService::ready()) {
+        try {
+            $exportModel=PayrollCutoffExportService::model($cutoffId);$rows=[];
+            foreach($exportModel['rows'] as $day) {
+                if($filter==='ISSUES'&&!in_array($day['state'],['ISSUES','AWAITING_LOGS'],true))continue;
+                $rows[]=$day+['employee_name'=>$day['_employee']['employee_name'],'employee_no'=>$day['_employee']['employee_no'],'branch_name'=>$day['_employee']['branch_name']];
+            }
+            usort($rows,static fn($a,$b)=>strcasecmp($a['employee_name'],$b['employee_name'])?:strcmp($a['work_date'],$b['work_date']));
+        } catch(RuntimeException $error) { /* The export panel displays the error and prevents generation. */ }
+    }
+    $dayPages=max(1,(int)ceil(count($rows)/100));$dayPage=max(1,min($dayPages,(int)($_GET['day_page']??1)));
     $employeeId=$employeePage?(int)$employee['id']:null;
     $tickets=PayrollAttendanceService::cutoffTickets($cutoffId,$employeeId);
     $claims=PayrollAttendanceService::backpayRows($cutoffId);
@@ -25,10 +37,14 @@ function payroll_review_page(string $page,string $kind,array $cutoffs,int $cutof
         if($r['state']==='ISSUES') $summary[$key]['issues']++;
         if($r['state']==='AWAITING_LOGS') $summary[$key]['no_logs']++;
     }
-    render_portal_header($kind,$page,$employeePage?'My Attendance':'Payroll Cutoff');
+    render_portal_header($kind,$page,$employeePage?'My Attendance':'Cutoff Attendance');
     $actions=!$employeePage&&Auth::can('payroll.biometric_import')?'<a class="btn" href="'.url('payroll-import',['cutoff_id'=>$cutoffId]).'">Import biometrics</a>':'';
-    page_head($employeePage?'Employee Self-Service / Attendance':'HR Payroll / Attendance Review',$employeePage?'My Attendance':'Payroll Cutoff Review',$actions);
+    page_head($employeePage?'Employee Self-Service / Attendance':'HR / Payroll / Attendance',$employeePage?'My Attendance':'Cutoff Attendance',$actions);
     payroll_cutoff_selector($cutoffs,$cutoffId,$page); ?>
+    <?php if(!$employeePage) {
+        payroll_cutoff_export_panel($cutoffId,$exportModel);
+        if(PayrollCutoffExportService::batch($cutoffId) && ($_GET['details']??'')!=='1') {render_portal_footer();return;}
+    } ?>
     <div class="alert info"><?php if($employeePage):?>Approved ticket times appear in your matching attendance day. Use View day to see the original logs and applied corrections.<?php else:?>3. Review daily attendance and approved tickets here. Manager/ADL-approved corrections appear in the matching day, even when the original biometric file has no row for that date. Salary and OT amounts are computed manually.<?php endif;?></div>
     <?php if($run['run_state']==='FINALIZED'):?><p class="small muted">This attendance cutoff is locked. Historical hours retain their saved calculation; no monetary amounts are shown.</p><?php endif;?>
     <?php if($needsRefresh):?><div class="alert amber">This cutoff has records from the previous calculation. Click <strong>Refresh attendance</strong> to use the simplified flow.</div><?php endif;?>
@@ -50,9 +66,9 @@ function payroll_review_page(string $page,string $kind,array $cutoffs,int $cutof
     </section>
     <div class="payroll-toolbar">
       <a class="btn" href="<?=url($page,['cutoff_id'=>$cutoffId,'filter'=>$filter==='ISSUES'?'':'ISSUES'])?>"><?=$filter==='ISSUES'?'Show all days':'Show dates needing review'?></a>
-      <?php if(Auth::can('payroll.export')):?><a class="btn" href="<?=url('payroll-export',['cutoff_id'=>$cutoffId])?>">Export attendance CSV</a><?php endif;?>
+      <?php if(Auth::can('payroll.export') && $run['run_state']==='FINALIZED' && !PayrollCutoffExportService::batch($cutoffId)):?><a class="btn" href="<?=url('payroll-export',['cutoff_id'=>$cutoffId])?>">Download older cutoff CSV</a><?php endif;?>
       <?php if($run['run_state']!=='FINALIZED'):?><form method="post"><?php payroll_hidden_action('rebuild');?><input type="hidden" name="cutoff_id" value="<?=$cutoffId?>"><button class="btn">Refresh attendance</button></form>
-      <?php if(Auth::can('payroll.finalize')):?><form method="post" data-payroll-confirm="Finalize and lock this attendance review? Dates without logs remain unclassified. Salary and OT amounts are reviewed manually outside this attendance export."><?php payroll_hidden_action('finalize');?><input type="hidden" name="cutoff_id" value="<?=$cutoffId?>"><button class="btn primary">Finalize attendance</button></form><?php endif; endif;?>
+      <?php endif;?>
     </div>
     <?php if($run['run_state']!=='FINALIZED'):?><section class="panel payroll-section"><div class="panel-head"><div><h2>Ticket and approval deadline</h2><p>HR Payroll sets the cutoff deadline. Late filing or approval requires an extension before finalization.</p></div></div><form method="post" class="panel-body payroll-inline-form"><?php payroll_hidden_action('deadline');?><input type="hidden" name="cutoff_id" value="<?=$cutoffId?>"><div class="field"><label>Deadline (Asia/Manila)</label><input type="datetime-local" name="ticket_deadline" value="<?=e(!empty($run['ticket_deadline'])?date('Y-m-d\TH:i',strtotime($run['ticket_deadline'])):'')?>"></div><button class="btn">Save deadline</button></form></section><?php endif;?>
     <section class="panel payroll-section"><div class="panel-head"><div><h2>Employee attendance totals</h2><p>Work hours exclude the actual lunch interval. Matched OT is included in work hours; it is shown separately for manual Payroll review.</p></div></div><div class="payroll-table-scroll"><table class="phase3a-table"><thead><tr><th>Employee</th><th>Recorded work hours</th><th>Matched OT hours</th><th>Issue dates</th><th>No-log dates</th></tr></thead><tbody><?php if(!$summary):?><tr><td colspan="5" class="empty">Import biometric logs to generate attendance records. Approved tickets are listed below.</td></tr><?php endif; foreach($summary as $s):?><tr><td><strong><?=e($s['name'])?></strong><small><?=e($s['no'])?></small></td><td><?=$needsRefresh?'Refresh required':payroll_hours($s['worked'])?></td><td><?=$needsRefresh?'Refresh required':payroll_hours($s['ot'])?></td><td><?=$s['issues']?></td><td><?=$s['no_logs']?></td></tr><?php endforeach;?></tbody></table></div></section>
@@ -61,9 +77,10 @@ function payroll_review_page(string $page,string $kind,array $cutoffs,int $cutof
     <?php if(!$tickets):?><tr><td colspan="<?=$employeePage?4:5?>" class="empty">No final Manager/ADL-approved tickets for this cutoff yet.</td></tr><?php endif; foreach($tickets as $ticket):?><tr><?php if(!$employeePage):?><td><?=e($ticket['employee_name'])?><small><?=e($ticket['employee_no'])?></small></td><?php endif;?><td><a href="<?=url('payroll-request',['id'=>$ticket['id']])?>"><?=e($ticket['request_no'].' · '.$ticket['type_code'])?></a></td><td><?=e($ticket['affected_date'])?></td><td><span class="badge <?=$ticket['application_state']==='APPLIED'?'green':'amber'?>"><?=e(stage_label($ticket['application_state']))?></span></td><td><?=e($ticket['application_note']??'Approved; waiting for attendance matching.')?></td></tr><?php endforeach;?></tbody></table></div></section>
     <?php if($claims):?><section class="panel payroll-section"><div class="panel-head"><div><h2>Previous unpaid claims</h2><p>Approved claims enter this processing cutoff for manual HR Payroll amount review. Original finalized attendance stays locked.</p></div></div><div class="payroll-table-scroll"><table class="phase3a-table"><thead><tr><th>Employee</th><th>Ticket</th><th>Affected date</th><th>Approval status</th></tr></thead><tbody><?php foreach($claims as $claim):?><tr><td><?=e($claim['employee_name'])?></td><td><a href="<?=url('payroll-request',['id'=>$claim['request_id']])?>"><?=e($claim['request_no'].' · '.$claim['type_code'])?></a></td><td><?=e($claim['affected_date'])?></td><td><?=e(stage_label($claim['request_status']))?></td></tr><?php endforeach;?></tbody></table></div></section><?php endif;?>
     <section class="panel payroll-section"><div class="panel-head"><div><h2>Daily attendance</h2><p>Four punches can come from different locations. Lunch timing is flexible; both Lunch Out and Lunch In are required. Head Office uses 8 AM–5 PM and a 60-minute break.</p></div></div><div class="payroll-table-scroll"><table class="phase3a-table"><thead><tr><?php if(!$employeePage):?><th>Employee</th><?php endif;?><th>Date</th><th>Time In</th><th>Lunch Out</th><th>Lunch In</th><th>Time Out</th><th>Status / issues</th><th>Recorded work hours</th><th>Matched OT hours</th><th></th></tr></thead><tbody>
-    <?php if(!$rows):?><tr><td colspan="<?=$employeePage?9:10?>" class="empty">No attendance records for this selection.</td></tr><?php endif; foreach($rows as $r): $noLogs=$r['state']==='AWAITING_LOGS'; $issue=$r['state']==='ISSUES'; ?>
-    <tr class="<?=$issue?'payroll-issue-row':''?>"><?php if(!$employeePage):?><td><strong><?=e($r['employee_name'])?></strong><small><?=e($r['employee_no'].' · '.$r['branch_name'])?></small></td><?php endif;?><td><?=e($r['work_date'])?></td><?php foreach(PayrollCalculator::FIELDS as $field):?><td class="<?=$r[$field]===null?'payroll-missing':''?>"><?=payroll_clock($r[$field])?><?php if($r[$field]!==$r['original_'.$field]):?><small>Adjusted</small><?php endif;?></td><?php endforeach;?><td><span class="badge <?=$noLogs?'gray':($issue?'amber':'green')?>"><?=e($noLogs?'No logs / calendar review':stage_label($r['state']))?></span><small><?=e(implode(', ',array_map('stage_label',json_decode($r['issues_json'],true)?:[])))?></small></td><td><?=$needsRefresh?'Refresh required':($noLogs?'—':payroll_hours($r['regular_minutes']))?></td><td><?=$needsRefresh?'Refresh required':($noLogs?'—':payroll_hours(payroll_review_ot_minutes($r)))?></td><td><a class="btn sm" href="<?=url('payroll-attendance-day',['id'=>$r['id']])?>">View day</a><?php if($employeePage && $run['run_state']!=='FINALIZED'):?><a class="btn primary sm" href="<?=url('employee-request-new',['date'=>$r['work_date'],'type'=>'TA'])?>">File TA</a><?php endif;?></td></tr>
+    <?php if(!$rows):?><tr><td colspan="<?=$employeePage?9:10?>" class="empty">No attendance records for this selection.</td></tr><?php endif; foreach(array_slice($rows,($dayPage-1)*100,100) as $r): $noLogs=$r['state']==='AWAITING_LOGS'; $issue=$r['state']==='ISSUES'; ?>
+    <tr class="<?=$issue?'payroll-issue-row':''?>"><?php if(!$employeePage):?><td><strong><?=e($r['employee_name'])?></strong><small><?=e($r['employee_no'].' · '.$r['branch_name'])?></small></td><?php endif;?><td><?=e($r['work_date'])?></td><?php foreach(PayrollCalculator::FIELDS as $field):?><td class="<?=$r[$field]===null?'payroll-missing':''?>"><?=payroll_clock($r[$field])?><?php if($r[$field]!==$r['original_'.$field]):?><small>Adjusted</small><?php endif;?></td><?php endforeach;?><td><span class="badge <?=$noLogs?'gray':($issue?'amber':'green')?>"><?=e($noLogs?'No logs / calendar review':stage_label($r['state']))?></span><small><?=e(implode(', ',array_map('stage_label',json_decode($r['issues_json'],true)?:[])))?></small></td><td><?=$needsRefresh?'Refresh required':($noLogs?'—':payroll_hours($r['regular_minutes']))?></td><td><?=$needsRefresh?'Refresh required':($noLogs?'—':payroll_hours(payroll_review_ot_minutes($r)))?></td><td><?php if($r['id']):?><a class="btn sm" href="<?=url('payroll-attendance-day',['id'=>$r['id']])?>">View day</a><?php else:?>—<?php endif;?><?php if($employeePage && $run['run_state']!=='FINALIZED'):?><a class="btn primary sm" href="<?=url('employee-request-new',['date'=>$r['work_date'],'type'=>'TA'])?>">File TA</a><?php endif;?></td></tr>
     <?php endforeach;?></tbody></table></div></section>
+    <div class="cutoff-pagination"><span>Daily attendance: page <?=$dayPage?> of <?=$dayPages?> · <?=count($rows)?> dates</span><?php foreach([-1=>'Previous',1=>'Next'] as $change=>$label)if($dayPage+$change>=1&&$dayPage+$change<=$dayPages):?><a class="btn sm" href="<?=url($page,['cutoff_id'=>$cutoffId,'filter'=>$filter,'details'=>'1','day_page'=>$dayPage+$change])?>"><?=$label?></a><?php endif;?></div>
     <?php render_portal_footer();
 }
 
@@ -87,6 +104,7 @@ function payroll_export(int $cutoffId): never
 {
     Auth::requirePermission('payroll.export'); PayrollAttendanceService::requireReady();
     $run=PayrollAttendanceService::run($cutoffId);
+    if($run['run_state']!=='FINALIZED' || PayrollCutoffExportService::batch($cutoffId)) throw new RuntimeException('Use Generate cutoff attendance, then download the saved Excel or PDF. CSV is only available for older locked cutoffs.');
     $rows=PayrollAttendanceService::dailyRows($cutoffId);
     foreach($rows as $row) {
         $snapshot=json_decode($row['rate_snapshot_json'],true)?:[];

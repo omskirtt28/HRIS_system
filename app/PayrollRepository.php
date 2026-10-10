@@ -173,6 +173,12 @@ final class PayrollRepository
         if(in_array($code,['OB','POB'],true) && !$times['time_out']) throw new RuntimeException('Enter your actual Time Out for Official Business.');
         if(in_array($code,['TA','PTA'],true) && !array_filter($times)) throw new RuntimeException('Enter at least one punch to correct.');
         if(in_array($code,['OT','POT'],true) && (!$times['ot_start']||!$times['ot_end']||$times['ot_start']===$times['ot_end'])) throw new RuntimeException('Enter different OT start/end times. An earlier end means next day.');
+        if(!$automatic && in_array($code,['OT','POT'],true)) {
+            $startAt=new DateTimeImmutable($affected.' '.$times['ot_start']);
+            $endAt=new DateTimeImmutable($affected.' '.$times['ot_end']);
+            if($endAt<=$startAt) $endAt=$endAt->modify('+1 day');
+            if($endAt->getTimestamp()-$startAt->getTimestamp()<=3600) throw new RuntimeException('OT must be longer than 1 hour. Enter the actual work start and end times.');
+        }
         $cutoffId=null;
         if(strtoupper((string)$type['category'])!=='LEAVE') {
             $cutoff=self::cutoffForDate($affected); if(!$cutoff) throw new RuntimeException('Cutoff could not be determined.');
@@ -193,6 +199,11 @@ final class PayrollRepository
             if(PayrollAttendanceService::ready() && $cutoffId) { $actionCutoff=$claimCutoffId??$cutoffId; PayrollAttendanceService::lockOpen($actionCutoff); PayrollAttendanceService::assertTicketAllowed(['id'=>$actionCutoff]); }
             // Lock the employee to serialize duplicate filing and revisions.
             db()->prepare('SELECT id FROM employees WHERE id=? FOR UPDATE')->execute([$employeeId]);
+            if(PayrollAttendanceService::ready() && in_array($code,['TA','PTA'],true)) {
+                $context=EmployeeAttendanceService::requestTimes($affected,(int)$cutoffId);
+                foreach(PayrollCalculator::FIELDS as $field) if(!empty($context['values'][$field])) $times[$field]=null;
+                if(!array_filter($times)) throw new RuntimeException('These logs are already saved. Reload Check Attendance to see the latest times.');
+            }
             $old=null;
             if($revisionId) {
                 $st=db()->prepare('SELECT * FROM payroll_requests WHERE id=? FOR UPDATE'); $st->execute([$revisionId]); $old=$st->fetch();
@@ -203,7 +214,7 @@ final class PayrollRepository
             if((int)$st->fetchColumn()) throw new RuntimeException('A request of this type already exists for this date. Open that request.');
             $st=db()->prepare('SELECT COUNT(*) FROM payroll_request_attachments WHERE request_id=?'); $st->execute([$revisionId??0]);
             if((int)$type['requires_attachment']===1 && !self::hasUpload($files) && !(int)$st->fetchColumn()) throw new RuntimeException('Attach supporting evidence.');
-            $status=$route['type']==='ADL'?'FOR_ADL_APPROVAL':'FOR_MANAGER_APPROVAL'; $step=1;
+            $status='FOR_HR_TIMEKEEPING_APPROVAL'; $step=1;
             if($old) {
                 $id=$revisionId;
                 $st=db()->prepare('SELECT COALESCE(MAX(step_no),0)+1 FROM payroll_request_approvals WHERE request_id=?'); $st->execute([$id]); $step=(int)$st->fetchColumn();
@@ -225,16 +236,19 @@ final class PayrollRepository
                 $endAt=$endDate!==''?new DateTimeImmutable(PayrollAttendanceService::date($endDate).' '.$times['ot_end']):new DateTimeImmutable($startAt->format('Y-m-d').' '.$times['ot_end']);
                 if($endDate==='' && $endAt<=$startAt) $endAt=$endAt->modify('+1 day');
                 if($startAt->format('Y-m-d')<$affected || $startAt->format('Y-m-d')>(new DateTimeImmutable($affected))->modify('+1 day')->format('Y-m-d') || $endAt<=$startAt || $endAt->getTimestamp()-$startAt->getTimestamp()>86400) throw new RuntimeException('OT dates must cover at most 24 hours, starting on the affected date or its overnight next day.');
+                if($endAt->getTimestamp()-$startAt->getTimestamp()<=3600) throw new RuntimeException('OT must be longer than 1 hour. Enter the actual work start and end times.');
                 db()->prepare('INSERT INTO payroll_request_overtime_windows(request_id,started_at,ended_at) VALUES(?,?,?) ON DUPLICATE KEY UPDATE started_at=VALUES(started_at),ended_at=VALUES(ended_at)')->execute([$id,$startAt->format('Y-m-d H:i:s'),$endAt->format('Y-m-d H:i:s')]);
             }
-            db()->prepare('INSERT INTO payroll_request_approvals(request_id,step_no,approver_type,approver_user_id,status) VALUES(?,?,?,?,"PENDING")')->execute([$id,$step,$route['type'],$route['user_id']]);
+            // Every submission/revision starts a fresh HR review before its assigned approver.
+            db()->prepare('INSERT INTO payroll_request_approvals(request_id,step_no,approver_type,status) VALUES(?,?,"HR_TIMEKEEPING","PENDING")')->execute([$id,$step]);
+            db()->prepare('INSERT INTO payroll_request_approvals(request_id,step_no,approver_type,approver_user_id,status) VALUES(?,?,?,?,"PENDING")')->execute([$id,++$step,$route['type'],$route['user_id']]);
             if(!$automatic) {
                 $second=trim((string)$type['second_approver_group']);
-                if($second!=='') db()->prepare('INSERT INTO payroll_request_approvals(request_id,step_no,approver_type,status) VALUES(?,?,?,"PENDING")')->execute([$id,++$step,$second]);
+                if($second!=='' && $second!=='HR_TIMEKEEPING') db()->prepare('INSERT INTO payroll_request_approvals(request_id,step_no,approver_type,status) VALUES(?,?,?,"PENDING")')->execute([$id,++$step,$second]);
                 if((int)$type['requires_payroll_processing']===1) db()->prepare('INSERT INTO payroll_request_approvals(request_id,step_no,approver_type,status) VALUES(?,?,"PAYROLL","PENDING")')->execute([$id,++$step]);
             }
             if(self::hasUpload($files)) self::storePayrollAttachments($id,$files,$uid);
-            audit('Payroll & Timekeeping',$old?'RESUBMIT_REQUEST':'SUBMIT_REQUEST','payroll_request',$id,['type'=>$code,'approver_type'=>$route['type']]); db()->commit(); return $id;
+            audit('Payroll & Timekeeping',$old?'RESUBMIT_REQUEST':'SUBMIT_REQUEST','payroll_request',$id,['type'=>$code,'first_stage'=>'HR_TIMEKEEPING','approver_type'=>$route['type']]); db()->commit(); return $id;
         } catch(Throwable $e) { if(db()->inTransaction()) db()->rollBack(); throw $e; }
     }
 
@@ -291,7 +305,7 @@ final class PayrollRepository
         $st=db()->prepare('SELECT pr.id,pr.request_no,pr.affected_date,pr.status,pr.created_at,prt.name type_name,
             e.employee_no,e.first_name,e.last_name,b.name branch_name,a.step_no,
             CONCAT_WS(" ",m.first_name,m.last_name) reporting_manager_name,
-            ma.status manager_approval_status,ma.acted_at manager_approved_at,
+            ma.approver_type assigned_approver_type,ma.status manager_approval_status,ma.acted_at manager_approved_at,
             COALESCE(mu.full_name,mau.full_name,CONCAT_WS(" ",m.first_name,m.last_name)) manager_approver_name
             FROM payroll_request_approvals a
             JOIN payroll_requests pr ON pr.id=a.request_id
@@ -299,14 +313,16 @@ final class PayrollRepository
             JOIN employees e ON e.id=pr.employee_id
             LEFT JOIN branches b ON b.id=e.branch_id
             LEFT JOIN employees m ON m.id=e.manager_employee_id
-            LEFT JOIN payroll_request_approvals ma ON ma.request_id=pr.id AND ma.approver_type="MANAGER"
+            LEFT JOIN payroll_request_approvals ma ON ma.id=(SELECT ma2.id FROM payroll_request_approvals ma2 WHERE ma2.request_id=pr.id AND ma2.approver_type IN ("MANAGER","ADL") AND ma2.step_no>a.step_no ORDER BY ma2.step_no LIMIT 1)
             LEFT JOIN users mu ON mu.id=ma.acted_by
             LEFT JOIN users mau ON mau.id=ma.approver_user_id
-            WHERE a.approver_type=? AND a.status="PENDING" AND pr.current_step=a.step_no ORDER BY pr.created_at');
-        $st->execute([$approverType]);return $st->fetchAll();
+            WHERE a.approver_type=? AND a.status="PENDING" AND pr.current_step=a.step_no
+              AND (?<>"HR_TIMEKEEPING" OR (pr.created_by<>? AND COALESCE(e.user_id,0)<>?)) ORDER BY pr.created_at');
+        $uid=(int)(Auth::user()['id']??0);
+        $st->execute([$approverType,$approverType,$uid,$uid]);return $st->fetchAll();
     }
 
-    public static function decidePayroll(int $requestId,string $decision,string $remarks=''): void
+    public static function decidePayroll(int $requestId,string $decision,string $remarks='',?int $expectedHrStep=null): void
     {
         if(!Auth::check()) throw new RuntimeException('Sign in first.');
         $decision=strtoupper(trim($decision)); $remarks=trim($remarks);
@@ -317,13 +333,21 @@ final class PayrollRepository
         try {
             if(PayrollAttendanceService::ready() && $req['cutoff_id']) { $claim=PayrollAttendanceService::backpayRequest($requestId); $actionCutoff=(int)($claim['processing_cutoff_id']??$req['cutoff_id']); PayrollAttendanceService::lockOpen($actionCutoff); }
             $st=db()->prepare('SELECT * FROM payroll_requests WHERE id=? FOR UPDATE'); $st->execute([$requestId]); $fresh=$st->fetch();
+            if(!$fresh) throw new RuntimeException('Request not found.');
             $step=(int)$fresh['current_step'];
             $st=db()->prepare('SELECT * FROM payroll_request_approvals WHERE request_id=? AND step_no=? AND status="PENDING" FOR UPDATE'); $st->execute([$requestId,$step]); $approval=$st->fetch();
             if(!$approval) throw new RuntimeException('This request is no longer awaiting your decision.');
             $uid=(int)Auth::user()['id']; $type=$approval['approver_type'];
+            if($expectedHrStep!==null && ($type!=='HR_TIMEKEEPING' || $step!==$expectedHrStep)) throw new RuntimeException('This ticket has moved to another review stage. It was not changed.');
             $permission=match($type) {'MANAGER'=>'payroll.approve_manager','ADL'=>'payroll.approve_adl','HR_TIMEKEEPING'=>'payroll.approve_hr','PAYROLL'=>'payroll.process','HR_LEAVE'=>'leave.approve_hr',default=>throw new RuntimeException('Unknown approval stage.')};
             if(!Auth::can($permission)) throw new RuntimeException('You do not have approval permission.');
-            if(in_array($type,['MANAGER','ADL'],true) && ((int)$approval['approver_user_id']!==$uid || (int)$req['created_by']===$uid)) throw new RuntimeException('This request is assigned to another approver.');
+            $own=(int)$fresh['created_by']===$uid || (int)(self::currentEmployee()['id']??0)===(int)$fresh['employee_id'];
+            if(in_array($type,['MANAGER','ADL'],true) && ((int)$approval['approver_user_id']!==$uid || $own)) throw new RuntimeException('This request is assigned to another approver.');
+            if($type==='HR_TIMEKEEPING') {
+                if($own) throw new RuntimeException('Another HR reviewer must check your own ticket.');
+                if($decision==='REJECT') throw new RuntimeException('HR can verify a ticket or return it for changes. The Manager/ADL makes the final approval decision.');
+            }
+            if(in_array($type,['MANAGER','ADL'],true) && !self::hrVerifiedBefore($requestId,$step)) throw new RuntimeException('HR must verify this ticket first. Apply the HR review SQL update for older pending tickets.');
             if($type==='HR_LEAVE' && strtoupper((string)$req['category'])!=='LEAVE') throw new RuntimeException('This request is not a leave ticket.');
             if($type==='HR_LEAVE' && ((int)$fresh['created_by']===$uid || (int)(self::currentEmployee()['id']??0)===(int)$fresh['employee_id'])) throw new RuntimeException('Another approver must review your own leave correction.');
             if($decision==='APPROVE' && in_array($req['type_code'],['OB','POB'],true)) {
@@ -342,12 +366,15 @@ final class PayrollRepository
                 $newStatus='APPROVED';
             } else {
                 $st=db()->prepare('SELECT step_no,approver_type FROM payroll_request_approvals WHERE request_id=? AND step_no>? AND status="PENDING" ORDER BY step_no LIMIT 1'); $st->execute([$requestId,$step]); $next=$st->fetch();
+                if($type==='HR_TIMEKEEPING' && (!$next || !in_array($next['approver_type'],['MANAGER','ADL'],true))) throw new RuntimeException('This older ticket needs the HR-first routing update before verification. Ask the administrator to import the patch SQL.');
                 if($next) { $nextStep=(int)$next['step_no']; $newStatus=self::statusForApprover($next['approver_type']); } else $newStatus='COMPLETED';
             }
             db()->prepare('UPDATE payroll_requests SET status=?,current_step=?,completed_at=? WHERE id=?')->execute([$newStatus,$nextStep,in_array($newStatus,['APPROVED','COMPLETED'],true)?date('Y-m-d H:i:s'):null,$requestId]);
-            self::addPayrollHistory($requestId,$newStatus,$remarks?:stage_label($newApproval).'.',$uid);
-            if($auto) PayrollAttendanceService::afterApproval($requestId);
-            audit('Payroll & Timekeeping','APPROVAL_'.$decision,'payroll_request',$requestId,['step'=>$step,'approver_type'=>$type]); db()->commit();
+            $historyNote=$type==='HR_TIMEKEEPING' && $decision==='APPROVE'?'Verified by HR; sent to the assigned Manager/ADL.':stage_label($newApproval).'.';
+            self::addPayrollHistory($requestId,$newStatus,$remarks?($historyNote.' '.$remarks):$historyNote,$uid);
+            // HR review never rebuilds or changes attendance. Final approval does.
+            if($auto && in_array($newStatus,['APPROVED','COMPLETED'],true)) PayrollAttendanceService::afterApproval($requestId);
+            audit('Payroll & Timekeeping',$type==='HR_TIMEKEEPING' && $decision==='APPROVE'?'HR_VERIFY':'APPROVAL_'.$decision,'payroll_request',$requestId,['step'=>$step,'approver_type'=>$type]); db()->commit();
         } catch(Throwable $e) { if(db()->inTransaction()) db()->rollBack(); throw $e; }
     }
 
@@ -481,7 +508,18 @@ final class PayrollRepository
 
     private static function statusForApprover(string $type): string
     {
-        return match($type){'HR_TIMEKEEPING'=>'FOR_HR_TIMEKEEPING_APPROVAL','PAYROLL'=>'FOR_PAYROLL_PROCESSING','HR_LEAVE'=>'FOR_HR_LEAVE_APPROVAL',default=>'SUBMITTED'};
+        return match($type){'HR_TIMEKEEPING'=>'FOR_HR_TIMEKEEPING_APPROVAL','MANAGER'=>'FOR_MANAGER_APPROVAL','ADL'=>'FOR_ADL_APPROVAL','PAYROLL'=>'FOR_PAYROLL_PROCESSING','HR_LEAVE'=>'FOR_HR_LEAVE_APPROVAL',default=>'SUBMITTED'};
+    }
+
+    public static function hrVerifiedBefore(int $requestId,int $step): bool
+    {
+        $st=db()->prepare('SELECT a.status FROM payroll_request_approvals a
+            WHERE a.request_id=? AND a.approver_type="HR_TIMEKEEPING" AND a.step_no<?
+              AND NOT EXISTS (SELECT 1 FROM payroll_request_approvals changed
+                  WHERE changed.request_id=a.request_id AND changed.step_no>a.step_no AND changed.step_no<? AND changed.status IN ("RETURNED","REJECTED"))
+            ORDER BY a.step_no DESC LIMIT 1');
+        $st->execute([$requestId,$step,$step]);
+        return $st->fetchColumn()==='APPROVED';
     }
 
     private static function validDate(string $v): ?string

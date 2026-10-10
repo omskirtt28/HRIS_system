@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/PayrollAttendanceViews.php';
 require_once __DIR__ . '/EmployeeAttendanceViews.php';
+require_once __DIR__ . '/PayrollCutoffExportService.php';
+require_once __DIR__ . '/PayrollCutoffDocuments.php';
+require_once __DIR__ . '/PayrollCutoffViews.php';
 
 function payroll_post_action(): void
 {
@@ -28,6 +31,25 @@ function payroll_post_action(): void
             throw new RuntimeException('Payroll Setup is deferred. Use biometric import, employee tickets and HR Payroll attendance review.');
         }
         switch($action) {
+            case 'payroll_v2_bulk_verify':
+                $back='hr-timekeeping';Auth::requirePermission('payroll.approve_hr');
+                $selected=$_POST['ticket_ids']??[];$reviewed=$_POST['reviewed']??[];$steps=$_POST['hr_steps']??[];
+                if(!is_array($selected)||!is_array($reviewed)||!is_array($steps)||!$selected||count($selected)>100)throw new RuntimeException('Select up to 100 tickets that you have reviewed.');
+                $selected=array_values(array_unique($selected));
+                foreach($selected as $id)if(!is_scalar($id)||!ctype_digit((string)$id)||(int)$id<1||($reviewed[$id]??'')!=='1'||!is_scalar($steps[$id]??null)||!ctype_digit((string)$steps[$id])||(int)$steps[$id]<1)throw new RuntimeException('Mark each selected ticket as reviewed first. No tickets were changed.');
+                $sent=0;$failed=[];
+                foreach($selected as $id)try{PayrollRepository::decidePayroll((int)$id,'APPROVE','Reviewed by HR; verified in the selected ticket batch.',(int)$steps[$id]);$sent++;}catch(RuntimeException $error){$failed[]='#'.(int)$id.': '.$error->getMessage();}catch(Throwable $error){error_log('HR bulk verification ticket '.(int)$id.': '.$error->getMessage());$failed[]='#'.(int)$id.': Could not finish. Refresh this ticket before retrying.';}
+                flash($failed?'error':'success',$sent.' ticket(s) verified and sent to the Manager/ADL. '.($failed?count($failed).' not changed. '.implode(' ',array_slice($failed,0,5)):''));
+                redirect($back);
+            case 'payroll_v2_generate_cutoff':
+                $params=['cutoff_id'=>(int)($_POST['cutoff_id']??0)];PayrollCutoffExportService::generate($params['cutoff_id'],($_POST['filing_closed']??'')==='1');
+                flash('success','Complete cutoff saved and locked. Download Excel or PDF below.');redirect($back,$params);
+            case 'payroll_v2_calendar_review':
+                $params=['cutoff_id'=>(int)($_POST['cutoff_id']??0)];
+                PayrollCutoffExportService::reviewCalendar($params['cutoff_id'],(array)($_POST['day_ids']??[]),(array)($_POST['source_hashes']??[]),(string)($_POST['classification']??''),(string)($_POST['reason']??''));break;
+            case 'payroll_v2_mark_paid':
+                $params=['cutoff_id'=>(int)($_POST['cutoff_id']??0),'payment_kind'=>(string)($_POST['payment_kind']??'SALARY')];
+                PayrollCutoffExportService::markPaid($params['cutoff_id'],(array)($_POST['employee_ids']??[]),(string)($_POST['payment_kind']??''),(string)($_POST['payment_date']??''),(string)($_POST['reference_no']??''));break;
             case 'payroll_v2_auto_import':
             case 'payroll_v2_preview':
                 $back='payroll-import'; $params=['cutoff_id'=>(int)($_POST['cutoff_id']??0)];
@@ -98,6 +120,21 @@ function payroll_employee_options(array $employees,int $selected=0): void { fore
 
 function payroll_render(string $page): void
 {
+    if($page==='employee-ta-context') {
+        need_db(); Auth::requirePermission('payroll.request_self');
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store, private');
+        try {
+            echo json_encode(EmployeeAttendanceService::requestTimes((string)($_GET['date']??''),(int)($_GET['cutoff_id']??0)),JSON_THROW_ON_ERROR);
+        } catch(PDOException $error) {
+            http_response_code(500); echo json_encode(['error'=>'Could not load your logs. Reload this page and try again.']);
+        } catch(RuntimeException $error) {
+            http_response_code(422); echo json_encode(['error'=>$error->getMessage()]);
+        } catch(Throwable $error) {
+            http_response_code(500); echo json_encode(['error'=>'Could not load your logs. Reload this page and try again.']);
+        }
+        exit;
+    }
     $pages=['employee-attendance','payroll-import','payroll-import-preview','payroll-cutoff','payroll-attendance-day','payroll-setup','payroll-id-mapping','payroll-export'];
     if(!in_array($page,$pages,true)) return;
     need_db();
@@ -111,7 +148,14 @@ function payroll_render(string $page): void
     $kind=$employeePage?'employee':'hr';
     if(!PayrollAttendanceService::ready()) { render_portal_header($kind,$page,'Attendance database update required'); page_head('Payroll & Timekeeping','Attendance database update required'); echo '<div class="alert error">For the multi-location update, apply database/migrations/20261003_payroll_log_source_coverage.sql to your existing HRIS database. Initial payroll installs also require database/migrations/20261002_payroll_biometric_workflow.sql. Do not re-import schema.sql.</div>'; render_portal_footer(); exit; }
     PayrollAttendanceService::purgeExpired();
-    if($page==='payroll-export') payroll_export((int)($_GET['cutoff_id']??0));
+    if($page==='payroll-export') {
+        $downloadCutoff=(int)($_GET['cutoff_id']??0);
+        try {
+            $format=(string)($_GET['format']??'csv');
+            if($format==='csv') payroll_export($downloadCutoff);
+            PayrollCutoffDocuments::download($downloadCutoff,$format);
+        } catch(Throwable $error) {flash('error',$error instanceof RuntimeException?$error->getMessage():'The download could not finish. Check server storage and refresh the cutoff.');redirect('payroll-cutoff',['cutoff_id'=>$downloadCutoff]);}
+    }
     if($page==='payroll-setup') {
         if(PayrollAttendanceService::reviewOnly()) { flash('info','Payroll Setup is deferred. Continue with biometric import and attendance review.'); redirect('payroll-import'); }
         payroll_setup(); exit;

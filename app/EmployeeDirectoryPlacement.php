@@ -6,6 +6,14 @@ final class EmployeeDirectoryPlacement
 {
     public const GROUPS = ['SW_RETAIL'=>'Sw Retail','OC_RETAIL'=>"Ocampo's Retail",'SW_HO'=>'Head Office Sw','OC_HO'=>"Head Office Ocampo's",'MANAGERS'=>'Department Managers','ADL'=>'ADL','UNASSIGNED'=>'To assign','ALL'=>'All employees'];
 
+    // 2LOG Company Directory, HO DIRECTORY 2026, OCAMPOS HO section J136:J142.
+    // Exact first/last identities only. Employer and email are not company-group evidence.
+    private const OC_HEAD_OFFICE_IDENTITIES = [
+        'RACHEL|BREGUERA', 'STEPHANIEANN|PALALON', 'ROSELYN|PARINA',
+        'JENELYN|GARROTE', 'ANGELYN|PLANCO', 'CHERRYMEI|SOLABAR',
+        'LEOBERTJHON|AMERICA',
+    ];
+
     public static function ready(): bool
     {
         foreach (['directory_company_group','directory_role','directory_area_ids'] as $column) {
@@ -25,11 +33,31 @@ final class EmployeeDirectoryPlacement
         return in_array($code,['MM1','MM2','MM3','NORTH','P.SOUTH','METRO SOUTH','VIS','MIN'],true) ? 'SW' : '';
     }
 
+    private static function headOfficeCompanySql(): string
+    {
+        $parts=[];
+        foreach (['first_name','last_name'] as $column) {
+            $part='UPPER(TRIM(COALESCE(e.'.$column.',"")))';
+            foreach ([' '=>'', '.'=>'', '-'=>'', ','=>'', 'Ñ'=>'N'] as $from=>$to) {
+                $part='REPLACE('.$part.',"'.$from.'","'.$to.'")';
+            }
+            $parts[]=$part;
+        }
+        $identity='CONCAT('.$parts[0].',"|",'.$parts[1].')';
+        $knownOcampos=$identity.' IN ("'.implode('","',self::OC_HEAD_OFFICE_IDENTITIES).'")';
+        $branchCode='UPPER(TRIM(COALESCE(b.code,"")))';
+        $branchName='UPPER(TRIM(REPLACE(REPLACE(COALESCE(b.name,""),CHAR(39),""),"’","")))';
+        $ocSite=$branchCode.' IN ("OC_HO","OCHO","OCAMPOS_HO","OCAMPOS_HEAD_OFFICE") OR '.$branchName.' IN ("OCAMPOS HEAD OFFICE","HEAD OFFICE OCAMPOS","OCAMPO HEAD OFFICE","HEAD OFFICE OCAMPO")';
+        // The supplied HO reference starts with SW HEAD OFFICE DIRECTORY (E2).
+        // Re-evaluate on reads so existing employees and later imports work without backfill.
+        return 'CASE WHEN ('.$ocSite.') OR ('.$knownOcampos.') THEN "OC" ELSE "SW" END';
+    }
+
     public static function expressions(string $workplace, bool $hasArea): array
     {
         $area=$hasArea ? 'UPPER(TRIM(COALESCE(a.code,"")))' : '""';
         $branch='UPPER(TRIM(COALESCE(b.code,"")))';
-        $fallback='CASE WHEN ('.$workplace.')="RETAIL" AND ('.$area.' IN ("OCAMPOS","OCAMPO") OR '.$branch.' IN ("OGAL","OMEG","OFAR","ORMI","OMOA","OBIC")) THEN "OC" WHEN ('.$workplace.')="RETAIL" AND '.$area.' IN ("MM1","MM2","MM3","NORTH","P.SOUTH","METRO SOUTH","VIS","MIN") THEN "SW" ELSE "" END';
+        $fallback='CASE WHEN ('.$workplace.')="HO" THEN ('.self::headOfficeCompanySql().') WHEN ('.$workplace.')="RETAIL" AND ('.$area.' IN ("OCAMPOS","OCAMPO") OR '.$branch.' IN ("OGAL","OMEG","OFAR","ORMI","OMOA","OBIC")) THEN "OC" WHEN ('.$workplace.')="RETAIL" AND '.$area.' IN ("MM1","MM2","MM3","NORTH","P.SOUTH","METRO SOUTH","VIS","MIN") THEN "SW" ELSE "" END';
         $company=self::ready() ? 'COALESCE(NULLIF(e.directory_company_group,""),('.$fallback.'))' : $fallback;
         $position='UPPER(TRIM(COALESCE(p.name,"")))';
         $autoRole='CASE WHEN '.$position.' IN ("ADL","SR ADL","JR ADL","AREA DEVELOPMENT LEADER","SENIOR AREA DEVELOPMENT LEADER","JUNIOR AREA DEVELOPMENT LEADER","SR. ADL","JR. ADL") THEN "ADL" WHEN ('.$workplace.')="HO" AND '.$position.' IN ("DEPARTMENT MANAGER","FINANCE MANAGER","INVENTORY MANAGEMENT MANAGER","MANPOWER PLANNING MANAGER","MARKETING MANAGER","MARKETING & CREATIVES MANAGER","HR MANAGER","HUMAN RESOURCES MANAGER","INFORMATION SYSTEM MANAGER","INFORMATION SYSTEMS MANAGER","MIS MANAGER","ACCOUNTING MANAGER") THEN "DEPARTMENT_MANAGER" ELSE "EMPLOYEE" END';

@@ -22,7 +22,7 @@ function employee_attendance_cutoff_label(array $cutoff): string
 function employee_attendance_ticket_label(string $status): string
 {
     return match($status) {
-        'APPROVED','COMPLETED'=>'Approved', 'FOR_MANAGER_APPROVAL'=>'Waiting for Manager',
+        'APPROVED','COMPLETED'=>'Approved', 'FOR_HR_TIMEKEEPING_APPROVAL'=>'For HR Review', 'FOR_MANAGER_APPROVAL'=>'Waiting for Manager',
         'FOR_ADL_APPROVAL'=>'Waiting for ADL', 'RETURNED_FOR_REVISION'=>'Update request',
         'REJECTED'=>'Not approved', 'CANCELLED'=>'Cancelled', default=>'Waiting for approval',
     };
@@ -32,12 +32,11 @@ function employee_attendance_day_status(array $day): array
 {
     if($day['before_hire']) return ['Check with HR','amber'];
     if(!$day['has_evidence']) return ['No logs yet','gray'];
-    if($day['ambiguous']) return ['Check logs','amber'];
-    if($day['incomplete']) return [$day['missing']?'Missing logs':'Check logs','amber'];
-    if($day['ot_review']) return ['Check OT','amber'];
+    if($day['ambiguous']) return ['Check TA','amber'];
+    if($day['incomplete']) return ['Check TA','amber'];
     return match($day['state']) {
-        'COMPLETE'=>['Complete','green'], 'CORRECTED'=>['Updated','green'],
-        'APPROVED_OB'=>['Approved OB','green'], 'APPROVED_LEAVE'=>['Approved leave','green'],
+        'COMPLETE','CORRECTED'=>['Complete','green'],
+        'APPROVED_OB'=>[employee_attendance_missing_names($day)?'Approved OB':'Complete','green'], 'APPROVED_LEAVE'=>['Approved leave','green'],
         'REST_DAY'=>['Rest day','gray'], 'ZERO_CREDIT'=>['Checked by Payroll','gray'],
         default=>['Check logs','amber'],
     };
@@ -134,19 +133,30 @@ function employee_attendance_actions(array $day,array $model): void
 {
     if(!Auth::can('payroll.request_self')) return;
     if($day['state']==='APPROVED_LEAVE' && !$day['raw']) return;
+    $secondary=[];
     foreach(['TA'=>'File TA','OB'=>'File OB','OT'=>'File OT'] as $code=>$label) {
         if(!in_array($code,$model['types'],true)) continue;
         $ticket=$day['active'][$code]??null;
         if($ticket) {
             $returned=$ticket['status']==='RETURNED_FOR_REVISION';
             $target=$returned && $day['can_file']?url('employee-request-new',['revision'=>$ticket['id']]):url('payroll-request',['id'=>$ticket['id']]);
-            echo '<a class="btn sm" href="'.$target.'">'.e(($returned && $day['can_file']?'Edit ':'View ').$ticket['type_code']).'</a>';
+            $link='<a class="btn sm" href="'.$target.'">'.e(($returned && $day['can_file']?'Edit ':'View ').$ticket['type_code']).'</a>';
+            if($code==='TA') echo $link; else $secondary[]=$link;
         } elseif($day['can_file']) {
-            $primary=($code==='TA' && $day['incomplete']) || ($code==='OT' && $day['ot_review']);
-            if($code==='TA' && $day['has_evidence'] && !$day['incomplete']) $label='Fix log (TA)';
-            echo '<a class="btn sm'.($primary?' primary':'').'" href="'.url('employee-request-new',['date'=>$day['date'],'type'=>$code,'cutoff_id'=>$model['run']['id']]).'">'.e($label).'</a>';
+            if($code==='TA' && !employee_attendance_missing_names($day)) continue;
+            $link='<a class="btn sm'.($code==='TA'?' primary':'').'" href="'.url('employee-request-new',['date'=>$day['date'],'type'=>$code,'cutoff_id'=>$model['run']['id']]).'">'.e($label).'</a>';
+            if($code==='TA') echo $link; else $secondary[]=$link;
         }
     }
+    if($secondary) echo '<details class="employee-attendance-request-menu"><summary>'.($day['can_file']?'File request':'View requests').' '.icon_svg('chevron').'</summary><div>'.implode('',$secondary).'</div></details>';
+}
+
+function employee_attendance_time_value(array $day,string $field): void
+{
+    $value=$day['values'][$field]??null;
+    echo '<span class="attendance-clock-value">'.($value?e(payroll_clock($value)):'—');
+    if($value) foreach($day['time_sources'][$field]??[] as $source) echo '<span class="attendance-time-source'.($source==='OB'?' is-ob':'').'" aria-label="From approved '.e($source).'">'.e($source).'</span>';
+    echo '</span>';
 }
 
 function employee_attendance_times(array $day): void
@@ -158,9 +168,9 @@ function employee_attendance_times(array $day): void
         $requiresPunches=!in_array($day['state'],['APPROVED_OB','APPROVED_LEAVE','ZERO_CREDIT'],true);
         $emptyLabel=$day['ambiguous']?'Check':($day['has_evidence']?($requiresPunches?'Missing':'No log'):'No log'); ?>
       <div class="employee-attendance-time <?=!$value && $day['has_evidence'] && $requiresPunches?'is-missing':''?>">
-        <span><?=e($label)?></span><strong><?=$value?e(payroll_clock($value)):e($emptyLabel)?></strong>
+        <span><?=e($label)?></span><strong><?php if($value) employee_attendance_time_value($day,$field); else echo e($emptyLabel);?></strong>
         <?php if($value && substr($value,0,10)!==$day['date']):?><small><?=e(date('M j',strtotime($value)))?> · next day</small><?php endif;?>
-        <?php if($adjusted):?><small class="employee-attendance-adjusted">Updated</small><?php endif;?>
+        <?php if($adjusted && empty($day['time_sources'][$field])):?><small class="employee-attendance-adjusted">Updated by Payroll</small><?php endif;?>
       </div>
     <?php endforeach;?>
     </div>
@@ -184,36 +194,72 @@ function employee_attendance_review_day(array $day,array $model): void
       <?php if($day['row'] && array_filter($day['issues'],static fn($issue)=>str_starts_with($issue,'CORRECTION_CONFLICT_'))):?><p class="employee-attendance-note">A time in your request differs from the biometric log. Ask Payroll to check it.</p><?php endif;?>
       <?php $scheduleNotes=[]; foreach(['LATE'=>'Your Time In is late.','UNDERTIME'=>'Your Time Out is before your shift ends.','EXCESS_BREAK'=>'Your break is longer than the allowed break time.'] as $issue=>$note) if(in_array($issue,$day['issues'],true)) $scheduleNotes[]=$note; if($scheduleNotes):?><p class="employee-attendance-note"><?=e(implode(' ',$scheduleNotes))?></p><?php endif;?>
       <?php if($day['other_site']):?><p class="employee-attendance-note">You have a log at another location. This alone does not need an OB request.</p><?php endif;?>
-      <?php if($day['ot_review']):?><p class="employee-attendance-ot">You have <strong><?=(int)$day['ot_minutes']?> minutes</strong> outside your schedule. File OT if you were allowed to work overtime. Your OT request still needs approval.</p><?php endif;?>
       <?php if($day['tickets']):?><div class="employee-attendance-tickets"><strong>Requests for this day</strong>
         <?php foreach($day['tickets'] as $ticket): $note=employee_attendance_application_note($ticket,$day); ?>
           <div><a href="<?=url('payroll-request',['id'=>$ticket['id']])?>"><?=e($ticket['type_code'].' · '.$ticket['request_no'])?></a><span class="badge <?=in_array($ticket['status'],['APPROVED','COMPLETED'],true)?'green':'gray'?>"><?=e(employee_attendance_ticket_label($ticket['status']))?></span><?php if($note):?><small><?=e($note)?></small><?php endif;?></div>
         <?php endforeach;?></div>
       <?php endif;?>
-      <?php if(Auth::can('payroll.request_self') && $day['can_file'] && !($day['state']==='APPROVED_LEAVE' && !$day['raw'])):?><p class="employee-attendance-action-help">TA: missing or wrong log · OB: official business · OT: overtime</p><?php endif;?>
+      <?php if(Auth::can('payroll.request_self') && $day['can_file'] && !($day['state']==='APPROVED_LEAVE' && !$day['raw'])):?><p class="employee-attendance-action-help">TA: missing log · OB: official business · OT: overtime</p><?php endif;?>
       <div class="employee-attendance-actions"><?php employee_attendance_actions($day,$model);?></div>
       <?php if($day['raw']):?><details class="employee-attendance-raw"><summary>Biometric Logs (<?=count($day['raw'])?>)</summary><?php employee_attendance_raw_table($day['raw']);?></details><?php endif;?>
     </div>
 <?php }
 
+function employee_attendance_remarks(array $day): string
+{
+    $notes=[];
+    if($day['before_hire']) $notes[]='Date before hire date. Check with HR.';
+    elseif(!$day['has_evidence']) $notes[]='No uploaded logs yet.';
+    elseif($day['ambiguous']) $notes[]='Check the original logs with Payroll.';
+    elseif($day['missing'] && !in_array($day['state'],['APPROVED_OB','APPROVED_LEAVE','ZERO_CREDIT'],true)) $notes[]='Missing '.implode(', ',$day['missing']);
+    elseif($day['incomplete']) $notes[]='Payroll needs to check this day.';
+    foreach(['LATE'=>'Late Time In','UNDERTIME'=>'Early Time Out','EXCESS_BREAK'=>'Long break'] as $issue=>$label) if(in_array($issue,$day['issues'],true)) $notes[]=$label;
+    if($day['leaves']) $notes[]='Approved leave';
+    foreach($day['active'] as $ticket) $notes[]=$ticket['type_code'].' · '.employee_attendance_ticket_label($ticket['status']);
+    return implode(' · ',$notes);
+}
+
+function employee_attendance_review_table(array $days,array $model,int $cutoffId,string $filter): void
+{ ?>
+    <section class="panel employee-attendance-table-panel">
+      <div class="panel-head"><div><h2>Check Attendance</h2><p>Your times for each day, all in one place.</p></div><span class="badge gray"><?=count($days)?> days shown</span></div>
+      <?php if(!$days):?><div class="empty"><p>No days match this cutoff or filter.</p><a class="btn sm" href="<?=url('employee-attendance',['cutoff_id'=>$cutoffId,'tab'=>'review'])?>">Show all days</a></div><?php else:?>
+      <table class="employee-attendance-cutoff-table"><caption class="employee-attendance-sr-only">Your attendance for <?=e(employee_attendance_cutoff_label($model['run']))?></caption>
+        <thead><tr><th scope="col">Date</th><?php foreach(employee_attendance_field_labels() as $label):?><th scope="col"><?=e($label)?></th><?php endforeach;?><th scope="col">Status</th><th scope="col">Action</th></tr></thead>
+        <tbody><?php foreach($days as $day): [$status,$tone]=employee_attendance_day_status($day); ?>
+          <tr id="attendance-<?=e($day['date'])?>" class="<?=$status==='Check TA'?'needs-attention':''?>">
+            <th scope="row" data-label="Date"><time datetime="<?=e($day['date'])?>"><?=e(date('M j',strtotime($day['date'])))?></time><small><?=e(date('l',strtotime($day['date'])))?></small></th>
+            <?php foreach(employee_attendance_field_labels() as $field=>$label): $value=$day['values'][$field]??null; ?>
+            <td data-label="<?=e($label)?>" class="attendance-clock"><?php if($value): employee_attendance_time_value($day,$field); else: ?><span class="<?=$status==='Check TA'?'attendance-missing':''?>"><?=$status==='Check TA'?'Missing':'—'?></span><?php endif;?>
+              <?php if($value && substr($value,0,10)!==$day['date']):?><small><?=e(date('M j',strtotime($value)))?> · next day</small><?php endif;?>
+            </td><?php endforeach;?>
+            <td data-label="Status"><span class="badge <?=$tone?>"><?=e($status)?></span></td>
+            <td data-label="Action"><div class="attendance-row-actions"><?php employee_attendance_actions($day,$model);?><?php foreach($day['active'] as $ticket): if(in_array($ticket['status'],['APPROVED','COMPLETED'],true)) continue; ?><small class="attendance-ticket-stage"><?=e($ticket['type_code'].' · '.employee_attendance_ticket_label($ticket['status']))?></small><?php endforeach;?><a class="attendance-details-link" href="<?=url('employee-attendance',['cutoff_id'=>$cutoffId,'tab'=>'review','filter'=>$filter,'day'=>$day['date']]).'#attendance-details'?>">Details<span class="employee-attendance-sr-only"> for <?=e($day['date'])?></span></a></div></td>
+          </tr>
+        <?php endforeach;?></tbody>
+      </table><?php endif;?>
+    </section>
+    <p class="employee-attendance-simple-help">Complete means all logs are present. OT is filed separately and needs approval.</p>
+<?php }
+
 function employee_attendance_page(array $cutoffs,int $cutoffId,array $model,string $filter): void
 {
-    $run=$model['run']; $filters=[''=>'All days','INCOMPLETE'=>'Logs to check','OT'=>'Check OT','TICKETS'=>'With requests','NO_LOGS'=>'No logs yet'];
+    $run=$model['run']; $filters=[''=>'All days','INCOMPLETE'=>'Check TA','TICKETS'=>'With requests','NO_LOGS'=>'No logs yet'];
     if(!array_key_exists($filter,$filters)) $filter='';
     $tab=(string)($_GET['tab']??($filter!==''?'review':'logs'));
     if(!in_array($tab,['logs','review'],true)) $tab='logs';
     $selectedDate=(string)($_GET['day']??'');
     $days=array_values(array_filter($model['days'],static fn($day)=>match($filter) {
-        'INCOMPLETE'=>$day['incomplete'] || $day['before_hire'], 'OT'=>$day['ot_review'], 'TICKETS'=>!empty($day['tickets']) || !empty($day['leaves']), 'NO_LOGS'=>!$day['has_evidence'], default=>true,
+        'INCOMPLETE'=>$day['incomplete'] || $day['before_hire'], 'TICKETS'=>!empty($day['tickets']) || !empty($day['leaves']), 'NO_LOGS'=>!$day['has_evidence'], default=>true,
     }));
     render_portal_header('employee','employee-attendance','My Attendance');
     page_head('Employee / Attendance','My Attendance',Auth::can('payroll.request_self')?'<a class="btn" href="'.url('employee-requests').'">My Requests</a>':''); ?>
-    <form method="get" class="payroll-toolbar employee-attendance-cutoff">
+    <form method="get" class="payroll-toolbar employee-attendance-cutoff" data-attendance-auto-filter>
       <input type="hidden" name="page" value="employee-attendance"><input type="hidden" name="tab" value="<?=e($tab)?>">
       <?php if($tab==='review' && $filter!==''):?><input type="hidden" name="filter" value="<?=e($filter)?>"><?php endif;?>
       <div class="field"><label for="employee-attendance-cutoff">Cutoff</label><select id="employee-attendance-cutoff" name="cutoff_id">
         <?php foreach($cutoffs as $cutoff):?><option value="<?=(int)$cutoff['id']?>" <?=(int)$cutoff['id']===$cutoffId?'selected':''?>><?=e(employee_attendance_cutoff_label($cutoff))?></option><?php endforeach;?>
-      </select></div><button class="btn" type="submit">View</button>
+      </select></div><noscript><button class="btn" type="submit">Apply</button></noscript>
     </form>
     <nav class="employee-attendance-tabs" aria-label="Attendance views">
       <a href="<?=url('employee-attendance',['cutoff_id'=>$cutoffId,'tab'=>'logs'])?>" class="<?=$tab==='logs'?'is-active':''?>" <?=$tab==='logs'?'aria-current="page"':''?>>My Logs</a>
@@ -228,22 +274,17 @@ function employee_attendance_page(array $cutoffs,int $cutoffId,array $model,stri
       </section>
       <p class="employee-attendance-simple-help">Missing a log or need to file a request? Open <a href="<?=url('employee-attendance',['cutoff_id'=>$cutoffId,'tab'=>'review'])?>">Check Attendance</a>.</p>
     <?php else:?>
-      <p class="employee-attendance-simple-help">Choose a day to view logs and file TA, OB or OT.</p>
       <?php if($model['closed']):?><div class="alert amber">This cutoff is closed. You can view logs and requests, but cannot file or edit a request.</div>
       <?php elseif($model['deadline_passed']):?><div class="alert amber">The request deadline has passed. Ask Payroll if you still need to file.</div>
       <?php elseif($run['ticket_deadline']):?><p class="employee-attendance-simple-help">Request deadline: <strong><?=e(date('M j, Y · g:i A',strtotime($run['ticket_deadline'])))?></strong></p><?php endif;?>
-      <form method="get" class="employee-attendance-review-filter">
+      <form method="get" class="employee-attendance-review-filter" data-attendance-auto-filter>
         <input type="hidden" name="page" value="employee-attendance"><input type="hidden" name="cutoff_id" value="<?=$cutoffId?>"><input type="hidden" name="tab" value="review">
-        <div class="field"><label for="employee-attendance-filter">Show</label><select id="employee-attendance-filter" name="filter"><?php foreach($filters as $key=>$label):?><option value="<?=e($key)?>" <?=$filter===$key?'selected':''?>><?=e($label)?></option><?php endforeach;?></select></div><button class="btn" type="submit">View</button>
+        <div class="field"><label for="employee-attendance-filter">Show</label><select id="employee-attendance-filter" name="filter"><?php foreach($filters as $key=>$label):?><option value="<?=e($key)?>" <?=$filter===$key?'selected':''?>><?=e($label)?></option><?php endforeach;?></select></div><noscript><button class="btn" type="submit">Apply</button></noscript>
       </form>
-      <?php if(!$days):?><section class="panel"><div class="empty">No days found. Choose All days or another cutoff.</div></section><?php endif;?>
-      <div class="employee-attendance-review-list">
-      <?php foreach($days as $day): [$badge,$tone]=employee_attendance_day_status($day); $requestCount=count($day['tickets'])+count($day['leaves']); ?>
-        <details class="panel employee-attendance-review-day" id="attendance-<?=e($day['date'])?>" <?=$selectedDate===$day['date']?'open':''?>>
-          <summary><span class="employee-attendance-review-date"><time datetime="<?=e($day['date'])?>"><?=e(date('D, M j',strtotime($day['date'])))?></time><small><?=count($day['raw'])?> logs<?=$requestCount?' · '.$requestCount.($requestCount===1?' request':' requests'):''?></small></span><span class="badge <?=$tone?>"><?=e($badge)?></span><span class="employee-attendance-review-toggle"><span class="when-closed">View</span><span class="when-open">Close</span><span class="employee-attendance-sr-only"> attendance</span></span></summary>
-          <?php employee_attendance_review_day($day,$model);?>
-        </details>
-      <?php endforeach;?></div>
+      <?php employee_attendance_review_table($days,$model,$cutoffId,$filter);
+      foreach($model['days'] as $day) if($day['date']===$selectedDate):?>
+        <section class="panel payroll-section" id="attendance-details"><div class="panel-head"><div><h2><?=e(date('M j, Y',strtotime($day['date'])))?> · Details</h2><p>Original logs and requests for this day.</p></div><a class="panel-link" href="<?=url('employee-attendance',['cutoff_id'=>$cutoffId,'tab'=>'review','filter'=>$filter]).'#attendance-'.e($day['date'])?>">Back to table</a></div><?php employee_attendance_review_day($day,$model);?></section>
+      <?php break; endif;?>
     <?php endif;?>
     <?php render_portal_footer();
 }

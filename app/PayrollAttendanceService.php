@@ -564,10 +564,16 @@ final class PayrollAttendanceService
         $q->execute([$employee,$start,$end]); return $q->fetchAll();
     }
 
+    public static function cutoffEmployeeScope(int $cutoffId): string
+    {
+        $id=(int)$cutoffId;
+        return '(e.status IN ("ACTIVE","PROBATIONARY","ON_LEAVE") OR EXISTS (SELECT 1 FROM attendance_daily d WHERE d.employee_id=e.id AND d.cutoff_id='.$id.') OR EXISTS (SELECT 1 FROM attendance_import_rows ir JOIN attendance_imports ai ON ai.id=ir.import_id WHERE ir.employee_id=e.id AND ai.cutoff_id='.$id.' AND ai.state="IMPORTED") OR EXISTS (SELECT 1 FROM payroll_requests pr WHERE pr.employee_id=e.id AND pr.cutoff_id='.$id.' AND pr.status IN ("APPROVED","COMPLETED")) OR EXISTS (SELECT 1 FROM leave_requests lr JOIN payroll_cutoffs pc ON pc.id='.$id.' WHERE lr.employee_id=e.id AND lr.status="APPROVED" AND lr.date_from<=pc.period_end AND lr.date_to>=pc.period_start))';
+    }
+
     private static function context(int $cutoffId,?int $onlyEmployee=null): array
     {
         $run=self::run($cutoffId);
-        $sql='SELECT e.*,s.workplace,s.shift_start,s.shift_end,s.break_minutes,s.workdays FROM employees e JOIN payroll_biometric_mappings m ON m.employee_id=e.id LEFT JOIN payroll_site_settings s ON s.branch_id=e.branch_id WHERE e.hire_date<=? AND (e.status IN ("ACTIVE","PROBATIONARY","ON_LEAVE") OR EXISTS (SELECT 1 FROM attendance_daily d WHERE d.employee_id=e.id AND d.cutoff_id='.(int)$cutoffId.'))';
+        $sql='SELECT e.*,s.workplace,s.shift_start,s.shift_end,s.break_minutes,s.workdays FROM employees e LEFT JOIN payroll_site_settings s ON s.branch_id=e.branch_id WHERE (e.hire_date IS NULL OR e.hire_date<=?) AND '.self::cutoffEmployeeScope($cutoffId);
         $args=[$run['period_end']]; if($onlyEmployee!==null) { $sql.=' AND e.id=?'; $args[]=$onlyEmployee; }
         $q=db()->prepare($sql.' ORDER BY e.id'); $q->execute($args);
         $employees=$q->fetchAll();
@@ -629,7 +635,7 @@ final class PayrollAttendanceService
         $updates=array_map(static fn($f)=>$f.'=VALUES('.$f.')',array_diff($fields,['employee_id','work_date']));
         $save=db()->prepare('INSERT INTO attendance_daily('.implode(',',$fields).') VALUES('.implode(',',array_fill(0,count($fields),'?')).') ON DUPLICATE KEY UPDATE '.implode(',',$updates));
         $apply=db()->prepare('INSERT INTO payroll_request_applications(request_id,application_state,note) VALUES(?,?,?) ON DUPLICATE KEY UPDATE application_state=VALUES(application_state),note=VALUES(note)');
-        for($d=new DateTimeImmutable(max($run['period_start'],$e['hire_date']));$d<=new DateTimeImmutable($run['period_end']);$d=$d->modify('+1 day')) {
+        for($d=new DateTimeImmutable(max($run['period_start'],$e['hire_date']?:$run['period_start']));$d<=new DateTimeImmutable($run['period_end']);$d=$d->modify('+1 day')) {
             $date=$d->format('Y-m-d'); $rate=null; foreach($rates as $r) if($date>=$r['effective_from'] && (empty($r['effective_to'])||$date<=$r['effective_to'])) { $rate=$r; break; }
             $leave=false; foreach($leaves as $l) if($date>=$l['date_from']&&$date<=$l['date_to']) { $leave=true; break; }
             $covered=$siteCovered && $date<=$siteCovered;
@@ -917,6 +923,7 @@ final class PayrollAttendanceService
 
     public static function finalize(int $cutoffId): void
     {
+        if(self::reviewOnly()) throw new RuntimeException('Use Generate cutoff attendance and confirm filing is finished. The complete export checks every employee and no-log date before locking.');
         Auth::requirePermission('payroll.finalize'); self::requireReady(); db()->beginTransaction();
         try {
             $run=self::lockOpen($cutoffId); self::rebuild($cutoffId); $run=self::run($cutoffId);

@@ -8,9 +8,10 @@ final class EmployeeDirectoryHierarchy
     {
         return [
             'FINANCE'=>['name'=>'Finance','icon'=>'chart','detail'=>'Accounting · Billing & Collection · Cash Management · Audit'],
-            'INVENTORY'=>['name'=>'Inventory Management','icon'=>'boxes','detail'=>'Production · Stock Management'],
+            'INVENTORY'=>['name'=>'Inventory Management','icon'=>'boxes','detail'=>'Production · Stock Management · Supply and Demand'],
             'MANPOWER'=>['name'=>'Manpower Planning','icon'=>'users','detail'=>'Administration · Information System / MIS · PMMD'],
-            'MARKETING'=>['name'=>'Marketing & Creatives','icon'=>'megaphone','detail'=>'Marketing · Digital Marketing · VM & Creatives'],
+            'MARKETING'=>['name'=>'Marketing & Creatives','icon'=>'megaphone','detail'=>'Marketing · Digital Marketing · VM & Creatives','direct'=>true],
+            'ONLINE'=>['name'=>'Online','icon'=>'monitor','detail'=>'Online employees','direct'=>true],
         ];
     }
 
@@ -33,6 +34,11 @@ final class EmployeeDirectoryHierarchy
             'PRODUCTION'=>['INVENTORY','Production','settings'],
             'STOCKMANAGEMENT'=>['INVENTORY','Stock Management','boxes'],
             'STOCKCONTROL'=>['INVENTORY','Stock Management','boxes'],
+            'SUPPLYDEMAND'=>['INVENTORY','Supply and Demand','boxes'],
+            'SUPPLYANDDEMAND'=>['INVENTORY','Supply and Demand','boxes'],
+            'ONLINE'=>['ONLINE','Online','monitor'],
+            'ONLINESHOP'=>['ONLINE','Online','monitor'],
+            'ONLINESHOPPING'=>['ONLINE','Online','monitor'],
             'MANPOWERPLANNING'=>['MANPOWER','Manpower Planning','users'],
             'ADMINISTRATION'=>['MANPOWER','Administration','clipboard'],
             'ADMIN'=>['MANPOWER','Administration','clipboard'],
