@@ -89,3 +89,87 @@
   .employee-followup-actions{align-items:stretch}
   .employee-followup-actions .btn{width:100%;min-height:44px;text-align:center}
 }
+
+/* Area / branch / department browsing, matched to the approved directory mockup. */
+.employee-directory-grouped{max-width:1500px;margin:0 auto}
+.employee-directory-grouped .directory-workplace-tabs{padding:0;margin:0 0 22px;border-bottom:1px solid var(--hris-line);background:transparent;border-radius:0;flex-wrap:wrap}
+.employee-directory-grouped .directory-workplace-tabs a{border:0;border-bottom:3px solid transparent;border-radius:0;padding:12px 16px;min-height:46px}
+.employee-directory-grouped .directory-workplace-tabs a.active{border-bottom-color:var(--hris-brand);background:transparent}
+.employee-directory-grouped .directory-all-link{margin-left:auto}
+.directory-breadcrumbs{display:flex;flex-wrap:wrap;gap:9px;align-items:center;font-size:12px;color:var(--hris-muted);margin:0 0 12px}
+.directory-breadcrumbs a{color:var(--hris-muted);text-decoration:none}
+.directory-breadcrumbs a:hover{text-decoration:underline;color:var(--hris-text)}
+.directory-back-link{display:inline-flex;gap:8px;align-items:center;color:var(--hris-text);font-size:12px;font-weight:600;text-decoration:none;margin:0 0 16px}
+.directory-back-link svg{width:15px;height:15px;transform:rotate(180deg);color:var(--hris-brand)}
+.employee-directory-grouped .panel-head h2{font-size:22px;line-height:1.3}
+.employee-directory-grouped .employee-filterbar.directory-group-filter{grid-template-columns:minmax(220px,1.6fr) minmax(140px,.6fr) minmax(140px,.6fr) auto}
+.directory-card-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;padding:22px}
+.directory-group-card{display:flex;gap:15px;align-items:flex-start;min-width:0;padding:22px;border:1px solid var(--hris-line);border-radius:12px;background:var(--hris-surface);color:var(--hris-text);text-decoration:none;transition:border-color .15s ease,box-shadow .15s ease;min-height:132px;box-sizing:border-box}
+.directory-group-card:hover{border-color:var(--hris-brand);box-shadow:0 4px 15px rgba(0,0,0,.05)}
+.directory-card-icon{display:flex;flex-shrink:0;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;background:var(--hris-brand-soft);color:var(--hris-warning);border:1px solid var(--hris-line)}
+.directory-card-icon svg{display:block;width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.directory-back-link svg,.directory-card-action svg{stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.employee-directory-grouped .employee-search svg{stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.directory-card-section{grid-column:1/-1;margin:4px 0 0;font-size:12px;font-weight:650;color:var(--hris-muted)}
+.directory-card-section:not(:first-child){border-top:1px solid var(--hris-line);padding-top:20px;margin-top:8px}
+.directory-head-office-main-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.directory-card-content{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-width:0;width:100%}
+.directory-card-content>strong{font-size:16px;line-height:1.35;overflow-wrap:anywhere}
+.directory-card-detail,.directory-card-count{font-size:11px;line-height:1.5;color:var(--hris-muted);overflow-wrap:anywhere}
+.directory-card-action{display:inline-flex;align-items:center;gap:10px;margin-top:8px;color:#875800;font-size:12px;font-weight:600}
+.directory-card-action svg{width:15px;height:15px}
+.directory-card-followup{border-style:dashed}
+.employee-directory-grouped .directory-group-table{min-width:960px}
+.employee-directory-grouped .directory-group-table td{vertical-align:middle}
+.directory-pagination{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:18px 22px;border-top:1px solid var(--hris-line);font-size:12px;color:var(--hris-muted)}
+.directory-pagination>div{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.directory-help{font-size:12px;line-height:1.7;color:var(--hris-muted);margin:16px 0 0}
+.employee-directory-grouped a:focus-visible,.employee-directory-grouped button:focus-visible{outline:2px solid var(--hris-brand);outline-offset:3px}
+html[data-theme=dark] .employee-directory-grouped .directory-card-action,body.dark .employee-directory-grouped .directory-card-action{color:#ffd175}
+html[data-theme=dark] .employee-directory-grouped .directory-card-icon,body.dark .employee-directory-grouped .directory-card-icon{color:#ffd175}
+@media(max-width:1100px){
+  .directory-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .employee-directory-grouped .employee-filterbar.directory-group-filter{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .employee-directory-grouped .directory-filter-actions{grid-column:1/-1}
+}
+@media(max-width:900px){
+  .employee-directory-grouped .directory-group-table{min-width:0}
+}
+@media(max-width:600px){
+  .directory-card-grid{grid-template-columns:1fr;padding:14px;gap:12px}
+  .directory-group-card{padding:17px;min-height:116px}
+  .employee-directory-grouped .employee-filterbar.directory-group-filter{grid-template-columns:1fr}
+  .employee-directory-grouped .directory-workplace-tabs a{flex:0 1 auto;padding:10px 11px}
+  .employee-directory-grouped .directory-all-link{margin-left:0}
+  .directory-pagination{padding:14px;align-items:flex-start;flex-direction:column}
+}
+@media(prefers-reduced-motion:reduce){.directory-group-card{transition:none}}
+
+/* One employee search across Retail and Head Office, available at every folder level. */
+.directory-global-search{display:flex;gap:18px;align-items:center;padding:20px 22px;margin-bottom:20px;background:var(--hris-surface);border:1px solid var(--hris-line);border-radius:14px;box-shadow:var(--hris-shadow)}
+.directory-global-search-field{flex:1;min-width:0}
+.directory-global-search-field label{display:block;font-size:13px;font-weight:650;color:var(--hris-text);margin-bottom:8px}
+.directory-global-search .employee-search input{height:44px;font-size:13px;padding-left:39px;width:100%;min-width:0}
+.directory-global-search .employee-search svg{left:13px;width:17px;height:17px}
+.directory-global-search-field p{margin:7px 0 0;font-size:11px;color:var(--hris-muted);line-height:1.5}
+.directory-global-search-actions{display:flex;gap:8px;flex-shrink:0;align-items:center}
+.directory-global-search-actions .btn{min-height:44px}
+.employee-directory-grouped .employee-filterbar.directory-global-result-filter{grid-template-columns:minmax(140px,1fr) minmax(140px,1fr) auto}
+.directory-search-term{overflow-wrap:anywhere}
+.employee-directory-grouped .employee-filterbar.directory-leadership-filter{grid-template-columns:repeat(3,minmax(150px,1fr));align-items:end}
+.employee-directory-grouped .directory-leadership-filter .directory-search-field{grid-column:1/-1}
+.employee-directory-grouped .directory-leadership-filter .directory-filter-actions{grid-column:1/-1;justify-content:flex-end}
+.directory-assigned-areas{min-width:0;border:1px solid var(--hris-line);border-radius:12px;padding:16px;margin:0}
+.directory-assigned-areas legend{padding:0 6px;font-size:13px;font-weight:600;color:var(--hris-text)}
+.directory-area-options{display:flex;flex-wrap:wrap;gap:12px 20px;margin-top:12px}
+.directory-area-options label{display:inline-flex;align-items:center;gap:8px;font-size:12px}
+.directory-area-options input[type=checkbox]{width:16px;height:16px;flex-shrink:0}
+@media(max-width:1100px){.employee-directory-grouped .employee-filterbar.directory-leadership-filter{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.employee-directory-grouped .employee-filterbar.directory-leadership-filter{grid-template-columns:1fr}.directory-area-options{gap:8px}.directory-area-options label{min-height:44px;flex:1 1 140px}}
+@media(max-width:1100px){.employee-directory-grouped .employee-filterbar.directory-global-result-filter{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){
+  .directory-global-search{padding:16px;gap:12px;align-items:stretch;flex-direction:column}
+  .directory-global-search-actions{width:100%}
+  .directory-global-search-actions .btn{flex:1;justify-content:center}
+  .employee-directory-grouped .employee-filterbar.directory-global-result-filter{grid-template-columns:1fr}
+}

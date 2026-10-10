@@ -17,6 +17,8 @@ function need_db(): void {
 require_once __DIR__.'/app/AdminDataResetModule.php';
 admin_data_reset_handle($page);
 require_once __DIR__.'/app/EmployeeRosterImportModule.php';
+require_once __DIR__.'/app/EmployeeDeleteModule.php';
+employee_delete_handle($page);
 employee_roster_handle($page);
 require_once __DIR__.'/app/PayrollModule.php';
 payroll_post_action();
@@ -1098,62 +1100,8 @@ if ($page === 'hr-leave') {
 }
 
 if ($page === 'hr-employees') {
-    Auth::requirePermission('employees.view_all');
-    $ready=EmployeeRepository::ready();
-    $filters=[
-        'q'=>(string)($_GET['q']??''),
-        'department_id'=>(int)($_GET['department_id']??0),
-        'branch_id'=>(int)($_GET['branch_id']??0),
-        'employment_type_id'=>(int)($_GET['employment_type_id']??0),
-        'status'=>(string)($_GET['status']??''),
-    ];
-    $filters['needs_details']=!empty($_GET['needs_details']);
-    $employees=$ready?EmployeeRepository::directory($filters):[];
-    $summary=$ready?EmployeeRepository::summary():['total'=>0,'active'=>0,'probationary'=>0,'inactive'=>0,'new_this_month'=>0];
-    $masters=EmployeeRepository::masters();
-    $canManage=Auth::can('employees.manage');
-    render_portal_header('hr',$page,'Employee Directory');
-    $employeeActions=$canManage?'<a href="'.url('hr-employee-new').'" class="btn primary">'.icon_svg('plus').' Add employee</a>':'';
-    if($canManage && Auth::can('employees.import')) $employeeActions='<a href="'.url('hr-employee-import').'" class="btn">'.icon_svg('file').' Import Excel</a>'.$employeeActions;
-    page_head('HR Portal / People','Employee Directory',$employeeActions); ?>
-    <?php if(!$ready):?><div class="alert error">Phase 2A database migration is required. Import <code>database/migrations/20260924_phase2a_employees.sql</code> in phpMyAdmin.</div><?php endif;?>
-    <div class="metric-grid employee-metrics"><?php metric_card('Total employees',$summary['total'],'Employee master records','users'); metric_card('Active',$summary['active'],'Currently active','check','up'); metric_card('Probationary',$summary['probationary'],'Under probationary status','clock'); metric_card('New this month',$summary['new_this_month'],'Based on hire date','user-plus'); ?></div>
-    <nav class="employee-tabs employee-directory-tabs" aria-label="Employee lists">
-      <a class="<?=empty($filters['needs_details'])?'active':''?>" href="<?=url('hr-employees')?>" <?=empty($filters['needs_details'])?'aria-current="page"':''?>>All employees <span class="directory-tab-count"><?=(int)$summary['total']?></span></a>
-      <a class="<?=!empty($filters['needs_details'])?'active':''?>" href="<?=url('hr-employees',['needs_details'=>1])?>" <?=!empty($filters['needs_details'])?'aria-current="page"':''?>>Needs details <span class="directory-tab-count"><?=(int)($summary['needs_details'] ?? 0)?></span></a>
-    </nav>
-    <section class="panel employee-directory-panel employee-directory-refresh">
-      <div class="panel-head"><div><h2><?=!empty($filters['needs_details'])?'Employees to update':'Employee master list'?></h2><p><?=!empty($filters['needs_details'])?'These employees are already saved. Finish their missing details in Employee 201.':'Find an employee or open their Employee 201.'?></p></div><span class="badge gray"><?=count($employees)?> shown</span></div>
-      <form method="get" class="employee-filterbar">
-        <input type="hidden" name="page" value="hr-employees"><?php if(!empty($filters['needs_details'])):?><input type="hidden" name="needs_details" value="1"><?php endif;?>
-        <div class="directory-filter-field directory-search-field"><label for="directory-search">Search employees</label><div class="employee-search"><?=icon_svg('search')?><input id="directory-search" name="q" value="<?=e($filters['q'])?>" placeholder="Employee code, name or email"></div></div>
-        <div class="directory-filter-field"><label for="directory-department">Department</label><select id="directory-department" name="department_id"><option value="">All departments</option><?php foreach($masters['departments'] as $x):if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=$filters['department_id']==$x['id']?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select></div>
-        <div class="directory-filter-field"><label for="directory-branch">Branch / Site</label><select id="directory-branch" name="branch_id"><option value="">All branches</option><?php foreach($masters['branches'] as $x):if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=$filters['branch_id']==$x['id']?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select></div>
-        <div class="directory-filter-field"><label for="directory-status">Status</label><select id="directory-status" name="status"><option value="">All statuses</option><?php foreach(['ACTIVE'=>'Active','PROBATIONARY'=>'Probationary','ON_LEAVE'=>'On Leave','INACTIVE'=>'Inactive','RESIGNED'=>'Resigned','TERMINATED'=>'Terminated'] as $k=>$label):?><option value="<?=$k?>" <?=$filters['status']===$k?'selected':''?>><?=e($label)?></option><?php endforeach;?></select></div>
-        <div class="directory-filter-actions"><button class="btn sm" type="submit">Apply filters</button><a class="btn sm ghost" href="<?=url('hr-employees',!empty($filters['needs_details'])?['needs_details'=>1]:[])?>">Reset</a></div>
-      </form>
-      <?php if(!$employees):?><div class="empty employee-empty"><?=!$ready?'Employee directory will be available after the Phase 2A migration.':(!empty($filters['needs_details']) && empty($filters['q']) && empty($filters['department_id']) && empty($filters['branch_id']) && empty($filters['status']) && empty($filters['employment_type_id'])?'No employees need follow-up details.':'No employees match these filters. Try another name or reset the filters.')?></div><?php else:?>
-      <div class="employee-table-wrap" role="region" aria-label="Employee list" tabindex="0"><table class="tbl employee-table"><caption class="directory-sr-only">Employee profiles. Status shows employment status; Details shows information still needed in Employee 201.</caption><thead><tr><th scope="col">Employee</th><th scope="col">Employment</th><th scope="col">Department / Position</th><th scope="col">Branch / Site</th><th scope="col">Start date</th><th scope="col">Status</th><th scope="col">Details</th><th scope="col"><span class="directory-sr-only">Actions</span></th></tr></thead><tbody>
-      <?php foreach($employees as $e):
-        $name=EmployeeRepository::fullName($e); $tone=in_array($e['status'],['ACTIVE','PROBATIONARY'],true)?'green':'gray';
-        $pending=EmployeeRepository::rosterIssues($e); $needsDetails=!empty($e['roster_needs_details']);
-        $pendingLabels=employee_roster_detail_labels($pending); $editTab=isset($pending['name'])?'personal':'employment';
-        $actionLabel=$needsDetails?($canManage?'Update details':'View details'):'Open 201';
-        $profileParams=['id'=>$e['id']]; if($needsDetails) $profileParams['tab']=$editTab;
-      ?>
-      <tr>
-        <td class="directory-identity-cell" data-label="Employee"><a class="employee-cell" href="<?=url('hr-employee',['id'=>$e['id']])?>"><span class="employee-avatar"><?=e(initials($name))?></span><span><strong><?=e($name)?></strong><small><?=e($e['employee_no'] ?: 'Code to follow')?><?=!empty($e['company_email'])?' · '.e($e['company_email']):''?></small></span></a></td>
-        <td data-label="Employment"><?=e($e['employment_type_name']??'Not set')?></td>
-        <td data-label="Department / Position"><strong><?=e($e['department_name']??'Not set')?></strong><div class="directory-secondary"><?=e($e['position_name']??'Position to follow')?></div></td>
-        <td data-label="Branch / Site"><?=e($e['branch_name']??'Not set')?></td>
-        <td class="directory-date-cell" data-label="Start date"><?=e(!empty($e['hire_date']) ? date('M j, Y',strtotime($e['hire_date'])) : 'To follow')?></td>
-        <td class="directory-status-cell" data-label="Status"><span class="badge <?=$tone?>"><?=e(stage_label($e['status']))?></span></td>
-        <td class="directory-details-cell" data-label="Details"><?php if($needsDetails):?><span class="employee-followup-badge">Needs details</span><span class="directory-secondary" title="<?=e(implode(', ',array_values($pendingLabels)))?>"><?=count($pending) ? count($pending).' '.(count($pending)===1?'item':'items').' to finish' : 'Open 201 to check'?></span><?php else:?><span class="directory-secondary">No pending items</span><?php endif;?></td>
-        <td class="directory-action-cell" data-label="Actions"><a class="btn sm directory-profile-link <?=$needsDetails?'directory-update-link':''?>" href="<?=url('hr-employee',$profileParams)?>" aria-label="<?=e($actionLabel.' for '.$name)?>"><?=e($actionLabel)?><?=icon_svg('arrow')?></a></td>
-      </tr>
-      <?php endforeach;?></tbody></table></div><?php endif;?>
-    </section>
-    <?php render_portal_footer(); exit;
+    require_once __DIR__.'/app/EmployeeDirectoryModule.php';
+    employee_directory_render();
 }
 
 if ($page === 'hr-employee-new') {
@@ -1208,7 +1156,9 @@ if ($page === 'hr-employee') {
     $recruitmentSource=RecruitmentRepository::employeeSource($id);
     $rosterIssues=EmployeeRepository::rosterIssues($e);
     render_portal_header('hr','hr-employees','Employee 201 File');
-    page_head('HR Portal / People / Employees','Employee 201 File','<a href="'.url('hr-employees').'" class="btn">Back to directory</a>'); ?>
+    $profileActions='<a href="'.url('hr-employees').'" class="btn">Back to directory</a>';
+    if(EmployeeDeleteService::canAccess()) $profileActions.='<a href="'.url('hr-employee-delete',['id'=>$id]).'" class="btn employee-delete-profile-link">'.icon_svg('trash').' Delete employee</a>';
+    page_head('HR Portal / People / Employees','Employee 201 File',$profileActions); ?>
     <?php if($rosterIssues):$followupLabels=employee_roster_detail_labels($rosterIssues);?>
     <section class="panel employee-followup-panel">
       <div class="panel-head"><div><h2>Finish employee details</h2><p>This employee is already saved. Update the items below when available.</p></div><span class="employee-followup-badge"><?=count($rosterIssues)?> <?=count($rosterIssues)===1?'item':'items'?> to finish</span></div>

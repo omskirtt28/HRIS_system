@@ -1,0 +1,41 @@
+/* Employee deletion review: scoped, responsive, and shared-theme friendly. */
+.employee-delete-screen{max-width:1080px}
+.employee-delete-screen .panel{margin-bottom:20px}
+.employee-delete-identity .panel-body{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.employee-delete-identity .panel-body>div{flex:1;min-width:200px}
+.employee-delete-identity h2{overflow-wrap:anywhere}
+.employee-delete-identity p{margin:6px 0 0;line-height:1.6;overflow-wrap:anywhere}
+.employee-delete-avatar{width:48px;height:48px;display:grid;place-items:center;flex-shrink:0;border-radius:12px;background:var(--amber-soft,#fff4d9);color:#925b00;font-size:15px;font-weight:700}
+.employee-delete-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.employee-delete-counts{margin:0}
+.employee-delete-counts>div{display:flex;align-items:baseline;justify-content:space-between;gap:18px;padding:11px 0;border-bottom:1px solid var(--border,#e5e7eb)}
+.employee-delete-counts>div:first-child{padding-top:0}
+.employee-delete-counts>div:last-child{border-bottom:0;padding-bottom:0}
+.employee-delete-counts dt{font-size:13px;line-height:1.5}
+.employee-delete-counts dd{margin:0;font-size:14px;font-weight:650}
+.employee-delete-kept p{line-height:1.7;margin:0 0 14px}
+.employee-delete-cleanup-link{display:inline-flex;align-items:center;gap:8px;font-size:12px}
+.employee-delete-cleanup-link svg,.employee-delete-screen .btn svg,.employee-delete-profile-link svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.employee-delete-blocked,.employee-delete-confirm{border-top:3px solid #d92d20}
+.employee-delete-issue{padding:12px;background:var(--amber-soft,#fff4d9);color:var(--ink,#344054);border-radius:8px;font-size:13px;line-height:1.6}
+.employee-delete-form{max-width:780px}
+.employee-delete-form .field{margin-bottom:20px}
+.employee-delete-form textarea{width:100%;resize:vertical;min-height:90px}
+.employee-delete-form .field p{margin:7px 0 0;line-height:1.5}
+.employee-delete-check{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.6;margin:4px 0 22px;cursor:pointer}
+.employee-delete-check input{width:17px;height:17px;flex-shrink:0;margin:2px 0 0;accent-color:#b42318}
+.employee-delete-actions{display:flex;flex-wrap:wrap;gap:10px}
+.btn.employee-delete-danger{background:#b42318;border-color:#b42318;color:#fff}
+.btn.employee-delete-danger:hover{background:#912018;border-color:#912018}
+.employee-delete-danger:focus-visible,.employee-delete-profile-link:focus-visible{outline:3px solid #f97066;outline-offset:3px}
+.btn.employee-delete-profile-link{color:var(--red,#b42318)}
+.employee-delete-expiry{margin:14px 0 0;line-height:1.6}
+.employee-delete-table-wrap{overflow-x:auto;margin:20px 0}
+.employee-delete-table-wrap table{min-width:520px;width:100%}
+.employee-delete-table-caption{text-align:left;font-size:12px;color:var(--hris-muted,#667085);padding-bottom:10px}
+.employee-delete-empty{padding:24px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.employee-delete-empty svg{width:24px;height:24px;fill:none;stroke:var(--green,#039855);stroke-width:1.8}
+.employee-delete-empty p{width:100%;margin:0;color:var(--hris-muted,#667085)}
+:root[data-theme="dark"] .employee-delete-avatar{color:#ffd27a}
+:root[data-theme="dark"] .employee-delete-profile-link{color:#ffaaa3}
+@media(max-width:760px){.employee-delete-grid{grid-template-columns:1fr;gap:0}.employee-delete-identity .badge{margin-left:64px}.employee-delete-form{max-width:none}.employee-delete-actions .btn{width:100%;justify-content:center}}

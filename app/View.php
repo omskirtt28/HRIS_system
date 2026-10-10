@@ -30,8 +30,18 @@ function icon_svg(string $name, string $class=''): string {
         'alert'=>'<path d="M10.3 3.5 2.5 17a2 2 0 0 0 1.73 3h15.54A2 2 0 0 0 21.5 17L13.7 3.5a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>',
         'arrow'=>'<path d="M5 12h14M13 6l6 6-6 6"/>',
         'plus'=>'<path d="M12 5v14M5 12h14"/>',
+        'trash'=>'<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/>',
         'book'=>'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4H6.5A2.5 2.5 0 0 0 4 6.5v13Z"/><path d="M8 7h8M8 11h6"/>',
         'clipboard'=>'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4.5V3h6v1.5M9 9h6M9 13h6M9 17h4"/>',
+        'map-pin'=>'<path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/>',
+        'store'=>'<path d="M3 10 5 3h14l2 7M4 13v8h16v-8M9 21v-6h6v6"/><path d="M3 10v1a3 3 0 0 0 6 0v-1m0 0v1a3 3 0 0 0 6 0v-1m0 0v1a3 3 0 0 0 6 0v-1"/>',
+        'boxes'=>'<path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9M8 5.25l8 4.5v4.5"/>',
+        'monitor'=>'<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>',
+        'megaphone'=>'<path d="m3 9 18-5v16L3 15V9ZM7 16l2 5h4l-2-4M3 11H1v2h2"/>',
+        'receipt'=>'<path d="m4 3 2 1 2-1 2 1 2-1 2 1 2-1 2 1 2-1v18l-2-1-2 1-2-1-2 1-2-1-2 1-2-1-2 1V3Z"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+        'wallet'=>'<path d="M20 8V5a2 2 0 0 0-2-2H6a3 3 0 0 0 0 6h14v12H6a3 3 0 0 1-3-3V6"/><path d="M20 12h-5a2 2 0 0 0 0 4h5M16 14h.01"/>',
+        'palette'=>'<path d="M12 3a9 9 0 0 0 0 18h1a2 2 0 0 0 2-2c0-1-1-1-1-2a2 2 0 0 1 2-2h2a3 3 0 0 0 3-3 9 9 0 0 0-9-9Z"/><circle cx="7.5" cy="11" r=".75"/><circle cx="10" cy="7.5" r=".75"/><circle cx="14" cy="7.5" r=".75"/><circle cx="17" cy="11" r=".75"/>',
+        'heart'=>'<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/>',
     ];
     $p = $paths[$name] ?? $paths['home'];
     return '<svg class="'.e($class).'" viewBox="0 0 24 24" aria-hidden="true">'.$p.'</svg>';
@@ -47,7 +57,8 @@ function render_head(string $title): void { ?>
 <link rel="apple-touch-icon" sizes="180x180" href="public/assets/branding/apple-touch-icon.png?v=20260924-logo-transparency-fix-v2">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="public/assets/app.css"><link rel="stylesheet" href="public/assets/hris-modern.css?v=20260926-phase3a-v1"><link rel="stylesheet" href="public/assets/phase2b.css?v=20260924-phase2b-201file"><link rel="stylesheet" href="public/assets/employee-directory.css?v=20261010-directory-ui-v1"><link rel="stylesheet" href="public/assets/sidebar-logout.css?v=20260924-sidebar-logout"><link rel="stylesheet" href="public/assets/payroll.css?v=20261004-attendance-tabs"><script src="public/assets/payroll.js?v=20261004-multiple-import" defer></script>
+<link rel="stylesheet" href="public/assets/app.css"><link rel="stylesheet" href="public/assets/hris-modern.css?v=20260926-phase3a-v1"><link rel="stylesheet" href="public/assets/phase2b.css?v=20260924-phase2b-201file"><link rel="stylesheet" href="public/assets/employee-directory.css?v=20261010-company-groups-adl-v1"><link rel="stylesheet" href="public/assets/sidebar-logout.css?v=20260924-sidebar-logout"><link rel="stylesheet" href="public/assets/payroll.css?v=20261004-attendance-tabs"><script src="public/assets/payroll.js?v=20261004-multiple-import" defer></script>
+<link rel="stylesheet" href="public/assets/employee-delete.css?v=20261010-v1">
 <style>.alert{padding:11px 14px;border-radius:10px;margin-bottom:14px;font-size:12.5px}.req{color:var(--red)}.actions-inline{display:flex;gap:6px;flex-wrap:wrap}.nowrap{white-space:nowrap}.empty{padding:36px;text-align:center;color:var(--hris-muted)}form.inline{display:inline}.status-select{min-width:150px}</style>
 </head><body><div id="toast" class="toast"></div>
 <?php }
@@ -96,7 +107,7 @@ function nav_config(string $kind): array {
       'admin'=>['title'=>'PMBSI HRIS','sub'=>'HR Administration','groups'=>[
         ['Overview',[['Dashboard','admin-dashboard','home',false,'dashboard.admin.view']]],
         ['Access Control',[['Users','admin-users','users',false,'users.view'],['Roles & Permissions','admin-roles','shield',false,'roles.view'],['Security & Sessions','admin-security','shield',false,'audit.view']]],
-        ['Organization',[['Organization Setup','admin-organization','building',false,'organization.view']]],
+        ['Organization',[['Employees','hr-employees','users',false,'employees.view_all'],['Organization Setup','admin-organization','building',false,'organization.view']]],
         ['Payroll',[['Biometric Import','payroll-import','file',false,'payroll.biometric_import'],['Payroll Cutoffs','payroll-cutoff','briefcase',false,'payroll.process'],['Leave Approvals','hr-leave','calendar',false,'leave.approve_hr']]],
         ['Operations',[['Audit Logs','admin-audit','audit',false,'audit.view'],['Clear Test Data','admin-clear-data','shield',false,'system.test_data.clear']]]
       ]]
@@ -106,10 +117,10 @@ function nav_config(string $kind): array {
 
 function render_portal_header(string $kind,string $active,string $title): void {
     $u=Auth::user() ?? ['name'=>'User','role_name'=>'Account'];
-    // Payroll screens are shared across portals; administrators keep their own navigation.
+    // Shared payroll and employee screens retain the administrator's navigation.
     $payrollWorkspace=str_starts_with($active,'payroll-') || in_array($active,['employee-attendance','employee-requests','hr-payroll-processing','hr-timekeeping','manager-approvals','hr-leave'],true);
     $adminAccount=($u['role_portal']??'')==='admin' || in_array((string)($u['role_code']??''),['SUPER_ADMIN','HRIS_ADMIN'],true);
-    if($payrollWorkspace && $adminAccount) $kind='admin';
+    if(($payrollWorkspace || $active==='hr-employees') && $adminAccount) $kind='admin';
     $c=nav_config($kind); render_head($title);
     $search=['employee'=>'Search your HRIS…','hr'=>'Search employees, applicants, requests…','client'=>'Search candidates…','admin'=>'Search users, branches, settings…'][$kind] ?? 'Search HRIS…'; ?>
 <div class="shell"><aside class="side" id="side"><a href="<?=url($kind.'-dashboard')?>" class="brand brand-portal" aria-label="Prime Mover Business Solutions, Inc."><img src="public/assets/branding/pmbsi-logo-transparent-v2.png" alt="Prime Mover Business Solutions, Inc." class="brand-full-logo"><span class="brand-portal-meta"><strong><?=e($c['title'])?></strong><span class="sub brand-portal-sub"><?=e($c['sub'])?></span></span></a>

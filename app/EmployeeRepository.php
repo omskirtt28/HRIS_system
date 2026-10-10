@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/EmployeeDirectoryPlacement.php';
 
 final class EmployeeRepository
 {
@@ -307,6 +308,7 @@ final class EmployeeRepository
             $sql=$hasManager?'UPDATE employees SET employee_no=?,user_id=?,department_id=?,position_id=?,branch_id=?,employment_type_id=?,manager_employee_id=?,hire_date=?,regularization_date=?,status=?,updated_by=? WHERE id=?':'UPDATE employees SET employee_no=?,user_id=?,department_id=?,position_id=?,branch_id=?,employment_type_id=?,hire_date=?,regularization_date=?,status=?,updated_by=? WHERE id=?';
             $params=$hasManager?[$employeeNo,$userId,$departmentId,$positionId,$branchId,$employmentTypeId,$managerEmployeeId,$hireDate,$regularizationDate,$status,(int)(Auth::user()['id']??0)?:null,$id]:[$employeeNo,$userId,$departmentId,$positionId,$branchId,$employmentTypeId,$hireDate,$regularizationDate,$status,(int)(Auth::user()['id']??0)?:null,$id];
             $st=db()->prepare($sql);$st->execute($params);
+            $directoryAfter=EmployeeDirectoryPlacement::save($id,$data,$old);
             if(self::columnExists('employees','business_unit_id') && self::columnExists('employees','legal_entity_id')) {
                 $companyValues=[];
                 foreach (['business_unit_id'=>'business_units','legal_entity_id'=>'legal_entities'] as $field=>$table) {
@@ -323,7 +325,7 @@ final class EmployeeRepository
             }
             db()->commit();
         }catch(Throwable $e){if(db()->inTransaction())db()->rollBack();if($e instanceof PDOException)self::throwDuplicateEmployee($e);throw $e;}
-        audit('Employees','UPDATE_EMPLOYMENT','employee',$id,['changed'=>$changed,'effective_date'=>$effectiveDate,'remarks'=>$remarks,'employee_no_before'=>$old['employee_no'],'employee_no_after'=>$employeeNo,'hire_date_before'=>$old['hire_date'],'hire_date_after'=>$hireDate,'company_before'=>[$old['business_unit_id'] ?? null,$old['legal_entity_id'] ?? null],'company_after'=>$companyValues ?? [],'needs_details_before'=>(int)($old['roster_needs_details'] ?? 0),'needs_details_after'=>(int)(self::find($id)['roster_needs_details'] ?? 0)]);
+        audit('Employees','UPDATE_EMPLOYMENT','employee',$id,['changed'=>$changed,'effective_date'=>$effectiveDate,'remarks'=>$remarks,'employee_no_before'=>$old['employee_no'],'employee_no_after'=>$employeeNo,'hire_date_before'=>$old['hire_date'],'hire_date_after'=>$hireDate,'company_before'=>[$old['business_unit_id'] ?? null,$old['legal_entity_id'] ?? null],'company_after'=>$companyValues ?? [],'directory_before'=>array_intersect_key($old,array_flip(['directory_company_group','directory_role','directory_area_ids'])),'directory_after'=>$directoryAfter ?? [],'needs_details_before'=>(int)($old['roster_needs_details'] ?? 0),'needs_details_after'=>(int)(self::find($id)['roster_needs_details'] ?? 0)]);
     }
 
     public static function uploadProfilePhoto(int $id,array $file): void
