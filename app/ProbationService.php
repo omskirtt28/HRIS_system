@@ -115,8 +115,47 @@ final class ProbationService
             $rk=!empty($e['user_id'])?'u'.$e['user_id']:'e'.$e['id'];
             if(!isset($sent[$rk])) $make($rk,['recipient_user_id'=>!empty($e['user_id'])?(int)$e['user_id']:null,'recipient_employee_id'=>(int)$e['id'],'email_to'=>self::emailOf($e)],$selfTitle,$selfBody,null);
         }
+        self::runMaternity($today,$result,$hr);
         if($deliver) [$result['emailed'],$result['email_failed']]=NotificationService::deliverPending();
         return $result;
+    }
+
+    /** Maternity leave: 14 days before it ends, HR / the employee / her ADL or Manager are told to expect the medical certificate; on the return date HR is reminded if it is still missing. */
+    private static function runMaternity(DateTimeImmutable $today,array &$result,?array $hr): void
+    {
+        if(!MaternityService::ready()) return;
+        $rows=db()->query('SELECT m.id leave_id,m.leave_kind,m.start_date,m.end_date,m.return_date,m.med_cert_received_on,e.*,p.name position_name,d.name department_name,b.name branch_name FROM employee_maternity_leaves m JOIN employees e ON e.id=m.employee_id LEFT JOIN positions p ON p.id=e.position_id LEFT JOIN departments d ON d.id=e.department_id LEFT JOIN branches b ON b.id=e.branch_id WHERE m.status="ACTIVE"')->fetchAll();
+        foreach($rows as $e) {
+            $day=$today->format('Y-m-d'); $stage=0;
+            if($day>=$e['return_date'] && empty($e['med_cert_received_on'])) $stage=2;
+            elseif($day<$e['return_date'] && $day>=(new DateTimeImmutable($e['end_date']))->modify('-14 days')->format('Y-m-d')) $stage=1;
+            if($stage===0) continue;
+            $result['checked']++; $hr??=self::hrRecipients();
+            $name=EmployeeRepository::fullName($e); $sup=self::supervisors($e); $kind=$stage===1?'MATERNITY_14D':'MATERNITY_RETURN';
+            $end=date('M j, Y',strtotime($e['end_date'])); $ret=date('M j, Y',strtotime($e['return_date']));
+            $where=trim(($e['position_name']?:'No position').' · '.($e['branch_name']?:'No branch').($e['department_name']?' · '.$e['department_name']:''));
+            $key=$kind.':'.(int)$e['id'].':'.$e['end_date'].':';
+            $make=static function(string $recipientKey,array $to,string $title,string $body,?string $link) use ($e,$kind,$key,&$result): void {
+                if(NotificationService::create($to+['subject_employee_id'=>(int)$e['id'],'kind'=>$kind,'title'=>$title,'body'=>$body,'link'=>$link,'due_date'=>$e['return_date'],'dedupe_key'=>$key.$recipientKey])) $result['created']++;
+            };
+            if($stage===1) {
+                $hrTitle='Maternity leave ends '.$end.': '.$name; $hrBody=$name.' ('.$where.') maternity leave ends on '.$end.' and she returns on '.$ret.'. She must submit her actual medical certificate to HR before returning. Record it in Employee 201 when received.';
+                $supTitle='Maternity leave ending: '.$name; $supBody=$name.' ('.$where.') returns from maternity leave on '.$ret.', after she submits her medical certificate to HR.';
+                $selfTitle='Your maternity leave ends on '.$end; $selfBody='Your maternity leave ends on '.$end.' and you return on '.$ret.'. Please submit your actual medical certificate to HR before you return.';
+            } else {
+                $hrTitle='Medical certificate not yet received: '.$name; $hrBody=$name.' is due back on '.$ret.' but her medical certificate has not been recorded. Follow up with her (and the '.$sup['label'].') before she returns.';
+                $supTitle='Return from maternity leave: '.$name; $supBody=$name.' is due back on '.$ret.'. HR is waiting for her medical certificate.';
+                $selfTitle='Submit your medical certificate to HR'; $selfBody='Your return date is '.$ret.'. HR needs your actual medical certificate before you can return to work.';
+            }
+            $sent=[];
+            foreach($hr as $h) { $sent['u'.$h['user_id']]=1; $make('u'.$h['user_id'],['recipient_user_id'=>(int)$h['user_id'],'email_to'=>filter_var($h['email'],FILTER_VALIDATE_EMAIL)?$h['email']:null],$hrTitle,$hrBody,url('hr-probation')); }
+            $rk=!empty($e['user_id'])?'u'.$e['user_id']:'e'.$e['id'];
+            if(!isset($sent[$rk])) { $sent[$rk]=1; $make($rk,['recipient_user_id'=>!empty($e['user_id'])?(int)$e['user_id']:null,'recipient_employee_id'=>(int)$e['id'],'email_to'=>self::emailOf($e)],$selfTitle,$selfBody,null); }
+            foreach($sup['people'] as $p) {
+                $rk=!empty($p['user_id'])?'u'.$p['user_id']:'e'.$p['id']; if(isset($sent[$rk])) continue; $sent[$rk]=1;
+                $make($rk,['recipient_user_id'=>!empty($p['user_id'])?(int)$p['user_id']:null,'recipient_employee_id'=>(int)$p['id'],'email_to'=>self::emailOf($p)],$supTitle,$supBody,null);
+            }
+        }
     }
 
     /** Runs at most once a day (called lazily from page loads and by scripts/run_notifications.php). */

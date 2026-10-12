@@ -513,7 +513,7 @@ final class PayrollRepository
         $st=db()->prepare('INSERT INTO payroll_request_history(request_id,status,note,created_by) VALUES(?,?,?,?)');$st->execute([$id,$status,$note,$uid]);
     }
 
-    private static function nextRequestNo(string $prefix,string $table): string
+    public static function nextRequestNo(string $prefix,string $table): string
     {
         $base=$prefix.'-'.date('Ymd').'-';$safe=in_array($table,['payroll_requests','leave_requests'],true)?$table:'payroll_requests';$st=db()->prepare("SELECT request_no FROM {$safe} WHERE request_no LIKE ? ORDER BY id DESC LIMIT 50");$st->execute([$base.'%']);$max=0;foreach($st->fetchAll(PDO::FETCH_COLUMN) as $v){if(preg_match('/(\d+)$/',(string)$v,$m))$max=max($max,(int)$m[1]);}return $base.str_pad((string)($max+1),4,'0',STR_PAD_LEFT);
     }

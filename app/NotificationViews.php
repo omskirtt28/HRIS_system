@@ -1,7 +1,8 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/MaternityViews.php';
 
-function probation_watch_page(array $rows,string $filter,bool $ready,bool $mailReady): void
+function probation_watch_page(array $rows,string $filter,bool $ready,bool $mailReady,array $maternity=[]): void
 {
     render_portal_header('hr','hr-probation','Probation Watch');
     page_head('HR Portal / People','Probation Watch','<a class="btn" href="'.url('hr-employees').'">Back to employees</a>'); ?>
@@ -28,6 +29,20 @@ function probation_watch_page(array $rows,string $filter,bool $ready,bool $mailR
       </tbody></table></div>
       <?php endif;?>
     </section>
+    <?php if($maternity):?>
+    <section class="panel">
+      <div class="panel-head"><div><h2>Maternity leave</h2><p>Live birth 105 days, early termination of pregnancy 60 days. The employee must give HR her actual medical certificate before returning.</p></div><span class="badge gray"><?=count($maternity)?> on leave</span></div>
+      <div class="employee-table-wrap" tabindex="0"><table class="tbl employee-table"><thead><tr><th>Employee</th><th>Type</th><th>Leave</th><th>Return</th><th>Medical certificate</th></tr></thead><tbody>
+      <?php foreach($maternity as $m): $mname=EmployeeRepository::fullName($m); $cert=!empty($m['med_cert_received_on']); $d=(int)$m['days_left']; ?>
+        <tr><td data-label="Employee"><a class="employee-cell" href="<?=url('hr-employee',['id'=>$m['emp_id'],'tab'=>'employment'])?>"><span class="employee-avatar"><?=e(initials($mname))?></span><span><strong><?=e($mname)?></strong><small><?=e($m['employee_no']?:'Code to follow')?></small></span></a></td>
+        <td data-label="Type"><?=e(MaternityService::kindLabel($m['leave_kind']))?><small class="archive-sub"><?=(int)$m['leave_days']?> days</small></td>
+        <td data-label="Leave"><?=e(date('M j, Y',strtotime($m['start_date'])))?> → <?=e(date('M j, Y',strtotime($m['end_date'])))?></td>
+        <td data-label="Return"><strong><?=e(date('M j, Y',strtotime($m['return_date'])))?></strong><small class="archive-sub"><span class="badge <?=$d<0?'red':($d<=14?'amber':'gray')?>"><?=$d<0?abs($d).' days past':($d===0?'Today':$d.' days left')?></span></small></td>
+        <td data-label="Medical certificate"><?=$cert?'<span class="badge green">Received '.e(date('M j',strtotime($m['med_cert_received_on']))).'</span>':'<span class="badge amber">Not yet received</span>'?></td></tr>
+      <?php endforeach;?>
+      </tbody></table></div>
+    </section>
+    <?php endif;?>
     </div>
     <?php render_portal_footer();
 }

@@ -328,6 +328,10 @@ final class EmployeeRepository
             } elseif(in_array($status,self::ARCHIVED_STATUSES,true)) throw new RuntimeException('Use Set inactive, Terminated or Restore on the Employee 201 File to move an employee in or out of the Employee Archive.');
         }
         $oldTypeCode=EmployeeStatusPolicy::code($oldTypeId);$newTypeCode=EmployeeStatusPolicy::code($employmentTypeId);
+        if(empty($data['_maternity_internal']) && $newTypeCode!==$oldTypeCode) {
+            if($newTypeCode==='MATERNITY_LEAVE') throw new RuntimeException('Choose Maternity Leave and fill in the Maternity leave box (type and start date) so the dates and return are tracked.');
+            if($oldTypeCode==='MATERNITY_LEAVE' && MaternityService::active($id)) throw new RuntimeException('This employee is on maternity leave. Use Return to work (after the medical certificate is received) in the Maternity leave box.');
+        }
         if($employmentTypeId!==$oldTypeId && EmployeeStatusPolicy::isProbation($oldTypeCode) && $newTypeCode==='REGULAR' && !$regularizationDate) $regularizationDate=$effectiveDate;
         $before=[
             'department_id'=>$old['department_id']!==null?(int)$old['department_id']:null,'position_id'=>$old['position_id']!==null?(int)$old['position_id']:null,

@@ -629,3 +629,6 @@ Phase 3A adds `areas`, branch-to-area mapping, `employees.manager_employee_id`, 
 `employees.probation_start_date` / `probation_end_date` are filled automatically (6 months, see `EmployeeStatusPolicy::probationDates`). `notifications` holds one row per recipient (`recipient_user_id` for the bell, `email_to` / `emailed_at` for Gmail, `dedupe_key` unique so a reminder is created once). `job_runs` guards the once-a-day check. Setup: `database/migrations/20261012_probation_notifications.sql`.
 
 Note: `probation_start_date` / `probation_end_date` hold the current fixed term for both Probationary (6 months) and Seasonal (3 months) employees; the status decides which.
+
+### Maternity leave
+`employee_maternity_leaves` holds one record per leave (type, days, start / end / return dates, previous Employee Status, linked payroll `leave_requests` row, medical certificate received date / document, status ACTIVE / COMPLETED / CANCELLED). Setup: `database/migrations/20261012_maternity_leave.sql`.

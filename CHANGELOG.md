@@ -219,3 +219,10 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 - Choosing **Seasonal** and entering the hire date now fills the contract end by itself: 3 months from the hire date (Oct 12, 2026 → ends Jan 11, 2027). Seasonal has no regularization date (the field stays blank and locked).
 - The **Hire date** on Add Employee is now blank so HR types it in; the end date appears once it is entered.
 - Reminders work like probation: the ADL / Manager and HR are told one month before the end (2 months in), and HR, the employee and the ADL / Manager when it ends. **Probation Watch** is now **Probation & Seasonal** and lists both. Existing Seasonal employees were given their dates.
+
+## 2026-10-12 — Maternity Leave box
+- Choosing **Maternity Leave** on Employee 201 shows a box: **Type** (Live birth — 105 days, Early termination of pregnancy — 60 days) and **Start date**. The **End date** and **Return to work** date appear by themselves (return = the day after the last leave day).
+- Saving records the leave, sets the status to Maternity Leave and makes sure payroll sees approved leave days: an overlapping Maternity leave the employee already filed is linked, otherwise HR gets an approved Maternity leave record (no leave credit is deducted).
+- The employee must give HR her **actual medical certificate** before returning: HR records it (date + optional scan, kept as a MEDICAL document), then uses **Return to work**, which restores the previous Employee Status. Return is blocked until the certificate is recorded. A mistaken entry can be cancelled.
+- Reminders: 14 days before the leave ends, HR, the employee and her ADL / Manager are told to expect the medical certificate; on the return date HR is reminded if it is still missing. **Probation & Seasonal** also lists everyone on maternity leave.
+- Maternity Leave can no longer be set or cleared from the plain Employee Status dropdown, and is hidden when adding an employee. Migration: `database/migrations/20261012_maternity_leave.sql`.

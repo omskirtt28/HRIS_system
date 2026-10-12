@@ -20,3 +20,23 @@
 .probation-filters{padding:0 20px 12px}
 .probation-watch .alert{margin-bottom:12px}
 .probation-watch .alert.amber{background:#fff7e0;color:#835300;border:1px solid #f0deb1}
+
+/* Maternity leave box and panel. */
+.maternity-box{border:1px solid var(--border,#e5e7eb);border-radius:12px;padding:14px 16px;background:var(--hris-surface-2,#f6f7f9)}
+.maternity-box h3{margin:0 0 10px;font-size:15px}
+.maternity-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:8px}
+.maternity-warn{display:block;color:#b4232d;margin-top:6px}
+.maternity-panel{margin-bottom:20px}
+.maternity-panel .alert{margin-bottom:12px}
+.maternity-panel .alert.amber{background:#fff7e0;color:#835300;border:1px solid #f0deb1}
+.maternity-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:12px}
+.maternity-summary span{display:block;font-size:12px;color:var(--muted,#6b7280)}
+.maternity-form{display:grid;grid-template-columns:minmax(160px,220px) 1fr;gap:14px;padding:14px 0}
+.maternity-form .field.full,.maternity-form .maternity-actions{grid-column:1/-1;margin:0}
+.maternity-actions{display:flex;justify-content:flex-end}
+@media(max-width:760px){.maternity-grid,.maternity-summary{grid-template-columns:1fr 1fr}.maternity-form{grid-template-columns:1fr}}
+
+/* .field is display:flex, which would override the hidden attribute. */
+.field[hidden],.maternity-box[hidden],[data-term-end-field][hidden]{display:none!important}
+
+.maternity-preview{display:grid;gap:6px;margin:4px 0 10px}.maternity-preview>div{display:flex;gap:10px;flex-wrap:wrap;align-items:baseline;padding:8px 10px;border:1px solid var(--border,#e5e7eb);border-radius:10px;background:var(--hris-surface,#fff);font-size:13px}.maternity-preview>div.is-selected{border-color:var(--hris-brand,#f5a800);background:#fff7e0}.maternity-preview span{color:var(--muted,#6b7280)}

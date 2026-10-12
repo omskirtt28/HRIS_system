@@ -25,6 +25,6 @@ function notification_handle(string $page): void
     }
     Auth::requirePermission('employees.view_all');
     $filter=(string)($_GET['filter'] ?? ''); if(!in_array($filter,['soon','overdue'],true)) $filter='';
-    probation_watch_page(ProbationService::watch($filter),$filter,ProbationService::ready(),Mailer::configured());
+    probation_watch_page(ProbationService::watch($filter),$filter,ProbationService::ready(),Mailer::configured(),MaternityService::watch());
     exit;
 }
