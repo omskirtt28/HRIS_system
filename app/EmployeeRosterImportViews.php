@@ -169,7 +169,7 @@ function employee_roster_row_editor(array $batch, array $row, array $oldForm): v
             Branch: <?=e($catalog['site'][(int)$existing['branch_id']]['name'] ?? 'Not set')?> · Department: <?=e($catalog['department'][(int)$existing['department_id']]['name'] ?? 'Not set')?><br>
             Position: <?=e($catalog['position'][(int)$existing['position_id']]['name'] ?? 'Not set')?><br>
             Brand / Client: <?=e($companies['brand'])?> · Employer: <?=e($companies['employer'])?><br>
-            Update uses the fields in this form. It keeps the linked account, contact details, manager, employment type, status and other Employee 201 records.
+            Update uses the fields in this form. It keeps the linked account, contact details, manager, Employee Status and other Employee 201 records.
           </div></details>
         <?php endif;?>
         <details class="roster-current"><summary>Original Excel details</summary><div class="roster-note"><?php $rawLabels=['EMPLOYEECODE'=>'Employee Code','NAME'=>'Name','ADDRESSOFMALL'=>'Mall / Site','DEPARTMENT'=>'Department','POSITION'=>'Position','BRANCHCODE'=>'Branch Code','COMPANY'=>'Company','STARTDATE'=>'Start Date']; foreach ($d['raw'] as $key=>$value):?><div><strong><?=e($rawLabels[$key] ?? $key)?>:</strong> <?=e($value ?: '(blank)')?></div><?php endforeach;?></div></details>

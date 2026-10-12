@@ -235,10 +235,10 @@ final class RecruitmentRepository
         }
         $employmentTypeId=null;
         $sourceType=strtoupper(trim((string)($a['offer']['employment_type']??$a['job_employment_type']??'')));
-        $map=['CONTRACT'=>'CONTRACTUAL','FULL_TIME'=>'PROBATIONARY','PART_TIME'=>'PART_TIME','PROJECT_BASED'=>'PROJECT_BASED','FIXED_TERM'=>'FIXED_TERM','INTERN'=>'INTERN'];
+        $map=['CONTRACT'=>'CONTRACTUAL','FULL_TIME'=>'PROBATIONARY','PART_TIME'=>'PART_TIME','PROJECT_BASED'=>'PROJECT_BASED','FIXED_TERM'=>'FIXED_TERM','SEASONAL'=>'SEASONAL','INTERN'=>'PROBATIONARY'];
         $wanted=$map[$sourceType]??$sourceType;
-        foreach($types as $t){if(strtoupper((string)$t['code'])===$wanted){$employmentTypeId=(int)$t['id'];break;}}
-        if(!$employmentTypeId){foreach($types as $t){if(strtoupper((string)$t['code'])==='PROBATIONARY'){$employmentTypeId=(int)$t['id'];break;}}}
+        foreach($types as $t){if(!empty($t['active'])&&strtoupper((string)$t['code'])===$wanted){$employmentTypeId=(int)$t['id'];break;}}
+        if(!$employmentTypeId){foreach($types as $t){if(!empty($t['active'])&&strtoupper((string)$t['code'])==='PROBATIONARY'){$employmentTypeId=(int)$t['id'];break;}}}
         $hireDate=(string)($a['offer']['start_date']??'');
         if($hireDate==='') $hireDate=(string)($a['deployment']['actual_date']??'');
         if($hireDate==='') $hireDate=date('Y-m-d');

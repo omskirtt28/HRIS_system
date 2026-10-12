@@ -410,6 +410,38 @@ final class PayrollAttendanceService
         $st->execute([(int)Auth::user()['id'],$importId]); return $st->rowCount();
     }
 
+    /** Imported unknown IDs that now equal an exact Employee Code are matched; names and numeric casts are never guessed. */
+    public static function rematchImportedRows(int $cutoffId): int
+    {
+        Auth::requirePermission('payroll.process'); self::requireReady();
+        $owned=!db()->inTransaction(); if($owned) db()->beginTransaction();
+        try {
+            self::lockOpen($cutoffId);
+            $unknown='FROM attendance_import_rows r JOIN attendance_imports i ON i.id=r.import_id WHERE i.cutoff_id=? AND i.state="IMPORTED" AND r.row_state="UNMAPPED"';
+            $st=db()->prepare('SELECT COUNT(*) '.$unknown); $st->execute([$cutoffId]);
+            if(!(int)$st->fetchColumn()) { if($owned) db()->commit(); return 0; }
+            $st=db()->prepare('INSERT IGNORE INTO payroll_biometric_mappings(employee_id,biometric_id,updated_by)
+                SELECT DISTINCT e.id,r.biometric_id,? FROM attendance_import_rows r JOIN attendance_imports i ON i.id=r.import_id
+                JOIN employees e ON e.employee_no=r.biometric_id AND BINARY e.employee_no=BINARY r.biometric_id
+                LEFT JOIN payroll_biometric_mappings by_id ON by_id.biometric_id=r.biometric_id
+                LEFT JOIN payroll_biometric_mappings by_employee ON by_employee.employee_id=e.id
+                WHERE i.cutoff_id=? AND i.state="IMPORTED" AND r.row_state="UNMAPPED" AND by_id.employee_id IS NULL AND by_employee.employee_id IS NULL');
+            $st->execute([(int)Auth::user()['id'],$cutoffId]); $created=$st->rowCount();
+            $st=db()->prepare('SELECT r.id,r.punched_at,r.punch_status,m.employee_id FROM attendance_import_rows r JOIN attendance_imports i ON i.id=r.import_id
+                JOIN payroll_biometric_mappings m ON m.biometric_id=r.biometric_id WHERE i.cutoff_id=? AND i.state="IMPORTED" AND r.row_state="UNMAPPED" ORDER BY r.id');
+            $st->execute([$cutoffId]); $rows=$st->fetchAll(); $matched=0;
+            $insert=db()->prepare('INSERT IGNORE INTO attendance_punches(employee_id,punched_at,punch_status,import_row_id) VALUES(?,?,?,?)');
+            $update=db()->prepare('UPDATE attendance_import_rows SET employee_id=?,row_state=? WHERE id=?');
+            foreach($rows as $r) {
+                $insert->execute([$r['employee_id'],$r['punched_at'],$r['punch_status'],$r['id']]);
+                $update->execute([$r['employee_id'],$insert->rowCount()?'IMPORTED':'DUPLICATE',$r['id']]); $matched++;
+            }
+            if($matched) audit('Payroll','BIOMETRIC_REMATCH','payroll_cutoff',$cutoffId,['rows'=>$matched,'employee_number_mappings_created'=>$created]);
+            if($owned) db()->commit();
+            return $matched;
+        } catch(Throwable $e) { if($owned&&db()->inTransaction()) db()->rollBack(); throw $e; }
+    }
+
     public static function commitImport(int $id,string $coveredThrough,bool $allLocationsComplete=false): void
     {
         Auth::requirePermission('payroll.biometric_import'); self::requireReady();
@@ -564,10 +596,11 @@ final class PayrollAttendanceService
         $q->execute([$employee,$start,$end]); return $q->fetchAll();
     }
 
+    /** Active staff are always included. Archived staff stay only while the cutoff holds real attendance for them (an empty waiting row alone does not keep them). */
     public static function cutoffEmployeeScope(int $cutoffId): string
     {
         $id=(int)$cutoffId;
-        return '(e.status IN ("ACTIVE","PROBATIONARY","ON_LEAVE") OR EXISTS (SELECT 1 FROM attendance_daily d WHERE d.employee_id=e.id AND d.cutoff_id='.$id.') OR EXISTS (SELECT 1 FROM attendance_import_rows ir JOIN attendance_imports ai ON ai.id=ir.import_id WHERE ir.employee_id=e.id AND ai.cutoff_id='.$id.' AND ai.state="IMPORTED") OR EXISTS (SELECT 1 FROM payroll_requests pr WHERE pr.employee_id=e.id AND pr.cutoff_id='.$id.' AND pr.status IN ("APPROVED","COMPLETED")) OR EXISTS (SELECT 1 FROM leave_requests lr JOIN payroll_cutoffs pc ON pc.id='.$id.' WHERE lr.employee_id=e.id AND lr.status="APPROVED" AND lr.date_from<=pc.period_end AND lr.date_to>=pc.period_start))';
+        return '(e.status IN ("ACTIVE","PROBATIONARY","ON_LEAVE") OR EXISTS (SELECT 1 FROM attendance_daily d WHERE d.employee_id=e.id AND d.cutoff_id='.$id.' AND d.state<>"AWAITING_LOGS") OR EXISTS (SELECT 1 FROM attendance_import_rows ir JOIN attendance_imports ai ON ai.id=ir.import_id WHERE ir.employee_id=e.id AND ai.cutoff_id='.$id.' AND ai.state="IMPORTED") OR EXISTS (SELECT 1 FROM payroll_requests pr WHERE pr.employee_id=e.id AND pr.cutoff_id='.$id.' AND pr.status IN ("APPROVED","COMPLETED")) OR EXISTS (SELECT 1 FROM leave_requests lr JOIN payroll_cutoffs pc ON pc.id='.$id.' WHERE lr.employee_id=e.id AND lr.status="APPROVED" AND lr.date_from<=pc.period_end AND lr.date_to>=pc.period_start))';
     }
 
     private static function context(int $cutoffId,?int $onlyEmployee=null): array

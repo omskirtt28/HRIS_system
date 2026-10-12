@@ -10,11 +10,18 @@ function icon_svg(string $name, string $class=''): string {
         'calendar'=>'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/>',
         'clock'=>'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
         'file'=>'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h6"/>',
+        'download'=>'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M12 3v12m-5-5 5 5 5-5"/>',
         'briefcase'=>'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18M10 12v2h4v-2"/>',
         'lock'=>'<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V8a4 4 0 1 1 8 0v3"/>',
         'key'=>'<circle cx="7.5" cy="15.5" r="3.5"/><path d="m10 13 9-9M15 8l2 2M17 6l2 2"/>',
         'pipeline'=>'<rect x="3" y="4" width="5" height="6" rx="1"/><rect x="10" y="4" width="5" height="6" rx="1"/><rect x="17" y="4" width="4" height="6" rx="1"/><path d="M5.5 10v4h7v-4M12.5 14v4h6.5v-8"/>',
         'check'=>'<path d="m5 12 4 4L19 6"/>',
+        'circle-check'=>'<circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-6"/>',
+        'send'=>'<path d="m22 2-7 20-4-9-9-4 20-7ZM22 2 11 13"/>',
+        'info'=>'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+        'x'=>'<path d="m18 6-12 12M6 6l12 12"/>',
+        'files'=>'<path d="M6 3h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM15 3v5h5M1 7v10"/>',
+        'table'=>'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 9v12"/>',
         'check-square'=>'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="m7 12 3 3 7-7"/>',
         'chart'=>'<path d="M3 3v18h18"/><path d="m7 16 4-5 4 3 5-7"/>',
         'building'=>'<path d="M3 21h18M6 21V5l6-2v18M18 21V9l-6-2"/><path d="M8.5 8h1M8.5 12h1M8.5 16h1M14.5 12h1M14.5 16h1"/>',
@@ -44,7 +51,7 @@ function icon_svg(string $name, string $class=''): string {
         'heart'=>'<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/>',
     ];
     $p = $paths[$name] ?? $paths['home'];
-    return '<svg class="'.e($class).'" viewBox="0 0 24 24" aria-hidden="true">'.$p.'</svg>';
+    return '<svg class="'.e($class).'" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'.$p.'</svg>';
 }
 
 function render_head(string $title): void { ?>
@@ -57,8 +64,9 @@ function render_head(string $title): void { ?>
 <link rel="apple-touch-icon" sizes="180x180" href="public/assets/branding/apple-touch-icon.png?v=20260924-logo-transparency-fix-v2">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="public/assets/app.css"><link rel="stylesheet" href="public/assets/hris-modern.css?v=20260926-phase3a-v1"><link rel="stylesheet" href="public/assets/phase2b.css?v=20260924-phase2b-201file"><link rel="stylesheet" href="public/assets/employee-directory.css?v=20261010-company-groups-adl-v1"><link rel="stylesheet" href="public/assets/sidebar-logout.css?v=20260924-sidebar-logout"><link rel="stylesheet" href="public/assets/payroll.css?v=20261011-complete-cutoff"><script src="public/assets/payroll.js?v=20261011-complete-cutoff" defer></script>
-<link rel="stylesheet" href="public/assets/employee-delete.css?v=20261010-v1">
+<link rel="stylesheet" href="public/assets/app.css"><link rel="stylesheet" href="public/assets/hris-modern.css?v=20260926-phase3a-v1"><link rel="stylesheet" href="public/assets/phase2b.css?v=20260924-phase2b-201file"><link rel="stylesheet" href="public/assets/employee-directory.css?v=20261010-company-groups-adl-v1"><link rel="stylesheet" href="public/assets/sidebar-logout.css?v=20260924-sidebar-logout"><link rel="stylesheet" href="public/assets/payroll.css?v=20261011-hr-payroll-friendly-v2"><script src="public/assets/payroll.js?v=20261011-hr-payroll-friendly-v2" defer></script>
+<link rel="stylesheet" href="public/assets/attendance-export.css?v=20261011-export-all-logs-v2"><script src="public/assets/attendance-export.js?v=20261011-export-all-logs-v2" defer></script>
+<link rel="stylesheet" href="public/assets/employee-delete.css?v=20261010-v1"><link rel="stylesheet" href="public/assets/employee-archive.css?v=20261012-v1">
 <style>.alert{padding:11px 14px;border-radius:10px;margin-bottom:14px;font-size:12.5px}.req{color:var(--red)}.actions-inline{display:flex;gap:6px;flex-wrap:wrap}.nowrap{white-space:nowrap}.empty{padding:36px;text-align:center;color:var(--hris-muted)}form.inline{display:inline}.status-select{min-width:150px}</style>
 </head><body><div id="toast" class="toast"></div>
 <?php }
@@ -94,8 +102,8 @@ function nav_config(string $kind): array {
       ]],
       'hr'=>['title'=>'PMBSI HRIS','sub'=>'Human Resources','groups'=>[
         ['Overview',[['Dashboard','hr-dashboard','home',false,'dashboard.hr.view']]],
-        ['People',[['Employees','hr-employees','users',false,'employees.view_all'],['Attendance','payroll-cutoff','clock',false,'payroll.process'],['HR Requests','#','clipboard',true,'requests.manage']]],
-        ['Payroll & Timekeeping',[['Payroll Ticket Review','hr-timekeeping','clipboard',false,'payroll.approve_hr'],['Biometric Import','payroll-import','file',false,'payroll.biometric_import'],['Payroll Cutoffs','payroll-cutoff','briefcase',false,'payroll.process'],['Leave Approvals','hr-leave','calendar',false,'leave.approve_hr'],['Team Approvals','manager-approvals','check-square',false,'payroll.approve_manager']]],
+        ['People',[['Employees','hr-employees','users',false,'employees.view_all'],['Employee Archive','hr-employee-archive','file',false,'employees.view_all'],['HR Requests','#','clipboard',true,'requests.manage']]],
+        ['Payroll & Timekeeping',[['Payroll Ticket Review','hr-timekeeping','clipboard',false,'payroll.approve_hr'],['Import Logs','payroll-import','files',false,'payroll.biometric_import'],['Attendance Export','payroll-cutoff','file',false,'payroll.process'],['Leave Approvals','hr-leave','calendar',false,'leave.approve_hr'],['Team Approvals','manager-approvals','check-square',false,'payroll.approve_manager']]],
         ['Recruitment',[['Manpower Requests','hr-manpower','briefcase',false,'recruitment.view'],['Applicants','hr-applicants','user-plus',false,'recruitment.view'],['Pipeline','hr-pipeline','pipeline',false,'recruitment.view'],['Endorsements','hr-endorsements','check-square',false,'recruitment.view']]],
         ['HR Operations',[['Employee Relations','#','shield',true,null],['Performance','#','chart',true,null],['Training','#','book',true,null],['Offboarding','#','file',true,null]]],
         ['Insights',[['Reports','hr-reports','chart',false,'reports.view']]]
@@ -107,8 +115,8 @@ function nav_config(string $kind): array {
       'admin'=>['title'=>'PMBSI HRIS','sub'=>'HR Administration','groups'=>[
         ['Overview',[['Dashboard','admin-dashboard','home',false,'dashboard.admin.view']]],
         ['Access Control',[['Users','admin-users','users',false,'users.view'],['Roles & Permissions','admin-roles','shield',false,'roles.view'],['Security & Sessions','admin-security','shield',false,'audit.view']]],
-        ['Organization',[['Employees','hr-employees','users',false,'employees.view_all'],['Organization Setup','admin-organization','building',false,'organization.view']]],
-        ['Payroll',[['Payroll Ticket Review','hr-timekeeping','clipboard',false,'payroll.approve_hr'],['Biometric Import','payroll-import','file',false,'payroll.biometric_import'],['Payroll Cutoffs','payroll-cutoff','briefcase',false,'payroll.process'],['Leave Approvals','hr-leave','calendar',false,'leave.approve_hr']]],
+        ['Organization',[['Employees','hr-employees','users',false,'employees.view_all'],['Employee Archive','hr-employee-archive','file',false,'employees.view_all'],['Organization Setup','admin-organization','building',false,'organization.view']]],
+        ['Payroll',[['Payroll Ticket Review','hr-timekeeping','clipboard',false,'payroll.approve_hr'],['Import Logs','payroll-import','files',false,'payroll.biometric_import'],['Attendance Export','payroll-cutoff','file',false,'payroll.process'],['Leave Approvals','hr-leave','calendar',false,'leave.approve_hr']]],
         ['Operations',[['Audit Logs','admin-audit','audit',false,'audit.view'],['Clear Test Data','admin-clear-data','shield',false,'system.test_data.clear']]]
       ]]
     ];
@@ -120,7 +128,7 @@ function render_portal_header(string $kind,string $active,string $title): void {
     // Shared payroll and employee screens retain the administrator's navigation.
     $payrollWorkspace=str_starts_with($active,'payroll-') || in_array($active,['employee-attendance','employee-requests','hr-payroll-processing','hr-timekeeping','manager-approvals','hr-leave'],true);
     $adminAccount=($u['role_portal']??'')==='admin' || in_array((string)($u['role_code']??''),['SUPER_ADMIN','HRIS_ADMIN'],true);
-    if(($payrollWorkspace || $active==='hr-employees') && $adminAccount) $kind='admin';
+    if(($payrollWorkspace || in_array($active,['hr-employees','hr-employee-archive'],true)) && $adminAccount) $kind='admin';
     $c=nav_config($kind); render_head($title);
     $search=['employee'=>'Search your HRIS…','hr'=>'Search employees, applicants, requests…','client'=>'Search candidates…','admin'=>'Search users, branches, settings…'][$kind] ?? 'Search HRIS…'; ?>
 <div class="shell"><aside class="side" id="side"><a href="<?=url($kind.'-dashboard')?>" class="brand brand-portal" aria-label="Prime Mover Business Solutions, Inc."><img src="public/assets/branding/pmbsi-logo-transparent-v2.png" alt="Prime Mover Business Solutions, Inc." class="brand-full-logo"><span class="brand-portal-meta"><strong><?=e($c['title'])?></strong><span class="sub brand-portal-sub"><?=e($c['sub'])?></span></span></a>

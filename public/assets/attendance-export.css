@@ -1,0 +1,116 @@
+/* Approved Attendance Export preview, adapted to shared PMBSI theme tokens. */
+.attendance-export{min-width:0;container:attendance-export / inline-size}
+.attendance-export .pagehead{margin-bottom:7px}
+.attendance-export .pagehead .actions{display:flex;gap:10px;flex-wrap:wrap}
+.attendance-export .export-intro{font-size:12px;color:var(--hris-muted);margin:0 0 22px}
+.attendance-export svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.attendance-export .btn{gap:8px;min-height:38px}
+.attendance-export .export-cutoff{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:19px}
+.attendance-export .export-cutoff label{font-size:12px;font-weight:600}
+.attendance-export .export-cutoff select{width:auto;max-width:100%;padding:10px 36px 10px 12px;border:1px solid var(--hris-line);border-radius:9px;background:var(--hris-surface);color:var(--hris-text);font:inherit;font-size:13px}
+.attendance-export .panel{border-radius:14px;overflow:hidden}
+.attendance-export .export-status-top{display:flex;align-items:flex-start;gap:14px;padding:25px 23px 20px}
+.attendance-export .export-state-icon{width:44px;height:44px;display:grid;place-items:center;border-radius:12px;flex-shrink:0;background:var(--hris-warning-soft);color:var(--hris-warning)}
+.attendance-export .export-state-icon.is-ready{background:var(--hris-success-soft);color:var(--hris-success)}
+.attendance-export .export-state-icon svg{width:23px;height:23px}
+.attendance-export .export-status-copy{flex:1;min-width:0}
+.attendance-export .export-status-copy h2{margin:0 0 6px;font-size:19px;line-height:1.35}
+.attendance-export .export-status-copy p{margin:0;color:var(--hris-muted);font-size:13px;line-height:1.6;max-width:490px}
+.attendance-export .export-status-top>.badge{white-space:nowrap;margin-top:1px}
+.attendance-export .export-meta{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:12px;color:var(--hris-muted);padding:0 23px 20px 81px}
+.attendance-export .export-meta strong{color:var(--hris-text);font-weight:600}
+.attendance-export .export-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:18px 23px;border-top:1px solid var(--hris-line);background:var(--hris-surface-2)}
+.attendance-export .export-inline-note{margin-left:auto;font-size:11px;color:var(--hris-muted)}
+.attendance-export .export-options{margin-top:18px}
+.attendance-export .export-options-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:17px 20px;border-bottom:1px solid var(--hris-line)}
+.attendance-export .export-options-head h2{display:flex;align-items:center;gap:9px;font-size:16px;margin:0}
+.attendance-export .export-close{padding:8px;min-width:36px}
+.attendance-export .export-options-copy{padding:18px 20px 0}
+.attendance-export .export-options-copy h3{font-size:15px;margin:0 0 5px}
+.attendance-export .export-options-copy p{font-size:12px;color:var(--hris-muted);line-height:1.6;margin:5px 0}
+.attendance-export .export-review-notice{display:flex;align-items:flex-start;gap:10px;margin:14px 0 0;padding:13px 14px;background:var(--hris-warning-soft);border:1px solid var(--hris-brand-soft);border-radius:10px;font-size:12px;line-height:1.6}
+.attendance-export .export-review-notice>svg{margin-top:2px;color:var(--hris-warning)}
+.attendance-export .export-review-notice strong,.attendance-export .export-review-notice span,.attendance-export .export-review-notice small{display:block}
+.attendance-export .export-review-notice strong{color:var(--hris-warning);margin-bottom:2px}
+.attendance-export .export-review-notice small{color:var(--hris-muted);font-size:11px;margin-top:4px}
+.attendance-export .export-format-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:18px 20px}
+.attendance-export .export-format{display:flex;align-items:center;gap:13px;padding:18px 16px;border:1px solid var(--hris-line);border-radius:11px;background:var(--hris-surface);color:var(--hris-text);font:inherit;text-align:left;text-decoration:none;cursor:pointer;min-width:0}
+.attendance-export .export-format>svg:first-child{width:24px;height:24px;color:var(--hris-warning)}
+.attendance-export .export-format>svg:last-child{margin-left:auto;color:var(--hris-muted)}
+.attendance-export .export-format strong{display:block;font-size:13px;font-weight:600}
+.attendance-export .export-format small{display:block;font-size:11px;line-height:1.6;color:var(--hris-muted);margin-top:5px}
+.attendance-export .export-format:hover{border-color:var(--hris-brand);background:var(--hris-brand-soft)}
+.attendance-export .export-format:focus-visible{outline:2px solid var(--hris-brand);outline-offset:3px}
+.attendance-export .export-confirm{padding:21px 23px;margin-top:18px}
+.attendance-export .export-confirm h2{font-size:18px;margin:0 0 7px}
+.attendance-export .export-confirm p{font-size:13px;color:var(--hris-muted);line-height:1.65;margin:0 0 16px}
+.attendance-export .export-confirm form{display:flex;gap:9px;flex-wrap:wrap}
+.attendance-export .export-remaining,.attendance-export .export-details,.attendance-export .export-group-preview{margin-top:18px}
+.attendance-export .export-remaining>summary,.attendance-export .export-details>summary{display:flex;align-items:center;gap:9px;list-style:none;padding:16px 20px;font-size:13px;font-weight:600;cursor:pointer}
+.attendance-export summary::-webkit-details-marker{display:none}
+.attendance-export .export-remaining>summary>span,.attendance-export .export-details>summary>span{display:flex;gap:8px;align-items:center;margin-left:auto;color:var(--hris-muted);font-size:11px;font-weight:400}
+.attendance-export .export-remaining-summary{padding:11px 20px;color:var(--hris-muted);font-size:12px;border-top:1px solid var(--hris-line);border-bottom:1px solid var(--hris-line)}
+.attendance-export .export-issue-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr) minmax(0,1.15fr) auto;gap:16px;align-items:center;padding:17px 20px;font-size:13px;list-style:none;cursor:pointer}
+.attendance-export .export-issue{border-bottom:1px solid var(--hris-line)}
+.attendance-export .export-issue[open]{background:var(--hris-surface-2)}
+.attendance-export .export-issue-row strong{display:block;font-size:13px}
+.attendance-export .export-issue-row small{display:block;font-size:12px;line-height:1.55;margin-top:3px;color:var(--hris-muted)}
+.attendance-export .export-location{font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+.attendance-export .export-location strong{font-size:12px}
+.attendance-export .export-issue-labels{background:var(--hris-surface-2);font-size:11px;color:var(--hris-muted);font-weight:600;padding-top:8px;padding-bottom:8px;cursor:default}
+.attendance-export .export-issue-copy>.badge{white-space:nowrap;margin:2px 4px 2px 0}
+.attendance-export .export-view{background:var(--hris-surface);white-space:nowrap;justify-self:end}
+.attendance-export .export-issue-detail{padding:0 20px 18px}
+.attendance-export .export-clocks{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 13px}
+.attendance-export .export-clocks>div{padding:11px 12px;background:var(--hris-surface);border:1px solid var(--hris-line);border-radius:9px;min-width:0}
+.attendance-export .export-clocks>div.is-missing{background:var(--hris-warning-soft);border-color:var(--hris-brand)}
+.attendance-export .export-clocks dt{font-size:12px;color:var(--hris-muted);margin-bottom:5px}
+.attendance-export .export-clocks dd{font-size:14px;font-weight:600;margin:0}
+.attendance-export .export-clocks .is-missing dd{color:var(--hris-warning)}
+.attendance-export .export-request-note{display:flex;gap:9px;align-items:flex-start;padding-top:13px;margin-top:13px;border-top:1px solid var(--hris-line);font-size:13px;overflow-wrap:anywhere}
+.attendance-export .export-request-note>svg{margin-top:3px;color:var(--hris-warning)}
+.attendance-export .export-request-note small{display:block;color:var(--hris-muted);font-size:12px;margin-top:4px}
+.attendance-export .export-request-note a{display:inline-block;margin-top:8px}
+.attendance-export .export-day-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:13px}
+.attendance-export .export-blocker{display:flex;align-items:center;gap:9px;padding:12px 20px;background:var(--hris-warning-soft);border-bottom:1px solid var(--hris-line);font-size:12px;flex-wrap:wrap}
+.attendance-export .export-blocker>span{flex:1;min-width:150px}
+.attendance-export .export-row-note{padding:17px 20px;font-size:13px;line-height:1.65;margin:0}
+.attendance-export .export-foot{padding:12px 20px;color:var(--hris-muted);font-size:11px;line-height:1.6;background:var(--hris-surface-2)}
+.attendance-export .export-pagination{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:12px;padding:14px 20px}
+.attendance-export .export-pagination>span{margin-right:auto;color:var(--hris-muted)}
+.attendance-export .export-tabs{display:flex;gap:4px;flex-wrap:wrap;padding:0 18px 13px;border-bottom:1px solid var(--hris-line)}
+.attendance-export .export-tabs .btn.is-active{background:var(--hris-brand-soft);border-color:var(--hris-brand-soft);color:var(--hris-warning)}
+.attendance-export .export-group-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--hris-line)}
+.attendance-export .export-group-row strong{display:block;font-size:13px;overflow-wrap:anywhere}
+.attendance-export .export-group-row small{display:block;color:var(--hris-muted);font-size:12px;margin-top:2px}
+.attendance-export .export-settings{border-top:1px solid var(--hris-line)}
+.attendance-export .export-settings>summary{display:flex;align-items:center;gap:9px;padding:15px 20px;font-size:12px;font-weight:600;cursor:pointer}
+.attendance-export .export-setting-form{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;padding:16px 20px;border-top:1px solid var(--hris-line)}
+.attendance-export .export-setting-form .field{margin:0;flex:1;min-width:200px;max-width:440px}
+.attendance-export .export-settings>.panel{margin:0;border:0;box-shadow:none;border-radius:0}
+.attendance-export .export-changed{background:var(--hris-brand-soft)}
+.attendance-export .export-time-mark{font-size:11px;color:var(--hris-warning);font-weight:600;white-space:nowrap;margin-left:5px}
+.attendance-export [hidden]{display:none!important}
+.attendance-export summary:focus-visible,.attendance-export select:focus-visible{outline:2px solid var(--hris-brand);outline-offset:3px}
+:root[data-theme="dark"] .attendance-export .export-clocks .is-missing dd,:root[data-theme="dark"] .attendance-export .export-time-mark,:root[data-theme="dark"] .attendance-export .export-tabs .btn.is-active,:root[data-theme="dark"] .attendance-export .export-state-icon.is-waiting{color:#ffcf75}
+:root[data-theme="dark"] .attendance-export .export-state-icon.is-ready{color:#8de0c0}
+:root[data-theme="dark"] .attendance-export .export-format>svg:first-child,:root[data-theme="dark"] .attendance-export .export-review-notice>svg,:root[data-theme="dark"] .attendance-export .export-review-notice strong{color:#ffcf75}
+@container attendance-export (max-width:650px){
+ .attendance-export .pagehead{flex-wrap:wrap;gap:14px}
+ .attendance-export .pagehead .actions{justify-content:flex-start}
+ .attendance-export .export-format-grid{grid-template-columns:1fr}
+ .attendance-export .export-status-top{flex-wrap:wrap;padding:21px 18px}
+ .attendance-export .export-status-top>.badge{margin-left:58px}
+ .attendance-export .export-meta{padding-left:76px}
+ .attendance-export .export-actions{padding:16px 18px}
+ .attendance-export .export-inline-note{margin-left:0;flex-basis:100%}
+ .attendance-export .export-issue-row{grid-template-columns:minmax(0,1fr) auto;gap:10px}
+ .attendance-export .export-issue-row>div:nth-child(2){grid-row:2;grid-column:1/-1}
+ .attendance-export .export-issue-row>div:nth-child(3){grid-row:3;grid-column:1/-1}
+ .attendance-export .export-issue-row>.export-view{grid-row:1;grid-column:2}
+ .attendance-export .export-issue-labels{display:none}
+ .attendance-export .export-clocks{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .attendance-export .export-details>summary>span{display:none}
+}
+@media(max-width:450px){.attendance-export .pagehead .actions{width:100%}.attendance-export .pagehead .actions>.btn{flex:1}.attendance-export .export-format-grid{grid-template-columns:1fr}.attendance-export .export-cutoff{display:block}.attendance-export .export-cutoff label{display:block;margin-bottom:6px}.attendance-export .export-cutoff select{width:100%}.attendance-export .export-status-top>.badge{margin-left:0}.attendance-export .export-meta{padding:0 18px 17px}.attendance-export .export-actions>.btn{flex:1}.attendance-export .export-setting-form .field{min-width:0;width:100%;flex-basis:100%}.attendance-export .export-group-row{align-items:flex-start}}
+@media(pointer:coarse){.attendance-export .btn,.attendance-export summary{min-height:44px}.attendance-export input,.attendance-export select{font-size:16px}}

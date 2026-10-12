@@ -6,6 +6,7 @@ require_once __DIR__ . '/EmployeeAttendanceViews.php';
 require_once __DIR__ . '/PayrollCutoffExportService.php';
 require_once __DIR__ . '/PayrollCutoffDocuments.php';
 require_once __DIR__ . '/PayrollCutoffViews.php';
+require_once __DIR__ . '/PayrollAttendanceExportViews.php';
 
 function payroll_post_action(): void
 {
@@ -44,6 +45,13 @@ function payroll_post_action(): void
             case 'payroll_v2_generate_cutoff':
                 $params=['cutoff_id'=>(int)($_POST['cutoff_id']??0)];PayrollCutoffExportService::generate($params['cutoff_id'],($_POST['filing_closed']??'')==='1');
                 flash('success','Complete cutoff saved and locked. Download Excel or PDF below.');redirect($back,$params);
+            case 'payroll_v2_download_cutoff':
+                $params=['cutoff_id'=>(int)($_POST['cutoff_id']??0)];
+                Auth::requirePermission('payroll.export');Auth::requirePermission('payroll.finalize');
+                $format=(string)($_POST['format']??'');
+                if(!in_array($format,['xlsx','pdf'],true)) throw new RuntimeException('Choose Excel or PDF.');
+                PayrollCutoffExportService::generate($params['cutoff_id'],($_POST['filing_closed']??'')==='1');
+                redirect('payroll-export',$params+['format'=>$format]);
             case 'payroll_v2_calendar_review':
                 $params=['cutoff_id'=>(int)($_POST['cutoff_id']??0)];
                 PayrollCutoffExportService::reviewCalendar($params['cutoff_id'],(array)($_POST['day_ids']??[]),(array)($_POST['source_hashes']??[]),(string)($_POST['classification']??''),(string)($_POST['reason']??''));break;
@@ -109,7 +117,7 @@ function payroll_post_action(): void
 }
 
 function payroll_cutoff_selector(array $cutoffs,int $selected,string $page): void { ?>
-    <form method="get" class="payroll-toolbar"><input type="hidden" name="page" value="<?=e($page)?>"><div class="field"><label for="payroll-cutoff-picker">Payroll cutoff</label><select id="payroll-cutoff-picker" name="cutoff_id" required><?php foreach($cutoffs as $c):?><option value="<?=$c['id']?>" <?=(int)$c['id']===$selected?'selected':''?>><?=e($c['period_start'].' to '.$c['period_end'])?></option><?php endforeach;?></select></div><button class="btn" type="submit">View cutoff</button></form>
+    <form method="get" class="payroll-toolbar" <?php if($page==='payroll-cutoff'):?>data-attendance-auto-filter<?php endif;?>><input type="hidden" name="page" value="<?=e($page)?>"><div class="field"><label for="payroll-cutoff-picker">Cutoff</label><select id="payroll-cutoff-picker" name="cutoff_id" required><?php foreach($cutoffs as $c):?><option value="<?=$c['id']?>" <?=(int)$c['id']===$selected?'selected':''?>><?=e(date('M j',strtotime($c['period_start'])).' – '.date('M j, Y',strtotime($c['period_end'])))?></option><?php endforeach;?></select></div><button class="btn" type="submit">View cutoff</button></form>
 <?php }
 function payroll_amount(mixed $value): string { return $value===null?'Pending computation':'₱'.number_format((float)$value,2); }
 function payroll_hours(mixed $minutes): string { return number_format((float)$minutes/60,2); }
@@ -152,8 +160,11 @@ function payroll_render(string $page): void
         $downloadCutoff=(int)($_GET['cutoff_id']??0);
         try {
             $format=(string)($_GET['format']??'csv');
+            $mode=(string)($_GET['mode']??'final');
+            if(!in_array($mode,['final','review'],true))throw new RuntimeException('Choose a valid attendance export.');
+            if($mode==='review'&&$format==='csv')throw new RuntimeException('Choose Excel or PDF for the current attendance.');
             if($format==='csv') payroll_export($downloadCutoff);
-            PayrollCutoffDocuments::download($downloadCutoff,$format);
+            PayrollCutoffDocuments::download($downloadCutoff,$format,$mode==='review');
         } catch(Throwable $error) {flash('error',$error instanceof RuntimeException?$error->getMessage():'The download could not finish. Check server storage and refresh the cutoff.');redirect('payroll-cutoff',['cutoff_id'=>$downloadCutoff]);}
     }
     if($page==='payroll-setup') {
@@ -180,15 +191,14 @@ function payroll_render(string $page): void
         }
         employee_attendance_page($cutoffs,$cutoffId,$model,$filter); exit;
     }
-    $rows=PayrollAttendanceService::dailyRows($cutoffId,$employeePage?(int)$employee['id']:null,$filter);
-    payroll_review_page($page,$kind,$cutoffs,$cutoffId,$run,$rows,$employeePage,$employee,$filter);
+    payroll_attendance_export_page($cutoffs,$cutoffId);
     exit;
 }
 
 
 function payroll_import_page(array $cutoffs,int $cutoffId): void
 {
-    render_portal_header('hr','payroll-import','Biometric Import'); page_head('HR Payroll / Attendance','Import Biometric Logs');
+    render_portal_header('hr','payroll-import','Import Logs'); page_head('HR / Payroll / Attendance','Import Biometric Logs',Auth::can('payroll.process')?'<a class="btn" href="'.url('payroll-cutoff',['cutoff_id'=>$cutoffId]).'">'.icon_svg('file').'Attendance Export</a>':'');
     $q=db()->query('SELECT i.*,c.period_start,c.period_end,COALESCE(b.name,"Automatic · all assigned sites") source_location FROM attendance_imports i JOIN payroll_cutoffs c ON c.id=i.cutoff_id LEFT JOIN branches b ON b.id=i.branch_id ORDER BY i.id DESC LIMIT 50'); $imports=$q->fetchAll();
     $automaticReady=PayrollAttendanceService::automaticImportReady();
     $old=$_SESSION['payroll_form_old']??[];

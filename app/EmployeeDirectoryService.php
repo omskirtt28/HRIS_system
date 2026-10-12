@@ -3,7 +3,8 @@ declare(strict_types=1);
 
 final class EmployeeDirectoryService
 {
-    private const STATUSES = ['ACTIVE','PROBATIONARY','ON_LEAVE','INACTIVE','RESIGNED','TERMINATED'];
+    // Separated employees (Inactive / Resigned / Terminated) live in the Employee Archive, not this directory.
+    private const STATUSES = ['ACTIVE','PROBATIONARY','ON_LEAVE'];
 
     public static function departmentLabel(string $name): string
     {
@@ -50,11 +51,11 @@ final class EmployeeDirectoryService
             'company_group'=>in_array(($input['company_group'] ?? ''),['SW','OC'],true)?$input['company_group']:'',
             'assigned_area_id'=>max(0,(int)($input['assigned_area_id'] ?? 0)),
             'q'=>mb_substr(trim((string)($input['q'] ?? '')), 0, 150),
-            'status'=>$status, 'needs_details'=>!empty($input['needs_details']) ? 1 : 0,
+            'status'=>$status, 'employee_status'=>max(0,(int)($input['employee_status'] ?? 0)), 'needs_details'=>!empty($input['needs_details']) ? 1 : 0,
             'view'=>(($input['view'] ?? '') === 'list') ? 'list' : '',
             'p'=>max(1, (int)($input['p'] ?? 1)),
         ];
-        $result = ['ready'=>$ready,'grouping_ready'=>false,'placement_ready'=>false,'state'=>$state,'areas'=>[], 'branches'=>[], 'departments'=>[], 'counts'=>array_fill_keys(array_keys(EmployeeDirectoryPlacement::GROUPS),0), 'cards'=>[], 'rows'=>[], 'total'=>0,'pages'=>1,'title'=>'Employees','subtitle'=>'Find employees by area, branch or department.','parent'=>[], 'crumbs'=>[], 'list'=>false,'grid_label'=>'areas','back_label'=>'areas','note'=>''];
+        $result = ['employee_statuses'=>$ready?array_values(array_filter(FoundationRepository::employmentTypes(),static fn($t)=>!empty($t['active']))):[],'ready'=>$ready,'grouping_ready'=>false,'placement_ready'=>false,'state'=>$state,'areas'=>[], 'branches'=>[], 'departments'=>[], 'counts'=>array_fill_keys(array_keys(EmployeeDirectoryPlacement::GROUPS),0), 'cards'=>[], 'rows'=>[], 'total'=>0,'pages'=>1,'title'=>'Employees','subtitle'=>'Find employees by area, branch or department.','parent'=>[], 'crumbs'=>[], 'list'=>false,'grid_label'=>'areas','back_label'=>'areas','note'=>''];
         if (!$ready) return $result;
 
         $hasArea = FoundationRepository::tableExists('areas') && self::has('branches','area_id');
@@ -110,6 +111,8 @@ final class EmployeeDirectoryService
         }
         $where = ['1=1']; $params = [];
         if ($state['status'] !== '') { $where[]='e.status=?'; $params[]=$state['status']; }
+        if ($state['employee_status']) { $where[]='e.employment_type_id=?'; $params[]=$state['employee_status']; }
+        if ($state['status'] === '') $where[]='e.status NOT IN ("'.implode('","',EmployeeRepository::ARCHIVED_STATUSES).'")';
         $hasPending = self::has('employees','roster_needs_details');
         if ($state['needs_details'] && $hasPending) $where[]='e.roster_needs_details=1';
         $aggregate = db()->prepare('SELECT '.$classification.' directory_group,e.branch_id,e.department_id,COUNT(*) employee_count'.$from.' WHERE '.implode(' AND ', $where).' GROUP BY directory_group,e.branch_id,e.department_id');
@@ -159,6 +162,7 @@ final class EmployeeDirectoryService
         $base = ['group'=>$state['group']];
         if ($state['needs_details']) $base['needs_details']=1;
         if ($state['status'] !== '') $base['status']=$state['status'];
+        if ($state['employee_status']) $base['employee_status']=$state['employee_status'];
         $result['crumbs'][]=['label'=>EmployeeDirectoryPlacement::GROUPS[$state['group']], 'params'=>$base];
         $result['parent']=$base;
 
@@ -280,7 +284,7 @@ final class EmployeeDirectoryService
                 $where[]='('.implode(' OR ', array_map(static fn($field)=>$field.' LIKE ?', $fields)).')';
                 foreach($fields as $field) $params[]='%'.$state['q'].'%';
             }
-            $joins=$from.' LEFT JOIN departments d ON d.id=e.department_id';
+            $joins=$from.' LEFT JOIN departments d ON d.id=e.department_id LEFT JOIN employment_types et ON et.id=e.employment_type_id';
             $countStatement=db()->prepare('SELECT COUNT(*)'.$joins.' WHERE '.implode(' AND ',$where));
             $countStatement->execute($params); $result['total']=(int)$countStatement->fetchColumn();
             $result['pages']=max(1,(int)ceil($result['total']/25));
@@ -288,7 +292,7 @@ final class EmployeeDirectoryService
             $company='NULL business_unit_name,NULL legal_entity_name';
             if(FoundationRepository::tableExists('business_units') && self::has('employees','business_unit_id')) { $joins.=' LEFT JOIN business_units bu ON bu.id=e.business_unit_id'; $company='bu.name business_unit_name,NULL legal_entity_name'; }
             if(FoundationRepository::tableExists('legal_entities') && self::has('employees','legal_entity_id')) { $joins.=' LEFT JOIN legal_entities le ON le.id=e.legal_entity_id'; $company=str_replace('NULL legal_entity_name','le.name legal_entity_name',$company); }
-            $statement=db()->prepare('SELECT e.*,d.name department_name,p.name position_name,b.name branch_name,b.code branch_code,'.$company.','.$workplace.' workplace,'.$placement['company'].' directory_company,'.$placement['role'].' directory_section'.$joins.' WHERE '.implode(' AND ',$where).' ORDER BY e.last_name,e.first_name,e.id LIMIT 25 OFFSET '.$offset);
+            $statement=db()->prepare('SELECT e.*,et.name employment_type_name,d.name department_name,p.name position_name,b.name branch_name,b.code branch_code,'.$company.','.$workplace.' workplace,'.$placement['company'].' directory_company,'.$placement['role'].' directory_section'.$joins.' WHERE '.implode(' AND ',$where).' ORDER BY e.last_name,e.first_name,e.id LIMIT 25 OFFSET '.$offset);
             $statement->execute($params); $result['rows']=$statement->fetchAll();
         } else {
             if($state['q']!=='') $result['cards']=array_values(array_filter($result['cards'],static fn($card)=>mb_stripos($card['title'].' '.$card['detail'],$state['q'])!==false));

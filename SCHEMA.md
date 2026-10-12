@@ -618,3 +618,6 @@ Phase 3A adds `areas`, branch-to-area mapping, `employees.manager_employee_id`, 
 - `positions` — normalized roster-derived Position master with optional default Department.
 - `branches` — roster-derived Branch / Site records with optional default Business Unit, Legal Entity, site type, source values, and mapping status.
 - Legacy referenced master rows are retained as inactive for historical/FK safety.
+
+### Employee Status (`employment_types`)
+`employment_types` is the **Employee Status** master shown to HR (Regular, Probationary, Seasonal, Resign, Contractual, Part Time, Returnee-Probationary, Maternity Leave, On Leave; Project-Based and Fixed-Term remain; Intern is retired). HR chooses only this value; `EmployeeStatusPolicy` derives the internal `employees.status` that payroll, approvals, login and the directory read: Probationary / Returnee-Probationary → `PROBATIONARY`; On Leave / Maternity Leave → `ON_LEAVE`; Resign → `RESIGNED` (Employee Archive); everything else → `ACTIVE`. Setup: `database/migrations/20261012_employee_status.sql`.

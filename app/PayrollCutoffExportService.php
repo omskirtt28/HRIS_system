@@ -2,8 +2,9 @@
 declare(strict_types=1);
 require_once __DIR__.'/EmployeeDirectoryHierarchy.php';
 require_once __DIR__.'/EmployeeDirectoryService.php';
+require_once __DIR__.'/PayrollCutoffExportReview.php';
 
-/** One complete, immutable cutoff shared by every download format. */
+/** Current reports and complete, immutable cutoff downloads. */
 final class PayrollCutoffExportService
 {
     public static function ready(): bool
@@ -61,13 +62,14 @@ final class PayrollCutoffExportService
     public static function model(int $cutoffId): array
     {
         self::requireReady(); $run=PayrollAttendanceService::run($cutoffId); $batch=self::batch($cutoffId);
-        if($batch) return self::saved($cutoffId)+['run'=>$run,'batch'=>$batch,'pending'=>0,'unmapped'=>0,'unapplied'=>0,'pending_leave'=>0,'problems'=>[],'calendar'=>[]];
+        if($batch) return self::saved($cutoffId)+['run'=>$run,'batch'=>$batch,'pending'=>0,'unmapped'=>0,'unapplied'=>0,'pending_leave'=>0,'problems'=>[],'calendar'=>[],'review_requests'=>[],'review_leave'=>[]];
         $roster=self::roster($cutoffId); $q=db()->prepare('SELECT * FROM attendance_daily WHERE cutoff_id=?');$q->execute([$cutoffId]);$days=[];
         foreach($q->fetchAll() as $d) $days[(int)$d['employee_id']][$d['work_date']]=$d;
         $q=db()->prepare('SELECT * FROM payroll_cutoff_day_reviews WHERE cutoff_id=?');$q->execute([$cutoffId]);$reviews=[];
         foreach($q->fetchAll() as $r) $reviews[$r['employee_id'].'|'.$r['work_date']]=$r;
         $evidence=[];$q=db()->prepare('SELECT DISTINCT employee_id,DATE(punched_at) punch_date FROM attendance_punches WHERE punched_at>=? AND punched_at<?');
-        $q->execute([$run['period_start'].' 00:00:00',(new DateTimeImmutable($run['period_end']))->modify('+2 days')->format('Y-m-d').' 00:00:00']);foreach($q->fetchAll() as $p)$evidence[$p['employee_id'].'|'.$p['punch_date']]=true;
+        $q->execute([$run['period_start'].' 00:00:00',(new DateTimeImmutable($run['period_end']))->modify('+2 days')->format('Y-m-d').' 00:00:00']);$withLogs=[];
+        foreach($q->fetchAll() as $p){$evidence[$p['employee_id'].'|'.$p['punch_date']]=true;$withLogs[(int)$p['employee_id']]=true;}
         $rows=[];$problems=[];$calendar=[];
         foreach($roster as $id=>$e) for($date=new DateTimeImmutable($run['period_start']);$date<=new DateTimeImmutable($run['period_end']);$date=$date->modify('+1 day')) {
             $workDate=$date->format('Y-m-d');$d=$days[$id][$workDate]??null;
@@ -85,7 +87,11 @@ final class PayrollCutoffExportService
             }
             $d['_employee']=$e;
             // OB does not excuse unknown clock fields in a complete attendance export.
-            if(in_array($d['state'],['COMPLETE','CORRECTED','APPROVED_OB'],true)) foreach(PayrollCalculator::FIELDS as $f) if(empty($d[$f])) {$d['state']='ISSUES';break;}
+            if(in_array($d['state'],['COMPLETE','CORRECTED','APPROVED_OB'],true)) {
+                $issues=json_decode($d['issues_json'],true)?:[];
+                foreach(PayrollCalculator::FIELDS as $f) if(empty($d[$f])) {$d['state']='ISSUES';$issues[]='MISSING_'.strtoupper($f);}
+                $d['issues_json']=json_encode(array_values(array_unique($issues)),JSON_THROW_ON_ERROR);
+            }
             if($d['state']==='AWAITING_LOGS') $calendar[]=$d;
             elseif($d['state']==='ISSUES') $problems[]=$d;
             $rows[]=$d;
@@ -94,7 +100,54 @@ final class PayrollCutoffExportService
         $q=db()->prepare('SELECT COUNT(*) FROM leave_requests WHERE date_from<=? AND date_to>=? AND status NOT IN ("APPROVED","REJECTED","CANCELLED","DRAFT")');$q->execute([$run['period_end'],$run['period_start']]);$pendingLeave=(int)$q->fetchColumn();
         $q=db()->prepare('SELECT COUNT(*) FROM attendance_import_rows r JOIN attendance_imports i ON i.id=r.import_id WHERE i.cutoff_id=? AND i.state="IMPORTED" AND r.row_state="UNMAPPED"');$q->execute([$cutoffId]);$unknown=(int)$q->fetchColumn();
         $q=db()->prepare('SELECT COUNT(*) FROM payroll_requests pr JOIN payroll_request_types t ON t.id=pr.request_type_id LEFT JOIN payroll_backpay_claims bc ON bc.request_id=pr.id LEFT JOIN payroll_request_applications pa ON pa.request_id=pr.id WHERE pr.cutoff_id=? AND bc.request_id IS NULL AND t.code IN ("TA","PTA","OB","POB","OT","POT") AND pr.status IN ("APPROVED","COMPLETED") AND COALESCE(pa.application_state,"")<>"APPLIED"');$q->execute([$cutoffId]);$unapplied=(int)$q->fetchColumn();
-        return ['run'=>$run,'batch'=>null,'employees'=>$roster,'rows'=>$rows,'pending'=>$pending,'pending_leave'=>$pendingLeave,'unmapped'=>$unknown,'unapplied'=>$unapplied,'problems'=>$problems,'calendar'=>$calendar];
+        return ['run'=>$run,'batch'=>null,'employees'=>$roster,'rows'=>$rows,'pending'=>$pending,'pending_leave'=>$pendingLeave,'unmapped'=>$unknown,'unapplied'=>$unapplied,'problems'=>$problems,'calendar'=>$calendar,
+            'with_logs'=>$withLogs,'source_gaps'=>self::sourceGaps($roster,$withLogs),
+            'review_requests'=>self::reviewRequests($cutoffId),'review_leave'=>self::reviewLeave($run)];
+    }
+
+    /** Which export sections have employees with no biometric punch anywhere in the imported files. */
+    private static function sourceGaps(array $roster,array $withLogs): array
+    {
+        $sections=[];$none=[];
+        foreach($roster as $id=>$e) {
+            $section=(string)$e['export_section'];$sections[$section]??=['total'=>0,'with_logs'=>0];$sections[$section]['total']++;
+            if(isset($withLogs[$id]))$sections[$section]['with_logs']++;else $none[]=$id;
+        }
+        ksort($sections,SORT_NATURAL|SORT_FLAG_CASE);
+        return ['sections'=>$sections,'no_log_employees'=>$none,'no_log_sections'=>count(array_filter($sections,static fn($s)=>$s['with_logs']===0))];
+    }
+
+    private static function reviewRequests(int $cutoffId): array
+    {
+        $q=db()->prepare('SELECT pr.id,pr.request_no,pr.employee_id,pr.affected_date,pr.status,pr.reason,pr.remarks,
+            t.code type_code,t.name type_name,a.approver_type,u.full_name approver_name,
+            te.time_in,te.lunch_out,te.lunch_in,te.time_out,te.ot_start,te.ot_end,pa.application_state,
+            e.employee_no,CONCAT_WS(" ",e.first_name,e.last_name) employee_name,
+            COALESCE(d.name,"To assign") department_name,COALESCE(b.name,"To assign") branch_name
+            FROM payroll_requests pr JOIN payroll_request_types t ON t.id=pr.request_type_id JOIN employees e ON e.id=pr.employee_id
+            LEFT JOIN departments d ON d.id=e.department_id LEFT JOIN branches b ON b.id=e.branch_id
+            LEFT JOIN payroll_backpay_claims bc ON bc.request_id=pr.id LEFT JOIN payroll_request_applications pa ON pa.request_id=pr.id
+            LEFT JOIN payroll_request_time_entries te ON te.request_id=pr.id
+            LEFT JOIN payroll_request_approvals a ON a.request_id=pr.id AND a.step_no=pr.current_step AND a.status="PENDING"
+            LEFT JOIN users u ON u.id=a.approver_user_id
+            WHERE ((pr.cutoff_id=? OR bc.processing_cutoff_id=?) AND pr.status NOT IN ("APPROVED","COMPLETED","REJECTED","CANCELLED","DRAFT"))
+            OR (pr.cutoff_id=? AND bc.request_id IS NULL AND t.code IN ("TA","PTA","OB","POB","OT","POT")
+                AND pr.status IN ("APPROVED","COMPLETED") AND COALESCE(pa.application_state,"")<>"APPLIED")
+            ORDER BY pr.affected_date,pr.id');
+        $q->execute([$cutoffId,$cutoffId,$cutoffId]);return $q->fetchAll();
+    }
+
+    private static function reviewLeave(array $run): array
+    {
+        $q=db()->prepare('SELECT lr.id,lr.request_no,lr.employee_id,lr.date_from,lr.date_to,lr.status,lt.name type_name,
+            a.approver_type,u.full_name approver_name,e.employee_no,CONCAT_WS(" ",e.first_name,e.last_name) employee_name,
+            COALESCE(d.name,"To assign") department_name,COALESCE(b.name,"To assign") branch_name
+            FROM leave_requests lr JOIN leave_types lt ON lt.id=lr.leave_type_id JOIN employees e ON e.id=lr.employee_id
+            LEFT JOIN departments d ON d.id=e.department_id LEFT JOIN branches b ON b.id=e.branch_id
+            LEFT JOIN leave_request_approvals a ON a.request_id=lr.id AND a.step_no=lr.current_step AND a.status="PENDING"
+            LEFT JOIN users u ON u.id=a.approver_user_id
+            WHERE lr.date_from<=? AND lr.date_to>=? AND lr.status NOT IN ("APPROVED","REJECTED","CANCELLED","DRAFT") ORDER BY lr.date_from,lr.id');
+        $q->execute([$run['period_end'],$run['period_start']]);return $q->fetchAll();
     }
 
     public static function reviewCalendar(int $cutoffId,array $ids,array $hashes,string $classification,string $reason): void
@@ -173,6 +226,52 @@ final class PayrollCutoffExportService
     public static function otMinutes(array $d): int
     {
         return (int)($d['regular_ot_minutes']??0)+(int)($d['night_ot_minutes']??0)+(int)($d['holiday_ot_minutes']??0)+(int)($d['holiday_night_ot_minutes']??0);
+    }
+
+    /** A current report may contain incomplete attendance. It never finalizes the cutoff. */
+    public static function currentReport(int $cutoffId): array
+    {
+        Auth::requirePermission('payroll.export');Auth::requirePermission('payroll.process');self::requireReady();
+        $ownTransaction=!db()->inTransaction();if($ownTransaction)db()->beginTransaction();
+        try {
+            // Saved daily rows can lag behind employee changes and later imports; refresh open cutoffs first.
+            $run=PayrollAttendanceService::run($cutoffId);
+            if($run['run_state']!=='FINALIZED'&&!self::batch($cutoffId)){PayrollAttendanceService::rematchImportedRows($cutoffId);PayrollAttendanceService::rebuild($cutoffId);}
+            $model=self::model($cutoffId);
+            if(!$model['rows'])throw new RuntimeException('No employees are included in this cutoff yet.');
+            $checks=PayrollCutoffExportReview::build($model,PayrollAttendanceService::sourceCoverage($cutoffId));$today=date('Y-m-d');
+            $q=db()->prepare('SELECT pr.employee_id,pr.affected_date,pr.id,prt.code type_code,t.time_in,t.lunch_out,t.lunch_in,t.time_out FROM payroll_requests pr JOIN payroll_request_types prt ON prt.id=pr.request_type_id LEFT JOIN payroll_request_time_entries t ON t.request_id=pr.id WHERE pr.cutoff_id=? AND pr.status IN ("APPROVED","COMPLETED") AND EXISTS(SELECT 1 FROM payroll_request_approvals a WHERE a.request_id=pr.id AND a.approver_type IN ("MANAGER","ADL") AND a.status="APPROVED")');
+            $q->execute([$cutoffId]);$approved=[];
+            foreach($q->fetchAll() as $request)$approved[$request['employee_id'].'|'.$request['affected_date']][]=$request;
+            $pending=[];
+            foreach($model['review_requests']??[] as $request)$pending[$request['employee_id'].'|'.$request['affected_date']][]=$request['type_code'].' '.$request['request_no'].' / '.PayrollCutoffExportReview::stage($request);
+            foreach($model['review_leave']??[] as $request) {
+                $end=min($model['run']['period_end'],$request['date_to']);
+                for($date=new DateTimeImmutable(max($model['run']['period_start'],$request['date_from']));$date->format('Y-m-d')<=$end;$date=$date->modify('+1 day'))
+                    $pending[$request['employee_id'].'|'.$date->format('Y-m-d')][]='Leave '.$request['request_no'].' / '.PayrollCutoffExportReview::stage($request);
+            }
+            foreach($model['rows'] as &$day) {
+                $key=$day['employee_id'].'|'.$day['work_date'];
+                if(!$model['batch']) {
+                    $day['export_marks']=[];$snapshot=json_decode($day['rate_snapshot_json'],true)?:[];$original=[];
+                    foreach(PayrollCalculator::FIELDS as $field)$original[$field]=$day['original_'.$field]??null;
+                    $requests=$approved[$key]??[];$types=array_column($requests,'type_code','id');
+                    $proposals=PayrollCalculator::timeProposals($day['work_date'],$snapshot['site']??[],$requests,(bool)($snapshot['ob_time_out_allowed']??true),$original);
+                    foreach(PayrollCalculator::FIELDS as $field)foreach($proposals[$field]??[] as $proposal)
+                        if($day[$field]===$proposal['value'])$day['export_marks'][$field]=str_ends_with($types[$proposal['request_id']],'TA')?'TA':'OB';
+                    if(self::otMinutes($day)>0)$day['export_marks']['ot']='OT';
+                }
+                $day['export_missing']=$day['work_date']<$today?array_values(PayrollCutoffExportReview::missing($day)):[];
+                $day['export_review_notes']=array_merge(PayrollCutoffExportReview::issueLabels($day),$pending[$key]??[]);
+                if($day['state']==='AWAITING_LOGS')$day['export_day_label']=$day['work_date']>=$today?'In progress':(isset($model['with_logs'])&&empty($model['with_logs'][(int)$day['employee_id']])?'No biometric logs received for this employee':(!empty($model['run']['covered_through'])&&$day['work_date']<=$model['run']['covered_through']?'No logs / Check work calendar':'Waiting for files'));
+                elseif($day['state']==='ISSUES'&&$day['work_date']>=$today)$day['export_day_label']='In progress';
+            }
+            unset($day);
+            $model['report_meta']=['for_review'=>true,'generated_at'=>date('Y-m-d H:i:s'),'employee_count'=>count($model['employees']),
+                'notice'=>$checks['pending'].' pending requests / '.$checks['missing_dates'].' dates with missing logs / '.$checks['calendar_dates'].' work-calendar dates to review / '.(int)$model['unapplied'].' approved requests need matching / '.(int)$model['unmapped'].' unmatched imported rows'
+                .(isset($model['source_gaps'])?' / '.count($model['source_gaps']['no_log_employees']).' employees have no biometric logs ('.$model['source_gaps']['no_log_sections'].' groups with none)':'')];
+            if($ownTransaction)db()->commit();return $model;
+        } catch(Throwable $error) {if($ownTransaction&&db()->inTransaction())db()->rollBack();throw $error;}
     }
 
     private static function ids(array $ids): array

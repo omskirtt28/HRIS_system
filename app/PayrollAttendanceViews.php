@@ -12,8 +12,10 @@ function payroll_review_page(string $page,string $kind,array $cutoffs,int $cutof
     if(!$employeePage && PayrollCutoffExportService::ready()) {
         try {
             $exportModel=PayrollCutoffExportService::model($cutoffId);$rows=[];
+            $group=trim((string)($_GET['group']??''));
             foreach($exportModel['rows'] as $day) {
                 if($filter==='ISSUES'&&!in_array($day['state'],['ISSUES','AWAITING_LOGS'],true))continue;
+                if($group!==''&&$day['_employee']['export_section']!==$group)continue;
                 $rows[]=$day+['employee_name'=>$day['_employee']['employee_name'],'employee_no'=>$day['_employee']['employee_no'],'branch_name'=>$day['_employee']['branch_name']];
             }
             usort($rows,static fn($a,$b)=>strcasecmp($a['employee_name'],$b['employee_name'])?:strcmp($a['work_date'],$b['work_date']));
@@ -43,7 +45,7 @@ function payroll_review_page(string $page,string $kind,array $cutoffs,int $cutof
     payroll_cutoff_selector($cutoffs,$cutoffId,$page); ?>
     <?php if(!$employeePage) {
         payroll_cutoff_export_panel($cutoffId,$exportModel);
-        if(PayrollCutoffExportService::batch($cutoffId) && ($_GET['details']??'')!=='1') {render_portal_footer();return;}
+        if($exportModel!==null && ($_GET['details']??'')!=='1') {render_portal_footer();return;}
     } ?>
     <div class="alert info"><?php if($employeePage):?>Approved ticket times appear in your matching attendance day. Use View day to see the original logs and applied corrections.<?php else:?>3. Review daily attendance and approved tickets here. Manager/ADL-approved corrections appear in the matching day, even when the original biometric file has no row for that date. Salary and OT amounts are computed manually.<?php endif;?></div>
     <?php if($run['run_state']==='FINALIZED'):?><p class="small muted">This attendance cutoff is locked. Historical hours retain their saved calculation; no monetary amounts are shown.</p><?php endif;?>
@@ -80,7 +82,7 @@ function payroll_review_page(string $page,string $kind,array $cutoffs,int $cutof
     <?php if(!$rows):?><tr><td colspan="<?=$employeePage?9:10?>" class="empty">No attendance records for this selection.</td></tr><?php endif; foreach(array_slice($rows,($dayPage-1)*100,100) as $r): $noLogs=$r['state']==='AWAITING_LOGS'; $issue=$r['state']==='ISSUES'; ?>
     <tr class="<?=$issue?'payroll-issue-row':''?>"><?php if(!$employeePage):?><td><strong><?=e($r['employee_name'])?></strong><small><?=e($r['employee_no'].' · '.$r['branch_name'])?></small></td><?php endif;?><td><?=e($r['work_date'])?></td><?php foreach(PayrollCalculator::FIELDS as $field):?><td class="<?=$r[$field]===null?'payroll-missing':''?>"><?=payroll_clock($r[$field])?><?php if($r[$field]!==$r['original_'.$field]):?><small>Adjusted</small><?php endif;?></td><?php endforeach;?><td><span class="badge <?=$noLogs?'gray':($issue?'amber':'green')?>"><?=e($noLogs?'No logs / calendar review':stage_label($r['state']))?></span><small><?=e(implode(', ',array_map('stage_label',json_decode($r['issues_json'],true)?:[])))?></small></td><td><?=$needsRefresh?'Refresh required':($noLogs?'—':payroll_hours($r['regular_minutes']))?></td><td><?=$needsRefresh?'Refresh required':($noLogs?'—':payroll_hours(payroll_review_ot_minutes($r)))?></td><td><?php if($r['id']):?><a class="btn sm" href="<?=url('payroll-attendance-day',['id'=>$r['id']])?>">View day</a><?php else:?>—<?php endif;?><?php if($employeePage && $run['run_state']!=='FINALIZED'):?><a class="btn primary sm" href="<?=url('employee-request-new',['date'=>$r['work_date'],'type'=>'TA'])?>">File TA</a><?php endif;?></td></tr>
     <?php endforeach;?></tbody></table></div></section>
-    <div class="cutoff-pagination"><span>Daily attendance: page <?=$dayPage?> of <?=$dayPages?> · <?=count($rows)?> dates</span><?php foreach([-1=>'Previous',1=>'Next'] as $change=>$label)if($dayPage+$change>=1&&$dayPage+$change<=$dayPages):?><a class="btn sm" href="<?=url($page,['cutoff_id'=>$cutoffId,'filter'=>$filter,'details'=>'1','day_page'=>$dayPage+$change])?>"><?=$label?></a><?php endif;?></div>
+    <div class="cutoff-pagination"><span>Daily attendance: page <?=$dayPage?> of <?=$dayPages?> · <?=count($rows)?> dates<?php if(!empty($group)):?> · <?=e($group)?><?php endif;?></span><?php foreach([-1=>'Previous',1=>'Next'] as $change=>$label)if($dayPage+$change>=1&&$dayPage+$change<=$dayPages):?><a class="btn sm" href="<?=url($page,['cutoff_id'=>$cutoffId,'filter'=>$filter,'details'=>'1','group'=>$group??'','day_page'=>$dayPage+$change])?>"><?=$label?></a><?php endif;?></div>
     <?php render_portal_footer();
 }
 

@@ -103,7 +103,7 @@ final class FoundationRepository
         $orgJoin=$hasOrg?' LEFT JOIN business_units bu ON bu.id=b.default_business_unit_id LEFT JOIN legal_entities le ON le.id=b.default_legal_entity_id ':'';
         $select='SELECT b.*,c.name client_name'
             .($hasAreas?',a.name area_name,a.code area_code':',NULL area_name,NULL area_code')
-            .($hasOrg?',bu.name business_unit_name,bu.code business_unit_code,le.name legal_entity_name,le.code legal_entity_code':',NULL business_unit_name,NULL business_unit_code,NULL legal_entity_name,NULL legal_entity_code')
+            .($hasOrg?',bu.name business_unit_name,bu.code business_unit_code,bu.company_group business_unit_group,le.name legal_entity_name,le.code legal_entity_code':',NULL business_unit_name,NULL business_unit_code,NULL business_unit_group,NULL legal_entity_name,NULL legal_entity_code')
             .' FROM branches b LEFT JOIN clients c ON c.id=b.client_id '.$areaJoin.$orgJoin
             .' ORDER BY b.active DESC,b.name,COALESCE(b.code,"")';
         return db()->query($select)->fetchAll();
@@ -145,14 +145,26 @@ final class FoundationRepository
         return db()->query('SELECT s.*,u.full_name,u.email,r.name role_name FROM user_sessions s JOIN users u ON u.id=s.user_id JOIN roles r ON r.id=u.role_id ORDER BY s.last_activity_at DESC LIMIT '.$limit)->fetchAll();
     }
 
-    public static function createBusinessUnit(string $code,string $name): void
+    /** Company Group (Company Name filter): code => label. */
+    public static function companyGroups(): array { return ['SW'=>'Sw','OC'=>"Ocampo's",'UF'=>'Urban Farm']; }
+
+    /** Employer is always PMBSI. */
+    public static function pmbsiEntityId(): ?int
+    {
+        if(!self::tableExists('legal_entities')) return null;
+        $id=db()->query('SELECT id FROM legal_entities WHERE code="PMBSI"')->fetchColumn();
+        return $id===false?null:(int)$id;
+    }
+
+    public static function createBusinessUnit(string $code,string $name,string $group=''): void
     {
         if(!self::tableExists('business_units')) throw new RuntimeException('Import the Organization Master migration first.');
-        $code=strtoupper(trim($code));$name=trim($name);
-        if($code===''||$name==='') throw new RuntimeException('Business unit code and name are required.');
-        $st=db()->prepare('INSERT INTO business_units(code,name,active,sort_order) VALUES(?,?,1,100)');
-        $st->execute([$code,$name]);
-        audit('Organization','CREATE_BUSINESS_UNIT','business_unit',(int)db()->lastInsertId(),['code'=>$code,'name'=>$name]);
+        $code=strtoupper(trim($code));$name=trim($name);$group=strtoupper(trim($group));
+        if($code===''||$name==='') throw new RuntimeException('Company Name code and name are required.');
+        if(!isset(self::companyGroups()[$group])) throw new RuntimeException('Choose the Company Group for this Company Name.');
+        $st=db()->prepare('INSERT INTO business_units(code,name,company_group,active,sort_order) VALUES(?,?,?,1,300)');
+        $st->execute([$code,$name,$group]);
+        audit('Organization','CREATE_BUSINESS_UNIT','business_unit',(int)db()->lastInsertId(),['code'=>$code,'name'=>$name,'company_group'=>$group]);
     }
 
     public static function createLegalEntity(string $code,string $name): void
@@ -216,7 +228,7 @@ final class FoundationRepository
     {
         if(!self::tableExists('employment_types')) throw new RuntimeException('Run the Phase 1 foundation migration first.');
         $code=strtoupper(trim($code)); $name=trim($name);
-        if($code===''||$name==='') throw new RuntimeException('Employment type code and name are required.');
+        if($code===''||$name==='') throw new RuntimeException('Employee Status code and name are required.');
         $st=db()->prepare('INSERT INTO employment_types(code,name,active,sort_order) VALUES(?,?,1,100)'); $st->execute([$code,$name]);
         audit('Organization','CREATE_EMPLOYMENT_TYPE','employment_type',(int)db()->lastInsertId(),['code'=>$code,'name'=>$name]);
     }

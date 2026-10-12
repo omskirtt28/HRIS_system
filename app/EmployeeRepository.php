@@ -2,9 +2,14 @@
 declare(strict_types=1);
 require_once __DIR__.'/EmployeeDirectoryPlacement.php';
 
+require_once __DIR__.'/EmployeeStatusPolicy.php';
+require_once __DIR__.'/EmployeeArchiveService.php';
+
 final class EmployeeRepository
 {
     private const STATUSES=['ACTIVE','PROBATIONARY','ON_LEAVE','INACTIVE','RESIGNED','TERMINATED'];
+    /** Separated employees: kept in the Employee Archive, outside the main directory. Changed only through EmployeeArchiveService. */
+    public const ARCHIVED_STATUSES=['INACTIVE','RESIGNED','TERMINATED'];
     private const GOV_ID_TYPES=['SSS','PHILHEALTH','PAGIBIG','TIN','UMID','PASSPORT','DRIVERS_LICENSE','PRC','OTHER'];
     private const DOC_TYPES=['CONTRACT','RESUME','NBI_CLEARANCE','POLICE_CLEARANCE','MEDICAL','GOVERNMENT_ID','CERTIFICATE','MEMO','OTHER'];
 
@@ -69,6 +74,7 @@ final class EmployeeRepository
         }
         $status=strtoupper(trim((string)($filters['status']??'')));
         if($status!==''){ $where[]='e.status=?'; $params[]=$status; }
+        else $where[]='e.status NOT IN ("'.implode('","',self::ARCHIVED_STATUSES).'")';
         $sql='SELECT e.*,d.name department_name,p.name position_name,b.name branch_name,b.code branch_code,et.name employment_type_name,u.email user_email
               FROM employees e
               LEFT JOIN departments d ON d.id=e.department_id
@@ -174,6 +180,9 @@ final class EmployeeRepository
     {
         if(!self::ready()) throw new RuntimeException('Run the Phase 2A employee migration first.');
         [$employeeNo,$first,$middle,$last,$suffix,$companyEmail,$personalEmail,$status,$userId,$departmentId,$positionId,$branchId,$employmentTypeId,$hireDate,$regularizationDate]=self::validatedEmployeeData($data,null);
+        if(!empty($data['require_employee_status']) && !$employmentTypeId) throw new RuntimeException('Choose an Employee Status.');
+        self::assertEmployeeStatusActive($employmentTypeId,null);
+        if(in_array($status,self::ARCHIVED_STATUSES,true)) throw new RuntimeException('Choose an Employee Status other than Resign when creating an employee. Use Set inactive, Terminated or Resign later from the Employee 201 File.');
         $createdBy=(int)(Auth::user()['id']??0) ?: null;
         $sql='INSERT INTO employees(employee_no,user_id,first_name,middle_name,last_name,suffix,preferred_name,company_email,personal_email,mobile_no,birth_date,gender,civil_status,address_text,department_id,position_id,branch_id,employment_type_id,hire_date,regularization_date,status,created_by,updated_by)
               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)';
@@ -186,6 +195,11 @@ final class EmployeeRepository
         try { $st=db()->prepare($sql); $st->execute($params); }
         catch(PDOException $e){ self::throwDuplicateEmployee($e); throw $e; }
         $id=(int)db()->lastInsertId();
+        if(self::columnExists('employees','business_unit_id') && self::columnExists('employees','legal_entity_id')) {
+            [$companyId,$companyGroup]=self::resolveCompany($data,[],$branchId);
+            db()->prepare('UPDATE employees SET business_unit_id=?,legal_entity_id=? WHERE id=?')->execute([$companyId,FoundationRepository::pmbsiEntityId(),$id]);
+            if($companyGroup!==null && self::columnExists('employees','directory_company_group')) db()->prepare('UPDATE employees SET directory_company_group=? WHERE id=? AND (directory_company_group IS NULL OR directory_company_group="")')->execute([$companyGroup,$id]);
+        }
         audit('Employees','CREATE_EMPLOYEE','employee',$id,['employee_no'=>$employeeNo,'name'=>trim($first.' '.$last),'status'=>$status]);
         if(self::phase2Ready()) self::addHistory($id,'HIRED',$hireDate,null,[
             'department_id'=>$departmentId,'position_id'=>$positionId,'branch_id'=>$branchId,'employment_type_id'=>$employmentTypeId,'status'=>$status
@@ -240,7 +254,7 @@ final class EmployeeRepository
         }
         // Each sheet supplies only one kind of COMPANY. Keep the other existing value.
         $brand = $data['business_unit_id'] ?? ($old['business_unit_id'] ?? null);
-        $employer = $data['legal_entity_id'] ?? ($old['legal_entity_id'] ?? null);
+        $employer = FoundationRepository::pmbsiEntityId() ?? $data['legal_entity_id'] ?? ($old['legal_entity_id'] ?? null);
         $st = db()->prepare('UPDATE employees SET business_unit_id=?,legal_entity_id=?,roster_full_name=?,roster_group=?,roster_original_code=?,roster_source_key=COALESCE(roster_source_key,?),roster_pending_json=?,roster_needs_details=? WHERE id=?');
         $st->execute([$brand,$employer,$data['roster_full_name'],$data['roster_group'],mb_substr((string)($data['roster_original_code'] ?? ''),0,50) ?: null,$data['roster_source_key'],json_encode($pending,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$pending ? 1 : 0,$existingId]);
         self::refreshRosterDetails($existingId);
@@ -294,6 +308,21 @@ final class EmployeeRepository
         [$employeeNo,$first,$middle,$last,$suffix,$companyEmail,$personalEmail,$status,$userId,$departmentId,$positionId,$branchId,$employmentTypeId,$hireDate,$regularizationDate]=self::validatedEmployeeData(array_merge($old,$data),$id);
         $effectiveDate=self::dateOrNull((string)($data['effective_date']??'')) ?: date('Y-m-d');
         $remarks=trim((string)($data['remarks']??''));
+        $oldTypeId=$old['employment_type_id']!==null?(int)$old['employment_type_id']:null;
+        $resigning=false;
+        if(in_array((string)$old['status'],self::ARCHIVED_STATUSES,true)) {
+            if($employmentTypeId!==$oldTypeId) throw new RuntimeException('This employee is in the Employee Archive. Restore the employee first, then change the Employee Status.');
+            $status=(string)$old['status'];
+        } else {
+            self::assertEmployeeStatusActive($employmentTypeId,$oldTypeId);
+            if($status==='RESIGNED') {
+                // Resign moves the employee to the Employee Archive (login deactivated, history written) after the other changes are saved.
+                $resigning=true;$status=(string)$old['status'];$employmentTypeId=$oldTypeId;
+                if($remarks==='') throw new RuntimeException('Enter the remarks (reason) for the resignation.');
+            } elseif(in_array($status,self::ARCHIVED_STATUSES,true)) throw new RuntimeException('Use Set inactive, Terminated or Restore on the Employee 201 File to move an employee in or out of the Employee Archive.');
+        }
+        $oldTypeCode=EmployeeStatusPolicy::code($oldTypeId);$newTypeCode=EmployeeStatusPolicy::code($employmentTypeId);
+        if($employmentTypeId!==$oldTypeId && EmployeeStatusPolicy::isProbation($oldTypeCode) && $newTypeCode==='REGULAR' && !$regularizationDate) $regularizationDate=$effectiveDate;
         $before=[
             'department_id'=>$old['department_id']!==null?(int)$old['department_id']:null,'position_id'=>$old['position_id']!==null?(int)$old['position_id']:null,
             'branch_id'=>$old['branch_id']!==null?(int)$old['branch_id']:null,'employment_type_id'=>$old['employment_type_id']!==null?(int)$old['employment_type_id']:null,'manager_employee_id'=>isset($old['manager_employee_id'])&&$old['manager_employee_id']!==null?(int)$old['manager_employee_id']:null,'status'=>(string)$old['status']
@@ -302,7 +331,7 @@ final class EmployeeRepository
         self::validateImmediateManager($managerEmployeeId,$id);
         $after=['department_id'=>$departmentId,'position_id'=>$positionId,'branch_id'=>$branchId,'employment_type_id'=>$employmentTypeId,'manager_employee_id'=>$managerEmployeeId,'status'=>$status];
         $changed=[];foreach($before as $k=>$v) if($v!==$after[$k])$changed[]=$k;
-        db()->beginTransaction();
+        $owned=!db()->inTransaction();if($owned)db()->beginTransaction();
         try{
             $hasManager=self::columnExists('employees','manager_employee_id');
             $sql=$hasManager?'UPDATE employees SET employee_no=?,user_id=?,department_id=?,position_id=?,branch_id=?,employment_type_id=?,manager_employee_id=?,hire_date=?,regularization_date=?,status=?,updated_by=? WHERE id=?':'UPDATE employees SET employee_no=?,user_id=?,department_id=?,position_id=?,branch_id=?,employment_type_id=?,hire_date=?,regularization_date=?,status=?,updated_by=? WHERE id=?';
@@ -310,21 +339,21 @@ final class EmployeeRepository
             $st=db()->prepare($sql);$st->execute($params);
             $directoryAfter=EmployeeDirectoryPlacement::save($id,$data,$old);
             if(self::columnExists('employees','business_unit_id') && self::columnExists('employees','legal_entity_id')) {
-                $companyValues=[];
-                foreach (['business_unit_id'=>'business_units','legal_entity_id'=>'legal_entities'] as $field=>$table) {
-                    $value=(int)($data[$field] ?? ($old[$field] ?? 0)) ?: null;
-                    if($value) { $check=db()->prepare('SELECT active FROM '.$table.' WHERE id=?'); $check->execute([$value]); $active=$check->fetchColumn(); if($active===false || ((int)$active!==1 && $value!==(int)($old[$field] ?? 0))) throw new RuntimeException('Choose an active company.'); }
-                    $companyValues[]=$value;
-                }
-                db()->prepare('UPDATE employees SET business_unit_id=?,legal_entity_id=? WHERE id=?')->execute([$companyValues[0],$companyValues[1],$id]);
+                // Company Group -> Company Name; the Employer is always PMBSI.
+                [$companyId,$companyGroup]=self::resolveCompany($data,$old,$branchId);
+                db()->prepare('UPDATE employees SET business_unit_id=?,legal_entity_id=? WHERE id=?')->execute([$companyId,FoundationRepository::pmbsiEntityId(),$id]);
+                if($companyGroup!==null) db()->prepare('UPDATE employees SET directory_company_group=? WHERE id=? AND (directory_company_group IS NULL OR directory_company_group="")')->execute([$companyGroup,$id]);
             }
             self::refreshRosterDetails($id);
             if($changed && self::phase2Ready()){
-                $event=self::historyEventType($changed,(string)$old['status'],$status);
+                // A type change also moves the derived status; describe it by the Employee Status change.
+                $eventKeys=in_array('employment_type_id',$changed,true)?array_values(array_diff($changed,['status'])):$changed;
+                $event=self::historyEventType($eventKeys,(string)$old['status'],$status,$oldTypeCode,$newTypeCode);
                 self::addHistory($id,$event,$effectiveDate,$before,$after,$remarks?:'Employment information updated.');
             }
-            db()->commit();
-        }catch(Throwable $e){if(db()->inTransaction())db()->rollBack();if($e instanceof PDOException)self::throwDuplicateEmployee($e);throw $e;}
+            if($resigning) EmployeeArchiveService::archive($id,'RESIGNED',$effectiveDate,$remarks);
+            if($owned)db()->commit();
+        }catch(Throwable $e){if($owned&&db()->inTransaction())db()->rollBack();if($e instanceof PDOException)self::throwDuplicateEmployee($e);throw $e;}
         audit('Employees','UPDATE_EMPLOYMENT','employee',$id,['changed'=>$changed,'effective_date'=>$effectiveDate,'remarks'=>$remarks,'employee_no_before'=>$old['employee_no'],'employee_no_after'=>$employeeNo,'hire_date_before'=>$old['hire_date'],'hire_date_after'=>$hireDate,'company_before'=>[$old['business_unit_id'] ?? null,$old['legal_entity_id'] ?? null],'company_after'=>$companyValues ?? [],'directory_before'=>array_intersect_key($old,array_flip(['directory_company_group','directory_role','directory_area_ids'])),'directory_after'=>$directoryAfter ?? [],'needs_details_before'=>(int)($old['roster_needs_details'] ?? 0),'needs_details_after'=>(int)(self::find($id)['roster_needs_details'] ?? 0)]);
     }
 
@@ -513,8 +542,10 @@ final class EmployeeRepository
         $regularizationDate=self::dateOrNull((string)($data['regularization_date']??''));
         $companyEmail=strtolower(trim((string)($data['company_email']??'')));$personalEmail=strtolower(trim((string)($data['personal_email']??'')));
         foreach([$companyEmail,$personalEmail] as $email)if($email!==''&&!filter_var($email,FILTER_VALIDATE_EMAIL))throw new RuntimeException('Enter a valid email address.');
-        $status=strtoupper(trim((string)($data['status']??'ACTIVE')));if(!in_array($status,self::STATUSES,true))throw new RuntimeException('Invalid employee status.');
+        $fallbackStatus=strtoupper(trim((string)($data['status']??'ACTIVE')));if(!in_array($fallbackStatus,self::STATUSES,true))throw new RuntimeException('Invalid employee status.');
         $userId=(int)($data['user_id']??0)?:null;$departmentId=(int)($data['department_id']??0)?:null;$positionId=(int)($data['position_id']??0)?:null;$branchId=(int)($data['branch_id']??0)?:null;$employmentTypeId=(int)($data['employment_type_id']??0)?:null;
+        // Employee Status (employment_types) drives the internal lifecycle status.
+        $status=EmployeeStatusPolicy::internalStatus($employmentTypeId,$fallbackStatus);
         if($followup && $userId && (!$employeeNo || !$hireDate || !$first || !$last || isset($pending['name']))) throw new RuntimeException('Confirm the Employee Code, name and Start Date before linking a portal account.');
         if($employeeId){$st=db()->prepare('SELECT COUNT(*) FROM employees WHERE employee_no=? AND id<>?');$st->execute([$employeeNo,$employeeId]);if((int)$st->fetchColumn()>0)throw new RuntimeException('Employee number already exists.');}
         if($userId){$sql='SELECT COUNT(*) FROM employees WHERE user_id=?'.($employeeId?' AND id<>?':'');$st=db()->prepare($sql);$st->execute($employeeId?[$userId,$employeeId]:[$userId]);if((int)$st->fetchColumn()>0)throw new RuntimeException('That user account is already linked to an employee.');}
@@ -522,16 +553,44 @@ final class EmployeeRepository
         return [$employeeNo,$first,$middle,$last,$suffix,$companyEmail,$personalEmail,$status,$userId,$departmentId,$positionId,$branchId,$employmentTypeId,$hireDate,$regularizationDate];
     }
 
-    private static function addHistory(int $employeeId,string $eventType,string $effectiveDate,?array $from,array $to,string $remarks): void
+    public static function addHistory(int $employeeId,string $eventType,string $effectiveDate,?array $from,array $to,string $remarks): void
     {
         if(!FoundationRepository::tableExists('employee_employment_history'))return;$uid=(int)(Auth::user()['id']??0)?:null;
         $st=db()->prepare('INSERT INTO employee_employment_history(employee_id,event_type,effective_date,from_department_id,to_department_id,from_position_id,to_position_id,from_branch_id,to_branch_id,from_employment_type_id,to_employment_type_id,from_status,to_status,remarks,created_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
         $st->execute([$employeeId,$eventType,$effectiveDate,$from['department_id']??null,$to['department_id']??null,$from['position_id']??null,$to['position_id']??null,$from['branch_id']??null,$to['branch_id']??null,$from['employment_type_id']??null,$to['employment_type_id']??null,$from['status']??null,$to['status']??null,$remarks?:null,$uid]);
     }
 
-    private static function historyEventType(array $changed,string $oldStatus,string $newStatus): string
+    /** Validated Company Name (business_unit) and its Company Group. Empty falls back to the branch's company. */
+    private static function resolveCompany(array $data,array $old,?int $branchId): array
+    {
+        $group=strtoupper(trim((string)($data['directory_company_group'] ?? ($old['directory_company_group'] ?? ''))));
+        $id=(int)($data['business_unit_id'] ?? ($old['business_unit_id'] ?? 0)) ?: null;
+        if($group!=='' && !isset(FoundationRepository::companyGroups()[$group])) throw new RuntimeException('Choose a valid Company Group.');
+        if(!$id && $branchId) {
+            $q=db()->prepare('SELECT default_business_unit_id FROM branches WHERE id=?');$q->execute([$branchId]);
+            $id=(int)$q->fetchColumn() ?: null;
+        }
+        if(!$id) return [null,$group?:null];
+        $q=db()->prepare('SELECT active,company_group FROM business_units WHERE id=?');$q->execute([$id]);$row=$q->fetch();
+        if(!$row) throw new RuntimeException('Choose a valid Company Name.');
+        if((int)$row['active']!==1 && $id!==(int)($old['business_unit_id'] ?? 0)) throw new RuntimeException('Choose an active Company Name.');
+        $companyGroup=$row['company_group']!==null?(string)$row['company_group']:null;
+        if($group!=='' && $companyGroup!==null && $companyGroup!==$group) throw new RuntimeException('That Company Name does not belong to the selected Company Group.');
+        return [$id,$companyGroup ?? ($group?:null)];
+    }
+
+    /** A newly chosen Employee Status must be active; an unchanged retired one is allowed so old records can still be saved. */
+    private static function assertEmployeeStatusActive(?int $typeId,?int $currentTypeId): void
+    {
+        if(!$typeId || $typeId===$currentTypeId) return;
+        $q=db()->prepare('SELECT active FROM employment_types WHERE id=?');$q->execute([$typeId]);$active=$q->fetchColumn();
+        if($active===false || (int)$active!==1) throw new RuntimeException('Choose an active Employee Status.');
+    }
+
+    private static function historyEventType(array $changed,string $oldStatus,string $newStatus,?string $oldTypeCode=null,?string $newTypeCode=null): string
     {
         if(count($changed)>1)return 'EMPLOYMENT_UPDATE';$k=$changed[0]??'';
+        if($k==='employment_type_id')return EmployeeStatusPolicy::isProbation($oldTypeCode)&&$newTypeCode==='REGULAR'?'REGULARIZATION':'EMPLOYEE_STATUS_CHANGE';
         if($k==='branch_id')return 'BRANCH_TRANSFER';if($k==='department_id')return 'DEPARTMENT_CHANGE';if($k==='position_id')return 'POSITION_CHANGE';if($k==='employment_type_id')return 'EMPLOYMENT_TYPE_CHANGE';
         if($k==='status'&&$oldStatus==='PROBATIONARY'&&$newStatus==='ACTIVE')return 'REGULARIZATION';if($k==='status')return 'STATUS_CHANGE';return 'EMPLOYMENT_UPDATE';
     }

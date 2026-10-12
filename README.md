@@ -49,7 +49,7 @@ The Phase 1 migration adds:
 
 - permissions and role-permission mapping;
 - positions;
-- employment types;
+- Employee Status master (formerly employment types);
 - HR operational role;
 - server-side tracked sessions;
 - HR role and access-control foundation;
@@ -77,7 +77,7 @@ Create named employee, HR, and administrator accounts through the HRIS access-co
 - Department master.
 - Position master.
 - Branch/site master.
-- Employment type master.
+- Employee Status master (stored in `employment_types`).
 - Security/session center.
 - Audit logs.
 

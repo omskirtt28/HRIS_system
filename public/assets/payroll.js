@@ -1,5 +1,6 @@
 // Select visible records only. Server permissions and stage checks remain authoritative.
 document.querySelectorAll('form[data-cutoff-select], form[data-hr-bulk-review]').forEach(function (form) {
+  if (form.hasAttribute('data-hr-friendly-review')) return;
   const items = Array.from(form.querySelectorAll('[data-cutoff-item]'));
   const selectAll = form.querySelector('[data-cutoff-select-all]');
   const count = form.querySelector('[data-cutoff-selection-count]');
@@ -32,6 +33,174 @@ document.querySelectorAll('form[data-cutoff-select], form[data-hr-bulk-review]')
   });
   refresh();
 });
+
+// HR review uses server-authorized request fragments and a local reviewed state.
+// Mark reviewed is preparation only; the existing POST handler verifies each ticket.
+document.querySelectorAll('[data-hr-review-workspace]').forEach(function (workspace) {
+  const form = workspace.querySelector('[data-hr-friendly-review]');
+  const rows = Array.from(workspace.querySelectorAll('[data-hr-row]'));
+  const panel = workspace.querySelector('[data-hr-detail]');
+  const body = panel.querySelector('[data-hr-detail-body]');
+  const layout = workspace.querySelector('.hr-review-layout');
+  const all = workspace.querySelector('[data-hr-select-all]');
+  const selectionControl = workspace.querySelector('[data-hr-selection-control]');
+  const waiting = workspace.querySelector('[data-hr-waiting]');
+  const help = workspace.querySelector('[data-hr-review-help]');
+  const bulk = form.querySelector('[data-hr-bulk-bar]');
+  const count = form.querySelector('[data-cutoff-selection-count]');
+  const submit = form.querySelector('[data-cutoff-submit]');
+  const empty = workspace.querySelector('[data-hr-empty]');
+  let tab = workspace.querySelector('[data-hr-tab]') ? 'new' : 'sent';
+  let controller = null;
+  let requestSequence = 0;
+  let opener = null;
+  function refresh() {
+    const reviewed = rows.filter(row => row.dataset.reviewState === 'reviewed');
+    rows.forEach(function (row) {
+      row.hidden = row.dataset.reviewState !== tab;
+      const selected = row.querySelector('[data-cutoff-item]');
+      if (selected) {
+        selected.disabled = row.dataset.reviewState !== 'reviewed';
+        if (selected.disabled) selected.checked = false;
+        row.querySelector('[data-hr-row-selection]').hidden = selected.disabled;
+        row.querySelector('[data-hr-row-start]').hidden = !selected.disabled;
+        row.classList.toggle('is-selected', selected.checked);
+      }
+    });
+    const selected = reviewed.filter(row => row.querySelector('[data-cutoff-item]').checked).length;
+    const visibleReviewed = reviewed.filter(row => !row.hidden);
+    if (all) {
+      const selectedVisible = visibleReviewed.filter(row => row.querySelector('[data-cutoff-item]').checked).length;
+      all.checked = visibleReviewed.length > 0 && selectedVisible === visibleReviewed.length;
+      all.indeterminate = selectedVisible > 0 && selectedVisible < visibleReviewed.length;
+    }
+    if (selectionControl) selectionControl.hidden = tab !== 'reviewed' || visibleReviewed.length === 0;
+    if (waiting) waiting.hidden = tab === 'reviewed' && visibleReviewed.length > 0;
+    if (help) help.textContent = tab === 'reviewed'
+      ? 'Select the checked requests, then Send for approval. Reviewed marks last until you leave this page.'
+      : 'Click Review, check the details, then Mark reviewed. Selection appears in Reviewed.';
+    if (count) count.textContent = selected + ' selected · reviewed';
+    if (bulk) bulk.hidden = selected === 0;
+    if (submit) { submit.disabled = selected === 0; submit.querySelector('[data-cutoff-submit-label]').textContent = 'Send for approval (' + selected + ')'; }
+    const newCount = workspace.querySelector('[data-hr-new-count]');
+    const reviewedCount = workspace.querySelector('[data-hr-reviewed-count]');
+    if (newCount) newCount.textContent = rows.filter(row => row.dataset.reviewState === 'new').length;
+    if (reviewedCount) reviewedCount.textContent = reviewed.length;
+    workspace.querySelectorAll('[data-hr-tab]').forEach(function (button) {
+      const active = button.dataset.hrTab === tab;
+      button.classList.toggle('is-active', active); button.setAttribute('aria-pressed', String(active));
+    });
+    empty.hidden = rows.some(row => !row.hidden);
+    if (!empty.hidden && rows.length) empty.textContent = tab === 'reviewed' ? 'Open a request and mark it reviewed first.' : 'All requests on this page have been checked. Open Reviewed to select and send them.';
+    syncDetail();
+  }
+  function syncDetail() {
+    const loaded = body.querySelector('[data-hr-loaded-request]');
+    const mark = body.querySelector('[data-hr-mark-reviewed]');
+    if (!loaded || !mark || mark.disabled) return;
+    const row = rows.find(row => row.dataset.hrRow === loaded.dataset.hrLoadedRequest);
+    if (!row) return;
+    const reviewed = row.dataset.reviewState === 'reviewed';
+    mark.hidden = reviewed;
+    body.querySelector('[data-hr-reviewed-note]').hidden = !reviewed;
+    const select = body.querySelector('[data-hr-select-request]');
+    select.hidden = !reviewed;
+    select.disabled = reviewed && row.querySelector('[data-cutoff-item]').checked;
+  }
+  function close() {
+    requestSequence++;
+    if (controller) controller.abort();
+    panel.hidden = true; layout.classList.remove('has-detail');
+    if (opener && !opener.closest('[hidden]')) opener.focus();
+    else workspace.querySelector('[data-hr-tab].is-active')?.focus();
+  }
+  workspace.addEventListener('click', async function (event) {
+    const open = event.target.closest('[data-hr-open]');
+    if (open) {
+      event.preventDefault(); opener = open;
+      if (controller) controller.abort();
+      controller = new AbortController();
+      const sequence = ++requestSequence;
+      const endpoint = new URL(open.href, window.location.href); endpoint.searchParams.set('hr_panel', '1');
+      panel.hidden = false; layout.classList.add('has-detail');
+      body.textContent = 'Loading request…'; body.setAttribute('aria-busy', 'true');
+      try {
+        const response = await fetch(endpoint, { credentials: 'same-origin', cache: 'no-store', signal: controller.signal });
+        if (!response.ok || response.redirected) throw new Error('Unable to load request');
+        const markup = await response.text();
+        if (sequence !== requestSequence) return;
+        const template = document.createElement('template'); template.innerHTML = markup;
+        const loaded = template.content.querySelector('[data-hr-loaded-request]');
+        if (!loaded || loaded.dataset.hrLoadedRequest !== open.dataset.hrOpen) throw new Error('Invalid request response');
+        body.replaceChildren(template.content);
+        const row = rows.find(row => row.dataset.hrRow === open.dataset.hrOpen);
+        const mark = body.querySelector('[data-hr-mark-reviewed]');
+        if (mark && (!row || Number(loaded.dataset.hrLoadedStep) !== Number(row.querySelector('[name^="hr_steps"]').value))) {
+          mark.disabled = true; mark.textContent = 'Request changed · refresh page';
+        }
+        syncDetail();
+        panel.querySelector('[data-hr-close]').focus();
+      } catch (error) {
+        if (error.name === 'AbortError' || sequence !== requestSequence) return;
+        const text = document.createElement('p'); text.className = 'panel-body small'; text.setAttribute('role', 'alert');
+        text.textContent = 'Could not load this request. Refresh the page or open the full request.';
+        const fallback = document.createElement('a'); fallback.href = open.href; fallback.className = 'btn sm'; fallback.textContent = 'Open full request';
+        body.replaceChildren(text, fallback);
+      } finally { if (sequence === requestSequence) body.removeAttribute('aria-busy'); }
+      return;
+    }
+    const tabButton = event.target.closest('[data-hr-tab]');
+    if (tabButton) { tab = tabButton.dataset.hrTab; refresh(); return; }
+    if (event.target.closest('[data-hr-close]')) { close(); return; }
+    const mark = event.target.closest('[data-hr-mark-reviewed]');
+    if (mark && !mark.disabled) {
+      const row = rows.find(row => row.dataset.hrRow === mark.dataset.hrMarkReviewed);
+      if (!row || row.dataset.reviewState === 'sent') return;
+      row.dataset.reviewState = 'reviewed'; row.querySelector('[data-ticket-reviewed]').disabled = false;
+      const badge = row.querySelector('[data-hr-row-status]'); badge.textContent = 'Reviewed'; badge.className = 'badge green hr-review-state';
+      row.querySelector('[data-hr-open-label]').textContent = 'Open';
+      tab = 'reviewed'; refresh(); body.querySelector('[data-hr-select-request]').focus(); return;
+    }
+    const selectRequest = event.target.closest('[data-hr-select-request]');
+    if (selectRequest && !selectRequest.disabled) {
+      const row = rows.find(row => row.dataset.hrRow === selectRequest.dataset.hrSelectRequest);
+      if (!row || row.dataset.reviewState !== 'reviewed') return;
+      row.querySelector('[data-cutoff-item]').checked = true;
+      tab = 'reviewed'; refresh(); return;
+    }
+    if (event.target.closest('[data-hr-return-toggle]')) {
+      const returned = body.querySelector('[data-hr-return-form]');
+      returned.hidden = !returned.hidden;
+      if (!returned.hidden) returned.querySelector('textarea').focus();
+    }
+  });
+  workspace.addEventListener('change', function (event) {
+    if (event.target === all) rows.forEach(function (row) {
+      const item = row.querySelector('[data-cutoff-item]');
+      if (item && !row.hidden && !item.disabled) item.checked = all.checked;
+    });
+    refresh();
+  });
+  workspace.addEventListener('keydown', event => { if (event.key === 'Escape' && !panel.hidden) close(); });
+  refresh();
+});
+
+document.querySelectorAll('[data-cutoff-generate-ready]').forEach(function (form) {
+  const check = form.querySelector('[name="filing_closed"]');
+  const button = form.querySelector('[data-cutoff-generate-button]');
+  const refresh = () => { button.disabled = form.dataset.cutoffGenerateReady !== '1' || !check.checked; };
+  check.addEventListener('change', refresh); refresh();
+});
+document.addEventListener('click', function (event) {
+  const link = event.target.closest('[data-open-cutoff-details]');
+  if (!link) return;
+  const details = document.getElementById(link.getAttribute('href').slice(1));
+  if (details instanceof HTMLDetailsElement) details.open = true;
+});
+if (window.location.hash) {
+  const target = document.getElementById(window.location.hash.slice(1));
+  if (target instanceof HTMLDetailsElement) target.open = true;
+}
 
 document.addEventListener('submit', function (event) {
   const form = event.target;

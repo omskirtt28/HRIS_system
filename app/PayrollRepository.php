@@ -322,6 +322,18 @@ final class PayrollRepository
         $st->execute([$approverType,$approverType,$uid,$uid]);return $st->fetchAll();
     }
 
+    public static function hrPayrollSentRequests(): array
+    {
+        Auth::requirePermission('payroll.approve_hr');
+        if(!self::ready()) return [];
+        $st=db()->prepare('SELECT pr.id,pr.request_no,pr.affected_date,pr.status,pr.created_at,prt.name type_name,e.employee_no,e.first_name,e.last_name,
+            (SELECT MAX(a.acted_at) FROM payroll_request_approvals a WHERE a.request_id=pr.id AND a.approver_type="HR_TIMEKEEPING" AND a.status="APPROVED") hr_verified_at
+            FROM payroll_requests pr JOIN payroll_request_types prt ON prt.id=pr.request_type_id JOIN employees e ON e.id=pr.employee_id
+            WHERE pr.status<>"FOR_HR_TIMEKEEPING_APPROVAL" AND EXISTS(SELECT 1 FROM payroll_request_approvals a WHERE a.request_id=pr.id AND a.approver_type="HR_TIMEKEEPING" AND a.status="APPROVED")
+            ORDER BY hr_verified_at DESC,pr.id DESC LIMIT 100');
+        $st->execute();return $st->fetchAll();
+    }
+
     public static function decidePayroll(int $requestId,string $decision,string $remarks='',?int $expectedHrStep=null): void
     {
         if(!Auth::check()) throw new RuntimeException('Sign in first.');

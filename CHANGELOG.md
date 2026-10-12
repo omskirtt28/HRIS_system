@@ -174,3 +174,25 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 - Preserved existing referenced legacy masters as retired records rather than deleting them.
 - Added roster lineage/mapping status to Branch / Site records and surfaced data-quality items requiring HR review.
 - Kept Area masters separate because the roster does not contain Area assignments.
+
+## 2026-10-12 — Attendance export: stale logs and missing-source visibility
+- The "For Review" Excel / PDF now refreshes attendance for open cutoffs before exporting, so employees with imported punches (e.g. Stock Management, Production, Online) no longer show "Waiting for files".
+- Imported rows whose biometric ID now equals an exact Employee Code are matched automatically (audited as BIOMETRIC_REMATCH); no name or numeric guessing.
+- Days for employees with no punches in any imported file are labelled "No biometric logs received for this employee" instead of "Waiting for files".
+- Added a "Source Summary" tab (Excel) and summary pages (PDF) listing each group's employees with / without logs, plus the employees without logs, so missing department files (e.g. Creatives, MIS) are obvious.
+- The export review panel shows how many employees have no biometric logs.
+
+## 2026-10-12 — Employee Archive, Set inactive and Terminated
+- Added an **Employee Archive** (People menu and Employees page) for Inactive, Resigned and Terminated employees, with search, status filter, effective date and remarks.
+- Added **Set inactive**, **Terminated** and **Restore** on the Employee 201 File (Employment tab). Each needs an effective date (not in the future) and remarks, writes Employment History and the audit log, and Terminated needs a confirmation tick.
+- Setting an employee inactive or terminated deactivates their linked login account and ends their sessions; Restore can reactivate it. Super Admin accounts and your own record are protected.
+- An employee who is someone's Reporting To cannot be archived until those reports are reassigned; pending tickets / leave are shown as warnings.
+- The main Employees directory no longer lists archived employees; the generic status dropdown can no longer move people in or out of the archive.
+- Payroll cutoffs no longer keep an archived employee just because of an empty "waiting for files" row; they stay only when the cutoff holds real attendance, requests or leave for them.
+
+## 2026-10-12 — Employee Status replaces Employment type
+- "Employment type" is now **Employee Status** everywhere (Employee 201, Add Employee, recruitment conversion, Organization Setup, directory filter and column, history). Choices: Regular, Probationary, Seasonal, Resign, Contractual, Part Time, Returnee-Probationary, Maternity Leave, On Leave (Project-Based and Fixed-Term remain; Intern retired).
+- HR now picks one status. The internal Active / Probationary / On Leave status used by payroll, approvals and login is derived automatically (`EmployeeStatusPolicy`); the separate "Employee status" dropdown was removed.
+- Choosing **Resign** moves the employee to the Employee Archive as Resigned (effective date and remarks required, login deactivated). Restore returns the employee to their previous Employee Status.
+- Probationary / Returnee-Probationary → Regular is recorded as a Regularization and fills the regularization date when empty.
+- Employment History shows "Employee Status: A → B". Migration: `database/migrations/20261012_employee_status.sql`.
