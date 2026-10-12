@@ -28,6 +28,7 @@ require_once __DIR__ . '/EmployeeRepository.php';
 require_once __DIR__ . '/Auth.php';
 require_once __DIR__ . '/RecruitmentRepository.php';
 require_once __DIR__ . '/PayrollRepository.php';
+require_once __DIR__ . '/ProbationService.php';
 if (is_file(dirname(__DIR__).'/vendor/autoload.php')) require_once dirname(__DIR__).'/vendor/autoload.php';
 require_once __DIR__.'/BiometricParser.php';
 require_once __DIR__.'/PayrollCalculator.php';

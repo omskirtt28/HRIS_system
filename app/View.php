@@ -66,7 +66,7 @@ function render_head(string $title): void { ?>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="public/assets/app.css"><link rel="stylesheet" href="public/assets/hris-modern.css?v=20260926-phase3a-v1"><link rel="stylesheet" href="public/assets/phase2b.css?v=20260924-phase2b-201file"><link rel="stylesheet" href="public/assets/employee-directory.css?v=20261010-company-groups-adl-v1"><link rel="stylesheet" href="public/assets/sidebar-logout.css?v=20260924-sidebar-logout"><link rel="stylesheet" href="public/assets/payroll.css?v=20261011-hr-payroll-friendly-v2"><script src="public/assets/payroll.js?v=20261011-hr-payroll-friendly-v2" defer></script>
 <link rel="stylesheet" href="public/assets/attendance-export.css?v=20261011-export-all-logs-v2"><script src="public/assets/attendance-export.js?v=20261011-export-all-logs-v2" defer></script>
-<link rel="stylesheet" href="public/assets/employee-delete.css?v=20261010-v1"><link rel="stylesheet" href="public/assets/employee-archive.css?v=20261012-v1">
+<link rel="stylesheet" href="public/assets/employee-delete.css?v=20261010-v1"><link rel="stylesheet" href="public/assets/employee-archive.css?v=20261012-v1"><link rel="stylesheet" href="public/assets/notifications.css?v=20261012-v1">
 <style>.alert{padding:11px 14px;border-radius:10px;margin-bottom:14px;font-size:12.5px}.req{color:var(--red)}.actions-inline{display:flex;gap:6px;flex-wrap:wrap}.nowrap{white-space:nowrap}.empty{padding:36px;text-align:center;color:var(--hris-muted)}form.inline{display:inline}.status-select{min-width:150px}</style>
 </head><body><div id="toast" class="toast"></div>
 <?php }
@@ -91,7 +91,7 @@ function render_public_footer(): void { ?>
 <div><div style="color:#fff;font-weight:600;margin-bottom:8px">Company</div><a href="<?=url('about')?>">About us</a><a href="<?=url('contact')?>">Contact</a></div>
 <div><div style="color:#fff;font-weight:600;margin-bottom:8px">HRIS</div><a href="<?=url('login')?>">Employee / HR Login</a><a href="<?=url('login',['portal'=>'client'])?>">Client Portal</a><a href="<?=url('login',['portal'=>'admin'])?>">Administration</a></div>
 </div><div class="in" style="border-top:1px solid #333;margin-top:28px;padding-top:18px;font-size:12px">© 2026 Prime Mover Business Solutions, Inc. · HRIS</div></footer>
-<script src="public/assets/hris-app.js?v=20261003"></script></body></html><?php }
+<script src="public/assets/hris-app.js?v=20261012-notify"></script></body></html><?php }
 
 function nav_config(string $kind): array {
     $base=[
@@ -102,7 +102,7 @@ function nav_config(string $kind): array {
       ]],
       'hr'=>['title'=>'PMBSI HRIS','sub'=>'Human Resources','groups'=>[
         ['Overview',[['Dashboard','hr-dashboard','home',false,'dashboard.hr.view']]],
-        ['People',[['Employees','hr-employees','users',false,'employees.view_all'],['Employee Archive','hr-employee-archive','file',false,'employees.view_all'],['HR Requests','#','clipboard',true,'requests.manage']]],
+        ['People',[['Employees','hr-employees','users',false,'employees.view_all'],['Employee Archive','hr-employee-archive','file',false,'employees.view_all'],['Probation & Seasonal','hr-probation','clock',false,'employees.view_all'],['HR Requests','#','clipboard',true,'requests.manage']]],
         ['Payroll & Timekeeping',[['Payroll Ticket Review','hr-timekeeping','clipboard',false,'payroll.approve_hr'],['Import Logs','payroll-import','files',false,'payroll.biometric_import'],['Attendance Export','payroll-cutoff','file',false,'payroll.process'],['Leave Approvals','hr-leave','calendar',false,'leave.approve_hr'],['Team Approvals','manager-approvals','check-square',false,'payroll.approve_manager']]],
         ['Recruitment',[['Manpower Requests','hr-manpower','briefcase',false,'recruitment.view'],['Applicants','hr-applicants','user-plus',false,'recruitment.view'],['Pipeline','hr-pipeline','pipeline',false,'recruitment.view'],['Endorsements','hr-endorsements','check-square',false,'recruitment.view']]],
         ['HR Operations',[['Employee Relations','#','shield',true,null],['Performance','#','chart',true,null],['Training','#','book',true,null],['Offboarding','#','file',true,null]]],
@@ -115,7 +115,7 @@ function nav_config(string $kind): array {
       'admin'=>['title'=>'PMBSI HRIS','sub'=>'HR Administration','groups'=>[
         ['Overview',[['Dashboard','admin-dashboard','home',false,'dashboard.admin.view']]],
         ['Access Control',[['Users','admin-users','users',false,'users.view'],['Roles & Permissions','admin-roles','shield',false,'roles.view'],['Security & Sessions','admin-security','shield',false,'audit.view']]],
-        ['Organization',[['Employees','hr-employees','users',false,'employees.view_all'],['Employee Archive','hr-employee-archive','file',false,'employees.view_all'],['Organization Setup','admin-organization','building',false,'organization.view']]],
+        ['Organization',[['Employees','hr-employees','users',false,'employees.view_all'],['Employee Archive','hr-employee-archive','file',false,'employees.view_all'],['Probation & Seasonal','hr-probation','clock',false,'employees.view_all'],['Organization Setup','admin-organization','building',false,'organization.view']]],
         ['Payroll',[['Payroll Ticket Review','hr-timekeeping','clipboard',false,'payroll.approve_hr'],['Import Logs','payroll-import','files',false,'payroll.biometric_import'],['Attendance Export','payroll-cutoff','file',false,'payroll.process'],['Leave Approvals','hr-leave','calendar',false,'leave.approve_hr']]],
         ['Operations',[['Audit Logs','admin-audit','audit',false,'audit.view'],['Clear Test Data','admin-clear-data','shield',false,'system.test_data.clear']]]
       ]]
@@ -124,11 +124,13 @@ function nav_config(string $kind): array {
 }
 
 function render_portal_header(string $kind,string $active,string $title): void {
+    // Probation reminders are checked once a day, whoever opens the system first. Never block the page.
+    try { if(Auth::check()) ProbationService::runDaily(); } catch(Throwable $e) { error_log('Probation check failed: '.$e->getMessage()); }
     $u=Auth::user() ?? ['name'=>'User','role_name'=>'Account'];
     // Shared payroll and employee screens retain the administrator's navigation.
     $payrollWorkspace=str_starts_with($active,'payroll-') || in_array($active,['employee-attendance','employee-requests','hr-payroll-processing','hr-timekeeping','manager-approvals','hr-leave'],true);
     $adminAccount=($u['role_portal']??'')==='admin' || in_array((string)($u['role_code']??''),['SUPER_ADMIN','HRIS_ADMIN'],true);
-    if(($payrollWorkspace || in_array($active,['hr-employees','hr-employee-archive'],true)) && $adminAccount) $kind='admin';
+    if(($payrollWorkspace || in_array($active,['hr-employees','hr-employee-archive','hr-probation'],true)) && $adminAccount) $kind='admin';
     $c=nav_config($kind); render_head($title);
     $search=['employee'=>'Search your HRIS…','hr'=>'Search employees, applicants, requests…','client'=>'Search candidates…','admin'=>'Search users, branches, settings…'][$kind] ?? 'Search HRIS…'; ?>
 <div class="shell"><aside class="side" id="side"><a href="<?=url($kind.'-dashboard')?>" class="brand brand-portal" aria-label="Prime Mover Business Solutions, Inc."><img src="public/assets/branding/pmbsi-logo-transparent-v2.png" alt="Prime Mover Business Solutions, Inc." class="brand-full-logo"><span class="brand-portal-meta"><strong><?=e($c['title'])?></strong><span class="sub brand-portal-sub"><?=e($c['sub'])?></span></span></a>
@@ -137,13 +139,22 @@ function render_portal_header(string $kind,string $active,string $title): void {
 <?php endforeach;?></div><?php endforeach;?></div>
 <div class="side-footer"><div class="prof"><span class="avatar"><?=e(initials($u['name']))?></span><div style="min-width:0"><div class="small" style="font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#f2f4f7"><?=e($u['name'])?></div><div class="tiny muted"><?=e($u['role_name'])?></div></div></div><a href="<?=url('logout')?>" class="sidebar-logout"><?=icon_svg('logout')?><span>Log out</span></a></div></aside>
 <div class="main"><div class="topbar"><button class="iconbtn mobtoggle" onclick="toggleSidebar()" aria-label="Open navigation"><?=icon_svg('menu')?></button><div class="search"><?=icon_svg('search')?><input placeholder="<?=e($search)?>"></div>
-<div class="topbar-actions"><div class="topbar-date" id="manilaClock"><strong>Philippine Time</strong>Loading…</div><button class="iconbtn notify-btn" type="button" aria-label="Notifications"><?=icon_svg('bell')?></button><button class="iconbtn" type="button" onclick="toggleTheme()" aria-label="Toggle theme"><?=icon_svg('moon')?></button>
+<div class="topbar-actions"><div class="topbar-date" id="manilaClock"><strong>Philippine Time</strong>Loading…</div><?php $unread=(Auth::check()&&NotificationService::ready())?NotificationService::unreadCount((int)Auth::user()['id']):0;?><div class="notify-wrap"><button class="iconbtn notify-btn" type="button" aria-label="Notifications" aria-expanded="false" data-notify-toggle data-url="<?=e(url('notifications'))?>" data-csrf="<?=e(csrf_token())?>"><?=icon_svg('bell')?><span class="notify-badge" data-notify-badge <?=$unread?'':'hidden'?>><?=$unread>99?'99+':$unread?></span></button><div class="notify-panel" data-notify-panel hidden><div class="notify-head"><strong>Notifications</strong><button type="button" data-notify-readall>Mark all read</button></div><div class="notify-list" data-notify-list>Loading…</div></div></div><button class="iconbtn" type="button" onclick="toggleTheme()" aria-label="Toggle theme"><?=icon_svg('moon')?></button>
 <div class="profile-menu"><button class="profile-trigger" type="button" onclick="toggleProfileMenu()"><span class="avatar"><?=e(initials($u['name']))?></span><span class="ptxt"><strong><?=e($u['name'])?></strong><span><?=e($u['role_name'])?></span></span><?=icon_svg('chevron')?></button><div class="profile-pop" id="profilePop"><a href="#"><?=icon_svg('user')?>Profile</a><button type="button" onclick="toggleTheme()"><?=icon_svg('moon')?>Appearance</button></div></div></div></div><main class="content"><?php render_flashes(); }
 
-function render_portal_footer(): void { ?></main></div></div><script src="public/assets/hris-app.js?v=20261003"></script></body></html><?php }
+/** The read-only end-date field shown under Employee Status (filled live by employee_regularization_script). */
+function employee_term_end_field(?string $value='',string $label='Contract / probation end'): void { ?><div class="field" data-term-end-field <?=$value?'':'hidden'?>><label data-term-end-label><?=e($label)?></label><input type="date" value="<?=e((string)$value)?>" readonly aria-readonly="true" data-term-end><small data-term-end-help>Automatic from the hire date.</small></div><?php }
+
+/**
+ * Counts the term by itself from the hire date: Probationary / Returnee-Probationary 6 months (fills the
+ * Regularization date), Seasonal 3 months (no regularization date). Shows the end date as soon as both are chosen.
+ */
+function employee_regularization_script(): void { ?><script>(function(){var t=document.querySelector('select[name="employment_type_id"]'),h=document.querySelector('input[name="hire_date"]'),r=document.querySelector('input[name="regularization_date"]'),box=document.querySelector('[data-term-end-field]'),endInput=document.querySelector('[data-term-end]'),endLabel=document.querySelector('[data-term-end-label]'),endHelp=document.querySelector('[data-term-end-help]');if(!t||!h)return;function add(s,m){var p=s.split('-'),y=+p[0],mo=+p[1]-1,d=+p[2],x=new Date(y,mo+m,1),last=new Date(x.getFullYear(),x.getMonth()+1,0).getDate();x.setDate(Math.min(d,last));return x}function fmt(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}function code(){var o=t.options[t.selectedIndex];return o?o.getAttribute('data-code')||'':''}function showEnd(c,start){if(!box||!endInput)return;var months=c==='SEASONAL'?3:((c==='PROBATIONARY'||c==='RETURNEE_PROBATIONARY')?6:0);if(!months){box.hidden=true;endInput.value='';return;}box.hidden=false;if(endLabel)endLabel.textContent=c==='SEASONAL'?'End of contract (Seasonal, 3 months)':'End of probation (6 months)';if(!start){endInput.value='';if(endHelp)endHelp.textContent='Enter the hire date and the end date appears here.';return;}var e=add(start,months);e.setDate(e.getDate()-1);endInput.value=fmt(e);if(endHelp)endHelp.textContent='Automatic: '+months+' months from '+(c==='RETURNEE_PROBATIONARY'?'today':'the hire date')+'.';}function sync(fill){var c=code(),prob=c==='PROBATIONARY'||c==='RETURNEE_PROBATIONARY',start=c==='RETURNEE_PROBATIONARY'?fmt(new Date()):h.value;if(fill||!endInput||!endInput.value)showEnd(c,start);else if(box)box.hidden=!(prob||c==='SEASONAL');if(!r)return;if(c==='SEASONAL'){r.value='';r.readOnly=true;r.dataset.auto='1';return;}if(!prob){if(r.readOnly&&r.dataset.auto==='1'){r.readOnly=false;if(fill)r.value='';r.dataset.auto='';}return;}r.readOnly=true;r.dataset.auto='1';if(!fill&&r.value)return;r.value=start?fmt(add(start,6)):'';}t.addEventListener('change',function(){sync(true)});h.addEventListener('change',function(){sync(true)});h.addEventListener('input',function(){sync(true)});sync(false);})();</script><?php }
+
+function render_portal_footer(): void { ?></main></div></div><script src="public/assets/hris-app.js?v=20261012-notify"></script></body></html><?php }
 function employee_roster_detail_labels(array $issues): array
 {
-    $labels=['name'=>'Name','employee_no'=>'Employee code','hire_date'=>'Start date','department_id'=>'Department','position_id'=>'Position','branch_id'=>'Branch / Site','business_unit_id'=>'Brand / Client','legal_entity_id'=>'Employer'];
+    $labels=['name'=>'Name','employee_no'=>'Employee code','hire_date'=>'Start date','department_id'=>'Department','position_id'=>'Position','branch_id'=>'Branch / Site','business_unit_id'=>'Company Name','legal_entity_id'=>'Employer'];
     $result=[];
     foreach($issues as $field=>$note) $result[$field]=$labels[$field] ?? ucwords(str_replace('_',' ',(string)$field));
     return $result;

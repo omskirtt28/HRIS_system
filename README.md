@@ -151,3 +151,8 @@ For an existing database, import only `database/migrations/20260926_phase3a_payr
 
 ## Phase 3B.0 — Organization Masters
 The official active Organization master data is now roster-based. After overlaying the Phase 3B.0 patch, import only `database/migrations/20260929_phase3b0_organization_master.sql`. The migration includes its own verification output; do not import `schema.sql` for this update.
+
+## Probation reminders and email
+- Reminders appear in the bell and on **People → Probation Watch**. They are checked once a day when anyone opens HRIS.
+- To also send them by Gmail: turn on 2-Step Verification for the HR Gmail account, create an **App password**, then copy the `mail` block from `config/config.local.example.php` into `config/config.local.php` (this file is not committed). Check it with `php scripts\run_notifications.php --test-email=you@example.com`.
+- To send emails even when nobody opens HRIS, add a daily Windows Task Scheduler task that runs `C:\xampp\php\php.exe C:\xampp\htdocs\HRIS_system\scripts\run_notifications.php`.

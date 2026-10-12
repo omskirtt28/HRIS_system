@@ -148,6 +148,29 @@ final class FoundationRepository
     /** Company Group (Company Name filter): code => label. */
     public static function companyGroups(): array { return ['SW'=>'Sw','OC'=>"Ocampo's",'UF'=>'Urban Farm']; }
 
+    /**
+     * Company Name per Company Group for each branch: [branch_id => [group => business_unit_id]].
+     * A mall can hold a Sw store and an Ocampo's store (counterparts checked against the company directory addresses);
+     * Head Office uses 2L.O.G., INC. (Sw), Ocampo's (Ocampo's) and Urban Farm.
+     */
+    public static function branchCompanyMap(): array
+    {
+        static $map=null; if($map!==null) return $map;
+        $map=[]; if(!self::tableExists('business_units')||!self::columnExists('branches','default_business_unit_id')||!self::columnExists('business_units','company_group')) return $map;
+        $pairs=['ASIA'=>'OMOA','GALE'=>'OGAL','MEGA'=>'OMEG','FAR3'=>'OFAR','ERMI'=>'ORMI']; $pairs+=array_flip($pairs);
+        $rows=db()->query('SELECT b.id,b.code,b.site_type,b.default_business_unit_id company_id,bu.company_group FROM branches b LEFT JOIN business_units bu ON bu.id=b.default_business_unit_id')->fetchAll();
+        $byCode=[]; foreach($rows as $r) if($r['code']!==null) $byCode[$r['code']]=$r;
+        $ho=[]; foreach(db()->query('SELECT id,code,company_group FROM business_units WHERE code IN ("2LOG","OCAMPOS","URBAN_FARM")')->fetchAll() as $c) $ho[$c['company_group']]=(int)$c['id'];
+        foreach($rows as $r) {
+            $id=(int)$r['id'];
+            if($r['site_type']==='HEAD_OFFICE') { $map[$id]=$ho; continue; }
+            if($r['company_id'] && $r['company_group']) $map[$id][$r['company_group']]=(int)$r['company_id'];
+            $other=$byCode[$pairs[$r['code']??''] ?? ''] ?? null;
+            if($other && $other['company_id'] && $other['company_group'] && empty($map[$id][$other['company_group']])) $map[$id][$other['company_group']]=(int)$other['company_id'];
+        }
+        return $map;
+    }
+
     /** Employer is always PMBSI. */
     public static function pmbsiEntityId(): ?int
     {

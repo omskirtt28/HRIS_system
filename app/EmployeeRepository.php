@@ -200,6 +200,12 @@ final class EmployeeRepository
             db()->prepare('UPDATE employees SET business_unit_id=?,legal_entity_id=? WHERE id=?')->execute([$companyId,FoundationRepository::pmbsiEntityId(),$id]);
             if($companyGroup!==null && self::columnExists('employees','directory_company_group')) db()->prepare('UPDATE employees SET directory_company_group=? WHERE id=? AND (directory_company_group IS NULL OR directory_company_group="")')->execute([$companyGroup,$id]);
         }
+        if(self::columnExists('employees','probation_end_date')) {
+            [$probationStart,$probationEnd]=EmployeeStatusPolicy::probationDates(EmployeeStatusPolicy::code($employmentTypeId),$hireDate,date('Y-m-d'));
+            // Regularization date is automatic for probation (the day after it ends); a Seasonal contract has none.
+            $createTypeCode=EmployeeStatusPolicy::code($employmentTypeId);
+            if($probationEnd) db()->prepare('UPDATE employees SET probation_start_date=?,probation_end_date=?,regularization_date=? WHERE id=?')->execute([$probationStart,$probationEnd,EmployeeStatusPolicy::isProbation($createTypeCode)?EmployeeStatusPolicy::addMonths($probationStart,EmployeeStatusPolicy::PROBATION_MONTHS):null,$id]);
+        }
         audit('Employees','CREATE_EMPLOYEE','employee',$id,['employee_no'=>$employeeNo,'name'=>trim($first.' '.$last),'status'=>$status]);
         if(self::phase2Ready()) self::addHistory($id,'HIRED',$hireDate,null,[
             'department_id'=>$departmentId,'position_id'=>$positionId,'branch_id'=>$branchId,'employment_type_id'=>$employmentTypeId,'status'=>$status
@@ -343,6 +349,17 @@ final class EmployeeRepository
                 [$companyId,$companyGroup]=self::resolveCompany($data,$old,$branchId);
                 db()->prepare('UPDATE employees SET business_unit_id=?,legal_entity_id=? WHERE id=?')->execute([$companyId,FoundationRepository::pmbsiEntityId(),$id]);
                 if($companyGroup!==null) db()->prepare('UPDATE employees SET directory_company_group=? WHERE id=? AND (directory_company_group IS NULL OR directory_company_group="")')->execute([$companyGroup,$id]);
+            }
+            if(self::columnExists('employees','probation_end_date')) {
+                // The 6 months count by themselves: new probation, or the hire date moved while still Probationary.
+                $typeMoved=$employmentTypeId!==$oldTypeId; $hireMoved=(string)$hireDate!==(string)($old['hire_date']??'');
+                if(!EmployeeStatusPolicy::isTimed($newTypeCode)) [$ps,$pe]=[null,null];
+                elseif($typeMoved || empty($old['probation_end_date']) || ($hireMoved && $newTypeCode!=='RETURNEE_PROBATIONARY')) [$ps,$pe]=EmployeeStatusPolicy::probationDates($newTypeCode,$hireDate,$effectiveDate);
+                else [$ps,$pe]=[$old['probation_start_date'],$old['probation_end_date']];
+                $reg=$regularizationDate;
+                if($pe && ($typeMoved || empty($old['probation_end_date']) || ($hireMoved && $newTypeCode!=='RETURNEE_PROBATIONARY'))) $reg=EmployeeStatusPolicy::isProbation($newTypeCode)?EmployeeStatusPolicy::addMonths($ps,EmployeeStatusPolicy::PROBATION_MONTHS):null;
+                if($typeMoved && EmployeeStatusPolicy::isProbation($oldTypeCode) && $newTypeCode==='REGULAR') $reg=$effectiveDate;
+                db()->prepare('UPDATE employees SET probation_start_date=?,probation_end_date=?,regularization_date=? WHERE id=?')->execute([$ps,$pe,$reg,$id]);
             }
             self::refreshRosterDetails($id);
             if($changed && self::phase2Ready()){
@@ -567,8 +584,9 @@ final class EmployeeRepository
         $id=(int)($data['business_unit_id'] ?? ($old['business_unit_id'] ?? 0)) ?: null;
         if($group!=='' && !isset(FoundationRepository::companyGroups()[$group])) throw new RuntimeException('Choose a valid Company Group.');
         if(!$id && $branchId) {
-            $q=db()->prepare('SELECT default_business_unit_id FROM branches WHERE id=?');$q->execute([$branchId]);
-            $id=(int)$q->fetchColumn() ?: null;
+            $byGroup=FoundationRepository::branchCompanyMap()[$branchId] ?? [];
+            if($group!=='') $id=$byGroup[$group] ?? null;
+            else { $q=db()->prepare('SELECT default_business_unit_id FROM branches WHERE id=?');$q->execute([$branchId]);$id=(int)$q->fetchColumn() ?: null; }
         }
         if(!$id) return [null,$group?:null];
         $q=db()->prepare('SELECT active,company_group FROM business_units WHERE id=?');$q->execute([$id]);$row=$q->fetch();

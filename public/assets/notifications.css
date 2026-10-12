@@ -1,0 +1,22 @@
+/* Notification bell and probation panels. */
+.notify-wrap{position:relative}
+.notify-btn::after{display:none}
+.notify-badge{position:absolute;top:2px;right:2px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--hris-danger,#c0262d);color:#fff;font-size:10px;font-weight:700;line-height:17px;text-align:center}
+.notify-badge[hidden]{display:none}
+.notify-panel{position:absolute;right:0;top:calc(100% + 8px);width:min(380px,92vw);max-height:70vh;overflow:auto;background:var(--hris-surface,#fff);border:1px solid var(--border,#e5e7eb);border-radius:14px;box-shadow:0 12px 32px rgba(15,23,42,.18);z-index:60}
+.notify-panel[hidden]{display:none}
+.notify-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border,#e5e7eb)}
+.notify-head button{border:0;background:none;color:var(--hris-brand-strong,#a86a00);font-size:12px;cursor:pointer}
+.notify-list{padding:6px}
+.notify-item{display:block;padding:10px 12px;border-radius:10px;color:inherit;text-decoration:none;font-size:13px}
+.notify-item:hover{background:var(--hris-surface-2,#f6f7f9)}
+.notify-item.unread{background:#fff7e0}
+.notify-item strong{display:block;margin-bottom:2px}
+.notify-item span{display:block;color:var(--muted,#6b7280);line-height:1.4}
+.notify-item small{color:var(--muted,#6b7280)}
+.notify-empty{padding:18px;text-align:center;color:var(--muted,#6b7280);font-size:13px}
+.probation-box{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--border,#e5e7eb);border-radius:10px;background:var(--hris-surface-2,#f6f7f9)}
+.probation-watch .panel{margin-bottom:20px}
+.probation-filters{padding:0 20px 12px}
+.probation-watch .alert{margin-bottom:12px}
+.probation-watch .alert.amber{background:#fff7e0;color:#835300;border:1px solid #f0deb1}

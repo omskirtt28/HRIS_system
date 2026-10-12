@@ -21,7 +21,7 @@ function employee_delete_review_page(array $data): void
     <div class="employee-delete-screen">
     <section class="panel employee-delete-identity"><div class="panel-body">
       <span class="employee-delete-avatar" aria-hidden="true"><?=e(initials($data['name']))?></span>
-      <div><h2><?=e($data['name'])?></h2><p>Employee code: <strong><?=e(($employee['employee_no'] ?? '') ?: 'Not set')?></strong></p><p class="muted small"><?=e(($employee['branch_name'] ?? '') ?: 'Branch not set')?> · <?=e(($employee['department_name'] ?? '') ?: 'Department not set')?> · <?=e(($employee['position_name'] ?? '') ?: 'Position not set')?></p><p class="muted small">Brand / Client: <?=e($company['brand'])?> · Employer: <?=e($company['employer'])?></p></div>
+      <div><h2><?=e($data['name'])?></h2><p>Employee code: <strong><?=e(($employee['employee_no'] ?? '') ?: 'Not set')?></strong></p><p class="muted small"><?=e(($employee['branch_name'] ?? '') ?: 'Branch not set')?> · <?=e(($employee['department_name'] ?? '') ?: 'Department not set')?> · <?=e(($employee['position_name'] ?? '') ?: 'Position not set')?></p><p class="muted small">Company Name: <?=e($company['brand'])?> · Employer: <?=e($company['employer'])?></p></div>
       <span class="badge <?=$blocked?'amber':'gray'?>"><?=$blocked?'Has linked records':'Ready to review'?></span>
     </div></section>
     <?php if($blocked):?>

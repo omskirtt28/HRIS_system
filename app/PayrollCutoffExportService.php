@@ -32,17 +32,15 @@ final class PayrollCutoffExportService
         if(FoundationRepository::tableExists('business_units') && FoundationRepository::columnExists('employees','business_unit_id')) {
             $joins.=' LEFT JOIN business_units bu ON bu.id=e.business_unit_id'; $company='COALESCE(bu.name,c.name,"")';
         }
-        if(FoundationRepository::tableExists('legal_entities') && FoundationRepository::columnExists('employees','legal_entity_id')) {
-            $joins.=' LEFT JOIN legal_entities le ON le.id=e.legal_entity_id'; $company='CASE WHEN ('.$workplace.')="HO" THEN COALESCE(le.name,'.$company.') ELSE '.$company.' END';
-        }
+        // Company is the Company Name (e.g. 2L.O.G., INC. for Sw Head Office); the Employer is always PMBSI.
         $q=db()->prepare('SELECT e.*,CONCAT_WS(" ",e.first_name,e.last_name) employee_name,COALESCE(b.code,"") branch_code,COALESCE(b.name,"Not assigned") branch_name,COALESCE(d.name,"Not assigned") department_name,COALESCE(p.name,"Not assigned") position_name,'.$company.' company_name,('.$workplace.') export_workplace,('.$placement['company'].') export_company,('.$placement['role'].') export_role,'.($hasArea?'COALESCE(a.code,"") area_code,COALESCE(a.name,"Area to assign") area_name':'"" area_code,"Area to assign" area_name').' FROM employees e LEFT JOIN branches b ON b.id=e.branch_id LEFT JOIN departments d ON d.id=e.department_id LEFT JOIN positions p ON p.id=e.position_id LEFT JOIN clients c ON c.id=b.client_id'.($hasArea?' LEFT JOIN areas a ON a.id=b.area_id':'').$joins.' WHERE '.PayrollAttendanceService::cutoffEmployeeScope($cutoffId).' ORDER BY e.last_name,e.first_name,e.id');
         $q->execute(); $result=[];
         foreach($q->fetchAll() as $e) {
             $dept=EmployeeDirectoryHierarchy::department(EmployeeDirectoryService::departmentLabel($e['department_name']));
             $main=EmployeeDirectoryHierarchy::groups()[$dept['main']]['name']??$dept['name'];
             if($dept['main']==='MARKETING') $dept['name']=$main;
-            $prefix=$e['export_company']==='OC'?"Ocampo's":($e['export_company']==='SW'?'Sw':'Company to assign');
-            $e['export_group']=$e['export_workplace']==='HO'?'Head Office '.$prefix:$prefix.($e['export_workplace']==='RETAIL'?' Retail':' / To assign');
+            $prefix=$e['export_company']==='OC'?"Ocampo's":($e['export_company']==='SW'?'Sw':($e['export_company']==='UF'?'Urban Farm':'Company to assign'));
+            $e['export_group']=$e['export_company']==='UF'?'Urban Farm':($e['export_workplace']==='HO'?'Head Office '.$prefix:$prefix.($e['export_workplace']==='RETAIL'?' Retail':' / To assign'));
             $e['export_department']=$dept['name']; $e['export_main_department']=$main;
             if($e['export_role']==='DEPARTMENT_MANAGER') $e['export_department']='Department Managers';
             if($e['export_role']==='ADL') $e['export_department']='ADL';

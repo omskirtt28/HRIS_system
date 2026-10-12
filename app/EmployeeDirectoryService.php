@@ -158,7 +158,7 @@ final class EmployeeDirectoryService
         }
         $directEmployees=EmployeeDirectoryPlacement::isHeadOffice($state['group']) && !empty($mainDepartments[$state['main_department']]['direct']);
         if($directEmployees) $state['department']='';
-        $result['list'] = $directEmployees || $state['branch_id'] > 0 || $state['department'] !== '' || in_array($state['group'], ['ALL','UNASSIGNED','MANAGERS','ADL'], true) || $state['view']==='list';
+        $result['list'] = $directEmployees || $state['branch_id'] > 0 || $state['department'] !== '' || in_array($state['group'], ['ALL','UNASSIGNED','MANAGERS','ADL','UF'], true) || $state['view']==='list';
         $base = ['group'=>$state['group']];
         if ($state['needs_details']) $base['needs_details']=1;
         if ($state['status'] !== '') $base['status']=$state['status'];
@@ -244,6 +244,8 @@ final class EmployeeDirectoryService
                 $result['note']='';
                 $result['crumbs'][]=['label'=>$result['title'],'params'=>[]];
             }
+        } elseif($state['group']==='UF') {
+            $result['title']='Urban Farm'; $result['subtitle']='Employees whose Company Group is Urban Farm.';
         } elseif(in_array($state['group'],['MANAGERS','ADL'],true)) {
             $result['title']=$state['group']==='ADL'?'Area Development Leaders':EmployeeDirectoryPlacement::GROUPS[$state['group']];
             $result['subtitle']=$state['group']==='ADL'?'View ADLs by company and assigned area.':'Department Managers only. Open Employee 201 to view their details.';

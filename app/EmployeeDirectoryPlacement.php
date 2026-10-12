@@ -4,7 +4,7 @@ declare(strict_types=1);
 /** Directory display only: never changes payroll approvers or account permissions. */
 final class EmployeeDirectoryPlacement
 {
-    public const GROUPS = ['SW_RETAIL'=>'Sw Retail','OC_RETAIL'=>"Ocampo's Retail",'SW_HO'=>'Head Office Sw','OC_HO'=>"Head Office Ocampo's",'MANAGERS'=>'Department Managers','ADL'=>'ADL','UNASSIGNED'=>'To assign','ALL'=>'All employees'];
+    public const GROUPS = ['SW_RETAIL'=>'Sw Retail','OC_RETAIL'=>"Ocampo's Retail",'SW_HO'=>'Head Office Sw','OC_HO'=>"Head Office Ocampo's",'UF'=>'Urban Farm','MANAGERS'=>'Department Managers','ADL'=>'ADL','UNASSIGNED'=>'To assign','ALL'=>'All employees'];
 
     // 2LOG Company Directory, HO DIRECTORY 2026, OCAMPOS HO section J136:J142.
     // Exact first/last identities only. Employer and email are not company-group evidence.
@@ -24,7 +24,7 @@ final class EmployeeDirectoryPlacement
 
     public static function isHeadOffice(string $group): bool { return in_array($group,['SW_HO','OC_HO'],true); }
     public static function isRetail(string $group): bool { return in_array($group,['SW_RETAIL','OC_RETAIL'],true); }
-    public static function companyLabel(string $code): string { return ['SW'=>'Sw','OC'=>"Ocampo's"][$code] ?? 'Not set'; }
+    public static function companyLabel(string $code): string { return ['SW'=>'Sw','OC'=>"Ocampo's",'UF'=>'Urban Farm'][$code] ?? 'Not set'; }
 
     public static function branchCompany(array $branch): string
     {
@@ -62,7 +62,7 @@ final class EmployeeDirectoryPlacement
         $position='UPPER(TRIM(COALESCE(p.name,"")))';
         $autoRole='CASE WHEN '.$position.' IN ("ADL","SR ADL","JR ADL","AREA DEVELOPMENT LEADER","SENIOR AREA DEVELOPMENT LEADER","JUNIOR AREA DEVELOPMENT LEADER","SR. ADL","JR. ADL") THEN "ADL" WHEN ('.$workplace.')="HO" AND '.$position.' IN ("DEPARTMENT MANAGER","FINANCE MANAGER","INVENTORY MANAGEMENT MANAGER","MANPOWER PLANNING MANAGER","MARKETING MANAGER","MARKETING & CREATIVES MANAGER","HR MANAGER","HUMAN RESOURCES MANAGER","INFORMATION SYSTEM MANAGER","INFORMATION SYSTEMS MANAGER","MIS MANAGER","ACCOUNTING MANAGER") THEN "DEPARTMENT_MANAGER" ELSE "EMPLOYEE" END';
         $role=self::ready() ? 'COALESCE(NULLIF(e.directory_role,""),('.$autoRole.'))' : $autoRole;
-        $group='CASE WHEN ('.$role.')="ADL" THEN "ADL" WHEN ('.$role.')="DEPARTMENT_MANAGER" THEN "MANAGERS" WHEN ('.$company.')="SW" AND ('.$workplace.')="RETAIL" THEN "SW_RETAIL" WHEN ('.$company.')="OC" AND ('.$workplace.')="RETAIL" THEN "OC_RETAIL" WHEN ('.$company.')="SW" AND ('.$workplace.')="HO" THEN "SW_HO" WHEN ('.$company.')="OC" AND ('.$workplace.')="HO" THEN "OC_HO" ELSE "UNASSIGNED" END';
+        $group='CASE WHEN ('.$role.')="ADL" THEN "ADL" WHEN ('.$role.')="DEPARTMENT_MANAGER" THEN "MANAGERS" WHEN ('.$company.')="UF" THEN "UF" WHEN ('.$company.')="SW" AND ('.$workplace.')="RETAIL" THEN "SW_RETAIL" WHEN ('.$company.')="OC" AND ('.$workplace.')="RETAIL" THEN "OC_RETAIL" WHEN ('.$company.')="SW" AND ('.$workplace.')="HO" THEN "SW_HO" WHEN ('.$company.')="OC" AND ('.$workplace.')="HO" THEN "OC_HO" ELSE "UNASSIGNED" END';
         return ['company'=>$company,'role'=>$role,'group'=>$group];
     }
 
@@ -85,7 +85,7 @@ final class EmployeeDirectoryPlacement
         if (!db()->inTransaction()) throw new RuntimeException('Directory assignments must be saved with the employee transaction.');
         $company=strtoupper(trim((string)($data['directory_company_group'] ?? '')));
         $role=strtoupper(trim((string)($data['directory_role'] ?? '')));
-        if (!in_array($company,['','SW','OC'],true) || !in_array($role,['','EMPLOYEE','DEPARTMENT_MANAGER','ADL'],true)) throw new RuntimeException('Choose a valid company group and directory section.');
+        if (!in_array($company,['','SW','OC','UF'],true) || !in_array($role,['','EMPLOYEE','DEPARTMENT_MANAGER','ADL'],true)) throw new RuntimeException('Choose a valid company group and directory section.');
         $input=$data['directory_area_ids'] ?? [];
         if (!is_array($input) || count($input)>100) throw new RuntimeException('Choose valid assigned areas.');
         $ids=[]; $areas=[];

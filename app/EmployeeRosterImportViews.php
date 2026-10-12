@@ -63,7 +63,7 @@ function employee_roster_page(): void
         if ($chosen && !$chosen['imported_at']) employee_roster_row_editor($batch,$chosen,$oldForm);
         else echo '<div class="alert error">That row is unavailable or already imported.</div>';
     elseif ($step === 'matches'):
-        $kindLabels = ['department'=>'Departments','site'=>'Branches / Sites','position'=>'Positions','brand'=>'Retail Brands / Clients','employer'=>'HO Employers'];
+        $kindLabels = ['department'=>'Departments','site'=>'Branches / Sites','position'=>'Positions','brand'=>'Retail Company Names','employer'=>'HO Employers'];
         ?>
         <section class="panel"><div class="panel-head"><div><h2>Change matches</h2><p>Details are matched from Excel automatically. Change a match only if it is incorrect.</p></div></div>
           <form method="post" class="panel-body">
@@ -102,7 +102,7 @@ function employee_roster_page(): void
             <tr><td><?=e($r['source_sheet'])?> <?=$r['source_row']?></td><td><strong><?=e($d['raw']['NAME'])?></strong><small>Code: <?=e($d['employee_no'] ?: 'Missing')?></small><small><?=e(trim($d['first_name'].' '.$d['middle_name'].' '.$d['last_name'].' '.$d['suffix']))?></small>
               <?php if ($r['existing']):?><small>In HRIS: <?=e(EmployeeRepository::fullName($r['existing']))?></small><?php endif;?>
               <?php if ($r['action']==='UPDATE'):?><span class="badge amber">Update selected</span><?php endif;?></td>
-            <td><?=e($a['site']['name'])?><small><?=e($a['department']['name'])?></small></td><td><?=e($a['position']['name'])?><small><?=e($a[$company]['name'])?> · <?=e($company==='brand'?'Brand / Client':'Employer')?></small></td><td><?=e($d['hire_date'] ?: 'Missing / invalid')?></td>
+            <td><?=e($a['site']['name'])?><small><?=e($a['department']['name'])?></small></td><td><?=e($a['position']['name'])?><small><?=e($a[$company]['name'])?> · <?=e($company==='brand'?'Company Name':'Employer')?></small></td><td><?=e($d['hire_date'] ?: 'Missing / invalid')?></td>
             <td><?php if ($r['pending']):?><span class="badge amber">Needs Details</span><?php endif;?><?php if ($r['imported_at'] && $r['employee_id']):?><a class="btn sm" href="<?=url('hr-employee',['id'=>$r['employee_id']])?>">Open Employee 201</a><?php elseif($r['state']==='EXISTS' && $r['existing']):?><a class="btn sm" href="<?=url('hr-employee',['id'=>$r['existing']['id']])?>">Open Employee 201</a><a class="btn sm" href="<?=url('hr-employee-import',['id'=>$id,'row_id'=>$r['id']])?>">Review update</a><?php else:?><a class="btn sm" href="<?=url('hr-employee-import',['id'=>$id,'row_id'=>$r['id']])?>"><?=$tab==='CHECK'?'Fix row':'Review row (optional)'?></a><?php endif;?></td></tr>
             <?php if ($r['errors']):?><tr class="roster-error-row"><td colspan="6"><?=e(implode(' ', $r['errors']))?></td></tr><?php endif;?>
           <?php endforeach;?></tbody></table></div>
@@ -142,7 +142,7 @@ function employee_roster_row_editor(array $batch, array $row, array $oldForm): v
           <div class="field"><label for="roster-employee-code">Employee Code</label><input id="roster-employee-code" name="employee_no" maxlength="50" value="<?=e($d['employee_no'])?>"><small>Use the real employee number. It also matches biometric logs.</small></div>
           <div class="field"><label for="roster-start-date">Start Date</label><input id="roster-start-date" name="hire_date" type="date" value="<?=e($d['hire_date'])?>"><small>Excel value: <?=e($d['raw']['STARTDATE'] ?: '(blank)')?></small></div>
           <?php foreach (['first_name'=>'First Name','middle_name'=>'Middle Name / Initial','last_name'=>'Last Name','suffix'=>'Suffix'] as $field=>$label):?><div class="field"><label for="roster-<?=e($field)?>"><?=e($label)?></label><input id="roster-<?=e($field)?>" name="<?=e($field)?>" maxlength="<?=$field==='suffix'?30:100?>" value="<?=e($d[$field])?>"></div><?php endforeach;?>
-          <?php foreach (['site'=>'Branch / Site','department'=>'Department','position'=>'Position','brand'=>'Brand / Client','employer'=>'Employer'] as $kind=>$label):
+          <?php foreach (['site'=>'Branch / Site','department'=>'Department','position'=>'Position','brand'=>'Company Name','employer'=>'Employer'] as $kind=>$label):
               $optional = ($kind==='brand' && $d['source_sheet']==='HO') || ($kind==='employer' && $d['source_sheet']==='RETAIL');
               if ($optional) continue;
               $choices=[''=>'From Excel: '.$row['assignment'][$kind]['name']];
@@ -156,7 +156,7 @@ function employee_roster_row_editor(array $batch, array $row, array $oldForm): v
           <?php endforeach;?>
           <div class="field"><label>Row action</label><?php employee_roster_select('row_action',['AUTO'=>'Add if new / skip if code already exists','UPDATE'=>'Update existing employee after review','IGNORE'=>'Skip this row'],$row['action'],'Row action'); ?></div>
         </div>
-        <?php $other = $d['source_sheet']==='RETAIL' ? 'employer' : 'brand'; $otherLabel = $other==='employer' ? 'Employer' : 'Brand / Client'; $extraChoices=[''=>'Not supplied in this sheet'];
+        <?php $other = $d['source_sheet']==='RETAIL' ? 'employer' : 'brand'; $otherLabel = $other==='employer' ? 'Employer' : 'Company Name'; $extraChoices=[''=>'Not supplied in this sheet'];
             foreach ($catalog[$other] as $key=>$r) if ($r['active']) $extraChoices[(string)$key]=$r['name']; ?>
         <details class="roster-current" <?=!empty($d['override_'.$other])?'open':''?>><summary>Extra company details (optional)</summary><div class="roster-note"><div class="field"><label><?=e($otherLabel)?></label><?php employee_roster_select('override_'.$other,$extraChoices,(string)($d['override_'.$other] ?? ''),$otherLabel); ?></div></div></details>
         <label class="roster-check"><input type="checkbox" name="assignment_checked" value="1" <?=!empty($d['assignment_checked'])?'checked':''?>> I checked this row's branch and department (needed for a branch employee listed in HO).</label>
@@ -168,7 +168,7 @@ function employee_roster_row_editor(array $batch, array $row, array $oldForm): v
             Current Start Date: <?=e($existing['hire_date'])?><br>
             Branch: <?=e($catalog['site'][(int)$existing['branch_id']]['name'] ?? 'Not set')?> · Department: <?=e($catalog['department'][(int)$existing['department_id']]['name'] ?? 'Not set')?><br>
             Position: <?=e($catalog['position'][(int)$existing['position_id']]['name'] ?? 'Not set')?><br>
-            Brand / Client: <?=e($companies['brand'])?> · Employer: <?=e($companies['employer'])?><br>
+            Company Name: <?=e($companies['brand'])?> · Employer: <?=e($companies['employer'])?><br>
             Update uses the fields in this form. It keeps the linked account, contact details, manager, Employee Status and other Employee 201 records.
           </div></details>
         <?php endif;?>

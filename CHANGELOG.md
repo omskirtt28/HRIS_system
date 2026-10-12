@@ -196,3 +196,26 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 - Choosing **Resign** moves the employee to the Employee Archive as Resigned (effective date and remarks required, login deactivated). Restore returns the employee to their previous Employee Status.
 - Probationary / Returnee-Probationary → Regular is recorded as a Regularization and fills the regularization date when empty.
 - Employment History shows "Employee Status: A → B". Migration: `database/migrations/20261012_employee_status.sql`.
+
+## 2026-10-12 — Company Group → Company Name; Employer is PMBSI
+- Employee 201 (Employment tab) now asks for **Company Group** first (Sw, Ocampo's, Urban Farm), then **Company Name**, which lists only that group's companies. "Brand / Client" is now **Company Name**; **Employer** is automatic (PMBSI, read-only).
+- Company names come from the 2LOG Company Directory (Corporate Name sheet): Sw = 2L.O.G., INC., Cortona, Greco, Montepulciano, Orvieto, Perugia, Positano, Sterling, Vicenza; Ocampo's = Almandite, Ocampo's Ventures, Cryssoberyl, Artchic, and "Ocampo's" (Head Office); Urban Farm = Urban Farm. Sw Head Office staff are 2L.O.G., INC.
+- Every branch has a default company from the RETAIL DIRECTORY NEW sheet (66 store codes checked against the DB: no conflicts). Choosing a Branch / Site pre-fills Company Group and Company Name; HR can still change them. New employees get the branch's company automatically.
+- Existing employees were moved from the old short brands (CORTONA, VISCENZA…) to the official company rows and got their Company Group; the old rows are retired. Urban Farm has its own directory tab.
+- Directory and payroll exports show the Company Name (e.g. "Cortona Trading Corporation", Head Office "2L.O.G., INC.").
+- Organization Setup: "Business Units / Brands" is now **Company Names** (with Company Group). Migration: `database/migrations/20261012_company_name.sql`.
+
+## 2026-10-12 — Automatic probation (6 months) and reminders
+- Choosing **Probationary** (or Returnee-Probationary) now counts 6 months by itself: probation starts on the hire date (Returnee: the date HR sets it) and ends the day before the 6-month anniversary. Editing the hire date recalculates it; any other Employee Status clears it. Employee 201 shows the dates and days left; no typing or counting.
+- **Reminders:** at 5 months the ADL (retail) or Manager (Head Office) the employee is under, HR, and the employee are notified; when the 6 months end, HR, the employee and the ADL / Manager are notified so HR can follow up. Not auto-regularized — HR sets Regular. Who is "under": Reporting To, else the ADL of the branch's area, else the department Manager.
+- The bell now works (unread badge, latest notifications, mark as read) and reminders are also emailed through Gmail when `config/config.local.php` has the mail settings. New **Probation Watch** page lists everyone on probation with days left, who they are under, and reminder status.
+- The check runs once a day when anyone opens HRIS and can be scheduled with `scripts/run_notifications.php`. Migration: `database/migrations/20261012_probation_notifications.sql`.
+
+## 2026-10-12 — Regularization date fills itself
+- On Add Employee, Employee 201 and the recruitment conversion form, picking Probationary (or Returnee-Probationary) and a hire date fills the **Regularization date** automatically (6 months after the hire date, e.g. Oct 12, 2026 → Apr 12, 2027) and locks the field. Other statuses keep it editable.
+- The server sets it too, so it stays correct when the hire date changes; when a probationary employee becomes Regular, the regularization date becomes the effective date of that change. Existing probationary employees were updated.
+
+## 2026-10-12 — Seasonal: 3-month contract, counted automatically
+- Choosing **Seasonal** and entering the hire date now fills the contract end by itself: 3 months from the hire date (Oct 12, 2026 → ends Jan 11, 2027). Seasonal has no regularization date (the field stays blank and locked).
+- The **Hire date** on Add Employee is now blank so HR types it in; the end date appears once it is entered.
+- Reminders work like probation: the ADL / Manager and HR are told one month before the end (2 months in), and HR, the employee and the ADL / Manager when it ends. **Probation Watch** is now **Probation & Seasonal** and lists both. Existing Seasonal employees were given their dates.

@@ -621,3 +621,11 @@ Phase 3A adds `areas`, branch-to-area mapping, `employees.manager_employee_id`, 
 
 ### Employee Status (`employment_types`)
 `employment_types` is the **Employee Status** master shown to HR (Regular, Probationary, Seasonal, Resign, Contractual, Part Time, Returnee-Probationary, Maternity Leave, On Leave; Project-Based and Fixed-Term remain; Intern is retired). HR chooses only this value; `EmployeeStatusPolicy` derives the internal `employees.status` that payroll, approvals, login and the directory read: Probationary / Returnee-Probationary → `PROBATIONARY`; On Leave / Maternity Leave → `ON_LEAVE`; Resign → `RESIGNED` (Employee Archive); everything else → `ACTIVE`. Setup: `database/migrations/20261012_employee_status.sql`.
+
+### Company Group / Company Name / Employer
+`business_units` is the **Company Name** master with `company_group` (`SW` / `OC` / `UF`). `employees.directory_company_group` is the employee's **Company Group**, `employees.business_unit_id` the **Company Name** (must belong to the group), and `employees.legal_entity_id` is always the single **PMBSI** employer row. `branches.default_business_unit_id` is the branch's default company (source: 2LOG Company Directory, RETAIL DIRECTORY NEW). Setup: `database/migrations/20261012_company_name.sql`.
+
+### Probation and notifications
+`employees.probation_start_date` / `probation_end_date` are filled automatically (6 months, see `EmployeeStatusPolicy::probationDates`). `notifications` holds one row per recipient (`recipient_user_id` for the bell, `email_to` / `emailed_at` for Gmail, `dedupe_key` unique so a reminder is created once). `job_runs` guards the once-a-day check. Setup: `database/migrations/20261012_probation_notifications.sql`.
+
+Note: `probation_start_date` / `probation_end_date` hold the current fixed term for both Probationary (6 months) and Seasonal (3 months) employees; the status decides which.
