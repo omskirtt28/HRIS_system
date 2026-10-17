@@ -14,13 +14,13 @@ function employee_roster_page(): void
     echo '<link rel="stylesheet" href="public/assets/employee-roster.css?v=20261010">';
     page_head('HR / Employees','Import Employees','<a class="btn" href="'.url('hr-employees').'">Employee Directory</a>');
     if (!EmployeeRosterImportService::ready()) {
-        echo '<div class="alert error">Install the original roster SQL, then <code>database/migrations/20261010_employee_roster_followup_details.sql</code> in phpMyAdmin and reload.</div>';
+        echo '<div class="alert error">Install the original roster SQL, then <code>database/migrations/20261010_employee_roster_followup_details.sql</code> and <code>database/migrations/20261017_lee_code_payroll_group.sql</code> in phpMyAdmin and reload.</div>';
         render_portal_footer(); return;
     }
     $id = (int)($_GET['id'] ?? 0);
     if (!$id) {
         $history = EmployeeRosterImportService::history(); ?>
-        <section class="panel roster-upload"><div class="panel-head"><div><h2>Upload employee roster</h2><p>One Excel file with Retail and/or HO sheets. Up to 20 MB and 5,000 employees.</p></div></div>
+        <section class="panel roster-upload"><div class="panel-head"><div><h2>Upload employee roster</h2><p>One Excel file with Retail and/or HO sheets, or the Ocampo's list (one sheet with Employee Code, Bio Code and Lee Code). Up to 20 MB and 5,000 employees.</p></div></div>
           <form method="post" enctype="multipart/form-data" class="panel-body">
             <?=csrf_field()?><input type="hidden" name="action" value="employee_roster_upload">
             <p>Upload Excel, review the filled details, then import the employees. Missing details can be finished later in Employee 201.</p>
@@ -98,13 +98,14 @@ function employee_roster_page(): void
         <section class="panel"><div class="panel-head"><div><h2><?=e($labels[$tab])?></h2><p><?=e(match($tab) {'READY'=>'These rows have the details needed for Employee 201.','FOLLOWUP'=>'These profiles can be imported now. Finish the listed details later in Employee 201.','CHECK'=>'Correct the values that cannot be saved, then import.','EXISTS'=>'These records already exist and are skipped by default.','IMPORTED'=>'These rows have been saved to Employee 201.','DETAILS'=>'Already imported. Open Employee 201 and finish the listed details.',default=>'These rows were marked Skip.'})?></p></div></div>
           <?php if (!$rows):?><div class="empty">No rows here. Open another tab to see the employees.</div><?php else:?>
           <div class="roster-table-wrap"><table class="tbl roster-table"><thead><tr><th>Excel row</th><th>Employee</th><th>Branch / Department</th><th>Position / Company</th><th>Start Date</th><th></th></tr></thead><tbody>
-          <?php foreach (array_slice($rows,($p-1)*25,25) as $r): $d=$r['data']; $a=$r['assignment']; $company=$d['source_sheet']==='RETAIL'?'brand':'employer'; ?>
-            <tr><td><?=e($r['source_sheet'])?> <?=$r['source_row']?></td><td><strong><?=e($d['raw']['NAME'])?></strong><small>Code: <?=e($d['employee_no'] ?: 'Missing')?></small><small><?=e(trim($d['first_name'].' '.$d['middle_name'].' '.$d['last_name'].' '.$d['suffix']))?></small>
+          <?php foreach (array_slice($rows,($p-1)*25,25) as $r): $d=$r['data']; $a=$r['assignment']; $company=EmployeeRosterImportService::companyKind($d); ?>
+            <tr><td><?=e($r['source_sheet'])?> <?=$r['source_row']?></td><td><strong><?=e($d['raw']['NAME'])?></strong><small>Code: <?=e($d['employee_no'] ?: 'Missing')?><?php if (!empty($d['original_code'])):?> · Original: <?=e($d['original_code'])?><?php endif;?></small><?php if (!empty($d['lee_code']) || !empty($d['payroll_group'])):?><small>Lee Code: <?=e($d['lee_code'] ?: '—')?> · Payroll Group: <?=e($d['payroll_group'] ?: '—')?></small><?php endif;?><small><?=e(trim($d['first_name'].' '.$d['middle_name'].' '.$d['last_name'].' '.$d['suffix']))?></small>
               <?php if ($r['existing']):?><small>In HRIS: <?=e(EmployeeRepository::fullName($r['existing']))?></small><?php endif;?>
               <?php if ($r['action']==='UPDATE'):?><span class="badge amber">Update selected</span><?php endif;?></td>
             <td><?=e($a['site']['name'])?><small><?=e($a['department']['name'])?></small></td><td><?=e($a['position']['name'])?><small><?=e($a[$company]['name'])?> · <?=e($company==='brand'?'Company Name':'Employer')?></small></td><td><?=e($d['hire_date'] ?: 'Missing / invalid')?></td>
             <td><?php if ($r['pending']):?><span class="badge amber">Needs Details</span><?php endif;?><?php if ($r['imported_at'] && $r['employee_id']):?><a class="btn sm" href="<?=url('hr-employee',['id'=>$r['employee_id']])?>">Open Employee 201</a><?php elseif($r['state']==='EXISTS' && $r['existing']):?><a class="btn sm" href="<?=url('hr-employee',['id'=>$r['existing']['id']])?>">Open Employee 201</a><a class="btn sm" href="<?=url('hr-employee-import',['id'=>$id,'row_id'=>$r['id']])?>">Review update</a><?php else:?><a class="btn sm" href="<?=url('hr-employee-import',['id'=>$id,'row_id'=>$r['id']])?>"><?=$tab==='CHECK'?'Fix row':'Review row (optional)'?></a><?php endif;?></td></tr>
             <?php if ($r['errors']):?><tr class="roster-error-row"><td colspan="6"><?=e(implode(' ', $r['errors']))?></td></tr><?php endif;?>
+            <?php if (!empty($r['notes'])):?><tr><td colspan="6"><small class="muted"><?=e(implode(' ', $r['notes']))?></small></td></tr><?php endif;?>
           <?php endforeach;?></tbody></table></div>
           <div class="roster-pagination"><span>Page <?=$p?> of <?=$pages?> · <?=count($rows)?> rows</span><div><?php if ($p>1):?><a class="btn sm" href="<?=url('hr-employee-import',['id'=>$id,'tab'=>$tab,'p'=>$p-1])?>">Previous</a><?php endif;?><?php if ($p<$pages):?><a class="btn sm" href="<?=url('hr-employee-import',['id'=>$id,'tab'=>$tab,'p'=>$p+1])?>">Next</a><?php endif;?></div></div>
           <?php endif;?>
@@ -143,7 +144,8 @@ function employee_roster_row_editor(array $batch, array $row, array $oldForm): v
           <div class="field"><label for="roster-start-date">Start Date</label><input id="roster-start-date" name="hire_date" type="date" value="<?=e($d['hire_date'])?>"><small>Excel value: <?=e($d['raw']['STARTDATE'] ?: '(blank)')?></small></div>
           <?php foreach (['first_name'=>'First Name','middle_name'=>'Middle Name / Initial','last_name'=>'Last Name','suffix'=>'Suffix'] as $field=>$label):?><div class="field"><label for="roster-<?=e($field)?>"><?=e($label)?></label><input id="roster-<?=e($field)?>" name="<?=e($field)?>" maxlength="<?=$field==='suffix'?30:100?>" value="<?=e($d[$field])?>"></div><?php endforeach;?>
           <?php foreach (['site'=>'Branch / Site','department'=>'Department','position'=>'Position','brand'=>'Company Name','employer'=>'Employer'] as $kind=>$label):
-              $optional = ($kind==='brand' && $d['source_sheet']==='HO') || ($kind==='employer' && $d['source_sheet']==='RETAIL');
+              $rowCompany = EmployeeRosterImportService::companyKind($d);
+              $optional = ($kind==='brand' && $rowCompany==='employer') || ($kind==='employer' && $rowCompany==='brand');
               if ($optional) continue;
               $choices=[''=>'From Excel: '.$row['assignment'][$kind]['name']];
               foreach ($catalog[$kind] as $key=>$r) if ($r['active']) {
@@ -156,7 +158,7 @@ function employee_roster_row_editor(array $batch, array $row, array $oldForm): v
           <?php endforeach;?>
           <div class="field"><label>Row action</label><?php employee_roster_select('row_action',['AUTO'=>'Add if new / skip if code already exists','UPDATE'=>'Update existing employee after review','IGNORE'=>'Skip this row'],$row['action'],'Row action'); ?></div>
         </div>
-        <?php $other = $d['source_sheet']==='RETAIL' ? 'employer' : 'brand'; $otherLabel = $other==='employer' ? 'Employer' : 'Company Name'; $extraChoices=[''=>'Not supplied in this sheet'];
+        <?php $other = EmployeeRosterImportService::companyKind($d)==='brand' ? 'employer' : 'brand'; $otherLabel = $other==='employer' ? 'Employer' : 'Company Name'; $extraChoices=[''=>'Not supplied in this sheet'];
             foreach ($catalog[$other] as $key=>$r) if ($r['active']) $extraChoices[(string)$key]=$r['name']; ?>
         <details class="roster-current" <?=!empty($d['override_'.$other])?'open':''?>><summary>Extra company details (optional)</summary><div class="roster-note"><div class="field"><label><?=e($otherLabel)?></label><?php employee_roster_select('override_'.$other,$extraChoices,(string)($d['override_'.$other] ?? ''),$otherLabel); ?></div></div></details>
         <label class="roster-check"><input type="checkbox" name="assignment_checked" value="1" <?=!empty($d['assignment_checked'])?'checked':''?>> I checked this row's branch and department (needed for a branch employee listed in HO).</label>
@@ -172,7 +174,7 @@ function employee_roster_row_editor(array $batch, array $row, array $oldForm): v
             Update uses the fields in this form. It keeps the linked account, contact details, manager, Employee Status and other Employee 201 records.
           </div></details>
         <?php endif;?>
-        <details class="roster-current"><summary>Original Excel details</summary><div class="roster-note"><?php $rawLabels=['EMPLOYEECODE'=>'Employee Code','NAME'=>'Name','ADDRESSOFMALL'=>'Mall / Site','DEPARTMENT'=>'Department','POSITION'=>'Position','BRANCHCODE'=>'Branch Code','COMPANY'=>'Company','STARTDATE'=>'Start Date']; foreach ($d['raw'] as $key=>$value):?><div><strong><?=e($rawLabels[$key] ?? $key)?>:</strong> <?=e($value ?: '(blank)')?></div><?php endforeach;?></div></details>
+        <details class="roster-current"><summary>Original Excel details</summary><div class="roster-note"><?php $rawLabels=['EMPLOYEECODE'=>'Employee Code','BIOCODE'=>'Bio Code','LEECODE'=>'Lee Code','LASTNAME'=>'Last Name','FIRSTNAME'=>'First Name','MIDDLENAME'=>'Middle Name','PAYROLLGROUP'=>'Payroll Group','COMPANYNAME'=>'Company Name','BRANCH'=>'Branch','NAME'=>'Name','ADDRESSOFMALL'=>'Mall / Site','DEPARTMENT'=>'Department','POSITION'=>'Position','BRANCHCODE'=>'Branch Code','COMPANY'=>'Company','STARTDATE'=>'Start Date']; foreach ($d['raw'] as $key=>$value):?><div><strong><?=e($rawLabels[$key] ?? $key)?>:</strong> <?=e($value ?: '(blank)')?></div><?php endforeach;?></div></details>
         <div class="roster-form-actions"><button class="btn primary" type="submit">Save row & review</button><a class="btn" href="<?=url('hr-employee-import',['id'=>$id,'step'=>'matches'])?>">Change matches (optional)</a></div>
       </form>
     </section>

@@ -4,6 +4,35 @@ declare(strict_types=1);
 /** Reads roster evidence only. No database writes, account creation or guessed dates. */
 final class EmployeeRosterParser
 {
+    /** Columns of the Ocampo's list (one sheet, split names, Bio Code and Lee Code). Keys are headerKey() forms. */
+    private const LEE_COLUMNS = ['EMPLOYEECODE','BIOCODE','LEECODE','LASTNAME','FIRSTNAME','MIDDLENAME','PAYROLLGROUP','COMPANYNAME','BRANCH','POSITION','STARTDATE'];
+
+    /** Excel Company Name -> official Company Name master. Anything not listed is passed through as typed. */
+    private const LEE_COMPANIES = [
+        'OCAMPOSVENTURES'=>"Ocampo's Ventures, Inc.", 'CRYSSOBERYL'=>'Cryssoberyl Ventures, Inc.',
+        'ALMANDITEVENTURES'=>'Almandite Ventures, Inc.', 'ARTCHICVENTURES'=>'Artchic Ventures OPC',
+    ];
+
+    /** Excel Position -> the one spelling HR wants (merges GOLD SMITH/GOLDSMITH, VIP SPECIALIST(S), PROD-ADMIN sTAFF). */
+    private const LEE_POSITIONS = [
+        'VIPSPECIALIST'=>'VIP Specialist', 'VIPSPECIALISTS'=>'VIP Specialist', 'GOLDSMITH'=>'Goldsmith',
+        'PRODADMINSTAFF'=>'Production Admin', 'ACCOUNTINGSTAFF'=>'Accounting Staff', 'AREADEVELOPMENTLEADER'=>'Area Development Leader',
+        'SALESCAPTAIN'=>'Sales Captain', 'OFFICERINCHARGE'=>'Officer In Charge', 'COMPANYDRIVER'=>'Company Driver',
+        'HUMANRESOURCESASSISTANT'=>'Human Resources Assistant', 'STOCKCONTROLPRODUCTIONSTAFF'=>'Stockcontrol/Production Staff',
+    ];
+
+    /**
+     * Position -> Department. The Ocampo's list has no Department column, so this follows how the positions are used.
+     * ASSUMED (HR to confirm in Employee 201): Company Driver, Human Resources Assistant, Stockcontrol/Production Staff.
+     * A position that is not listed gets no department and shows as Needs Details.
+     */
+    private const LEE_DEPARTMENTS = [
+        'VIP Specialist'=>'Retail', 'Sales Captain'=>'Retail', 'Officer In Charge'=>'Retail',
+        'Accounting Staff'=>'Accounting', 'Area Development Leader'=>'Retail & Development', 'Production Admin'=>'Production',
+        'Goldsmith'=>'Production',
+        'Company Driver'=>'Admin', 'Human Resources Assistant'=>'Admin', 'Stockcontrol/Production Staff'=>'Stock Control',
+    ];
+
     public static function parse(string $path): array
     {
         if (!class_exists(ZipArchive::class) || !function_exists('simplexml_load_string')) {
@@ -43,9 +72,13 @@ final class EmployeeRosterParser
             $props = $workbook->xpath('//*[local-name()="workbookPr"]');
             $date1904 = $props && in_array(strtolower((string)$props[0]['date1904']), ['1','true'], true);
             $rows = []; $sheets = [];
+            $sheetNames = array_map(static fn($s)=>strtoupper(trim((string)$s['name'])), $workbook->xpath('//*[local-name()="sheets"]/*[local-name()="sheet"]') ?: []);
+            // The Retail/HO layout wins. Only a workbook without those sheets is read as the Ocampo's list.
+            $hasRosterSheets = (bool)array_intersect($sheetNames, ['RETAIL','HO']);
             foreach ($workbook->xpath('//*[local-name()="sheets"]/*[local-name()="sheet"]') ?: [] as $sheet) {
                 $group = strtoupper(trim((string)$sheet['name']));
-                if (!in_array($group, ['RETAIL','HO'], true)) continue;
+                $isRoster = in_array($group, ['RETAIL','HO'], true);
+                if (!$isRoster && $hasRosterSheets) continue;
                 if (isset($sheets[$group])) throw new RuntimeException('Keep one Retail sheet and one HO sheet in the workbook.');
                 $rid = '';
                 foreach ($sheet->getNamespaces(true) as $ns) {
@@ -71,16 +104,23 @@ final class EmployeeRosterParser
                         elseif (is_numeric($value) && preg_match('/^0+$/D', $formats[(int)$cell['s']] ?? '')) {
                             $value = str_pad((string)(int)$value, strlen($formats[(int)$cell['s']]), '0', STR_PAD_LEFT);
                         }
-                        $cells[$index] = trim($value);
+                        $cells[$index] = self::clean($value);
                         if ($cell->xpath('./*[local-name()="f"]')) $formulas[$index] = true;
                     }
                     if ($headers === null) {
                         $keys = array_map([self::class, 'headerKey'], $cells);
-                        if (!in_array('EMPLOYEECODE', $keys, true) || !in_array('NAME', $keys, true)) continue;
-                        $required = $group === 'RETAIL' ? ['EMPLOYEECODE','NAME','ADDRESSOFMALL','POSITION','BRANCHCODE','COMPANY','STARTDATE'] : ['EMPLOYEECODE','NAME','DEPARTMENT','POSITION','COMPANY','STARTDATE'];
+                        if (!in_array('EMPLOYEECODE', $keys, true) || !in_array($isRoster ? 'NAME' : 'LEECODE', $keys, true)) continue;
+                        $required = !$isRoster ? self::LEE_COLUMNS : ($group === 'RETAIL' ? ['EMPLOYEECODE','NAME','ADDRESSOFMALL','POSITION','BRANCHCODE','COMPANY','STARTDATE'] : ['EMPLOYEECODE','NAME','DEPARTMENT','POSITION','COMPANY','STARTDATE']);
                         foreach ($required as $key) if (count(array_keys($keys,$key,true)) > 1) throw new RuntimeException($group.' has more than one '.$key.' column. Keep one copy of each roster column.');
                         $headers = array_flip($keys);
                         foreach ($required as $key) if (!isset($headers[$key])) throw new RuntimeException($group.' is missing the '.$key.' column.');
+                        continue;
+                    }
+                    if (!$isRoster) {
+                        $parsed = self::leeRow($cells, $headers, $formulas, (int)$row['r'], $date1904, $group);
+                        if ($parsed === null) continue;
+                        $rows[] = $parsed; $count++;
+                        if (count($rows) > 5000) throw new RuntimeException('Upload at most 5,000 employees at a time.');
                         continue;
                     }
                     $raw = []; $formulaFields = [];
@@ -106,17 +146,58 @@ final class EmployeeRosterParser
                     $count++;
                     if (count($rows) > 5000) throw new RuntimeException('Upload at most 5,000 employees at a time.');
                 }
-                if ($headers === null) throw new RuntimeException('No employee header was found in '.$group.'.');
+                if ($headers === null) {
+                    if (!$isRoster) continue; // another sheet in an Ocampo's workbook
+                    throw new RuntimeException('No employee header was found in '.$group.'.');
+                }
                 $sheets[$group] = $count;
             }
-            if (!$rows) throw new RuntimeException('No employees found. Use sheets named Retail and/or HO with the roster headers.');
+            if (!$rows) throw new RuntimeException('No employees found. Use sheets named Retail and/or HO with the roster headers, or the Ocampo\'s list with Employee Code, Bio Code and Lee Code columns.');
             return ['rows'=>$rows,'sheets'=>$sheets];
         } finally { $zip->close(); }
     }
 
+    /** Trims spaces AND non-breaking spaces (U+00A0), which trim() leaves behind. */
+    public static function clean(string $value): string
+    {
+        return preg_replace('/^[\s\xC2\xA0]+|[\s\xC2\xA0]+$/u', '', $value) ?? '';
+    }
+
+    /** One row of the Ocampo's list. Employee Code is kept as the original code; the Bio Code becomes the Employee Code. */
+    private static function leeRow(array $cells, array $headers, array $formulas, int $line, bool $date1904, string $sheet): ?array
+    {
+        $raw = []; $formulaFields = [];
+        foreach (self::LEE_COLUMNS as $key) {
+            $col = $headers[$key];
+            $raw[$key] = $cells[$col] ?? '';
+            if (isset($formulas[$col])) $formulaFields[] = $key;
+            if (mb_strlen($raw[$key]) > 500) throw new RuntimeException($sheet.' row '.$line.' contains a very long value.');
+        }
+        if (!array_filter($raw, static fn($v) => $v !== '')) return null;
+        $bio = strtoupper($raw['BIOCODE']);
+        if (preg_match('/^([0-9]+)\.0+$/D', $bio, $m)) $bio = $m[1];
+        $head = self::headerKey($raw['BRANCH']) === 'HEADOFFICE';
+        $position = self::LEE_POSITIONS[self::headerKey($raw['POSITION'])] ?? $raw['POSITION'];
+        $raw['NAME'] = trim($raw['LASTNAME'].', '.trim($raw['FIRSTNAME'].' '.$raw['MIDDLENAME']));
+        return [
+            // Branch rows behave like the Retail sheet and Head Office rows like the HO sheet (payroll export groups by this).
+            'source_sheet'=>$head ? 'HO' : 'RETAIL', 'source_row'=>$line, 'raw'=>$raw,
+            'format'=>'LEE', 'company_kind'=>'brand',
+            'employee_no'=>$bio, 'original_code'=>strtoupper($raw['EMPLOYEECODE']),
+            'lee_code'=>$raw['LEECODE'], 'payroll_group'=>$raw['PAYROLLGROUP'],
+            'first_name'=>$raw['FIRSTNAME'], 'middle_name'=>$raw['MIDDLENAME'], 'last_name'=>$raw['LASTNAME'], 'suffix'=>'',
+            'hire_date'=>self::date($raw['STARTDATE'], $date1904), 'formula_fields'=>$formulaFields,
+            'department_source'=>self::LEE_DEPARTMENTS[$position] ?? '',
+            'site_source'=>$head ? 'Head Office' : $raw['BRANCH'], 'branch_code'=>$head ? '' : $raw['BRANCH'],
+            'position_source'=>$position,
+            'company_source'=>self::LEE_COMPANIES[self::headerKey($raw['COMPANYNAME'])] ?? $raw['COMPANYNAME'],
+            'name_checked'=>true, 'assignment_checked'=>false,
+        ];
+    }
+
     public static function date(string $value, bool $date1904 = false): string
     {
-        $value = trim($value);
+        $value = self::clean($value);
         if ($value === '') return '';
         if (is_numeric($value)) {
             $serial = (float)$value;

@@ -221,6 +221,8 @@ final class EmployeeDirectoryService
                 } else foreach($departments as $key=>$department) {
                     if($department['main']!==$state['main_department'] || (!$department['active'] && !$department['count'])) continue;
                     $direct=$department['display_name']===$main['name'];
+                    // The "<Main> employees" card is not a real team: show it only while someone is assigned directly, so they stay listed.
+                    if($direct && !$department['count']) continue;
                     $result['cards'][]=['title'=>$direct ? $main['name'].' employees' : $department['display_name'],'detail'=>$direct?'Employees assigned directly to '.$main['name']:'','count'=>$department['count'],'params'=>$base+['main_department'=>$state['main_department'],'department'=>$key],'action'=>'Open employees','icon'=>$department['icon'],'notice'=>''];
                 }
             } else {
@@ -294,7 +296,9 @@ final class EmployeeDirectoryService
             $company='NULL business_unit_name,NULL legal_entity_name';
             if(FoundationRepository::tableExists('business_units') && self::has('employees','business_unit_id')) { $joins.=' LEFT JOIN business_units bu ON bu.id=e.business_unit_id'; $company='bu.name business_unit_name,NULL legal_entity_name'; }
             if(FoundationRepository::tableExists('legal_entities') && self::has('employees','legal_entity_id')) { $joins.=' LEFT JOIN legal_entities le ON le.id=e.legal_entity_id'; $company=str_replace('NULL legal_entity_name','le.name legal_entity_name',$company); }
-            $statement=db()->prepare('SELECT e.*,et.name employment_type_name,d.name department_name,p.name position_name,b.name branch_name,b.code branch_code,'.$company.','.$workplace.' workplace,'.$placement['company'].' directory_company,'.$placement['role'].' directory_section'.$joins.' WHERE '.implode(' AND ',$where).' ORDER BY e.last_name,e.first_name,e.id LIMIT 25 OFFSET '.$offset);
+            $sectionName='NULL directory_section_name';
+            if(DirectorySectionService::ready()) { $joins.=' LEFT JOIN directory_sections dsec ON dsec.id=e.directory_section_id'; $sectionName='dsec.name directory_section_name'; }
+            $statement=db()->prepare('SELECT e.*,et.name employment_type_name,d.name department_name,p.name position_name,b.name branch_name,b.code branch_code,'.$company.','.$workplace.' workplace,'.$placement['company'].' directory_company,'.$placement['role'].' directory_section,'.$sectionName.$joins.' WHERE '.implode(' AND ',$where).' ORDER BY e.last_name,e.first_name,e.id LIMIT 25 OFFSET '.$offset);
             $statement->execute($params); $result['rows']=$statement->fetchAll();
         } else {
             if($state['q']!=='') $result['cards']=array_values(array_filter($result['cards'],static fn($card)=>mb_stripos($card['title'].' '.$card['detail'],$state['q'])!==false));

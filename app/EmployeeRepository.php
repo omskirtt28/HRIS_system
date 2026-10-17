@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/EmployeeDirectoryPlacement.php';
+require_once __DIR__.'/DirectorySectionService.php';
+require_once __DIR__.'/DirectorySectionViews.php';
 
 require_once __DIR__.'/EmployeeStatusPolicy.php';
 require_once __DIR__.'/EmployeeArchiveService.php';
@@ -124,12 +126,59 @@ final class EmployeeRepository
     }
 
 
+    /** Retail is the department with code RETAIL. Retail employees report to an ADL, never to a Manager. */
+    public static function isRetailDepartment(?int $departmentId): bool
+    {
+        if(!$departmentId) return false;
+        $st=db()->prepare('SELECT UPPER(code) FROM departments WHERE id=?');$st->execute([$departmentId]);
+        return (string)$st->fetchColumn()==='RETAIL';
+    }
+
+    public static function isAdl(int $employeeId): bool
+    {
+        $st=db()->prepare('SELECT COUNT(*) FROM employees e LEFT JOIN positions p ON p.id=e.position_id WHERE e.id=? AND '.EmployeeDirectoryPlacement::isAdlSql());
+        $st->execute([$employeeId]);return (int)$st->fetchColumn()>0;
+    }
+
+    /** Company Group -> the area whose ADL looks after it. Data-driven: the ADL is whoever HR gave that area in Employee 201. */
+    private const COMPANY_GROUP_ADL_AREA=['OC'=>'OCAMPOS'];
+
+    /**
+     * The ADL that a Retail employee is filled in with automatically, or null when HR must choose.
+     * Only when the employee belongs to a company group that has an ADL area (Ocampo's) and exactly one active ADL holds that area.
+     */
+    public static function defaultAdlId(?int $departmentId,?string $companyGroup,?int $branchId,?int $exceptEmployeeId=null): ?int
+    {
+        if(!self::isRetailDepartment($departmentId)) return null;
+        $areaCode=self::COMPANY_GROUP_ADL_AREA[strtoupper(trim((string)$companyGroup))] ?? null;
+        if($areaCode===null && $branchId && FoundationRepository::tableExists('areas')) {
+            // A branch inside the Ocampos area also counts, even if Company Group was left blank.
+            $st=db()->prepare('SELECT UPPER(a.code) FROM branches b JOIN areas a ON a.id=b.area_id WHERE b.id=?');$st->execute([$branchId]);
+            $code=(string)$st->fetchColumn(); if($code!=='' && in_array($code,self::COMPANY_GROUP_ADL_AREA,true)) $areaCode=$code;
+        }
+        return $areaCode===null ? null : self::adlIdForArea($areaCode,$exceptEmployeeId);
+    }
+
+    /** The one active ADL who holds this area in Employee 201 (Assigned areas for ADL), or null if none or more than one. */
+    public static function adlIdForArea(string $areaCode,?int $exceptEmployeeId=null): ?int
+    {
+        if(!EmployeeDirectoryPlacement::ready() || !FoundationRepository::tableExists('areas')) return null;
+        $st=db()->prepare("SELECT e.id FROM employees e LEFT JOIN positions p ON p.id=e.position_id JOIN areas a ON UPPER(a.code)=? AND a.active=1
+            WHERE e.status IN ('ACTIVE','PROBATIONARY','ON_LEAVE') AND ".EmployeeDirectoryPlacement::isAdlSql()."
+              AND LOCATE(CONCAT(',',a.id,','),COALESCE(e.directory_area_ids,''))>0".($exceptEmployeeId?' AND e.id<>?':'')." ORDER BY e.id LIMIT 2");
+        $st->execute($exceptEmployeeId?[$areaCode,$exceptEmployeeId]:[$areaCode]);
+        $ids=$st->fetchAll(PDO::FETCH_COLUMN);
+        return count($ids)===1 ? (int)$ids[0] : null;
+    }
+
     public static function managerCandidates(?int $employeeId=null): array
     {
         if(!self::ready()) return [];
+        $adl=EmployeeDirectoryPlacement::isAdlSql();
         $sql="SELECT e.id,e.employee_no,e.first_name,e.middle_name,e.last_name,p.name position_name,
                      u.email user_email,u.status user_status,r.code role_code,r.name role_name,
-                     MAX(CASE WHEN r.code='SUPER_ADMIN' OR pm.code IN ('payroll.approve_manager','payroll.approve_adl') THEN 1 ELSE 0 END) manager_ready
+                     MAX(CASE WHEN r.code='SUPER_ADMIN' OR pm.code IN ('payroll.approve_manager','payroll.approve_adl') THEN 1 ELSE 0 END) manager_ready,
+                     MAX(CASE WHEN {$adl} THEN 1 ELSE 0 END) is_adl
               FROM employees e
               LEFT JOIN positions p ON p.id=e.position_id
               LEFT JOIN users u ON u.id=e.user_id
@@ -143,10 +192,18 @@ final class EmployeeRepository
         $st=db()->prepare($sql);$st->execute($params);return $st->fetchAll();
     }
 
-    private static function validateImmediateManager(?int $managerEmployeeId,int $employeeId): void
+    private static function validateImmediateManager(?int $managerEmployeeId,int $employeeId,bool $retail=false): void
     {
         if(!$managerEmployeeId)return;
         if($managerEmployeeId===$employeeId)throw new RuntimeException('An employee cannot be their own Reporting To approver.');
+        if($retail) {
+            // Retail staff report to an ADL. The ADL's login is only needed when a ticket is routed to them (checked there).
+            $st=db()->prepare('SELECT e.status FROM employees e WHERE e.id=?');$st->execute([$managerEmployeeId]);$status=$st->fetchColumn();
+            if($status===false)throw new RuntimeException('Selected Reporting To approver was not found.');
+            if(!self::isAdl($managerEmployeeId))throw new RuntimeException('Retail employees report to an Area Development Leader (ADL). Choose an ADL as Reporting To.');
+            if(!in_array((string)$status,['ACTIVE','PROBATIONARY','ON_LEAVE'],true))throw new RuntimeException('Selected Reporting To approver is not an active employee.');
+            return;
+        }
         $sql="SELECT e.id,e.status,u.id user_id,u.status user_status,r.code role_code,
                     MAX(CASE WHEN r.code='SUPER_ADMIN' OR p.code IN ('payroll.approve_manager','payroll.approve_adl') THEN 1 ELSE 0 END) manager_ready
               FROM employees e
@@ -261,8 +318,9 @@ final class EmployeeRepository
         // Each sheet supplies only one kind of COMPANY. Keep the other existing value.
         $brand = $data['business_unit_id'] ?? ($old['business_unit_id'] ?? null);
         $employer = FoundationRepository::pmbsiEntityId() ?? $data['legal_entity_id'] ?? ($old['legal_entity_id'] ?? null);
-        $st = db()->prepare('UPDATE employees SET business_unit_id=?,legal_entity_id=?,roster_full_name=?,roster_group=?,roster_original_code=?,roster_source_key=COALESCE(roster_source_key,?),roster_pending_json=?,roster_needs_details=? WHERE id=?');
-        $st->execute([$brand,$employer,$data['roster_full_name'],$data['roster_group'],mb_substr((string)($data['roster_original_code'] ?? ''),0,50) ?: null,$data['roster_source_key'],json_encode($pending,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$pending ? 1 : 0,$existingId]);
+        // lee_code and payroll_group only fill a blank value; an existing one is never overwritten.
+        $st = db()->prepare('UPDATE employees SET business_unit_id=?,legal_entity_id=?,roster_full_name=?,roster_group=?,roster_original_code=?,roster_source_key=COALESCE(roster_source_key,?),roster_pending_json=?,roster_needs_details=?,lee_code=COALESCE(NULLIF(lee_code,""),?),payroll_group=COALESCE(NULLIF(payroll_group,""),?) WHERE id=?');
+        $st->execute([$brand,$employer,$data['roster_full_name'],$data['roster_group'],mb_substr((string)($data['roster_original_code'] ?? ''),0,50) ?: null,$data['roster_source_key'],json_encode($pending,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$pending ? 1 : 0,mb_substr((string)($data['lee_code'] ?? ''),0,30) ?: null,mb_substr((string)($data['payroll_group'] ?? ''),0,30) ?: null,$existingId]);
         self::refreshRosterDetails($existingId);
         $changes = [];
         foreach (['first_name','middle_name','last_name','suffix','department_id','position_id','branch_id','hire_date','business_unit_id','legal_entity_id'] as $field) {
@@ -337,8 +395,20 @@ final class EmployeeRepository
             'department_id'=>$old['department_id']!==null?(int)$old['department_id']:null,'position_id'=>$old['position_id']!==null?(int)$old['position_id']:null,
             'branch_id'=>$old['branch_id']!==null?(int)$old['branch_id']:null,'employment_type_id'=>$old['employment_type_id']!==null?(int)$old['employment_type_id']:null,'manager_employee_id'=>isset($old['manager_employee_id'])&&$old['manager_employee_id']!==null?(int)$old['manager_employee_id']:null,'status'=>(string)$old['status']
         ];
-        $managerEmployeeId=self::columnExists('employees','manager_employee_id') ? ((int)($data['manager_employee_id']??($old['manager_employee_id']??0))?:null) : null;
-        self::validateImmediateManager($managerEmployeeId,$id);
+        $hasManagerColumn=self::columnExists('employees','manager_employee_id');
+        $managerEmployeeId=$hasManagerColumn ? ((int)($data['manager_employee_id']??($old['manager_employee_id']??0))?:null) : null;
+        $retail=$hasManagerColumn && self::isRetailDepartment($departmentId);
+        // HR saved the form with Reporting To empty: a Retail employee in Ocampo's gets the ADL who holds the Ocampos area.
+        if($retail && !$managerEmployeeId && array_key_exists('manager_employee_id',$data)) {
+            $managerEmployeeId=self::defaultAdlId($departmentId,(string)($data['directory_company_group']??$old['directory_company_group']??''),$branchId,$id);
+        }
+        $managerChanged=$managerEmployeeId!==$before['manager_employee_id'];
+        if($managerChanged && !Auth::can('employees.manage')) throw new RuntimeException('Only HR can change Reporting To.');
+        // A Retail employee's Reporting To must be an ADL. It is checked when it changes or when the employee moves into Retail.
+        // An unchanged assignment is left alone, so an unrelated edit (maternity leave, status, an ADL who has no account yet)
+        // is never blocked by it.
+        if(!$retail) self::validateImmediateManager($managerEmployeeId,$id);
+        elseif($managerChanged || $departmentId!==$before['department_id']) self::validateImmediateManager($managerEmployeeId,$id,true);
         $after=['department_id'=>$departmentId,'position_id'=>$positionId,'branch_id'=>$branchId,'employment_type_id'=>$employmentTypeId,'manager_employee_id'=>$managerEmployeeId,'status'=>$status];
         $changed=[];foreach($before as $k=>$v) if($v!==$after[$k])$changed[]=$k;
         $owned=!db()->inTransaction();if($owned)db()->beginTransaction();
@@ -354,6 +424,9 @@ final class EmployeeRepository
                 db()->prepare('UPDATE employees SET business_unit_id=?,legal_entity_id=? WHERE id=?')->execute([$companyId,FoundationRepository::pmbsiEntityId(),$id]);
                 if($companyGroup!==null) db()->prepare('UPDATE employees SET directory_company_group=? WHERE id=? AND (directory_company_group IS NULL OR directory_company_group="")')->execute([$companyGroup,$id]);
             }
+            // Ocampo's Head Office section: validated against the Company Group / Branch just saved above.
+            $sectionAfter=DirectorySectionService::save($id,$data);
+            if($sectionAfter!==null) $directoryAfter=array_merge($directoryAfter,$sectionAfter);
             if(self::columnExists('employees','probation_end_date')) {
                 // The 6 months count by themselves: new probation, or the hire date moved while still Probationary.
                 $typeMoved=$employmentTypeId!==$oldTypeId; $hireMoved=(string)$hireDate!==(string)($old['hire_date']??'');
@@ -375,7 +448,7 @@ final class EmployeeRepository
             if($resigning) EmployeeArchiveService::archive($id,'RESIGNED',$effectiveDate,$remarks);
             if($owned)db()->commit();
         }catch(Throwable $e){if($owned&&db()->inTransaction())db()->rollBack();if($e instanceof PDOException)self::throwDuplicateEmployee($e);throw $e;}
-        audit('Employees','UPDATE_EMPLOYMENT','employee',$id,['changed'=>$changed,'effective_date'=>$effectiveDate,'remarks'=>$remarks,'employee_no_before'=>$old['employee_no'],'employee_no_after'=>$employeeNo,'hire_date_before'=>$old['hire_date'],'hire_date_after'=>$hireDate,'company_before'=>[$old['business_unit_id'] ?? null,$old['legal_entity_id'] ?? null],'company_after'=>$companyValues ?? [],'directory_before'=>array_intersect_key($old,array_flip(['directory_company_group','directory_role','directory_area_ids'])),'directory_after'=>$directoryAfter ?? [],'needs_details_before'=>(int)($old['roster_needs_details'] ?? 0),'needs_details_after'=>(int)(self::find($id)['roster_needs_details'] ?? 0)]);
+        audit('Employees','UPDATE_EMPLOYMENT','employee',$id,['changed'=>$changed,'effective_date'=>$effectiveDate,'remarks'=>$remarks,'employee_no_before'=>$old['employee_no'],'employee_no_after'=>$employeeNo,'hire_date_before'=>$old['hire_date'],'hire_date_after'=>$hireDate,'company_before'=>[$old['business_unit_id'] ?? null,$old['legal_entity_id'] ?? null],'company_after'=>$companyValues ?? [],'directory_before'=>array_intersect_key($old,array_flip(['directory_company_group','directory_role','directory_area_ids','directory_section_id'])),'directory_after'=>$directoryAfter ?? [],'needs_details_before'=>(int)($old['roster_needs_details'] ?? 0),'needs_details_after'=>(int)(self::find($id)['roster_needs_details'] ?? 0)]);
     }
 
     public static function uploadProfilePhoto(int $id,array $file): void

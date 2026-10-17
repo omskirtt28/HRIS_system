@@ -625,6 +625,8 @@ Phase 3A adds `areas`, branch-to-area mapping, `employees.manager_employee_id`, 
 ### Company Group / Company Name / Employer
 `business_units` is the **Company Name** master with `company_group` (`SW` / `OC` / `UF`). `employees.directory_company_group` is the employee's **Company Group**, `employees.business_unit_id` the **Company Name** (must belong to the group), and `employees.legal_entity_id` is always the single **PMBSI** employer row. `branches.default_business_unit_id` is the branch's default company (source: 2LOG Company Directory, RETAIL DIRECTORY NEW). Setup: `database/migrations/20261012_company_name.sql`.
 
+`directory_sections` holds directory sections scoped by `company_group` + `site_type`; the one Ocampo's Head Office section (Ocampos Production; Goldsmith is a position under it, Inventory Management is a shared department) is `OC` + `HEAD_OFFICE` only. `employees.directory_section_id` (nullable) is the employee's section and is valid only while they are Company Group Ocampo's at a Head Office site (enforced in `DirectorySectionService::save`). Setup: `database/migrations/20261017_oc_head_office_sections.sql`.
+
 ### Probation and notifications
 `employees.probation_start_date` / `probation_end_date` are filled automatically (6 months, see `EmployeeStatusPolicy::probationDates`). `notifications` holds one row per recipient (`recipient_user_id` for the bell, `email_to` / `emailed_at` for Gmail, `dedupe_key` unique so a reminder is created once). `job_runs` guards the once-a-day check. Setup: `database/migrations/20261012_probation_notifications.sql`.
 

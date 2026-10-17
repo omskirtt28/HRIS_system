@@ -14,6 +14,21 @@ final class EmployeeDirectoryPlacement
         'LEOBERTJHON|AMERICA',
     ];
 
+    /** Position names that make someone an ADL when Directory section is left on "Use saved position". */
+    private const ADL_POSITIONS = ['ADL','SR ADL','JR ADL','AREA DEVELOPMENT LEADER','SENIOR AREA DEVELOPMENT LEADER','JUNIOR AREA DEVELOPMENT LEADER','SR. ADL','JR. ADL'];
+
+    /**
+     * SQL condition: this employee is an ADL. Same rule as the directory (Directory section first, then the position),
+     * so Reporting To and the directory never disagree. $employee and $position are the table aliases in the query.
+     */
+    public static function isAdlSql(string $employee = 'e', string $position = 'p'): string
+    {
+        $byPosition = 'UPPER(TRIM(COALESCE('.$position.'.name,""))) IN ("'.implode('","',self::ADL_POSITIONS).'")';
+        return self::ready()
+            ? '(COALESCE(NULLIF('.$employee.'.directory_role,""),(CASE WHEN '.$byPosition.' THEN "ADL" ELSE "EMPLOYEE" END))="ADL")'
+            : '('.$byPosition.')';
+    }
+
     public static function ready(): bool
     {
         foreach (['directory_company_group','directory_role','directory_area_ids'] as $column) {
@@ -60,7 +75,7 @@ final class EmployeeDirectoryPlacement
         $fallback='CASE WHEN ('.$workplace.')="HO" THEN ('.self::headOfficeCompanySql().') WHEN ('.$workplace.')="RETAIL" AND ('.$area.' IN ("OCAMPOS","OCAMPO") OR '.$branch.' IN ("OGAL","OMEG","OFAR","ORMI","OMOA","OBIC")) THEN "OC" WHEN ('.$workplace.')="RETAIL" AND '.$area.' IN ("MM1","MM2","MM3","NORTH","P.SOUTH","METRO SOUTH","VIS","MIN") THEN "SW" ELSE "" END';
         $company=self::ready() ? 'COALESCE(NULLIF(e.directory_company_group,""),('.$fallback.'))' : $fallback;
         $position='UPPER(TRIM(COALESCE(p.name,"")))';
-        $autoRole='CASE WHEN '.$position.' IN ("ADL","SR ADL","JR ADL","AREA DEVELOPMENT LEADER","SENIOR AREA DEVELOPMENT LEADER","JUNIOR AREA DEVELOPMENT LEADER","SR. ADL","JR. ADL") THEN "ADL" WHEN ('.$workplace.')="HO" AND '.$position.' IN ("DEPARTMENT MANAGER","FINANCE MANAGER","INVENTORY MANAGEMENT MANAGER","MANPOWER PLANNING MANAGER","MARKETING MANAGER","MARKETING & CREATIVES MANAGER","HR MANAGER","HUMAN RESOURCES MANAGER","INFORMATION SYSTEM MANAGER","INFORMATION SYSTEMS MANAGER","MIS MANAGER","ACCOUNTING MANAGER") THEN "DEPARTMENT_MANAGER" ELSE "EMPLOYEE" END';
+        $autoRole='CASE WHEN '.$position.' IN ("'.implode('","',self::ADL_POSITIONS).'") THEN "ADL" WHEN ('.$workplace.')="HO" AND '.$position.' IN ("DEPARTMENT MANAGER","FINANCE MANAGER","INVENTORY MANAGEMENT MANAGER","MANPOWER PLANNING MANAGER","MARKETING MANAGER","MARKETING & CREATIVES MANAGER","HR MANAGER","HUMAN RESOURCES MANAGER","INFORMATION SYSTEM MANAGER","INFORMATION SYSTEMS MANAGER","MIS MANAGER","ACCOUNTING MANAGER") THEN "DEPARTMENT_MANAGER" ELSE "EMPLOYEE" END';
         $role=self::ready() ? 'COALESCE(NULLIF(e.directory_role,""),('.$autoRole.'))' : $autoRole;
         $group='CASE WHEN ('.$role.')="ADL" THEN "ADL" WHEN ('.$role.')="DEPARTMENT_MANAGER" THEN "MANAGERS" WHEN ('.$company.')="UF" THEN "UF" WHEN ('.$company.')="SW" AND ('.$workplace.')="RETAIL" THEN "SW_RETAIL" WHEN ('.$company.')="OC" AND ('.$workplace.')="RETAIL" THEN "OC_RETAIL" WHEN ('.$company.')="SW" AND ('.$workplace.')="HO" THEN "SW_HO" WHEN ('.$company.')="OC" AND ('.$workplace.')="HO" THEN "OC_HO" ELSE "UNASSIGNED" END';
         return ['company'=>$company,'role'=>$role,'group'=>$group];

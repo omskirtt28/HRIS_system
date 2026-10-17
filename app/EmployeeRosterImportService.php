@@ -15,14 +15,20 @@ final class EmployeeRosterImportService
     public static function ready(): bool
     {
         foreach (['employee_roster_imports','employee_roster_rows','business_units','legal_entities'] as $table) if (!FoundationRepository::tableExists($table)) return false;
-        foreach (['business_unit_id','legal_entity_id','roster_full_name','roster_group','roster_needs_details','roster_pending_json','roster_original_code','roster_source_key'] as $column) if (!FoundationRepository::columnExists('employees', $column)) return false;
+        foreach (['business_unit_id','legal_entity_id','roster_full_name','roster_group','roster_needs_details','roster_pending_json','roster_original_code','roster_source_key','lee_code','payroll_group'] as $column) if (!FoundationRepository::columnExists('employees', $column)) return false;
         return EmployeeRepository::ready();
     }
 
     private static function requireReady(): void
     {
         self::authorize();
-        if (!self::ready()) throw new RuntimeException('Import the Employee Roster SQL and the Follow-up Details SQL patch, then reload.');
+        if (!self::ready()) throw new RuntimeException('Import the Employee Roster SQL, the Follow-up Details SQL patch and 20261017_lee_code_payroll_group.sql, then reload.');
+    }
+
+    /** Which Company master a row's COMPANY value belongs to: 'brand' (Company Name) or 'employer'. */
+    public static function companyKind(array $d): string
+    {
+        return $d['company_kind'] ?? ($d['source_sheet'] === 'RETAIL' ? 'brand' : 'employer');
     }
 
     public static function stage(array $file): int
@@ -114,7 +120,7 @@ final class EmployeeRosterImportService
 
     private static function rowSources(array $d): array
     {
-        $companyKind = $d['source_sheet'] === 'RETAIL' ? 'brand' : 'employer';
+        $companyKind = self::companyKind($d);
         return [
             'department'=>['name'=>$d['department_source'],'context'=>''],
             'position'=>['name'=>$d['position_source'],'context'=>$d['department_source']],
@@ -143,7 +149,14 @@ final class EmployeeRosterImportService
         }
         $codes = array_values(array_unique(array_filter(array_map(static fn($d)=>strtoupper(trim($d['employee_no'])), $data))));
         $sourceKeys = array_values(array_unique(array_filter(array_map(static fn($d)=>self::sourceKey($fileHash,$d),$data))));
-        $result['employees'] = []; $result['by_id'] = []; $result['profiles'] = [];
+        $result['employees'] = []; $result['by_id'] = []; $result['profiles'] = []; $result['lee'] = [];
+        // Who already holds each Lee Code in the file (unique in the database, compared without case).
+        $leeCodes = array_values(array_unique(array_filter(array_map(static fn($d)=>strtoupper(trim((string)($d['lee_code'] ?? ''))), $data))));
+        foreach (array_chunk($leeCodes,500) as $chunk) {
+            $st = db()->prepare('SELECT id,lee_code FROM employees WHERE lee_code IN ('.implode(',',array_fill(0,count($chunk),'?')).')');
+            $st->execute($chunk);
+            foreach ($st->fetchAll() as $e) $result['lee'][strtoupper($e['lee_code'])] = (int)$e['id'];
+        }
         foreach (['employee_no'=>$codes,'id'=>array_values(array_unique(array_filter($employeeIds))),'roster_source_key'=>$sourceKeys] as $column=>$values) foreach (array_chunk($values,500) as $chunk) {
             $st = db()->prepare('SELECT * FROM employees WHERE '.$column.' IN ('.implode(',',array_fill(0,count($chunk),'?')).') ORDER BY id'.($lock ? ' FOR UPDATE' : ''));
             $st->execute($chunk);
@@ -295,12 +308,15 @@ final class EmployeeRosterImportService
     private static function evaluate(array $batch, array $catalog): array
     {
         $counts = ['READY'=>0,'FOLLOWUP'=>0,'CHECK'=>0,'EXISTS'=>0,'IMPORTED'=>0,'DETAILS'=>0,'IGNORED'=>0]; $codes = []; $out = [];
+        $leeInFile = [];
         foreach ($batch['rows'] as $r) {
             $code = strtoupper(trim($r['data']['employee_no']));
             if ($code !== '' && $r['action'] !== 'IGNORE') $codes[$code][] = $r['source_sheet'].' row '.$r['source_row'];
+            $lee = strtoupper(trim((string)($r['data']['lee_code'] ?? '')));
+            if ($lee !== '' && $r['action'] !== 'IGNORE') $leeInFile[$lee][] = 'row '.$r['source_row'];
         }
         foreach ($batch['rows'] as $r) {
-            $d = $r['data']; $errors = []; $pending = []; $identityHeld = false;
+            $d = $r['data']; $errors = []; $pending = []; $identityHeld = false; $notes = [];
             $sourceKey = self::sourceKey($batch['file_sha256'],$d);
             $existing = $r['employee_id'] ? ($catalog['by_id'][(int)$r['employee_id']] ?? null) : ($catalog['profiles'][$sourceKey] ?? ($catalog['employees'][strtoupper($d['employee_no'])] ?? null));
             $assignment = [];
@@ -333,13 +349,13 @@ final class EmployeeRosterImportService
                     $d['hire_date'] = ''; $pending['hire_date'] = 'Add the real Start Date in Employment. Excel value: '.($d['raw']['STARTDATE'] ?: 'blank');
                 }
                 if ($d['formula_fields'] && empty($d['formula_checked'])) $errors[] = 'This row has formula values. Check and confirm the typed details.';
-                $companyKind = $d['source_sheet'] === 'RETAIL' ? 'brand' : 'employer';
+                $companyKind = self::companyKind($d);
                 $positionDept = $assignment['position']['record']['department_id'] ?? null;
                 if ($positionDept && (string)$positionDept !== (string)$assignment['department']['id']) {
                     $assignment['position'] = ['choice'=>'','id'=>null,'name'=>'Needs checking','key'=>''];
                 }
                 $siteLooksLikeDepartment = false;
-                if ($d['source_sheet'] === 'HO') foreach ($catalog['site'] as $b) {
+                if ($d['source_sheet'] === 'HO' && empty($d['format'])) foreach ($catalog['site'] as $b) {
                     if (self::normalize($b['name']) === self::normalize($d['department_source'])) $siteLooksLikeDepartment = true;
                 }
                 if ($siteLooksLikeDepartment && (empty($d['assignment_checked']) || empty($d['override_site']) || empty($d['override_department']))) {
@@ -348,12 +364,22 @@ final class EmployeeRosterImportService
                 foreach (['department'=>['department_id','Department',$d['department_source']],'position'=>['position_id','Position',$d['position_source']],'site'=>['branch_id','Branch / Site',$siteLooksLikeDepartment ? $d['department_source'] : $d['site_source']],$companyKind=>[$companyKind==='brand' ? 'business_unit_id' : 'legal_entity_id','Company',$d['company_source']]] as $kind=>[$field,$label,$source]) {
                     if ($assignment[$kind]['choice'] === '') $pending[$field] = 'Check '.$label.' in Employment. Excel value: '.($source ?: 'blank');
                 }
+                $lee = trim((string)($d['lee_code'] ?? ''));
+                if ($lee !== '') {
+                    $holder = $catalog['lee'][strtoupper($lee)] ?? null;
+                    if (mb_strlen($lee) > 30) $errors[] = 'The Lee Code is longer than 30 characters.';
+                    elseif ($holder && (int)$holder !== (int)($existing['id'] ?? 0)) $errors[] = 'Lee Code '.$lee.' is already used by another employee.';
+                    elseif (count($leeInFile[strtoupper($lee)] ?? []) > 1) $errors[] = 'Lee Code '.$lee.' appears more than once in this file ('.implode(', ',$leeInFile[strtoupper($lee)]).').';
+                    // An existing Lee Code is never overwritten; report it instead.
+                    $kept = trim((string)($existing['lee_code'] ?? ''));
+                    if ($existing && $kept !== '' && strcasecmp($kept,$lee) !== 0) $notes[] = 'Kept existing Lee Code '.$kept.'; Excel has '.$lee.'.';
+                }
                 if ($r['action'] === 'UPDATE' && (!$existing || empty($d['update_checked']))) $errors[] = 'Update needs an existing Employee Code and confirmation that this is the same person.';
                 if ($r['action'] === 'UPDATE' && ($identityHeld || empty($existing['employee_no']) || strcasecmp((string)$existing['employee_no'],$d['employee_no']) !== 0)) $errors[] = 'Resolve the Employee Code in Employee 201 before selecting an update.';
                 $state = $errors ? 'CHECK' : ($pending ? 'FOLLOWUP' : 'READY');
                 $errors = array_merge($errors,array_values($pending));
             }
-            $r['data'] = $d; $r['state'] = $state; $r['errors'] = $errors; $r['pending'] = $pending; $r['identity_held'] = $identityHeld; $r['source_key'] = $sourceKey; $r['assignment'] = $assignment; $r['existing'] = $existing;
+            $r['data'] = $d; $r['state'] = $state; $r['errors'] = $errors; $r['pending'] = $pending; $r['identity_held'] = $identityHeld; $r['source_key'] = $sourceKey; $r['assignment'] = $assignment; $r['existing'] = $existing; $r['notes'] = $notes;
             $counts[$state]++; $out[] = $r;
             if ($state === 'IMPORTED' && $pending) $counts['DETAILS']++;
         }
@@ -403,7 +429,8 @@ final class EmployeeRosterImportService
                     'hire_date'=>$d['hire_date'] ?: null,'department_id'=>$values['department'],'position_id'=>$values['position'],'branch_id'=>$values['site'],
                     'business_unit_id'=>$values['brand'],'legal_entity_id'=>$values['employer'],
                     'roster_full_name'=>$d['raw']['NAME'],'roster_group'=>$d['source_sheet'],
-                    'roster_original_code'=>$d['employee_no'] ?: null,'roster_source_key'=>$r['source_key'],'roster_pending'=>$r['pending'],
+                    'roster_original_code'=>($d['original_code'] ?? $d['employee_no']) ?: null,'roster_source_key'=>$r['source_key'],'roster_pending'=>$r['pending'],
+                    'lee_code'=>trim((string)($d['lee_code'] ?? '')) ?: null,'payroll_group'=>trim((string)($d['payroll_group'] ?? '')) ?: null,
                 ];
                 $existingId = $r['action'] === 'UPDATE' ? (int)$r['existing']['id'] : null;
                 $employeeId = EmployeeRepository::importRosterRecord($record,$existingId,$id);

@@ -1,0 +1,88 @@
+---
+title: Start Here
+type: moc
+status: draft
+tags: [moc, dashboard]
+updated: 2026-10-17
+---
+
+# Start Here
+
+The dashboard for the HRIS planning vault. Everything is reachable from this note.
+
+> [!note] Reading order for a first pass
+> [[Vision-and-Scope]] → [[Personas]] → [[Roadmap]] → [[Data-Model]] → [[Build-Plan]] → [[Claude-Code-Brief]].
+
+## Decide first
+
+These block real work. See [[Open-Questions]] for the full checklist.
+
+- [ ] [[ADR-001-Tech-Stack]] — stay on PHP/MySQL or rewrite?
+- [ ] [[ADR-002-Multi-Tenancy]] — one company or many?
+- [ ] [[ADR-003-Payroll-Engine-Approach]] — rules as config or as code?
+- [ ] Payroll cut-off calendar and pay frequency (see [[Payroll]])
+- [ ] Whether biometrics integrate live or by file import (see [[Attendance-and-DTR]])
+
+## Product
+
+- [[Vision-and-Scope]] — problem, goals, non-goals, success metrics
+- [[Personas]] — HR admin, payroll officer, approver, employee, system admin
+- [[User-Stories]] — US-### backlog, MoSCoW prioritised
+- [[Roadmap]] — MVP → v1 → later
+- [[Open-Questions]] — open decisions as a checklist
+
+## Modules
+
+| Module | Phase | Note |
+|---|---|---|
+| Employee 201 records | MVP | [[Employee-Records]] |
+| Company / org structure | MVP | [[Org-Structure]] |
+| Attendance & DTR | MVP | [[Attendance-and-DTR]] |
+| Leave management | MVP | [[Leave-Management]] |
+| Payroll | MVP | [[Payroll]] |
+| Auth & RBAC | MVP | [[Auth-and-RBAC]] |
+| Self-service portal | v1 | [[Self-Service-Portal]] |
+| Reports & government filings | v1 | [[Reports-and-Analytics]] |
+| Notifications | v1 | [[Notifications]] |
+| Recruitment & onboarding | v1 | [[Recruitment-and-Onboarding]] |
+| Offboarding & clearance | v1 | [[Offboarding-and-Clearance]] |
+| Performance management | Later | [[Performance-Management]] |
+
+## Design
+
+- [[Data-Model]] — entities, key fields, ER diagram
+- [[Architecture]] — layers, deployment, stack options
+- [[API-Surface]] — endpoints per module
+- [[Screens]] — SCR-### screen inventory
+- [[Security-and-Compliance]] — RA 10173, PII, retention, audit
+- [[Business-Rules]] — BR-### computation rules
+
+## Decisions
+
+- [[Decision-Log]] — index
+- [[ADR-000-Template]] · [[ADR-001-Tech-Stack]] · [[ADR-002-Multi-Tenancy]] · [[ADR-003-Payroll-Engine-Approach]]
+
+## Implementation
+
+- [[Build-Plan]] — vertical slices in dependency order
+- [[Claude-Code-Brief]] — copy-paste brief for Claude Code
+- [[Progress]] — per-slice status
+
+## Reference & meta
+
+- [[PH-Labor-and-Payroll-Notes]] · [[Glossary]] · [[Conventions]] · [[README]]
+
+```mermaid
+graph TD
+  A[Org Structure] --> B[Employee Records]
+  B --> C[Attendance and DTR]
+  B --> D[Leave Management]
+  C --> E[Payroll]
+  D --> E
+  E --> F[Reports and Analytics]
+  B --> G[Self Service Portal]
+  H[Auth and RBAC] --> B
+  H --> G
+  I[Notifications] --> D
+  I --> E
+```

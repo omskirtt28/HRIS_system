@@ -1,0 +1,220 @@
+---
+title: Business Rules
+type: design
+status: draft
+tags: [design, business-rules, ph-statutory, needs-verification]
+updated: 2026-10-17
+---
+
+# Business Rules
+
+## Purpose
+
+One index of every `BR-###` in the vault. Rules are **defined in the module note that owns them** (so the reasoning sits next to the flows); this note aggregates them so Claude Code can load the whole rulebook in one read, and so numbering collisions are visible. If a rule here disagrees with its module, the module wins and this index is stale: fix it.
+
+## How to use
+
+- Each rule becomes at least one unit test. Name tests `test_BR_###_<what>`. See [[Build-Plan]].
+- Rules that compute money are pure functions in the domain layer ([[Architecture]]) and are tested with worked examples from [[PH-Labor-and-Payroll-Notes]].
+- Never renumber (see [[Conventions]]). Withdrawn rules stay with status `WITHDRAWN`.
+
+> [!warning] NEEDS VERIFICATION
+> Any rule that mentions a rate, ceiling, bracket, multiplier or window is a **mechanism only**. The numbers live in effectivity-dated rate tables ([[ADR-003-Payroll-Engine-Approach]]) and must be confirmed against the issuing agency (DOLE, SSS, PhilHealth, HDMF, BIR) before use. Unverified tables must not be usable in a run (BR-514).
+
+## Block map
+
+| Block | Domain | Owning notes |
+|---|---|---|
+| 100-199 | Org and access | [[Org-Structure]], [[Auth-and-RBAC]] |
+| 200-299 | Employee records | [[Employee-Records]] |
+| 300-399 | Attendance | [[Attendance-and-DTR]] |
+| 400-499 | Leave | [[Leave-Management]] |
+| 500-599 | Payroll | [[Payroll]] |
+| 600-699 | Reports | [[Reports-and-Analytics]] |
+| 700-799 | Portal and notifications | [[Self-Service-Portal]], [[Notifications]] |
+| 800-899 | Lifecycle | [[Recruitment-and-Onboarding]], [[Offboarding-and-Clearance]], [[Performance-Management]] |
+
+
+## 100s - Org structure and access
+
+| ID | Rule | Owner |
+|---|---|---|
+| BR-101 | Department and position codes are unique within a company and immutable once referenced by an employee placement. | [[Org-Structure]] |
+| BR-102 | A department's `parent_department_id` must not create a cycle. Validate on save. | [[Org-Structure]] |
+| BR-103 | Reporting lines must not create a cycle; an employee cannot be their own ancestor manager. | [[Org-Structure]] |
+| BR-104 | Master data is deactivated, never deleted, if referenced anywhere. | [[Org-Structure]] |
+| BR-105 | A holiday date may appear only once per calendar. A branch calendar entry overrides the national entry for the same date. | [[Org-Structure]] |
+| BR-106 | `position.default_ot_exempt` seeds the employee's exemption flag at hire but never overrides it afterwards. See BR-208. | [[Org-Structure]] |
+| BR-107 | A shift template crossing midnight attributes all its hours to the *shift start date*, not the calendar date of each punch. This single rule prevents a large class of night-shift payroll errors. See BR-309. | [[Org-Structure]] |
+| BR-108 | Every department must resolve to exactly one cost center for payroll charging, directly or by inheriting from its parent. | [[Org-Structure]] |
+| BR-110 | A user account and an employee record are distinct entities; the link is optional and one-to-one at most. | [[Auth-and-RBAC]] |
+| BR-111 | Permissions attach to roles, never directly to users. No per-user permission grants. | [[Auth-and-RBAC]] |
+| BR-112 | Scope attaches to users, because two users with the same role may have different scopes. | [[Auth-and-RBAC]] |
+| BR-113 | Every query returning employee-related data must take a scope filter. An unscoped path is a defect. | [[Auth-and-RBAC]] |
+| BR-114 | `employee.edit` and `payroll.run` must not be held by the same role. | [[Auth-and-RBAC]] |
+| BR-115 | `ratetable.manage` and `ratetable.verify` must be held by different users for a given table version. | [[Auth-and-RBAC]] |
+| BR-116 | The audit log is append-only. No role holds `audit.delete`. | [[Auth-and-RBAC]] |
+| BR-117 | Passwords are stored only as a modern adaptive hash. Never reversible, never logged, never emailed. | [[Auth-and-RBAC]] |
+| BR-118 | Sessions expire on an absolute and an idle timeout, and are revocable server-side. | [[Auth-and-RBAC]] |
+| BR-119 | A user cannot approve, review or release anything concerning their own employee record. | [[Auth-and-RBAC]] |
+| BR-120 | Separation of an employee disables their account and revokes their sessions on the effective separation date. | [[Auth-and-RBAC]] |
+| BR-121 | Permission denials are logged with the attempted action, and the response reveals nothing about what exists. | [[Auth-and-RBAC]] |
+
+## 200s - Employee records
+
+| ID | Rule | Owner |
+|---|---|---|
+| BR-201 | `employee_no` is unique and immutable once a payroll run has referenced the employee. | [[Employee-Records]] |
+| BR-202 | An employee is *payroll-ready* only when: all four government IDs are present, an active compensation row covers the cut-off, and an active placement exists. Enforced at payroll inclusion, not at save. | [[Employee-Records]] |
+| BR-203 | Compensation, status and placement are never updated in place. A change closes the current row and opens a new one; effectivity ranges must not overlap or gap. | [[Employee-Records]] |
+| BR-204 | Resolving an employee's status, rate or placement for any computation is always *as of a date*, never "current". | [[Employee-Records]] |
+| BR-205 | `separation_date` makes the employee ineligible for payroll runs whose cut-off starts after that date, but they remain fully visible for history and final pay. | [[Employee-Records]] |
+| BR-206 | A fixed-term or project-based status requires an end date; regular must not have one. | [[Employee-Records]] |
+| BR-207 | Government ID formats are validated structurally only. The system never asserts an ID is genuine. | [[Employee-Records]] |
+| BR-208 | OT and night-differential exemption is an explicit boolean on the employee, defaulting to false, never inferred from position title. See Q7 in [[Open-Questions]]. | [[Employee-Records]] |
+| BR-224 | Records referenced by payroll, DTR or leave history are never hard-deleted. Foreign keys restrict delete; removal is archive or anonymise only, per retention policy (see [[Security-and-Compliance]]). | [[Employee-Records]] |
+
+## 300s - Attendance and DTR
+
+| ID | Rule | Owner |
+|---|---|---|
+| BR-301 | Tardiness is the positive difference between actual in and scheduled in, after a configurable grace period. The grace period does not reduce the deduction once exceeded, unless policy says otherwise. | [[Attendance-and-DTR]] |
+| BR-302 | Undertime is the positive difference between scheduled out and actual out, counted separately from tardiness. Both can occur on one day. | [[Attendance-and-DTR]] |
+| BR-303 | Overtime is hours beyond the shift's required hours, capped at approved hours when OT approval is required. | [[Attendance-and-DTR]] |
+| BR-304 | The OT multiplier depends on the day type: ordinary day, rest day, special non-working day, regular holiday, and combinations. | [[Attendance-and-DTR]] |
+| BR-306 | Night differential applies to the overlap between hours actually worked and the statutory night window, and may coincide with overtime, in which case both premiums apply. | [[Attendance-and-DTR]] |
+| BR-307 | Hours worked never includes unpaid break time. | [[Attendance-and-DTR]] |
+| BR-308 | Raw punch logs are append-only. No update, no delete, except full reversal of an import batch that has not been locked. | [[Attendance-and-DTR]] |
+| BR-309 | A midnight-crossing shift attributes all hours to the shift start date. | [[Attendance-and-DTR]] |
+| BR-310 | Day type is a combination, not a single value: `{holiday_type, is_rest_day}`. Resolution order and multipliers are in [[Business-Rules]]. | [[Attendance-and-DTR]] |
+| BR-311 | A locked DTR snapshot is immutable. Payroll must read the snapshot, never the live `dtr_days`. | [[Attendance-and-DTR]] |
+| BR-312 | Approved paid leave fills scheduled hours as `leave_hours` and must not also count as `hours_worked`. Double-counting leave is a classic overpayment bug. | [[Attendance-and-DTR]] |
+
+## 400s - Leave
+
+| ID | Rule | Owner |
+|---|---|---|
+| BR-401 | Approved paid leave fills the employee's scheduled hours for that date as `leave_hours` in the DTR and must not be counted as hours worked. | [[Leave-Management]] |
+| BR-402 | Balance is always computed as the sum of `leave_ledger` rows for the employee, type and leave year. No stored counter is authoritative. | [[Leave-Management]] |
+| BR-403 | Available = earned − used − pending. A pending request reserves balance so an employee cannot over-file by filing twice. | [[Leave-Management]] |
+| BR-404 | Only working days consume leave balance. Rest days and holidays inside a leave range are excluded. | [[Leave-Management]] |
+| BR-405 | Leave may not be filed into a locked payroll cut-off. Such filings become next-period adjustments. | [[Leave-Management]] |
+| BR-406 | Cancelling approved leave writes a reversing ledger row referencing the original; it never deletes or edits the original. | [[Leave-Management]] |
+| BR-407 | Overlapping leave requests for the same employee and date are rejected, regardless of type. | [[Leave-Management]] |
+| BR-408 | Accrual is idempotent per employee, type and accrual period. | [[Leave-Management]] |
+| BR-409 | Cash conversion of unused convertible leave is paid at the employee's rate in effect on the conversion date. | [[Leave-Management]] |
+| BR-410 | Leave with `is_paid = false` records the absence and instructs [[Payroll]] to deduct the equivalent, rather than paying it. | [[Leave-Management]] |
+| BR-411 | A leave type with a gender restriction or an ID requirement is unfileable unless the employee record satisfies it, checked at filing time. | [[Leave-Management]] |
+| BR-412 | An approval decision is valid only if the approver was in the employee's reporting chain, or a valid delegate, as of the filing date. | [[Leave-Management]] |
+
+## 500s - Payroll
+
+| ID | Rule | Owner |
+|---|---|---|
+| BR-501 | A payroll run may only be created against a locked DTR snapshot, and reads only that snapshot. | [[Payroll]] |
+| BR-502 | A run snapshots employee compensation, placement and flags at creation; it never reads live employee data thereafter. | [[Payroll]] |
+| BR-503 | A run records the exact version of every rate table it used, and recomputation uses those versions, not current ones. | [[Payroll]] |
+| BR-504 | Daily and hourly rate derivation uses the employee's pay basis and configured annual factor. Never a hardcoded divisor. | [[Payroll]] |
+| BR-505 | Gross pay is the sum of earning lines; net pay is gross less employee-share deductions. Employer share is never deducted from the employee. | [[Payroll]] |
+| BR-506 | Taxable income excludes non-taxable earning types, employee statutory contributions, and de minimis amounts within their ceiling. Amounts above a de minimis ceiling are taxable. | [[Payroll]] |
+| BR-507 | Net pay must not be negative. If deductions exceed gross, the excess carries forward as a balance rather than producing a negative payslip. | [[Payroll]] |
+| BR-508 | A released run is immutable. Corrections are dated adjustments in a later run. | [[Payroll]] |
+| BR-509 | The sum of per-period statutory deductions within a month must equal the monthly contribution due for remittance. | [[Payroll]] |
+| BR-510 | Loan amortisation is capped at the outstanding balance; the final instalment is the remainder, not the standard amount. | [[Payroll]] |
+| BR-511 | An employee appears at most once per run per run type. | [[Payroll]] |
+| BR-512 | Monetary computation is performed at four decimal places and rounded to two only on presentation and payment; the rounding difference must be accounted for, not dropped. | [[Payroll]] |
+| BR-513 | 13th month base includes only earning types flagged as included; OT and allowances are excluded by default. | [[Payroll]] |
+| BR-514 | An unverified rate table version cannot be used by a payroll run. | [[Payroll]] |
+| BR-515 | Statutory contributions are computed on the employee's monthly compensation, not on a single cut-off's gross, even when paid semi-monthly. | [[Payroll]] |
+
+## 600s - Reports
+
+| ID | Rule | Owner |
+|---|---|---|
+| BR-601 | Statutory reports read only from released payroll runs and must display the run IDs used. | [[Reports-and-Analytics]] |
+| BR-602 | A statutory report's monthly total must reconcile to the sum of the corresponding payroll deduction lines for that tax month; a mismatch blocks recording the filing. | [[Reports-and-Analytics]] |
+| BR-603 | Turnover rate uses a single declared formula, stated on the report: separations in the period divided by average headcount in the period. Any other formula must be a separate, differently named report. | [[Reports-and-Analytics]] |
+| BR-604 | Headcount and any other point-in-time figure resolves status and placement as of the requested date, never from current values. | [[Reports-and-Analytics]] |
+| BR-605 | Demographic and health-adjacent reports are aggregate only and suppress groups below a minimum size. | [[Reports-and-Analytics]] |
+| BR-606 | Every report generation is logged with actor, parameters, row count and source run IDs. | [[Reports-and-Analytics]] |
+| BR-607 | Export of PII is logged as a sensitive-data access event. | [[Reports-and-Analytics]] |
+| BR-608 | A filing recorded in `statutory_filings` is immutable; a correction is a new filing row referencing the original. | [[Reports-and-Analytics]] |
+
+## 700s - Portal and notifications
+
+| ID | Rule | Owner |
+|---|---|---|
+| BR-701 | Every portal read is scoped: an employee sees only their own record; a manager only their reporting chain as of the current date. Enforced server-side per BR-113. | [[Self-Service-Portal]] |
+| BR-702 | The portal creates requests; it does not directly mutate payroll, DTR or sensitive employee data. | [[Self-Service-Portal]] |
+| BR-703 | A payslip renders from its stored snapshot, never from a live recomputation. | [[Self-Service-Portal]] |
+| BR-704 | A manager may not approve their own request. BR-119. | [[Self-Service-Portal]] |
+| BR-705 | The portal shows the DTR lock date prominently, because the employee's window to dispute is bounded by it. | [[Self-Service-Portal]] |
+| BR-706 | Leave balance shown to an employee is the same derived figure HR sees. No separate calculation path. | [[Self-Service-Portal]] |
+| BR-707 | Documents are served through an authorisation check, never by a guessable URL. No direct file paths. | [[Self-Service-Portal]] |
+| BR-708 | Sensitive documents such as payslips and 2316 forms are not emailed as unprotected attachments; the notification links to the portal. | [[Self-Service-Portal]] |
+| BR-710 | Events are emitted after the business transaction commits, never within it. | [[Notifications]] |
+| BR-711 | Notification delivery failure must never fail or roll back the underlying business action. | [[Notifications]] |
+| BR-712 | Mandatory events cannot be disabled by user preference. | [[Notifications]] |
+| BR-713 | Notifications are deduplicated by `dedupe_key` within a configurable window. | [[Notifications]] |
+| BR-714 | Sensitive documents are never attached to an email; the email links to the portal. BR-708. | [[Notifications]] |
+| BR-715 | Notification bodies contain no salary figures, government ID numbers, medical details or leave reasons — only that an item exists and awaits action. | [[Notifications]] |
+| BR-716 | Scheduled reminders are idempotent per subject and due date. | [[Notifications]] |
+| BR-717 | Escalation never auto-approves and is capped at a configured level. | [[Notifications]] |
+| BR-718 | Every delivery attempt is logged with its outcome; terminal failures are visible to an administrator. | [[Notifications]] |
+| BR-719 | Recipients are resolved at send time from current reporting lines and delegations, so a stale cached recipient is never used. | [[Notifications]] |
+
+## 800s - Lifecycle: recruitment, offboarding, performance
+
+| ID | Rule | Owner |
+|---|---|---|
+| BR-801 | An applicant and an employee are separate entities. Conversion creates a new employee row and never mutates the applicant. | [[Recruitment-and-Onboarding]] |
+| BR-802 | An application may only be converted from a terminal-success stage with an accepted offer. | [[Recruitment-and-Onboarding]] |
+| BR-803 | Applicant personal data is retained only for the consented retention period, after which it is anonymised or deleted. See [[Security-and-Compliance]]. | [[Recruitment-and-Onboarding]] |
+| BR-804 | A stage move to a terminal-fail stage requires a rejection reason. | [[Recruitment-and-Onboarding]] |
+| BR-805 | An offer above the requisition's approved salary range requires an explicit override with an approver recorded. | [[Recruitment-and-Onboarding]] |
+| BR-806 | Blocking onboarding tasks must be complete before the employee is payroll-ready, in addition to BR-202. | [[Recruitment-and-Onboarding]] |
+| BR-807 | A requisition's filled count may not exceed its approved headcount without re-approval. | [[Recruitment-and-Onboarding]] |
+| BR-808 | Interviewers see only the applicant data their round requires, not the full file. | [[Recruitment-and-Onboarding]] |
+| BR-810 | An employee's record is archived on separation, never deleted. BR-224 still applies. | [[Offboarding-and-Clearance]] |
+| BR-811 | Final pay may not be released while any clearance item is `PENDING`. | [[Offboarding-and-Clearance]] |
+| BR-812 | Accountabilities are deducted from final pay unless explicitly waived by an authorised approver, with the waiver audited. | [[Offboarding-and-Clearance]] |
+| BR-813 | A separation cannot complete while employees still report to the departing employee. | [[Offboarding-and-Clearance]] |
+| BR-814 | Future-dated approved leave is cancelled on separation, restoring the leave balance. | [[Offboarding-and-Clearance]] |
+| BR-815 | System access is revoked and all sessions terminated on the effective separation date, not later. | [[Offboarding-and-Clearance]] |
+| BR-816 | An employee separated mid-cut-off is paid for that cut-off exactly once, in either the regular run or the final pay run. | [[Offboarding-and-Clearance]] |
+| BR-817 | Rehire creates a new employee record; tenure, leave accrual and 13th month restart. | [[Offboarding-and-Clearance]] |
+| BR-818 | Final pay net may not be negative; a shortfall becomes a receivable. | [[Offboarding-and-Clearance]] |
+| BR-820 | Section and item weights within a template must total 100%. | [[Performance-Management]] |
+| BR-821 | The reviewer is resolved from the reporting line as of the cycle start date, not the submission date. | [[Performance-Management]] |
+| BR-822 | A review cannot be closed without employee acknowledgement, or an explicitly recorded refusal to acknowledge. | [[Performance-Management]] |
+| BR-823 | Acknowledgement records receipt, not agreement. | [[Performance-Management]] |
+| BR-824 | A calibrated score differing from the manager's score must carry a recorded reason. | [[Performance-Management]] |
+| BR-825 | Goals must be marked agreed by both parties before the assessment phase opens. | [[Performance-Management]] |
+| BR-826 | A probationary evaluation must reference the performance standards communicated at hire. | [[Performance-Management]] |
+| BR-827 | A completed review is immutable; a correction is an appended addendum. | [[Performance-Management]] |
+| BR-828 | An employee may not be their own reviewer; such cases escalate one level up. | [[Performance-Management]] |
+| BR-829 | Review content is visible only to the employee, their reviewer, the reviewer's manager, and HR. | [[Performance-Management]] |
+
+## Convention example
+
+| ID | Rule | Owner |
+|---|---|---|
+| BR-012 | Night differential window is configuration (start and end time in a rate table), never a constant. Worked example for the convention only; the live rule is BR-306. | [[Attendance-and-DTR]] |
+
+## Cross-cutting invariants
+
+These are not numbered rules but every rule above must preserve them.
+
+1. **Reproducibility**: a released payroll run recomputes identically from its snapshot and rate-table version set ([[Payroll]]).
+2. **As-of resolution**: status, rate, placement, schedule are always resolved for a date (BR-204).
+3. **Append-only history**: raw punches, leave ledger, audit log are never updated in place (BR-116, BR-308).
+4. **Hours before pesos**: only [[Attendance-and-DTR]] derives hours; [[Payroll]] only prices them.
+5. **Server-side truth**: no rule exists only in JavaScript.
+
+## Open Questions
+
+- [ ] Rules touching Q6-Q12 in [[Open-Questions]] (leave types, OT exemption, pay basis, correction model) are provisional until John answers.
+
+## Related
+
+[[Conventions]] · [[Data-Model]] · [[Security-and-Compliance]] · [[Decision-Log]] · [[Glossary]] · [[Start-Here]]
