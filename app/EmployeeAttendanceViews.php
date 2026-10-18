@@ -166,7 +166,7 @@ function employee_attendance_times(array $day): void
         $value=$day['values'][$field]??null; $original=$day['row']['original_'.$field]??null;
         $adjusted=$value && $day['row'] && $value!==$original;
         $requiresPunches=!in_array($day['state'],['APPROVED_OB','APPROVED_LEAVE','ZERO_CREDIT'],true);
-        $emptyLabel=$day['ambiguous']?'Check':($day['has_evidence']?($requiresPunches?'Missing':'No log'):'No log'); ?>
+        $emptyLabel=!empty($day['extra_punches'])?'See logs':($day['ambiguous']?'Check':($day['has_evidence']?($requiresPunches?'Missing':'No log'):'No log')); ?>
       <div class="employee-attendance-time <?=!$value && $day['has_evidence'] && $requiresPunches?'is-missing':''?>">
         <span><?=e($label)?></span><strong><?php if($value) employee_attendance_time_value($day,$field); else echo e($emptyLabel);?></strong>
         <?php if($value && substr($value,0,10)!==$day['date']):?><small><?=e(date('M j',strtotime($value)))?> · next day</small><?php endif;?>
@@ -187,6 +187,7 @@ function employee_attendance_review_day(array $day,array $model): void
       <?php if($day['has_evidence'] && (!$day['leaves'] || $day['raw'] || array_filter($day['values']))):?><p class="employee-attendance-detail-heading">Attendance for this day</p><?php employee_attendance_times($day); endif;?>
       <?php if($day['before_hire']):?><p class="employee-attendance-note">This date is before your hire date. Ask HR to check the log or request date.</p>
       <?php elseif(!$day['has_evidence']):?><p class="employee-attendance-note">No logs yet. If you worked on this day, file TA or OB. Ask Payroll if the file has been uploaded.</p>
+      <?php elseif(!empty($day['extra_punches'])):?><p class="employee-attendance-note"><strong>More than 4 logs (<?=(int)$day['punch_count']?>) on this day.</strong> None are hidden: see every log under Biometric Logs below. Payroll must check which times to use.</p>
       <?php elseif($day['ambiguous']):?><p class="employee-attendance-note">Check the IN/OUT logs below before choosing which time to fix. For TA, enter only the times that need fixing.</p>
       <?php elseif($day['incomplete'] && $missing):?><p class="employee-attendance-note">Missing: <strong><?=e(implode(', ',$missing))?></strong>. File TA with the actual time.</p>
       <?php elseif($day['incomplete']):?><p class="employee-attendance-note">Payroll needs to check the logs and requests for this day.</p>
@@ -210,6 +211,7 @@ function employee_attendance_remarks(array $day): string
     $notes=[];
     if($day['before_hire']) $notes[]='Date before hire date. Check with HR.';
     elseif(!$day['has_evidence']) $notes[]='No uploaded logs yet.';
+    elseif(!empty($day['extra_punches'])) $notes[]='More than 4 logs ('.(int)$day['punch_count'].'). Check with Payroll.';
     elseif($day['ambiguous']) $notes[]='Check the original logs with Payroll.';
     elseif($day['missing'] && !in_array($day['state'],['APPROVED_OB','APPROVED_LEAVE','ZERO_CREDIT'],true)) $notes[]='Missing '.implode(', ',$day['missing']);
     elseif($day['incomplete']) $notes[]='Payroll needs to check this day.';
@@ -230,7 +232,7 @@ function employee_attendance_review_table(array $days,array $model,int $cutoffId
           <tr id="attendance-<?=e($day['date'])?>" class="<?=$status==='Check TA'?'needs-attention':''?>">
             <th scope="row" data-label="Date"><time datetime="<?=e($day['date'])?>"><?=e(date('M j',strtotime($day['date'])))?></time><small><?=e(date('l',strtotime($day['date'])))?></small></th>
             <?php foreach(employee_attendance_field_labels() as $field=>$label): $value=$day['values'][$field]??null; ?>
-            <td data-label="<?=e($label)?>" class="attendance-clock"><?php if($value): employee_attendance_time_value($day,$field); else: ?><span class="<?=$status==='Check TA'?'attendance-missing':''?>"><?=$status==='Check TA'?'Missing':'—'?></span><?php endif;?>
+            <td data-label="<?=e($label)?>" class="attendance-clock"><?php if($value): employee_attendance_time_value($day,$field); else: ?><span class="<?=$status==='Check TA'?'attendance-missing':''?>"><?=$status==='Check TA'?(!empty($day['extra_punches'])?'See logs':'Missing'):'—'?></span><?php endif;?>
               <?php if($value && substr($value,0,10)!==$day['date']):?><small><?=e(date('M j',strtotime($value)))?> · next day</small><?php endif;?>
             </td><?php endforeach;?>
             <td data-label="Status"><span class="badge <?=$tone?>"><?=e($status)?></span></td>

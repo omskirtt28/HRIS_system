@@ -432,10 +432,14 @@ final class PayrollAttendanceService
             $st->execute([$cutoffId]); $rows=$st->fetchAll(); $matched=0;
             $insert=db()->prepare('INSERT IGNORE INTO attendance_punches(employee_id,punched_at,punch_status,import_row_id) VALUES(?,?,?,?)');
             $update=db()->prepare('UPDATE attendance_import_rows SET employee_id=?,row_state=? WHERE id=?');
+            $newPunches=[];
             foreach($rows as $r) {
                 $insert->execute([$r['employee_id'],$r['punched_at'],$r['punch_status'],$r['id']]);
                 $update->execute([$r['employee_id'],$insert->rowCount()?'IMPORTED':'DUPLICATE',$r['id']]); $matched++;
+                if($insert->rowCount()) $newPunches[]=[(int)$r['employee_id'],$r['punched_at']];
             }
+            // Reprocessed UNMAPPED rows change those employees' days: refresh them in every open cutoff now.
+            self::rebuildAffected($newPunches);
             if($matched) audit('Payroll','BIOMETRIC_REMATCH','payroll_cutoff',$cutoffId,['rows'=>$matched,'employee_number_mappings_created'=>$created]);
             if($owned) db()->commit();
             return $matched;
@@ -462,15 +466,18 @@ final class PayrollAttendanceService
             $rows=db()->prepare('SELECT * FROM attendance_import_rows WHERE import_id=? ORDER BY id'); $rows->execute([$id]);
             $insert=db()->prepare('INSERT IGNORE INTO attendance_punches(employee_id,punched_at,punch_status,import_row_id) VALUES(?,?,?,?)');
             $update=db()->prepare('UPDATE attendance_import_rows SET row_state=? WHERE id=?');
+            $newPunches=[];
             foreach($rows->fetchAll() as $r) {
                 if(!$r['employee_id']) continue;
                 $insert->execute([$r['employee_id'],$r['punched_at'],$r['punch_status'],$r['id']]); $update->execute([$insert->rowCount()?'IMPORTED':'DUPLICATE',$r['id']]);
+                if($insert->rowCount()) $newPunches[]=[(int)$r['employee_id'],$r['punched_at']];
             }
             db()->prepare('UPDATE attendance_imports SET state="IMPORTED",imported_at=NOW(),expires_at=DATE_ADD(NOW(),INTERVAL 48 HOUR) WHERE id=?')->execute([$id]);
             if($automatic) db()->prepare('UPDATE attendance_imports SET source_covered_through=? WHERE id=?')->execute([$coveredThrough!==''?$coveredThrough:null,$id]);
             else db()->prepare('INSERT INTO payroll_cutoff_site_coverage(cutoff_id,branch_id,covered_through) VALUES(?,?,?) ON DUPLICATE KEY UPDATE covered_through=GREATEST(covered_through,VALUES(covered_through))')->execute([$run['id'],$import['branch_id'],$coveredThrough]);
             if($allLocationsComplete) self::confirmCoverage((int)$run['id'],$coveredThrough);
             else self::rebuild((int)$run['id']);
+            self::rebuildAffected($newPunches,[(int)$run['id']]);
             audit('Payroll','BIOMETRIC_IMPORT','attendance_import',$id,['cutoff_id'=>(int)$run['id'],'covered_through'=>$coveredThrough,'employee_number_mappings_created'=>$autoMapped]); db()->commit();
         } catch(Throwable $e) { if(db()->inTransaction()) db()->rollBack(); throw $e; }
     }
@@ -493,13 +500,15 @@ final class PayrollAttendanceService
             if($owner && $owner!==$employeeId) throw new RuntimeException('That biometric ID belongs to another employee.');
             if($existing) db()->prepare('UPDATE payroll_biometric_mappings SET biometric_id=?,updated_by=? WHERE employee_id=?')->execute([$biometric,(int)Auth::user()['id'],$employeeId]);
             else db()->prepare('INSERT INTO payroll_biometric_mappings(employee_id,biometric_id,updated_by) VALUES(?,?,?)')->execute([$employeeId,$biometric,(int)Auth::user()['id']]);
-            $pending=db()->prepare('SELECT r.*,i.cutoff_id FROM attendance_import_rows r JOIN attendance_imports i ON i.id=r.import_id WHERE r.biometric_id=? AND r.row_state="UNMAPPED" AND i.state="IMPORTED"'); $pending->execute([$biometric]); $cutoffs=[];
+            $pending=db()->prepare('SELECT r.*,i.cutoff_id FROM attendance_import_rows r JOIN attendance_imports i ON i.id=r.import_id WHERE r.biometric_id=? AND r.row_state="UNMAPPED" AND i.state="IMPORTED"'); $pending->execute([$biometric]); $cutoffs=[]; $newPunches=[];
             foreach($pending->fetchAll() as $r) {
                 self::lockOpen((int)$r['cutoff_id']);
                 $q=db()->prepare('INSERT IGNORE INTO attendance_punches(employee_id,punched_at,punch_status,import_row_id) VALUES(?,?,?,?)'); $q->execute([$employeeId,$r['punched_at'],$r['punch_status'],$r['id']]);
                 db()->prepare('UPDATE attendance_import_rows SET employee_id=?,row_state=? WHERE id=?')->execute([$employeeId,$q->rowCount()?'IMPORTED':'DUPLICATE',$r['id']]); $cutoffs[(int)$r['cutoff_id']]=true;
+                if($q->rowCount()) $newPunches[]=[$employeeId,$r['punched_at']];
             }
             foreach(array_keys($cutoffs) as $c) self::rebuild($c);
+            self::rebuildAffected($newPunches,array_keys($cutoffs));
             audit('Payroll','BIOMETRIC_MAPPING','employee',$employeeId); db()->commit();
         } catch(Throwable $e) { if(db()->inTransaction()) db()->rollBack(); throw $e; }
     }
@@ -621,6 +630,31 @@ final class PayrollAttendanceService
             } unset($employee);
         }
         return ['run'=>$run,'employees'=>$employees,'rules'=>self::reviewOnly()?[]:self::rules(),'settings'=>self::reviewOnly()?[]:self::settings()];
+    }
+
+    /**
+     * Newly saved punches can belong to a cutoff other than the one their file was filed under.
+     * Rebuild just those employees in every open cutoff covering the punch day (or the day before,
+     * for night shifts). Finalized cutoffs stay locked and are logged, never changed.
+     * @param array<int,array{0:int,1:string}> $pairs [employee_id, punched_at]
+     * @param int[] $skipCutoffIds cutoffs the caller already rebuilds in full
+     */
+    private static function rebuildAffected(array $pairs,array $skipCutoffIds=[]): void
+    {
+        $find=db()->prepare('SELECT id FROM payroll_cutoffs WHERE period_start<=? AND period_end>=?'); $affected=[];
+        foreach($pairs as [$employeeId,$punchedAt]) {
+            $day=substr($punchedAt,0,10); $previous=(new DateTimeImmutable($day))->modify('-1 day')->format('Y-m-d');
+            foreach([$day,$previous] as $date) {
+                $find->execute([$date,$date]);
+                foreach($find->fetchAll(PDO::FETCH_COLUMN) as $cutoffId) if(!in_array((int)$cutoffId,$skipCutoffIds,true)) $affected[(int)$cutoffId][(int)$employeeId]=true;
+            }
+        }
+        foreach($affected as $cutoffId=>$employees) {
+            try {
+                if((self::run($cutoffId)['run_state']??'')==='FINALIZED') { error_log('Attendance rebuild skipped: cutoff '.$cutoffId.' is finalized but received new punches for '.count($employees).' employee(s).'); continue; }
+                foreach(array_keys($employees) as $employeeId) self::rebuild($cutoffId,$employeeId);
+            } catch(RuntimeException $e) { error_log('Attendance rebuild skipped for cutoff '.$cutoffId.': '.$e->getMessage()); }
+        }
     }
 
     public static function rebuild(int $cutoffId,?int $onlyEmployee=null): void

@@ -181,12 +181,24 @@ final class EmployeeAttendanceService
             $beforeHire=!empty($employee['hire_date']) && $key<$employee['hire_date'];
             // Preserve visible pre-hire evidence for HR review without creating paid attendance.
             if($beforeHire && !$hasEvidence) continue;
-            $assignment=$row?null:PayrollCalculator::assign($raw,[]);
-            $values=$row?array_intersect_key($row,self::LABELS):$assignment['original'];
-            $issues=$row?(json_decode($row['issues_json']??'[]',true)?:[]):$assignment['issues'];
+            // A saved row built before a later file arrived no longer matches the saved punches.
+            // Rebuilds normally refresh it; until then read the punches directly instead of the old row.
+            $stale=$row && array_diff(array_map('intval',array_column($raw,'id')),array_map('intval',(json_decode($row['rate_snapshot_json']??'{}',true)?:[])['raw_punch_ids']??[]));
+            $assignment=$row&&!$stale?null:PayrollCalculator::assign($raw,[]);
+            $values=$assignment?$assignment['original']:array_intersect_key($row,self::LABELS);
+            $issues=$assignment?$assignment['issues']:(json_decode($row['issues_json']??'[]',true)?:[]);
+            // Display only: show every recorded punch in time order. Stored values, issues and payroll are untouched.
+            $slotDisplay=AttendanceSlotDisplay::assign($raw);
+            if(array_intersect($issues,['AMBIGUOUS_PUNCHES','EXTRA_PUNCHES_REVIEW']) && !array_filter($values)) {
+                $shown=array_filter($values);
+                foreach(self::LABELS as $field=>$label) if(empty($values[$field]) && $slotDisplay['slots'][$field] && !in_array($slotDisplay['slots'][$field],$shown,true)) $values[$field]=$slotDisplay['slots'][$field];
+                // Placed by time, not confirmed by the device: no longer "ambiguous", just incomplete.
+                if(!$slotDisplay['extra']) $issues=array_values(array_diff($issues,['AMBIGUOUS_PUNCHES']));
+            }
+            $extraPunches=$slotDisplay['extra'] && in_array('EXTRA_PUNCHES_REVIEW',$issues,true);
             $ambiguous=(bool)array_intersect($issues,['AMBIGUOUS_PUNCHES','EXTRA_PUNCHES_REVIEW','INVALID_PUNCH_SEQUENCE']);
             $missing=[]; foreach(self::LABELS as $field=>$label) if(empty($values[$field])) $missing[]=$label;
-            $state=$row['state']??($raw?'ISSUES':'AWAITING_LOGS');
+            $state=$row&&!$stale?$row['state']:($raw?($issues||$missing?'ISSUES':'COMPLETE'):'AWAITING_LOGS');
             $workTickets=array_filter($dayTickets,static fn($ticket)=>in_array($ticket['type_code'],['TA','PTA','OB','POB','OT','POT'],true) && in_array($ticket['status'],['APPROVED','COMPLETED'],true));
             $otherIssues=array_filter($issues,static fn($issue)=>!str_starts_with($issue,'MISSING_') && $issue!=='AWAITING_LOGS');
             // A leave-only day does not need four IN/OUT punches. Keep conflicts,
@@ -211,7 +223,7 @@ final class EmployeeAttendanceService
                 $timeSources[$entry['field']]=array_values(array_unique(array_map(static fn($source)=>in_array($source['type_code'],['OB','POB'],true)?'OB':'TA',$entry['time_sources'])));
             }
             $day=['date'=>$key,'row'=>$row,'values'=>$values,'issues'=>$issues,'raw'=>$raw,'tickets'=>$dayTickets,'leaves'=>$dayLeaves,
-                'locations'=>$locations,'other_site'=>$otherSite,'missing'=>$missing,'ambiguous'=>$ambiguous,'incomplete'=>(bool)$incomplete,
+                'locations'=>$locations,'other_site'=>$otherSite,'missing'=>$missing,'ambiguous'=>$ambiguous,'extra_punches'=>$extraPunches,'punch_count'=>count($raw),'incomplete'=>(bool)$incomplete,
                 'before_hire'=>$beforeHire,'has_evidence'=>(bool)$hasEvidence,'state'=>$state,'ot_minutes'=>$otMinutes,'ot_review'=>$otReview,
                 'can_file'=>$canFile&&!$beforeHire,'active'=>$active,'time_sources'=>$timeSources];
             $days[]=$day;

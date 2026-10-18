@@ -33,6 +33,7 @@ require_once __DIR__ . '/MaternityService.php';
 if (is_file(dirname(__DIR__).'/vendor/autoload.php')) require_once dirname(__DIR__).'/vendor/autoload.php';
 require_once __DIR__.'/BiometricParser.php';
 require_once __DIR__.'/PayrollCalculator.php';
+require_once __DIR__.'/AttendanceSlotDisplay.php';
 require_once __DIR__.'/PayrollAttendanceReview.php';
 require_once __DIR__.'/PayrollAttendanceService.php';
 require_once __DIR__.'/EmployeeAttendanceService.php';
