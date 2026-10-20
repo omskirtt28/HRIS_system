@@ -122,7 +122,7 @@ function nav_config(string $kind): array {
     ];
     // Slice-15 is a separate workspace; preserve every legacy payroll link.
     foreach (['employee','hr','admin'] as $portal) {
-        $items=[['HR Concerns','hr-requests-my','clipboard',false,'tickets.request_self']];
+        $items=[['HR Concerns','hr-requests-my','clipboard',false,Auth::can('ticket.file_for_others')?null:'tickets.request_self']];
         if(Auth::can('payroll.approve_manager') || Auth::can('payroll.approve_adl'))$items[]=['HR Request Inbox','hr-request-inbox','check-square',false,null];
         if($portal!=='employee')$items[]=['HR Request Queue','hr-service-requests','clipboard',false,'tickets.review_hr'];
         if($portal!=='employee')$items[]=['Payroll Concerns','hr-payroll-concerns','clipboard',false,'tickets.review_hr'];

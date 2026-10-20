@@ -1,0 +1,31 @@
+<?php
+act($f['employee']);$today=date('Y-m-d');$tomorrow=(new DateTimeImmutable('tomorrow'))->format('Y-m-d');
+$transfer=['employee'=>(string)$f['requester'],'from_branch'=>(string)$f['ho'],'to_branch'=>(string)$f['branch'],'effective_date'=>$today,'company'=>'OFJI'];
+$before=row('SELECT legal_entity_id,business_unit_id,directory_company_group FROM employees WHERE id=?',[$f['requester']]);
+check('Transfer denies filing for others',rejects(fn()=>TicketService::create(service_form('BRANCH_TRANSFER',array_replace($transfer,['employee'=>(string)$f['branch_requester']])),true)));
+check('Transfer rejects stale from branch',rejects(fn()=>TicketService::create(service_form('BRANCH_TRANSFER',array_replace($transfer,['from_branch'=>(string)$f['branch']])),true)));
+check('Transfer rejects same destination',rejects(fn()=>TicketService::create(service_form('BRANCH_TRANSFER',array_replace($transfer,['to_branch'=>(string)$f['ho']])),true)));
+$future=TicketService::create(service_form('BRANCH_TRANSFER',array_replace($transfer,['effective_date'=>$tomorrow])),true);
+act($f['hr']);service_action($future,'COMPLETE');check('Future transfer stays In Progress',TicketRepository::find($future)['status']==='IN_PROGRESS'&&!row('SELECT id FROM ticket_effects WHERE ticket_id=?',[$future]));
+act($f['employee']);$id=TicketService::create(service_form('BRANCH_TRANSFER',$transfer),true);
+act($f['hr']);check('Transfer completion requires manual approver',rejects(fn()=>service_action($id,'COMPLETE')));
+check('Failed transfer is atomic',(int)row('SELECT branch_id FROM employees WHERE id=?',[$f['requester']])['branch_id']===$f['ho']&&!row('SELECT id FROM ticket_effects WHERE ticket_id=?',[$id]));
+TicketService::act($id,(int)TicketRepository::find($id)['version'],'COMPLETE','','',0,['new_approver_user_id'=>$f['adl']['id']]);service_action($id,'COMPLETE');
+check('Transfer applies exactly once',(int)row('SELECT COUNT(*) n FROM ticket_effects WHERE ticket_id=? AND effect_type="BRANCH_TRANSFER"',[$id])['n']===1);
+$rows=db()->prepare('SELECT * FROM employee_placements WHERE employee_id=? ORDER BY id');$rows->execute([$f['requester']]);$placements=$rows->fetchAll();
+check('Transfer closes previous day and opens effective day',count($placements)===2&&$placements[0]['effective_to']===(new DateTimeImmutable('yesterday'))->format('Y-m-d')&&$placements[1]['effective_from']===$today);
+check('Transfer updates branch only',(int)row('SELECT branch_id FROM employees WHERE id=?',[$f['requester']])['branch_id']===$f['branch'] && row('SELECT legal_entity_id,business_unit_id,directory_company_group FROM employees WHERE id=?',[$f['requester']])===$before);
+check('Transfer saves explicit destination ADL',(int)row('SELECT approver_user_id FROM employee_approver_assignments WHERE employee_id=? AND approver_type="ADL" AND superseded_at IS NULL',[$f['requester']])['approver_user_id']===$f['adl']['id']);
+check('Second stale transfer cannot complete',rejects(fn()=>TicketService::act($future,(int)TicketRepository::find($future)['version'],'COMPLETE','','',0,['new_approver_user_id'=>$f['adl']['id']])));
+// Locked cutoff must block even after an earlier valid filing.
+act($f['outsider']);$data=['employee'=>(string)$f['branch_requester'],'from_branch'=>(string)$f['branch'],'to_branch'=>(string)$f['ho'],'effective_date'=>'2098-01-10','company'=>'SW'];
+$cutoff=row('SELECT id FROM payroll_cutoffs WHERE period_start="2098-01-01" AND period_end="2098-01-15"');$cid=$cutoff?(int)$cutoff['id']:insert('INSERT INTO payroll_cutoffs(code,period_start,period_end,status) VALUES(?,"2098-01-01","2098-01-15","OPEN")',[$f['tag'].'_transfer']);
+db()->prepare('INSERT INTO payroll_cutoff_runs(cutoff_id,state) VALUES(?,"FINALIZED") ON DUPLICATE KEY UPDATE state="FINALIZED"')->execute([$cid]);
+check('Transfer rejects effective date in locked cutoff',rejects(fn()=>TicketService::create(service_form('BRANCH_TRANSFER',$data),true)));
+db()->prepare('UPDATE payroll_cutoff_runs SET state="OPEN" WHERE cutoff_id=?')->execute([$cid]);$id=TicketService::create(service_form('BRANCH_TRANSFER',$data),true);db()->prepare('UPDATE payroll_cutoff_runs SET state="FINALIZED" WHERE cutoff_id=?')->execute([$cid]);
+act($f['hr']);check('Transfer rechecks cutoff lock at completion',rejects(fn()=>service_action($id,'COMPLETE')));
+db()->prepare('INSERT IGNORE INTO role_permissions(role_id,permission_id) SELECT ?,id FROM permissions WHERE code="ticket.file_for_others"')->execute([$f['hr']['role_id']]);Auth::clearPermissionCache();
+$fileOther=['employee'=>(string)$f['branch_requester'],'from_branch'=>(string)$f['branch'],'to_branch'=>(string)$f['ho'],'effective_date'=>$tomorrow,'company'=>'SW'];
+$id=TicketService::create(service_form('BRANCH_TRANSFER',$fileOther),true);$t=TicketRepository::find($id);
+check('Authorized filer remains requester for another subject',(int)$t['requester_user_id']===$f['hr']['id']&&(int)$t['subject_employee_id']===$f['branch_requester']);
+check('HR filing for others still cannot self approve',rejects(fn()=>service_action($id,'COMPLETE')));

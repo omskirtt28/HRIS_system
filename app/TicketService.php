@@ -28,9 +28,18 @@ final class TicketService
         db()->prepare('UPDATE tickets SET status=?,version=version+1,closed_at=? WHERE id=?')->execute([$status,in_array($status,['COMPLETED','REJECTED','CANCELLED'],true)?date('Y-m-d H:i:s'):null,$t['id']]);
         $t['status']=$status;$t['version']++;$eventId=self::event((int)$t['id'],$event,$from,$status,['remarks'=>$remarks]);TicketNotifications::enqueue($eventId,$t);
     }
-    private static function requireFiler():array
+    private static function requireFiler(array $data=[]):array
     {
-        TicketRepository::uid();if(!Auth::can('tickets.request_self'))throw new RuntimeException('You do not have permission to file HR requests.');
+        TicketRepository::uid();if(!Auth::can('tickets.request_self')&&!Auth::can('ticket.file_for_others'))throw new RuntimeException('You do not have permission to file HR requests.');
+        if(!empty($data['employee'])){
+            $q=db()->prepare('SELECT code FROM ticket_types WHERE id=? AND active=1');$q->execute([(int)($data['ticket_type_id']??0)]);
+            if($q->fetchColumn()==='BRANCH_TRANSFER'){
+                $employee=EmployeeApproverAssignmentService::employee((int)$data['employee'],true);
+                if((int)$employee['user_id']!==TicketRepository::uid()&&!Auth::can('ticket.file_for_others'))throw new RuntimeException('You cannot file a ticket for another employee.');
+                if(!in_array($employee['status'],['ACTIVE','PROBATIONARY','ON_LEAVE'],true))throw new RuntimeException('Choose an active employee.');
+                return $employee;
+            }
+        }
         return TicketRepository::ownEmployee();
     }
     private static function text(mixed $value,int $max,string $label):string
@@ -43,7 +52,7 @@ final class TicketService
         $q=db()->prepare('SELECT * FROM ticket_types WHERE id=? AND active=1');$q->execute([(int)($data['ticket_type_id']??0)]);$type=$q->fetch();
         if(!$type)throw new RuntimeException('Choose an available request type.');
         if($type['code']!=='PAYROLL_CONCERN'){
-            $e=TicketRepository::ownEmployee();
+            $e=self::requireFiler($data);
             return ['type'=>$type,'period'=>null,'date'=>null,'explanation'=>'','payload'=>TicketTypes::validate($type['code'],$data,$e)];
         }
         $date=EmployeeApproverAssignmentService::date(is_string($data['concern_date']??null)?$data['concern_date']:'');
@@ -63,7 +72,7 @@ final class TicketService
     }
     public static function create(array $data,bool $submit,array $files=[]):int
     {
-        $e=self::requireFiler();$key=(string)($data['submission_key']??'');
+        $e=self::requireFiler($data);$key=(string)($data['submission_key']??'');
         if(!preg_match('/^[a-f0-9]{64}$/',$key))throw new RuntimeException('Reload the filing form before submitting.');
         return self::transaction(function()use($e,$key,$data,$submit,$files){
             $employee=EmployeeApproverAssignmentService::employee((int)$e['id'],true);
@@ -87,12 +96,13 @@ final class TicketService
     }
     public static function edit(int $id,int $version,array $data,bool $submit=false,array $files=[]):int
     {
-        self::requireFiler();return self::transaction(function()use($id,$version,$data,$submit,$files){
+        self::requireFiler($data);return self::transaction(function()use($id,$version,$data,$submit,$files){
             $t=TicketRepository::find($id,true);self::assertVersion($t,$version);
             if((int)$t['requester_user_id']!==TicketRepository::uid() || !in_array($t['status'],['DRAFT','RETURNED'],true))throw new RuntimeException('Only your draft or returned request can be edited.');
             $e=EmployeeApproverAssignmentService::employee((int)$t['subject_employee_id'],true);
-            if((int)$e['user_id']!==TicketRepository::uid())throw new RuntimeException('Please ask HR to check your linked employee record.');
+            if((int)$e['user_id']!==TicketRepository::uid() && !($t['type_code']==='BRANCH_TRANSFER'&&Auth::can('ticket.file_for_others')))throw new RuntimeException('Please ask HR to check your linked employee record.');
             $fields=self::fields($data);
+            if($t['type_code']==='BRANCH_TRANSFER'&&(int)$fields['payload']['employee']!==(int)$t['subject_employee_id'])throw new RuntimeException('The subject employee cannot change.');
             if((int)$fields['type']['id']!==(int)$t['ticket_type_id'])throw new RuntimeException('Keep this ticket type. File a separate request for another type.');
             if($t['type_code']==='PAYROLL_CONCERN' && $t['filed_at']!==null && ($fields['date']!==$t['concern_date'] || (int)$fields['period']['id']!==(int)$t['payroll_period_id']))throw new RuntimeException('Keep the original concern date and cutoff. File a separate ticket for another cutoff.');
             $payload=$t['payload'];$oldHash=hash('sha256',json_encode($payload));$payload=array_replace($payload,$fields['payload']??['explanation'=>$fields['explanation']]);
@@ -151,7 +161,7 @@ final class TicketService
         $q=db()->prepare('SELECT * FROM ticket_steps WHERE ticket_id=? AND step_no=? AND status="PENDING"');$q->execute([$t['id'],$t['current_step_no']]);$step=$q->fetch();
         $named=$step && (int)$step['approver_user_id']===$uid && Auth::can($step['approver_type']==='ADL'?'payroll.approve_adl':'payroll.approve_manager');
         $hr=TicketRepository::isHr();$hrStep=$hr && $step && $step['approver_type']==='HR' && in_array($t['status'],['PENDING_HR','IN_PROGRESS'],true);$pending=in_array($t['status'],['PENDING_APPROVAL','PENDING_HR','IN_PROGRESS'],true);
-        return ['edit'=>$own && Auth::can('tickets.request_self') && in_array($t['status'],['DRAFT','RETURNED'],true),
+        return ['edit'=>$own && (Auth::can('tickets.request_self')||Auth::can('ticket.file_for_others')) && in_array($t['status'],['DRAFT','RETURNED'],true),
             'cancel'=>$t['type_code']==='PAYROLL_CONCERN'?($own && in_array('CANCELLED',TicketPolicy::TRANSITIONS[$t['status']]??[],true)):(($own && in_array($t['status'],['DRAFT','RETURNED','PENDING_APPROVAL'],true))||(!$self && $hrStep)),
             'approve'=>!$self && $named && $t['status']==='PENDING_APPROVAL',
             'hr'=>!$self && $hr && $step && $step['approver_type']==='HR' && in_array($t['status'],['PENDING_HR','IN_PROGRESS'],true),
@@ -159,9 +169,9 @@ final class TicketService
             'attach'=>($own && in_array($t['status'],['DRAFT','RETURNED'],true)) || (!$self && $hr && in_array($t['status'],['PENDING_HR','IN_PROGRESS'],true)),
         ];
     }
-    public static function act(int $id,int $version,string $action,string $remarks='',string $outcome='',int $target=0):int
+    public static function act(int $id,int $version,string $action,string $remarks='',string $outcome='',int $target=0,array $completionData=[]):int
     {
-        return self::transaction(function()use($id,$version,$action,$remarks,$outcome,$target){
+        return self::transaction(function()use($id,$version,$action,$remarks,$outcome,$target,$completionData){
             $t=TicketRepository::find($id,true);$p=self::permissions($t);$remarks=trim($remarks);
             if(mb_strlen($remarks)>5000)throw new RuntimeException('Remarks must be 5000 characters or fewer.');
             if($action==='COMPLETE' && $t['status']==='COMPLETED'){
@@ -194,7 +204,7 @@ final class TicketService
             if(!$p['hr'])throw new RuntimeException('Only another authorized HR reviewer can handle this step.');
             if($action==='START'){if($t['type_code']==='NETSUITE_CONCERN')throw new RuntimeException('NetSuite uses Pending and Complete.');self::transition($t,'IN_PROGRESS',$remarks);return $id;}
             if($action!=='COMPLETE')throw new RuntimeException('Unknown ticket action.');
-            if($t['type_code']!=='PAYROLL_CONCERN'){TicketTypes::complete($t);self::decideStep($step,'APPROVED',$remarks);self::transition($t,'COMPLETED',$remarks);return $id;}
+            if($t['type_code']!=='PAYROLL_CONCERN'){if(!TicketTypes::complete($t,$completionData)){if($t['status']==='PENDING_HR')self::transition($t,'IN_PROGRESS','Awaiting transfer effective date');return $id;}self::decideStep($step,'APPROVED',$remarks);self::transition($t,'COMPLETED',$remarks);return $id;}
             $remarks=self::text($remarks,5000,'HR outcome explanation');
             if(!in_array($outcome,['NO_CHANGE','MANUAL_ADJUSTMENT'],true))throw new RuntimeException('Choose an HR outcome.');
             if($outcome==='MANUAL_ADJUSTMENT'){

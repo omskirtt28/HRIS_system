@@ -33,4 +33,5 @@ act($f['hr']);check('HR cannot return/reject before Manager approval',!TicketSer
 if(row('SELECT id FROM ticket_types WHERE code="UNIFORM_REQUEST"'))require __DIR__.'/ticket_uniform_cases.php';
 if(row('SELECT id FROM ticket_types WHERE code="NETSUITE_CONCERN"'))require __DIR__.'/ticket_netsuite_cases.php';
 if(row('SELECT id FROM ticket_types WHERE code="MANPOWER_REQUEST"'))require __DIR__.'/ticket_manpower_cases.php';
+if(row('SELECT id FROM ticket_types WHERE code="BRANCH_TRANSFER"'))require __DIR__.'/ticket_branch_transfer_cases.php';
 finish();

@@ -32,7 +32,7 @@ function ticket_handle(string $page):void
                 unset($_SESSION['core_ticket_edit'][$id]);flash('success',($_POST['intent']??'')==='SUBMIT'?'HR request submitted.':'Changes saved.');
             }elseif($action==='core_ticket_act'){
                 $_SESSION['core_ticket_action'][$id]=$_POST;
-                TicketService::act($id,(int)($_POST['version']??0),(string)($_POST['decision']??''),(string)($_POST['remarks']??''),(string)($_POST['outcome']??''),(int)($_POST['target_period_id']??0));unset($_SESSION['core_ticket_action'][$id]);flash('success','Ticket action recorded.');
+                TicketService::act($id,(int)($_POST['version']??0),(string)($_POST['decision']??''),(string)($_POST['remarks']??''),(string)($_POST['outcome']??''),(int)($_POST['target_period_id']??0),['new_approver_user_id'=>(int)($_POST['new_approver_user_id']??0)]);unset($_SESSION['core_ticket_action'][$id]);flash('success','Ticket action recorded.');
             }elseif($action==='core_ticket_comment'){
                 $_SESSION['core_ticket_comment'][$id]=(string)($_POST['body']??'');
                 TicketService::comment($id,(string)($_POST['body']??''));unset($_SESSION['core_ticket_comment'][$id]);flash('success','Comment added.');
@@ -54,7 +54,9 @@ function ticket_handle(string $page):void
         }
         if($page==='hr-ticket-accounting-members'){ticket_accounting_members_page();}
         elseif($page==='hr-request-new'){
-            Auth::requirePermission('tickets.request_self');$employee=TicketRepository::ownEmployee();
+            if(!Auth::can('tickets.request_self')&&!Auth::can('ticket.file_for_others'))throw new RuntimeException('Filing permission is required.');
+            try{$employee=TicketRepository::ownEmployee();}catch(RuntimeException $e){if(!Auth::can('ticket.file_for_others'))throw $e;$employee=['branch_name'=>'Select the subject employee below'];
+                if(empty($_GET['type'])&&empty($_SESSION['core_ticket_old']['ticket_type_id']))$_GET['type']=(int)db()->query('SELECT id FROM ticket_types WHERE code="BRANCH_TRANSFER" AND active=1')->fetchColumn();} 
             $old=$_SESSION['core_ticket_old']??[];$key=bin2hex(random_bytes(32));
             $_SESSION['core_ticket_keys']=array_filter($_SESSION['core_ticket_keys']??[],fn($expires)=>$expires>=time());
             $_SESSION['core_ticket_keys']=array_slice($_SESSION['core_ticket_keys'],-19,null,true);$_SESSION['core_ticket_keys'][$key]=time()+1800;
@@ -62,7 +64,7 @@ function ticket_handle(string $page):void
         }elseif($page==='hr-request')ticket_detail_page(TicketRepository::detail($id));
         else{
             $mode=match($page){'hr-request-inbox'=>'inbox','hr-payroll-concerns'=>'hr','hr-service-requests'=>'services','hr-accounting-requests'=>'accounting',default=>'my'};
-            if($mode==='my')Auth::requirePermission('tickets.request_self');
+            if($mode==='my'&&!Auth::can('tickets.request_self')&&!Auth::can('ticket.file_for_others'))throw new RuntimeException('Filing permission is required.');
             ticket_list_page($mode,TicketRepository::listing($mode,$_GET),$_GET);
         }
     }catch(RuntimeException $error){http_response_code(403);ticket_error_page($error->getMessage());}

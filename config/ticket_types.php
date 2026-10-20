@@ -1,6 +1,13 @@
 <?php
 // Options and routing belong to configuration, never to browser-supplied profiles.
 return [
+    'BRANCH_TRANSFER'=>['name'=>'Branch Transfer','profile'=>'HR_ONLY','fields'=>[
+        'employee'=>['label'=>'Employee','kind'=>'employee'],
+        'from_branch'=>['label'=>'From branch','kind'=>'branch'],
+        'to_branch'=>['label'=>'To branch','kind'=>'branch'],
+        'effective_date'=>['label'=>'Effective date','kind'=>'date'],
+        'company'=>['label'=>'Company label','options'=>['SW','OFJI']],
+    ]],
     'MANPOWER_REQUEST'=>['name'=>'Manpower Request','profile'=>'BRANCH_ADL_THEN_HR','fields'=>[
         'section_branch'=>['label'=>'Section / Branch','kind'=>'text','max'=>160],
         'position_code'=>['label'=>'Position code','options'=>['BS','SC','VS']],

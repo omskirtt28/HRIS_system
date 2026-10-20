@@ -40,7 +40,7 @@ function ticket_list_page(string $mode,array $result,array $filters):void
     if(in_array($mode,['services','accounting'],true)){ticket_service_list($result,$filters,$mode);return;}
     $page=match($mode){'hr'=>'hr-payroll-concerns','inbox'=>'hr-request-inbox',default=>'hr-requests-my'};
     $title=match($mode){'hr'=>'Payroll Concern Queue','inbox'=>'HR Request Inbox',default=>'My HR Requests'};ticket_header($page,$title);
-    page_head('HR Concerns',$title,Auth::can('tickets.request_self')?'<a class="btn primary" href="'.url('hr-request-new').'">File an HR request</a>':'');
+    page_head('HR Concerns',$title,(Auth::can('tickets.request_self')||Auth::can('ticket.file_for_others'))?'<a class="btn primary" href="'.url('hr-request-new').'">File an HR request</a>':'');
     if($mode==='my'):?><p class="ticket-note">HR concerns appear here. Your existing <a href="<?=url('employee-requests')?>">Payroll &amp; Timekeeping requests</a> keep their own list.</p><?php endif;
     if($mode==='hr'): ?>
     <form method="get" class="panel ticket-panel"><input type="hidden" name="page" value="hr-payroll-concerns"><div class="panel-body ticket-filters">

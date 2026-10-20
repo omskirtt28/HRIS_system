@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/TicketBranchTransfer.php';
 final class TicketTypes
 {
     public static function definitions():array { return require dirname(__DIR__).'/config/ticket_types.php'; }
@@ -33,6 +34,7 @@ final class TicketTypes
             if($out['request_type']==='Additional'&&!empty($out['replacement_of_employee_id']))throw new RuntimeException('Additional requests must not specify a replacement employee.');
             $out['requested_by']=TicketRepository::uid();
         }
+        if($code==='BRANCH_TRANSFER')$out=TicketBranchTransfer::validate($out,$employee);
         return $out;
     }
     public static function save(int $id,string $code,array $payload):void {
@@ -41,12 +43,15 @@ final class TicketTypes
             $columns=['section_branch','requested_by','position_code','employment_type','request_type','quantity','replacement_of_employee_id','job_description_qualifications','area_department'];
             db()->prepare('INSERT INTO ticket_manpower_requests(ticket_id,'.implode(',',$columns).') VALUES(?,'.implode(',',array_fill(0,count($columns),'?')).') ON DUPLICATE KEY UPDATE '.implode(',',array_map(fn($c)=>$c.'=VALUES('.$c.')',$columns)))->execute(array_merge([$id],array_map(fn($c)=>$payload[$c],$columns)));
         }
+        if($code==='BRANCH_TRANSFER')db()->prepare('INSERT INTO branch_transfers(ticket_id,employee_id,from_branch_id,to_branch_id,effective_date,company) VALUES(?,?,?,?,?,?) ON DUPLICATE KEY UPDATE from_branch_id=VALUES(from_branch_id),to_branch_id=VALUES(to_branch_id),effective_date=VALUES(effective_date),company=VALUES(company)')->execute([$id,$payload['employee'],$payload['from_branch'],$payload['to_branch'],$payload['effective_date'],$payload['company']]);
     }
-    public static function complete(array $ticket,array $data=[]):void {
+    public static function complete(array $ticket,array $data=[]):bool {
         if($ticket['type_code']==='MANPOWER_REQUEST')db()->prepare('UPDATE ticket_manpower_requests SET date_served=CURDATE() WHERE ticket_id=? AND date_served IS NULL')->execute([$ticket['id']]);
+        if($ticket['type_code']==='BRANCH_TRANSFER')return TicketBranchTransfer::complete($ticket,$data);
+        return true;
     }
     public static function employeeChoices():array {
-        $own=TicketRepository::ownEmployee();$hr=TicketRepository::isHr();
+        $hr=TicketRepository::isHr()||Auth::can('ticket.file_for_others');$own=$hr?['branch_id'=>0]:TicketRepository::ownEmployee();
         $q=db()->prepare('SELECT id,employee_no,first_name,last_name FROM employees WHERE status IN ("ACTIVE","PROBATIONARY","ON_LEAVE") AND (?=1 OR branch_id=?) ORDER BY last_name,first_name');$q->execute([$hr?1:0,$own['branch_id']]);$out=[];
         foreach($q->fetchAll() as $e)$out[(int)$e['id']]=$e['employee_no'].' · '.$e['first_name'].' '.$e['last_name'];return $out;
     }
