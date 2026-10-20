@@ -75,3 +75,5 @@ Step 1 validation: core 97/97; assignments 40/40; legacy Payroll Ticket Review/T
 ## Related
 
 [[Build-Plan]] · [[Claude-Code-Brief]] · [[Open-Questions]] · [[Decision-Log]]
+
+- 2026-10-20 Stage B / ATM+ID committed (e70e210). Migration 004 applied after two verified mysqldump restores; up/rerun/down/up and used-data rollback guard passed. Service 21/21, Payroll Concern 71/71, core 97/97, assignments 40/40, legacy TA/OB/OT/leave 16/16, browser 4/4. Existing business rows unchanged. Includes previously untracked Slice-15 engine dependencies; unrelated workspace files excluded.

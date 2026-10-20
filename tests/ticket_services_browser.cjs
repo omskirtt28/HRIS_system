@@ -15,5 +15,10 @@ async function login(browser,u){const c=await browser.newContext(),p=await c.new
  await hr.p.goto(url('hr-service-requests',{type_code:'ID_REQUEST',status:'COMPLETED'}));await hr.p.getByRole('heading',{name:'HR Request Queue',exact:true}).waitFor();assert.equal(await hr.p.locator('[name=payroll_period_id]').count(),0);console.log('PASS shared queue filters without payroll controls');passed++;
  await hr.p.screenshot({path:'storage/slice15-private/stageb-queue.png',fullPage:true});
  await employee.p.setViewportSize({width:390,height:844});await employee.p.goto(url('hr-request-new'));await employee.p.getByLabel('Request type',{exact:true}).selectOption({label:'ATM Request'});await employee.p.getByLabel('Reason',{exact:true}).waitFor();assert.ok(await employee.p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2));console.log('PASS mobile filing has no horizontal overflow');passed++;
+ if(Number(process.env.HRIS_STAGEB_SLICE||4)>=5){
+  const p=employee.p;await p.setViewportSize({width:1365,height:900});await p.goto(url('hr-request-new'));await p.getByLabel('Request type',{exact:true}).selectOption({label:'Uniform Request'});
+  await p.getByLabel('Position',{exact:true}).fill('Sales Crew');await p.getByLabel('Size',{exact:true}).selectOption('M');await p.getByLabel('Company label',{exact:true}).selectOption('OFJI');await p.getByLabel('Branch',{exact:true}).selectOption(String(f.branch));await p.getByLabel('Quantity',{exact:true}).fill('2');await p.getByLabel('ID lace',{exact:true}).selectOption('YES');await p.getByRole('button',{name:'Submit HR request',exact:true}).click();await p.getByRole('heading',{name:'Approval chain',exact:true}).waitFor();const id=Number(new URL(p.url()).searchParams.get('id'));
+  await hr.p.goto(url('hr-request',{id}));await hr.p.getByRole('button',{name:'Served',exact:true}).click();await hr.p.getByText('Served',{exact:true}).waitFor();console.log('PASS Uniform browser filing and HR completion');passed++;
+ }
  console.log('RESULT '+passed+' passed, 0 failed');
 }finally{await browser.close();}})().catch(e=>{console.error(e);process.exit(1)});

@@ -58,7 +58,7 @@ final class TicketRepository
     }
     public static function types():array
     {
-        self::uid();return db()->query('SELECT id,code,name FROM ticket_types WHERE active=1 AND code IN ("PAYROLL_CONCERN","ATM_REQUEST","ID_REQUEST") ORDER BY name')->fetchAll();
+        self::uid();return array_values(array_filter(db()->query('SELECT id,code,name FROM ticket_types WHERE active=1 ORDER BY name')->fetchAll(),fn($type)=>$type['code']==='PAYROLL_CONCERN'||isset(TicketTypes::definitions()[$type['code']])));
     }
     public static function listing(string $mode,array $filters=[],int $limit=50):array
     {
@@ -67,6 +67,8 @@ final class TicketRepository
             if(!self::isHr())throw new RuntimeException('HR ticket review access is required.');
             $where[]=$mode==='hr'?'ty.code="PAYROLL_CONCERN" AND t.status<>"DRAFT"':'ty.code<>"INCIDENT_REPORT" AND t.status<>"DRAFT"';
             if(!empty($filters['type_code'])){$where[]='ty.code=?';$params[]=$filters['type_code'];}
+            if(!empty($filters['company_label'])){$where[]='JSON_UNQUOTE(JSON_EXTRACT(t.payload_json,"$.company"))=?';$params[]=$filters['company_label'];}
+            if($mode==='services'&&!empty($filters['branch_id'])){$where[]='CASE WHEN ty.code="UNIFORM_REQUEST" THEN CAST(JSON_UNQUOTE(JSON_EXTRACT(t.payload_json,"$.branch")) AS UNSIGNED) ELSE t.branch_id END=?';$params[]=(int)$filters['branch_id'];unset($filters['branch_id']);}
             foreach(['status'=>'t.status','branch_id'=>'t.branch_id','company_id'=>'t.company_id','business_unit_id'=>'t.business_unit_id_snapshot','payroll_period_id'=>'t.payroll_period_id','company_group'=>'t.company_group_snapshot'] as $key=>$column){if(isset($filters[$key]) && (string)$filters[$key]!=='' && (string)$filters[$key]!=='0'){$where[]=$column.'=?';$params[]=$filters[$key];}}
         }elseif($mode==='inbox'){
             if(!self::canApprove())throw new RuntimeException('Manager or ADL approval access is required.');
