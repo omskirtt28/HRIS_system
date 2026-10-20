@@ -3,10 +3,11 @@ declare(strict_types=1);
 require_once __DIR__.'/TicketService.php';
 require_once __DIR__.'/TicketViews.php';
 require_once __DIR__.'/TicketAccountingViews.php';
+require_once __DIR__.'/TicketPrintForms.php';
 
 function ticket_handle(string $page):void
 {
-    $pages=['hr-requests-my','hr-request-new','hr-request','hr-request-inbox','hr-payroll-concerns','hr-request-attachment','hr-service-requests','hr-accounting-requests','hr-ticket-accounting-members'];
+    $pages=['hr-requests-my','hr-request-new','hr-request','hr-request-inbox','hr-payroll-concerns','hr-request-attachment','hr-service-requests','hr-accounting-requests','hr-ticket-accounting-members','hr-incidents','hr-print-forms'];
     $action=(string)($_POST['action']??'');
     if(!in_array($page,$pages,true) && !str_starts_with($action,'core_ticket_'))return;
     need_db();if(!Auth::check())redirect('login');
@@ -35,7 +36,7 @@ function ticket_handle(string $page):void
                 TicketService::act($id,(int)($_POST['version']??0),(string)($_POST['decision']??''),(string)($_POST['remarks']??''),(string)($_POST['outcome']??''),(int)($_POST['target_period_id']??0),['new_approver_user_id'=>(int)($_POST['new_approver_user_id']??0)]);unset($_SESSION['core_ticket_action'][$id]);flash('success','Ticket action recorded.');
             }elseif($action==='core_ticket_comment'){
                 $_SESSION['core_ticket_comment'][$id]=(string)($_POST['body']??'');
-                TicketService::comment($id,(string)($_POST['body']??''));unset($_SESSION['core_ticket_comment'][$id]);flash('success','Comment added.');
+                TicketService::comment($id,(string)($_POST['body']??''),(string)($_POST['visibility']??'ALL'));unset($_SESSION['core_ticket_comment'][$id]);flash('success','Comment added.');
             }elseif($action==='core_ticket_attach'){
                 TicketService::attach($id,$_FILES['attachments']??[]);flash('success','Attachment(s) added.');
             }else throw new RuntimeException('Unknown ticket action.');
@@ -52,7 +53,8 @@ function ticket_handle(string $page):void
             header('Content-Disposition: attachment; filename="attachment.'.pathinfo($file['stored_name'],PATHINFO_EXTENSION).'"; filename*=UTF-8\'\''.rawurlencode($file['original_name']));
             header('Content-Length: '.filesize($file['path']));readfile($file['path']);exit;
         }
-        if($page==='hr-ticket-accounting-members'){ticket_accounting_members_page();}
+        if($page==='hr-print-forms'){ticket_print_forms();}
+        elseif($page==='hr-ticket-accounting-members'){ticket_accounting_members_page();}
         elseif($page==='hr-request-new'){
             if(!Auth::can('tickets.request_self')&&!Auth::can('ticket.file_for_others'))throw new RuntimeException('Filing permission is required.');
             try{$employee=TicketRepository::ownEmployee();}catch(RuntimeException $e){if(!Auth::can('ticket.file_for_others'))throw $e;$employee=['branch_name'=>'Select the subject employee below'];
@@ -63,7 +65,7 @@ function ticket_handle(string $page):void
             ticket_new_page($employee,TicketRepository::types(),$key,$old);
         }elseif($page==='hr-request')ticket_detail_page(TicketRepository::detail($id));
         else{
-            $mode=match($page){'hr-request-inbox'=>'inbox','hr-payroll-concerns'=>'hr','hr-service-requests'=>'services','hr-accounting-requests'=>'accounting',default=>'my'};
+            $mode=match($page){'hr-request-inbox'=>'inbox','hr-payroll-concerns'=>'hr','hr-service-requests'=>'services','hr-accounting-requests'=>'accounting','hr-incidents'=>'feed',default=>'my'};
             if($mode==='my'&&!Auth::can('tickets.request_self')&&!Auth::can('ticket.file_for_others'))throw new RuntimeException('Filing permission is required.');
             ticket_list_page($mode,TicketRepository::listing($mode,$_GET),$_GET);
         }

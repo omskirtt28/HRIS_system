@@ -52,7 +52,8 @@ try {
             $m['cycled_at']=date(DATE_ATOM);
         }elseif($mode==='guard'){
             $p=slice15_connect($m['test_database']);$before=slice15_snapshot($p);$blocked=false;
-            try{stage_migrate($m['test_database'],$number,true);}catch(RuntimeException){$blocked=true;}
+            $log=$folder.'/command.log';clearstatcache(true,$log);$offset=is_file($log)?filesize($log):0;
+            try{stage_migrate($m['test_database'],$number,true);}catch(RuntimeException){$message=substr(file_get_contents($log),$offset);$blocked=str_contains($message,'45000')&&str_contains($message,'in use');}
             $p->exec('DROP PROCEDURE IF EXISTS stageb_'.sprintf('%03d',$number).'_down');
             if(!$blocked||slice15_snapshot($p)!==$before)throw new RuntimeException('Used-data rollback guard failed.');
             echo 'PASS used-data down refused; all schema/data fingerprints unchanged'.PHP_EOL;
@@ -62,11 +63,17 @@ try {
             $m['apply_backup']=$fresh['backup'];$m['apply_backup_sha256']=$fresh['sha256'];
             $m['restore_verified_database']=$fresh['test_database'];
             file_put_contents($manifest,json_encode($m,JSON_PRETTY_PRINT|JSON_THROW_ON_ERROR));
+            $p=slice15_connect($live);
+            if($number===9)$originalComments=$p->query('SELECT id,ticket_id,author_user_id,body,created_at FROM ticket_comments ORDER BY id')->fetchAll();
             stage_migrate($live,$number);
             $p=slice15_connect($live);
             // No existing business records may change. Migration seed/config additions are explicit.
             $excluded=['ticket_types','permissions','role_permissions','ticket_permission_seeds','ticket_accounting_memberships','ticket_accounting_seed_results'];
             foreach($fresh['baseline'] as $table=>$before){if(in_array($table,$excluded,true))continue;
+                if($number===9&&$table==='ticket_comments'){
+                    if($originalComments!==$p->query('SELECT id,ticket_id,author_user_id,body,created_at FROM ticket_comments ORDER BY id')->fetchAll()||(int)$p->query('SELECT COUNT(*) FROM ticket_comments WHERE visibility<>"ALL"')->fetchColumn())throw new RuntimeException('Original comments changed during visibility migration.');
+                    continue;
+                }
                 $after=slice15_snapshot($p,[$table])[$table];
                 if($after['rows']!==$before['rows']||$after['data']!==$before['data'])throw new RuntimeException('Existing records changed: '.$table);
             }

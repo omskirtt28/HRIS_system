@@ -9,7 +9,7 @@ final class TicketNotifications
         $recipients=[(int)$ticket['requester_user_id']];
         $q=db()->prepare('SELECT approver_type,approver_user_id FROM ticket_steps WHERE ticket_id=? AND step_no=? AND status="PENDING"');$q->execute([$ticket['id'],$ticket['current_step_no']]);$step=$q->fetch();
         if($step && $step['approver_user_id'])$recipients[]=(int)$step['approver_user_id'];
-        if($step && $step['approver_type']==='HR'){
+        if(($step && $step['approver_type']==='HR') || (($ticket['type_code']??'')==='INCIDENT_REPORT'&&$ticket['status']==='SUBMITTED')){
             foreach(db()->query('SELECT u.id FROM users u JOIN roles r ON r.id=u.role_id WHERE u.status="ACTIVE" AND r.portal IN ("hr","admin") AND (r.code="SUPER_ADMIN" OR EXISTS(SELECT 1 FROM role_permissions rp JOIN permissions p ON p.id=rp.permission_id WHERE rp.role_id=r.id AND p.code="tickets.review_hr"))')->fetchAll(PDO::FETCH_COLUMN) as $id)$recipients[]=(int)$id;
         }
         if(($ticket['type_code']??'')==='NETSUITE_CONCERN' && $ticket['status']==='COMPLETED'){

@@ -60,4 +60,8 @@ final class TicketTypes
         if($code==='NETSUITE_CONCERN'&&in_array($status,['PENDING_HR','IN_PROGRESS','COMPLETED'],true))return $status==='COMPLETED'?'Complete':'Pending';
         return match($status){'PENDING_HR'=>'Pending','IN_PROGRESS'=>'In Progress','COMPLETED'=>'Served','CANCELLED'=>'Cancelled',default=>stage_label($status)};
     }
+    public static function openDuplicates(string $code,int $exclude=0):int {
+        if(!in_array($code,['ATM_REQUEST','ID_REQUEST'],true))return 0;
+        $q=db()->prepare('SELECT COUNT(*) FROM tickets t JOIN ticket_types ty ON ty.id=t.ticket_type_id WHERE ty.code=? AND t.requester_user_id=? AND t.id<>? AND t.status IN ("SUBMITTED","PENDING_APPROVAL","PENDING_HR","IN_PROGRESS","RETURNED")');$q->execute([$code,TicketRepository::uid(),$exclude]);return (int)$q->fetchColumn();
+    }
 }

@@ -2,7 +2,8 @@ DELIMITER $$
 DROP PROCEDURE IF EXISTS stageb_006_down$$
 CREATE PROCEDURE stageb_006_down()
 BEGIN
- IF EXISTS(SELECT 1 FROM tickets t JOIN ticket_types ty ON ty.id=t.ticket_type_id WHERE ty.code='NETSUITE_CONCERN') OR EXISTS(SELECT 1 FROM ticket_netsuite_remarks) OR EXISTS(SELECT 1 FROM ticket_accounting_memberships WHERE provenance<>'SEED' OR assigned_by IS NOT NULL) THEN
+ IF EXISTS(SELECT 1 FROM tickets t JOIN ticket_types ty ON ty.id=t.ticket_type_id WHERE ty.code='NETSUITE_CONCERN') OR EXISTS(SELECT 1 FROM ticket_netsuite_remarks) OR EXISTS(SELECT 1 FROM ticket_accounting_memberships WHERE provenance<>'SEED' OR assigned_by IS NOT NULL)
+ OR EXISTS(SELECT 1 FROM role_permissions rp JOIN ticket_accounting_permission_seed s ON s.permission_id=rp.permission_id WHERE s.owned=1) THEN
  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='NetSuite/Accounting is in use; retain data and history';
  END IF;
  DELETE FROM ticket_types WHERE code='NETSUITE_CONCERN';

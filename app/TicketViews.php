@@ -11,9 +11,9 @@ function ticket_error_page(string $message):void
 {
     ticket_header('hr-requests-my','HR Concerns');echo '<div class="alert error">'.e($message).'</div><a class="btn" href="'.e(url(Auth::landingPage())).'">Back to workspace</a>';render_portal_footer();
 }
-function ticket_status(string $status):string
+function ticket_status(string $status,string $type='PAYROLL_CONCERN'):string
 {
-    return '<span class="badge '.match($status){'COMPLETED'=>'green','REJECTED','CANCELLED'=>'red','RETURNED'=>'amber',default=>'gray'}.'">'.e(stage_label($status)).'</span>';
+    return '<span class="badge '.match($status){'COMPLETED'=>'green','REJECTED','CANCELLED'=>'red','RETURNED'=>'amber',default=>'gray'}.'">'.e(TicketTypes::label($status,$type)).'</span>';
 }
 function ticket_upload_input(string $id):void
 { ?>
@@ -27,7 +27,7 @@ function ticket_new_page(array $employee,array $types,string $key,array $old):vo
     page_head('Employee Self-Service / HR Concerns','File an HR Request','<a class="btn" href="'.url('hr-requests-my').'">My HR requests</a>');
     $q=db()->prepare('SELECT COALESCE(ds.name,d.name,b.name) FROM employees e LEFT JOIN directory_sections ds ON ds.id=e.directory_section_id LEFT JOIN departments d ON d.id=e.department_id LEFT JOIN branches b ON b.id=e.branch_id WHERE e.id=?');$q->execute([$employee['id']]);$section=$q->fetchColumn(); ?>
     <form method="post" enctype="multipart/form-data" class="panel ticket-panel"><?=csrf_field()?><input type="hidden" name="action" value="core_ticket_create"><input type="hidden" name="submission_key" value="<?=e($key)?>">
-      <div class="panel-body"><div class="field"><label for="ticket-type">Request type</label><select id="ticket-type" name="ticket_type_id" onchange="location.href='index.php?page=hr-request-new&type='+this.value" required><option value="">Choose a type</option><?php foreach($types as $type):?><option value="<?=(int)$type['id']?>" <?=((int)($old['ticket_type_id']??0)===(int)$type['id'])?'selected':''?>><?=e($type['name'])?></option><?php endforeach;?></select></div>
+      <div class="panel-body"><div class="field"><label for="ticket-type">Request type</label><select id="ticket-type" name="ticket_type_id" onchange="location.href='index.php?page=hr-request-new&type='+this.value" required><option value="">Choose a type</option><?php foreach($types as $type):?><option value="<?=(int)$type['id']?>" <?=($selected===(int)$type['id'])?'selected':''?>><?=e($type['name'])?></option><?php endforeach;?></select></div>
       <div class="ticket-facts"><div><span>Employee Code</span><strong><?=e($employee['employee_no'])?></strong></div><div><span>Name</span><strong><?=e($employee['first_name'].' '.$employee['last_name'])?></strong></div><div><span>Branch / Section</span><strong><?=e($employee['branch_name'].' / '.$section)?></strong></div><div><span>Company</span><strong><?=e($employee['company_group'].' · '.$employee['company_name'])?></strong></div></div>
       <div class="field"><label for="concern-date">Date</label><input type="date" name="concern_date" id="concern-date" max="<?=date('Y-m-d')?>" value="<?=e($old['concern_date']??date('Y-m-d'))?>" required><small>One cutoff per request. For another cutoff, file a separate request. Closed cutoffs and late filings go directly to HR for a later-period review.</small></div>
       <div class="field"><label for="concern-explanation">Remarks / Explanation</label><textarea id="concern-explanation" name="explanation" rows="5" maxlength="5000" required><?=e($old['explanation']??'')?></textarea></div>
@@ -37,7 +37,7 @@ function ticket_new_page(array $employee,array $types,string $key,array $old):vo
 }
 function ticket_list_page(string $mode,array $result,array $filters):void
 {
-    if(in_array($mode,['services','accounting'],true)){ticket_service_list($result,$filters,$mode);return;}
+    if(in_array($mode,['services','accounting','feed'],true)){ticket_service_list($result,$filters,$mode);return;}
     $page=match($mode){'hr'=>'hr-payroll-concerns','inbox'=>'hr-request-inbox',default=>'hr-requests-my'};
     $title=match($mode){'hr'=>'Payroll Concern Queue','inbox'=>'HR Request Inbox',default=>'My HR Requests'};ticket_header($page,$title);
     page_head('HR Concerns',$title,(Auth::can('tickets.request_self')||Auth::can('ticket.file_for_others'))?'<a class="btn primary" href="'.url('hr-request-new').'">File an HR request</a>':'');
@@ -49,8 +49,8 @@ function ticket_list_page(string $mode,array $result,array $filters):void
       <div class="field"><label for="queue-branch">Branch</label><select id="queue-branch" name="branch_id"><option value="0">All branches</option><?php foreach(FoundationRepository::branches() as $row):?><option value="<?=(int)$row['id']?>" <?=(int)($filters['branch_id']??0)===(int)$row['id']?'selected':''?>><?=e($row['name'])?></option><?php endforeach;?></select></div>
       <div class="field"><label for="queue-period">Period</label><select id="queue-period" name="payroll_period_id"><option value="0">All periods</option><?php foreach(db()->query('SELECT id,code FROM payroll_cutoffs ORDER BY period_start DESC') as $row):?><option value="<?=(int)$row['id']?>" <?=(int)($filters['payroll_period_id']??0)===(int)$row['id']?'selected':''?>><?=e($row['code'])?></option><?php endforeach;?></select></div><button class="btn">Filter queue</button>
     </div></form><?php endif;?>
-    <section class="panel ticket-scroll"><table class="tbl ticket-table"><thead><tr><th>HR request</th><th>Employee / Company</th><th>Date / Cutoff</th><th>Status</th><th></th></tr></thead><tbody>
-      <?php foreach($result['rows'] as $t):?><tr><td><strong><?=e($t['ticket_no'])?></strong><div>HR Concern · <?=e($t['type_name'])?></div></td><td><?=e($t['payload_json']?json_decode($t['payload_json'],true)['employee_name']??($t['first_name'].' '.$t['last_name']):$t['first_name'].' '.$t['last_name'])?><div><?=e($t['company_group_snapshot'].' · '.$t['company_name_snapshot'])?></div><small><?=e($t['branch_name'])?></small></td><td><?=e($t['concern_date'])?><div><?=e($t['period_start'].' to '.$t['period_end'])?></div><?php if($t['is_late']):?><span class="badge amber">Late · HR review</span><?php endif;?></td><td><?=ticket_status($t['status'])?></td><td><a class="btn sm" href="<?=url('hr-request',['id'=>$t['id']])?>">Open</a></td></tr><?php endforeach;
+    <section class="panel ticket-scroll"><table class="tbl ticket-table"><thead><tr><th>HR request</th><th>Employee / Company</th><th><?=$mode==='hr'?'Date / Cutoff':'Filed / Relevant date'?></th><th>Status</th><th></th></tr></thead><tbody>
+      <?php foreach($result['rows'] as $t):?><tr><td><strong><?=e($t['ticket_no'])?></strong><div>HR Concern · <?=e($t['type_name'])?></div></td><td><?=e($t['payload_json']?json_decode($t['payload_json'],true)['employee_name']??($t['first_name'].' '.$t['last_name']):$t['first_name'].' '.$t['last_name'])?><div><?=e($t['company_group_snapshot'].' · '.$t['company_name_snapshot'])?></div><small><?=e($t['branch_name'])?></small></td><td><?php if($t['type_code']==='PAYROLL_CONCERN'):?><?=e($t['concern_date'])?><div><?=e($t['period_start'].' to '.$t['period_end'])?></div><?php if($t['is_late']):?><span class="badge amber">Late · HR review</span><?php endif;else:?><?=e(substr($t['filed_at']??$t['created_at'],0,10))?><?php endif;?></td><td><?=ticket_status($t['status'],$t['type_code'])?></td><td><a class="btn sm" href="<?=url('hr-request',['id'=>$t['id']])?>">Open</a></td></tr><?php endforeach;
       if(!$result['rows']):?><tr><td colspan="5" class="empty">No HR requests in this list.</td></tr><?php endif;?></tbody></table></section>
     <nav aria-label="HR request pages"><p>Page <?=(int)$result['page']?> <?php if($result['page']>1):?><a class="btn" href="<?=e(url($page,array_replace($filters,['p'=>$result['page']-1])))?>">Previous</a><?php endif;if($result['has_next']):?><a class="btn" href="<?=e(url($page,array_replace($filters,['p'=>$result['page']+1])))?>">Next</a><?php endif;?></p></nav>
     <?php render_portal_footer();

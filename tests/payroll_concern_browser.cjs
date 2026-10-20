@@ -28,7 +28,7 @@ async function file(page,date,note,attachment=false){
   }pass('Home preserves four old tiles/routes and adds HR Concerns tile');
   assert.equal(await page.locator('.quick-action').filter({hasText:'HR Concerns'}).locator('span span').last().innerText(),'Payroll concern and other HR requests');pass('HR Concerns tile uses requested subtitle');
   const nav=page.locator('.nav-group').filter({has:page.locator('.gl',{hasText:/^Requests$/})});assert.equal(await nav.getByRole('link',{name:'HR Concerns',exact:true}).count(),1);pass('new ticket entry appears under sidebar Requests');
-  await page.goto(url('hr-request-new'));assert.equal(await page.getByLabel('Request type',{exact:true}).locator('option:not([value=""])').count(),1);pass('filing form offers Payroll Concern type');
+  await page.goto(url('hr-request-new'));assert.ok((await page.getByLabel('Request type',{exact:true}).locator('option:not([value=""])').allTextContents()).includes('Payroll Concern'));pass('filing form retains Payroll Concern among available HR types');
   assert.ok((await page.locator('.ticket-facts').innerText()).includes(f.tag+'_requester'));pass('employee identity is prefilled');
   await page.getByLabel('Request type',{exact:true}).selectOption(String(f.type));await page.getByLabel('Date',{exact:true}).fill('2021-01-10');await page.getByLabel('Remarks / Explanation',{exact:true}).fill('Preserve explanation on upload validation failure');
   await page.getByLabel('Supporting attachments (optional)',{exact:true}).setInputFiles({name:'bad.txt',mimeType:'text/plain',buffer:Buffer.from('not a supported attachment')});

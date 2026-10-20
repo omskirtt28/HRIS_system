@@ -127,12 +127,14 @@ function nav_config(string $kind): array {
         if($portal!=='employee')$items[]=['HR Request Queue','hr-service-requests','clipboard',false,'tickets.review_hr'];
         if($portal!=='employee')$items[]=['Payroll Concerns','hr-payroll-concerns','clipboard',false,'tickets.review_hr'];
         if(TicketRepository::ready() && TicketAccounting::canView())$items[]=['Accounting Follow-up','hr-accounting-requests','clipboard',false,null];
+        $items[]=['Incident Feed','hr-incidents','clipboard',false,null];
         $base[$portal]['groups'][]=['Requests',$items];
     }
     foreach (['hr','admin'] as $portal) {
         $base[$portal]['groups'][]=['HR Request Setup',[
             ['Ticket Approvers','hr-ticket-approvers','users',false,'tickets.approvers.manage'],
             ['Accounting Members','hr-ticket-accounting-members','users',false,'tickets.review_hr'],
+            ['Printable HR Forms','hr-print-forms','file',false,'tickets.review_hr'],
         ]];
     }
     return $base[$kind] ?? $base['employee'];

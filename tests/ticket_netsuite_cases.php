@@ -9,6 +9,7 @@ check('Accounting pre-complete write denied',rejects(fn()=>TicketAccounting::rem
 check('Accounting queue excludes uncompleted ticket',!in_array($id,array_column(TicketRepository::listing('accounting')['rows'],'id')));
 act($f['hr']);TicketAccounting::remark($id,'HR','HR checked');
 check('HR cannot edit Accounting remarks',rejects(fn()=>TicketAccounting::remark($id,'ACCOUNTING','Forged')));
+check('NetSuite rejects return/reject/cancel statuses',rejects(fn()=>service_action($id,'RETURN','No'))&&rejects(fn()=>service_action($id,'REJECT','No'))&&rejects(fn()=>service_action($id,'CANCEL')));
 check('NetSuite server rejects In Progress',rejects(fn()=>service_action($id,'START')));
 service_action($id,'COMPLETE');
 act($f['outsider']);check('Accounting sees HR-completed ticket',TicketRepository::find($id)['status']==='COMPLETED');

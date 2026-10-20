@@ -41,8 +41,8 @@ final class TicketRepository
     }
     public static function find(int $id,bool $lock=false):array
     {
-        $uid=self::uid();$q=db()->prepare(self::selectSql().' WHERE t.id=? AND (t.requester_user_id=? OR ?=1 OR EXISTS(SELECT 1 FROM ticket_steps s WHERE s.ticket_id=t.id AND s.approver_user_id=?) OR (ty.code="NETSUITE_CONCERN" AND t.status="COMPLETED" AND ?=1))'.($lock?' FOR UPDATE':''));
-        $q->execute([$id,$uid,self::isHr()?1:0,$uid,TicketAccounting::canView()?1:0]);$t=$q->fetch();
+        $uid=self::uid();$q=db()->prepare(self::selectSql().' WHERE t.id=? AND (t.requester_user_id=? OR ?=1 OR EXISTS(SELECT 1 FROM ticket_steps s WHERE s.ticket_id=t.id AND s.approver_user_id=?) OR (ty.code="NETSUITE_CONCERN" AND t.status="COMPLETED" AND ?=1) OR (ty.code="INCIDENT_REPORT" AND ?=1))'.($lock?' FOR UPDATE':''));
+        $q->execute([$id,$uid,self::isHr()?1:0,$uid,TicketAccounting::canView()?1:0,Auth::can('ticket.sensitive.view')?1:0]);$t=$q->fetch();
         if(!$t)throw new RuntimeException('Ticket not found or access denied.');
         $t['payload']=json_decode($t['payload_json'],true,512,JSON_THROW_ON_ERROR);
         return $t;
@@ -55,7 +55,15 @@ final class TicketRepository
             'comments'=>'SELECT c.*,u.full_name author_name FROM ticket_comments c JOIN users u ON u.id=c.author_user_id WHERE c.ticket_id=? ORDER BY c.id',
             'attachments'=>'SELECT id,original_name,file_size,created_at FROM ticket_attachments WHERE ticket_id=? ORDER BY id',
             'effects'=>'SELECT * FROM ticket_effects WHERE ticket_id=? ORDER BY id'] as $key=>$sql){$q=db()->prepare($sql);$q->execute([$id]);$t[$key]=$q->fetchAll();}
+        if(FoundationRepository::columnExists('ticket_comments','visibility')&&!self::isStaff($t)){
+            $hidden=[];$t['comments']=array_values(array_filter($t['comments'],function($c)use(&$hidden){if($c['visibility']==='STAFF_ONLY'){$hidden[]=(int)$c['id'];return false;}return true;}));
+            $t['events']=array_values(array_filter($t['events'],function($ev)use($hidden){$details=json_decode($ev['details_json']?:'{}',true);return $ev['event_type']!=='COMMENT_ADDED'||!in_array((int)($details['comment_id']??0),$hidden,true);}));
+        }
         return $t;
+    }
+    public static function isStaff(array $ticket):bool {
+        if(self::isHr()||Auth::can('ticket.sensitive.view'))return true;
+        $q=db()->prepare('SELECT 1 FROM ticket_steps WHERE ticket_id=? AND approver_user_id=?');$q->execute([$ticket['id'],self::uid()]);return (bool)$q->fetchColumn();
     }
     public static function types():array
     {
@@ -71,6 +79,9 @@ final class TicketRepository
             if(!empty($filters['company_label'])){$where[]='JSON_UNQUOTE(JSON_EXTRACT(t.payload_json,"$.company"))=?';$params[]=$filters['company_label'];}
             if($mode==='services'&&!empty($filters['branch_id'])){$where[]='CASE WHEN ty.code="UNIFORM_REQUEST" THEN CAST(JSON_UNQUOTE(JSON_EXTRACT(t.payload_json,"$.branch")) AS UNSIGNED) ELSE t.branch_id END=?';$params[]=(int)$filters['branch_id'];unset($filters['branch_id']);}
             foreach(['status'=>'t.status','branch_id'=>'t.branch_id','company_id'=>'t.company_id','business_unit_id'=>'t.business_unit_id_snapshot','payroll_period_id'=>'t.payroll_period_id','company_group'=>'t.company_group_snapshot'] as $key=>$column){if(isset($filters[$key]) && (string)$filters[$key]!=='' && (string)$filters[$key]!=='0'){$where[]=$column.'=?';$params[]=$filters[$key];}}
+        }elseif($mode==='feed'){
+            $where[]='ty.code="INCIDENT_REPORT" AND (t.requester_user_id=? OR ?=1 OR ?=1 OR EXISTS(SELECT 1 FROM ticket_steps s WHERE s.ticket_id=t.id AND s.approver_user_id=?))';
+            $params=[$uid,self::isHr()?1:0,Auth::can('ticket.sensitive.view')?1:0,$uid];
         }elseif($mode==='accounting'){
             if(!TicketAccounting::canView())throw new RuntimeException('Accounting membership is required.');
             $where[]='ty.code="NETSUITE_CONCERN" AND t.status="COMPLETED"';

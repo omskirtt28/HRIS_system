@@ -3,6 +3,8 @@
 !/storage/resumes/.gitkeep
 *.log
 .env
-/storage/slice15-private/
-/storage/ticket_attachments/
+/storage/slice15-private/*
+!/storage/slice15-private/.htaccess
+/storage/ticket_attachments/*
+!/storage/ticket_attachments/.htaccess
 /.work/

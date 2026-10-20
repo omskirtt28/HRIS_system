@@ -1,6 +1,10 @@
 <?php
 // Options and routing belong to configuration, never to browser-supplied profiles.
 return [
+    'INCIDENT_REPORT'=>['name'=>'Incident Report','profile'=>null,'fields'=>[
+        'title'=>['label'=>'Incident title','kind'=>'text','max'=>200],
+        'explanation'=>['label'=>'Explanation','kind'=>'text','max'=>5000],
+    ]],
     'BRANCH_TRANSFER'=>['name'=>'Branch Transfer','profile'=>'HR_ONLY','fields'=>[
         'employee'=>['label'=>'Employee','kind'=>'employee'],
         'from_branch'=>['label'=>'From branch','kind'=>'branch'],

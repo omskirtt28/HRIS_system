@@ -3,7 +3,8 @@ DROP PROCEDURE IF EXISTS stageb_008_down$$
 CREATE PROCEDURE stageb_008_down()
 BEGIN
  IF EXISTS(SELECT 1 FROM branch_transfers) OR EXISTS(SELECT 1 FROM tickets t JOIN ticket_types ty ON ty.id=t.ticket_type_id WHERE ty.code='BRANCH_TRANSFER') OR EXISTS(SELECT 1 FROM ticket_effects WHERE effect_type='BRANCH_TRANSFER')
- OR EXISTS(SELECT 1 FROM employee_placements WHERE source_ticket_id IS NOT NULL OR provenance<>'OBSERVED_CURRENT' OR effective_to IS NOT NULL) THEN
+ OR EXISTS(SELECT 1 FROM employee_placements WHERE source_ticket_id IS NOT NULL OR provenance<>'OBSERVED_CURRENT' OR effective_to IS NOT NULL)
+ OR EXISTS(SELECT 1 FROM role_permissions rp JOIN ticket_transfer_permission_seed owner ON owner.permission_id=rp.permission_id AND owner.role_id=0 WHERE NOT EXISTS(SELECT 1 FROM ticket_transfer_permission_seed grant_seed WHERE grant_seed.permission_id=rp.permission_id AND grant_seed.role_id=rp.role_id)) THEN
  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Branch Transfer/placement history is in use; retain history';
  END IF;
  DELETE FROM ticket_types WHERE code='BRANCH_TRANSFER';DROP TABLE branch_transfers;

@@ -30,8 +30,10 @@ $date='2018-01-10';$cutoff=row('SELECT id FROM payroll_cutoffs WHERE period_star
 if(!$cutoff)insert('INSERT INTO payroll_cutoffs(code,period_start,period_end,status) VALUES(?,?,?,"OPEN")',[$f['tag'],'2018-01-01','2018-01-15']);
 $id=TicketService::create(service_form('PAYROLL_CONCERN',['concern_date'=>$date,'explanation'=>'Gate test']),true);
 act($f['hr']);check('HR cannot return/reject before Manager approval',!TicketService::permissions(TicketRepository::find($id))['return_reject'] && rejects(fn()=>service_action($id,'REJECT','Too early')));
+act($f['manager']);service_action($id,'APPROVE');act($f['employee']);check('Requester cannot cancel an HR-stage Payroll Concern',rejects(fn()=>service_action($id,'CANCEL')));act($f['hr']);service_action($id,'START');service_action($id,'CANCEL');check('Only HR cancels in-progress Payroll Concern',TicketRepository::find($id)['status']==='CANCELLED');
 if(row('SELECT id FROM ticket_types WHERE code="UNIFORM_REQUEST"'))require __DIR__.'/ticket_uniform_cases.php';
 if(row('SELECT id FROM ticket_types WHERE code="NETSUITE_CONCERN"'))require __DIR__.'/ticket_netsuite_cases.php';
 if(row('SELECT id FROM ticket_types WHERE code="MANPOWER_REQUEST"'))require __DIR__.'/ticket_manpower_cases.php';
 if(row('SELECT id FROM ticket_types WHERE code="BRANCH_TRANSFER"'))require __DIR__.'/ticket_branch_transfer_cases.php';
+if(row('SELECT id FROM ticket_types WHERE code="INCIDENT_REPORT"'))require __DIR__.'/ticket_incident_cases.php';
 finish();

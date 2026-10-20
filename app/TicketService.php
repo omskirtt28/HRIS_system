@@ -118,6 +118,10 @@ final class TicketService
     }
     private static function submitLocked(array &$t,array $employee,array $type):void
     {
+        if($t['type_code']==='INCIDENT_REPORT'){
+            db()->prepare('UPDATE tickets SET filed_at=COALESCE(filed_at,NOW()),current_step_no=0 WHERE id=?')->execute([$t['id']]);
+            self::transition($t,'SUBMITTED','','PUBLISHED');return;
+        }
         $late=null;if($t['type_code']==='PAYROLL_CONCERN'){$period=TicketRepository::period((int)$t['payroll_period_id'],true);$late=TicketRepository::lateReason($period);}
         if($t['is_late'])$late=$late?:$t['late_reason'];
         $config=json_decode($type['routing_config_json']?:'{}',true,512,JSON_THROW_ON_ERROR);
@@ -162,17 +166,18 @@ final class TicketService
         $named=$step && (int)$step['approver_user_id']===$uid && Auth::can($step['approver_type']==='ADL'?'payroll.approve_adl':'payroll.approve_manager');
         $hr=TicketRepository::isHr();$hrStep=$hr && $step && $step['approver_type']==='HR' && in_array($t['status'],['PENDING_HR','IN_PROGRESS'],true);$pending=in_array($t['status'],['PENDING_APPROVAL','PENDING_HR','IN_PROGRESS'],true);
         return ['edit'=>$own && (Auth::can('tickets.request_self')||Auth::can('ticket.file_for_others')) && in_array($t['status'],['DRAFT','RETURNED'],true),
-            'cancel'=>$t['type_code']==='PAYROLL_CONCERN'?($own && in_array('CANCELLED',TicketPolicy::TRANSITIONS[$t['status']]??[],true)):(($own && in_array($t['status'],['DRAFT','RETURNED','PENDING_APPROVAL'],true))||(!$self && $hrStep)),
+            'cancel'=>!(($t['type_code']==='NETSUITE_CONCERN')&&$t['filed_at']!==null) && (($own&&in_array($t['status'],['DRAFT','RETURNED','PENDING_APPROVAL'],true))||(!$self&&($hrStep||($hr&&$t['type_code']==='INCIDENT_REPORT'&&$t['status']==='SUBMITTED')))),
             'approve'=>!$self && $named && $t['status']==='PENDING_APPROVAL',
             'hr'=>!$self && $hr && $step && $step['approver_type']==='HR' && in_array($t['status'],['PENDING_HR','IN_PROGRESS'],true),
-            'return_reject'=>!$self && $pending && (($named && $t['status']==='PENDING_APPROVAL') || $hrStep),
-            'attach'=>($own && in_array($t['status'],['DRAFT','RETURNED'],true)) || (!$self && $hr && in_array($t['status'],['PENDING_HR','IN_PROGRESS'],true)),
+            'return_reject'=>$t['type_code']!=='NETSUITE_CONCERN' && !$self && $pending && (($named && $t['status']==='PENDING_APPROVAL') || $hrStep),
+            'attach'=>($own && (in_array($t['status'],['DRAFT','RETURNED'],true)||($t['type_code']==='INCIDENT_REPORT'&&$t['status']==='SUBMITTED'))) || (!$self && $hr && (in_array($t['status'],['PENDING_HR','IN_PROGRESS'],true)||($t['type_code']==='INCIDENT_REPORT'&&$t['status']==='SUBMITTED'))),
         ];
     }
     public static function act(int $id,int $version,string $action,string $remarks='',string $outcome='',int $target=0,array $completionData=[]):int
     {
         return self::transaction(function()use($id,$version,$action,$remarks,$outcome,$target,$completionData){
             $t=TicketRepository::find($id,true);$p=self::permissions($t);$remarks=trim($remarks);
+            if($t['type_code']==='NETSUITE_CONCERN'&&$t['filed_at']!==null&&in_array($action,['START','RETURN','REJECT','CANCEL'],true))throw new RuntimeException('NetSuite uses Pending and Complete.');
             if(mb_strlen($remarks)>5000)throw new RuntimeException('Remarks must be 5000 characters or fewer.');
             if($action==='COMPLETE' && $t['status']==='COMPLETED'){
                 if(!TicketRepository::isHr() || (int)$t['requester_user_id']===TicketRepository::uid() || (int)$t['subject_user_id']===TicketRepository::uid())throw new RuntimeException('Another HR reviewer must handle your request.');
@@ -224,11 +229,13 @@ final class TicketService
     {
         db()->prepare('UPDATE ticket_steps SET status=?,remarks=?,acted_by=?,acted_at=NOW() WHERE id=?')->execute([$status,$remarks,TicketRepository::uid(),$step['id']]);
     }
-    public static function comment(int $id,string $body):int
+    public static function comment(int $id,string $body,string $visibility='ALL'):int
     {
-        $body=self::text($body,3000,'Comment');return self::transaction(function()use($id,$body){$t=TicketRepository::find($id,true);
-            db()->prepare('INSERT INTO ticket_comments(ticket_id,author_user_id,body) VALUES(?,?,?)')->execute([$id,TicketRepository::uid(),$body]);$comment=(int)db()->lastInsertId();
-            $event=self::event($id,'COMMENT_ADDED',$t['status'],$t['status'],['comment_id'=>$comment]);TicketNotifications::enqueue($event,$t);return $id;});
+        $body=self::text($body,3000,'Comment');return self::transaction(function()use($id,$body,$visibility){$t=TicketRepository::find($id,true);
+            if(!in_array($visibility,['ALL','STAFF_ONLY'],true)||($visibility==='STAFF_ONLY'&&($t['type_code']!=='INCIDENT_REPORT'||!TicketRepository::isStaff($t))))throw new RuntimeException('Staff-only comments require authorized staff access.');
+            if(FoundationRepository::columnExists('ticket_comments','visibility'))db()->prepare('INSERT INTO ticket_comments(ticket_id,author_user_id,body,visibility) VALUES(?,?,?,?)')->execute([$id,TicketRepository::uid(),$body,$visibility]);
+            else db()->prepare('INSERT INTO ticket_comments(ticket_id,author_user_id,body) VALUES(?,?,?)')->execute([$id,TicketRepository::uid(),$body]);$comment=(int)db()->lastInsertId();
+            $event=self::event($id,'COMMENT_ADDED',$t['status'],$t['status'],['comment_id'=>$comment]);if($visibility==='ALL')TicketNotifications::enqueue($event,$t);return $id;});
     }
     public static function attach(int $id,array $files):int
     {

@@ -3,6 +3,7 @@ declare(strict_types=1);
 require __DIR__.'/ticket_test_support.php';
 $f=fixtures();
 db()->prepare('INSERT IGNORE INTO role_permissions(role_id,permission_id) SELECT ?,id FROM permissions WHERE code="ticket.file_for_others"')->execute([$f['hr']['role_id']]);
+db()->prepare('INSERT IGNORE INTO role_permissions(role_id,permission_id) SELECT ?,id FROM permissions WHERE code="ticket.sensitive.view"')->execute([$f['manager']['role_id']]);
 $role=row('SELECT id,name FROM roles WHERE code="EMPLOYEE"');
 foreach(['employee','outsider'] as $key){db()->prepare('UPDATE users SET role_id=? WHERE id=?')->execute([$role['id'],$f[$key]['id']]);$f[$key]['role_id']=(int)$role['id'];$f[$key]['role_code']='EMPLOYEE';$f[$key]['role_name']=$role['name'];}
 db()->prepare('INSERT IGNORE INTO role_permissions(role_id,permission_id) SELECT ?,id FROM permissions WHERE code="dashboard.hr.view"')->execute([$f['hr']['role_id']]);
