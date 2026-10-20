@@ -28,5 +28,11 @@ async function login(browser,u){const c=await browser.newContext(),p=await c.new
   await accounting.p.goto(url('hr-request',{id}));await accounting.p.getByLabel('ACCOUNTING remarks',{exact:true}).fill('Accounting browser note');await accounting.p.getByRole('button',{name:'Save ACCOUNTING remarks',exact:true}).click();await accounting.p.getByText('Accounting browser note',{exact:true}).waitFor();assert.equal(await accounting.p.getByLabel('HR remarks',{exact:true}).count(),0);
   console.log('PASS NetSuite browser gates Accounting until HR completion and separates remarks');passed++;
  }
+ if(Number(process.env.HRIS_STAGEB_SLICE||4)>=7){
+  const p=employee.p;await p.goto(url('hr-request-new'));await p.getByLabel('Request type',{exact:true}).selectOption({label:'Manpower Request'});
+  await p.getByLabel('Section / Branch',{exact:true}).fill('Head Office');await p.getByLabel('Position code',{exact:true}).selectOption('SC');await p.getByLabel('Employment type',{exact:true}).selectOption('Probationary');await p.getByLabel('Manpower request type',{exact:true}).selectOption('Additional');await p.getByLabel('Quantity',{exact:true}).fill('1');await p.getByLabel('Job description / Qualifications',{exact:true}).fill('Browser qualifications');await p.getByLabel('Area / Department',{exact:true}).fill('Operations');await p.getByRole('button',{name:'Submit HR request',exact:true}).click();await p.getByRole('heading',{name:'Approval chain',exact:true}).waitFor();const id=Number(new URL(p.url()).searchParams.get('id'));
+  await hr.p.goto(url('hr-request',{id}));assert.equal(await hr.p.getByRole('button',{name:'Reject',exact:true}).count(),0);
+  const manager=await login(browser,f.manager);await manager.p.goto(url('hr-request',{id}));await manager.p.getByRole('button',{name:'Approve and send to HR',exact:true}).click();await hr.p.goto(url('hr-request',{id}));await hr.p.getByRole('button',{name:'Served',exact:true}).click();await hr.p.getByText(/Date served:/).waitFor();console.log('PASS Manpower browser Manager gate and served date');passed++;
+ }
  console.log('RESULT '+passed+' passed, 0 failed');
 }finally{await browser.close();}})().catch(e=>{console.error(e);process.exit(1)});

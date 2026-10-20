@@ -1,6 +1,16 @@
 <?php
 // Options and routing belong to configuration, never to browser-supplied profiles.
 return [
+    'MANPOWER_REQUEST'=>['name'=>'Manpower Request','profile'=>'BRANCH_ADL_THEN_HR','fields'=>[
+        'section_branch'=>['label'=>'Section / Branch','kind'=>'text','max'=>160],
+        'position_code'=>['label'=>'Position code','options'=>['BS','SC','VS']],
+        'employment_type'=>['label'=>'Employment type','options'=>['Seasonal','Probationary']],
+        'request_type'=>['label'=>'Manpower request type','options'=>['Replacement','Additional']],
+        'quantity'=>['label'=>'Quantity','kind'=>'number','min'=>1,'max_value'=>2147483647],
+        'replacement_of_employee_id'=>['label'=>'Replacement of employee','kind'=>'employee','optional'=>true],
+        'job_description_qualifications'=>['label'=>'Job description / Qualifications','kind'=>'text','max'=>5000],
+        'area_department'=>['label'=>'Area / Department','kind'=>'text','max'=>160],
+    ]],
     'NETSUITE_CONCERN'=>['name'=>'NetSuite Concern','profile'=>'HR_ONLY','fields'=>['concern'=>['label'=>'Concern remarks','kind'=>'text','max'=>5000]]],
     'UNIFORM_REQUEST'=>['name'=>'Uniform Request','profile'=>'HR_ONLY','fields'=>[
         'position'=>['label'=>'Position','kind'=>'text','max'=>160],
