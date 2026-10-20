@@ -2,10 +2,11 @@
 declare(strict_types=1);
 require_once __DIR__.'/TicketService.php';
 require_once __DIR__.'/TicketViews.php';
+require_once __DIR__.'/TicketAccountingViews.php';
 
 function ticket_handle(string $page):void
 {
-    $pages=['hr-requests-my','hr-request-new','hr-request','hr-request-inbox','hr-payroll-concerns','hr-request-attachment','hr-service-requests'];
+    $pages=['hr-requests-my','hr-request-new','hr-request','hr-request-inbox','hr-payroll-concerns','hr-request-attachment','hr-service-requests','hr-accounting-requests','hr-ticket-accounting-members'];
     $action=(string)($_POST['action']??'');
     if(!in_array($page,$pages,true) && !str_starts_with($action,'core_ticket_'))return;
     need_db();if(!Auth::check())redirect('login');
@@ -15,7 +16,11 @@ function ticket_handle(string $page):void
     if($_SERVER['REQUEST_METHOD']==='POST'){
         verify_csrf();
         try{
-            if($action==='core_ticket_create'){
+            if($action==='core_ticket_accounting_member'){
+                TicketAccounting::manage((int)($_POST['user_id']??0),($_POST['active']??'')==='1');flash('success','Accounting membership updated.');redirect('hr-ticket-accounting-members');
+            }elseif($action==='core_ticket_netsuite_remark'){
+                TicketAccounting::remark($id,(string)($_POST['lane']??''),(string)($_POST['body']??''));flash('success','Remarks recorded.');
+            }elseif($action==='core_ticket_create'){
                 $_SESSION['core_ticket_old']=$_POST;
                 $key=is_string($_POST['submission_key']??null)?$_POST['submission_key']:'';
                 if(($_SESSION['core_ticket_keys'][$key]??0)<time())throw new RuntimeException('This filing form expired. Open a new request form.');
@@ -47,7 +52,8 @@ function ticket_handle(string $page):void
             header('Content-Disposition: attachment; filename="attachment.'.pathinfo($file['stored_name'],PATHINFO_EXTENSION).'"; filename*=UTF-8\'\''.rawurlencode($file['original_name']));
             header('Content-Length: '.filesize($file['path']));readfile($file['path']);exit;
         }
-        if($page==='hr-request-new'){
+        if($page==='hr-ticket-accounting-members'){ticket_accounting_members_page();}
+        elseif($page==='hr-request-new'){
             Auth::requirePermission('tickets.request_self');$employee=TicketRepository::ownEmployee();
             $old=$_SESSION['core_ticket_old']??[];$key=bin2hex(random_bytes(32));
             $_SESSION['core_ticket_keys']=array_filter($_SESSION['core_ticket_keys']??[],fn($expires)=>$expires>=time());
@@ -55,7 +61,7 @@ function ticket_handle(string $page):void
             ticket_new_page($employee,TicketRepository::types(),$key,$old);
         }elseif($page==='hr-request')ticket_detail_page(TicketRepository::detail($id));
         else{
-            $mode=match($page){'hr-request-inbox'=>'inbox','hr-payroll-concerns'=>'hr','hr-service-requests'=>'services',default=>'my'};
+            $mode=match($page){'hr-request-inbox'=>'inbox','hr-payroll-concerns'=>'hr','hr-service-requests'=>'services','hr-accounting-requests'=>'accounting',default=>'my'};
             if($mode==='my')Auth::requirePermission('tickets.request_self');
             ticket_list_page($mode,TicketRepository::listing($mode,$_GET),$_GET);
         }

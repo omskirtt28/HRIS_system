@@ -1,0 +1,21 @@
+<?php
+act($f['hr']);TicketAccounting::manage($f['outsider']['id'],true);
+act($f['employee']);$id=TicketService::create(service_form('NETSUITE_CONCERN',['concern'=>'Synthetic NetSuite concern']),true);
+check('NetSuite freezes HR approval and Accounting follow-up',array_column(TicketRepository::detail($id)['steps'],'approver_type')===['HR','ACCOUNTING']);
+check('requester cannot write HR remarks',rejects(fn()=>TicketAccounting::remark($id,'HR','Forged')));
+act($f['outsider']);check('Accounting membership grants scoped capability',TicketAccounting::canView());
+check('Accounting direct URL denied before HR completion',rejects(fn()=>TicketRepository::find($id)));
+check('Accounting pre-complete write denied',rejects(fn()=>TicketAccounting::remark($id,'ACCOUNTING','Early')));
+check('Accounting queue excludes uncompleted ticket',!in_array($id,array_column(TicketRepository::listing('accounting')['rows'],'id')));
+act($f['hr']);TicketAccounting::remark($id,'HR','HR checked');
+check('HR cannot edit Accounting remarks',rejects(fn()=>TicketAccounting::remark($id,'ACCOUNTING','Forged')));
+check('NetSuite server rejects In Progress',rejects(fn()=>service_action($id,'START')));
+service_action($id,'COMPLETE');
+act($f['outsider']);check('Accounting sees HR-completed ticket',TicketRepository::find($id)['status']==='COMPLETED');
+check('Accounting cannot edit HR remarks',rejects(fn()=>TicketAccounting::remark($id,'HR','Forged')));
+TicketAccounting::remark($id,'ACCOUNTING','Accounting handled');TicketAccounting::remark($id,'ACCOUNTING','Accounting revised');
+$notes=TicketAccounting::remarks($id);check('remarks retain authors/time and revisions',count($notes)===3 && (int)$notes[2]['author_user_id']===$f['outsider']['id'] && !empty($notes[2]['created_at']));
+check('Accounting follow-up does not change HR completion',TicketRepository::find($id)['status']==='COMPLETED');
+check('Accounting cannot change HR status',rejects(fn()=>service_action($id,'RETURN','No')));
+act($f['hr']);TicketAccounting::manage($f['outsider']['id'],false);
+act($f['outsider']);check('revoked membership loses direct access immediately',!TicketAccounting::canView()&&rejects(fn()=>TicketRepository::find($id)));

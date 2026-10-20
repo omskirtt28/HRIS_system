@@ -28,7 +28,9 @@ try {
     if($mode==='inspect'){
         $p=slice15_connect($live);
         foreach(['tickets','ticket_types','employee_placements'] as $table){$q=$p->prepare('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=?');$q->execute([$table]);echo $table.' exists='.(int)$q->fetchColumn().PHP_EOL;}
-        echo 'ticket types: '.implode(',',$p->query('SELECT code FROM ticket_types')->fetchAll(PDO::FETCH_COLUMN)).PHP_EOL;exit;
+        echo 'ticket types: '.implode(',',$p->query('SELECT code FROM ticket_types')->fetchAll(PDO::FETCH_COLUMN)).PHP_EOL;
+        if((int)$p->query('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name="ticket_accounting_seed_results"')->fetchColumn())foreach($p->query('SELECT employee_no,result FROM ticket_accounting_seed_results ORDER BY employee_no') as $r)echo 'Accounting seed '.$r['employee_no'].': '.$r['result'].PHP_EOL;
+        exit;
     }
     if($mode==='prepare'){
         if(file_exists($manifest))throw new RuntimeException('Keep existing manifest.');

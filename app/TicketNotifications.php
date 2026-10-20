@@ -12,6 +12,9 @@ final class TicketNotifications
         if($step && $step['approver_type']==='HR'){
             foreach(db()->query('SELECT u.id FROM users u JOIN roles r ON r.id=u.role_id WHERE u.status="ACTIVE" AND r.portal IN ("hr","admin") AND (r.code="SUPER_ADMIN" OR EXISTS(SELECT 1 FROM role_permissions rp JOIN permissions p ON p.id=rp.permission_id WHERE rp.role_id=r.id AND p.code="tickets.review_hr"))')->fetchAll(PDO::FETCH_COLUMN) as $id)$recipients[]=(int)$id;
         }
+        if(($ticket['type_code']??'')==='NETSUITE_CONCERN' && $ticket['status']==='COMPLETED'){
+            foreach(db()->query('SELECT m.user_id FROM ticket_accounting_memberships m JOIN users u ON u.id=m.user_id WHERE m.active=1 AND u.status="ACTIVE"')->fetchAll(PDO::FETCH_COLUMN) as $uid)$recipients[]=(int)$uid;
+        }
         $q=db()->prepare('INSERT IGNORE INTO ticket_notification_outbox(event_id,recipient_user_id) VALUES(?,?)');
         foreach(array_unique($recipients) as $uid)if($uid!==(int)Auth::user()['id'])$q->execute([$eventId,$uid]);
     }

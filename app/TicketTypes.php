@@ -32,6 +32,7 @@ final class TicketTypes
     public static function complete(array $ticket,array $data=[]):void {}
     public static function label(string $status,string $code=''):string {
         if($code==='PAYROLL_CONCERN')return stage_label($status);
+        if($code==='NETSUITE_CONCERN'&&in_array($status,['PENDING_HR','IN_PROGRESS','COMPLETED'],true))return $status==='COMPLETED'?'Complete':'Pending';
         return match($status){'PENDING_HR'=>'Pending','IN_PROGRESS'=>'In Progress','COMPLETED'=>'Served','CANCELLED'=>'Cancelled',default=>stage_label($status)};
     }
 }

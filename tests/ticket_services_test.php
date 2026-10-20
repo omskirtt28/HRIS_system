@@ -31,4 +31,5 @@ if(!$cutoff)insert('INSERT INTO payroll_cutoffs(code,period_start,period_end,sta
 $id=TicketService::create(service_form('PAYROLL_CONCERN',['concern_date'=>$date,'explanation'=>'Gate test']),true);
 act($f['hr']);check('HR cannot return/reject before Manager approval',!TicketService::permissions(TicketRepository::find($id))['return_reject'] && rejects(fn()=>service_action($id,'REJECT','Too early')));
 if(row('SELECT id FROM ticket_types WHERE code="UNIFORM_REQUEST"'))require __DIR__.'/ticket_uniform_cases.php';
+if(row('SELECT id FROM ticket_types WHERE code="NETSUITE_CONCERN"'))require __DIR__.'/ticket_netsuite_cases.php';
 finish();

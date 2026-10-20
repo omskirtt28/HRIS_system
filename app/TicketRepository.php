@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/TicketAccounting.php';
 
 final class TicketRepository
 {
@@ -40,8 +41,8 @@ final class TicketRepository
     }
     public static function find(int $id,bool $lock=false):array
     {
-        $uid=self::uid();$q=db()->prepare(self::selectSql().' WHERE t.id=? AND (t.requester_user_id=? OR ?=1 OR EXISTS(SELECT 1 FROM ticket_steps s WHERE s.ticket_id=t.id AND s.approver_user_id=?))'.($lock?' FOR UPDATE':''));
-        $q->execute([$id,$uid,self::isHr()?1:0,$uid]);$t=$q->fetch();
+        $uid=self::uid();$q=db()->prepare(self::selectSql().' WHERE t.id=? AND (t.requester_user_id=? OR ?=1 OR EXISTS(SELECT 1 FROM ticket_steps s WHERE s.ticket_id=t.id AND s.approver_user_id=?) OR (ty.code="NETSUITE_CONCERN" AND t.status="COMPLETED" AND ?=1))'.($lock?' FOR UPDATE':''));
+        $q->execute([$id,$uid,self::isHr()?1:0,$uid,TicketAccounting::canView()?1:0]);$t=$q->fetch();
         if(!$t)throw new RuntimeException('Ticket not found or access denied.');
         $t['payload']=json_decode($t['payload_json'],true,512,JSON_THROW_ON_ERROR);
         return $t;
@@ -70,6 +71,9 @@ final class TicketRepository
             if(!empty($filters['company_label'])){$where[]='JSON_UNQUOTE(JSON_EXTRACT(t.payload_json,"$.company"))=?';$params[]=$filters['company_label'];}
             if($mode==='services'&&!empty($filters['branch_id'])){$where[]='CASE WHEN ty.code="UNIFORM_REQUEST" THEN CAST(JSON_UNQUOTE(JSON_EXTRACT(t.payload_json,"$.branch")) AS UNSIGNED) ELSE t.branch_id END=?';$params[]=(int)$filters['branch_id'];unset($filters['branch_id']);}
             foreach(['status'=>'t.status','branch_id'=>'t.branch_id','company_id'=>'t.company_id','business_unit_id'=>'t.business_unit_id_snapshot','payroll_period_id'=>'t.payroll_period_id','company_group'=>'t.company_group_snapshot'] as $key=>$column){if(isset($filters[$key]) && (string)$filters[$key]!=='' && (string)$filters[$key]!=='0'){$where[]=$column.'=?';$params[]=$filters[$key];}}
+        }elseif($mode==='accounting'){
+            if(!TicketAccounting::canView())throw new RuntimeException('Accounting membership is required.');
+            $where[]='ty.code="NETSUITE_CONCERN" AND t.status="COMPLETED"';
         }elseif($mode==='inbox'){
             if(!self::canApprove())throw new RuntimeException('Manager or ADL approval access is required.');
             $where[]='t.status="PENDING_APPROVAL" AND t.requester_user_id<>? AND COALESCE(e.user_id,0)<>? AND EXISTS(SELECT 1 FROM ticket_steps s WHERE s.ticket_id=t.id AND s.step_no=t.current_step_no AND s.status="PENDING" AND s.approver_user_id=? AND ((s.approver_type="MANAGER" AND ?=1) OR (s.approver_type="ADL" AND ?=1)))';

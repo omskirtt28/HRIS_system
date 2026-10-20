@@ -20,5 +20,13 @@ async function login(browser,u){const c=await browser.newContext(),p=await c.new
   await p.getByLabel('Position',{exact:true}).fill('Sales Crew');await p.getByLabel('Size',{exact:true}).selectOption('M');await p.getByLabel('Company label',{exact:true}).selectOption('OFJI');await p.getByLabel('Branch',{exact:true}).selectOption(String(f.branch));await p.getByLabel('Quantity',{exact:true}).fill('2');await p.getByLabel('ID lace',{exact:true}).selectOption('YES');await p.getByRole('button',{name:'Submit HR request',exact:true}).click();await p.getByRole('heading',{name:'Approval chain',exact:true}).waitFor();const id=Number(new URL(p.url()).searchParams.get('id'));
   await hr.p.goto(url('hr-request',{id}));await hr.p.getByRole('button',{name:'Served',exact:true}).click();await hr.p.getByText('Served',{exact:true}).waitFor();console.log('PASS Uniform browser filing and HR completion');passed++;
  }
+ if(Number(process.env.HRIS_STAGEB_SLICE||4)>=6){
+  await hr.p.goto(url('hr-ticket-accounting-members'));await hr.p.getByLabel('Account',{exact:true}).selectOption(String(f.outsider.id));await hr.p.getByRole('button',{name:'Add Accounting member',exact:true}).click();
+  const accounting=await login(browser,f.outsider),p=employee.p;await p.goto(url('hr-request-new'));await p.getByLabel('Request type',{exact:true}).selectOption({label:'NetSuite Concern'});await p.getByLabel('Concern remarks',{exact:true}).fill('Browser NetSuite concern');await p.getByRole('button',{name:'Submit HR request',exact:true}).click();await p.getByRole('heading',{name:'Approval chain',exact:true}).waitFor();const id=Number(new URL(p.url()).searchParams.get('id'));
+  assert.equal((await accounting.c.request.get(url('hr-request',{id}))).status(),403);
+  await hr.p.goto(url('hr-request',{id}));await hr.p.getByLabel('HR remarks',{exact:true}).fill('HR browser note');await hr.p.getByRole('button',{name:'Save HR remarks',exact:true}).click();await hr.p.getByRole('button',{name:'Complete',exact:true}).click();await hr.p.getByText('Complete',{exact:true}).waitFor();
+  await accounting.p.goto(url('hr-request',{id}));await accounting.p.getByLabel('ACCOUNTING remarks',{exact:true}).fill('Accounting browser note');await accounting.p.getByRole('button',{name:'Save ACCOUNTING remarks',exact:true}).click();await accounting.p.getByText('Accounting browser note',{exact:true}).waitFor();assert.equal(await accounting.p.getByLabel('HR remarks',{exact:true}).count(),0);
+  console.log('PASS NetSuite browser gates Accounting until HR completion and separates remarks');passed++;
+ }
  console.log('RESULT '+passed+' passed, 0 failed');
 }finally{await browser.close();}})().catch(e=>{console.error(e);process.exit(1)});

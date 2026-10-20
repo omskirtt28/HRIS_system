@@ -133,6 +133,7 @@ final class TicketService
         db()->prepare('UPDATE ticket_steps SET status="SKIPPED" WHERE ticket_id=? AND status="PENDING"')->execute([$t['id']]);
         $q=db()->prepare('SELECT COALESCE(MAX(step_no),0) FROM ticket_steps WHERE ticket_id=?');$q->execute([$t['id']]);$step=(int)$q->fetchColumn()+1;$first=$step;
         foreach($resolved as $row){db()->prepare('INSERT INTO ticket_steps(ticket_id,step_no,approver_type,approver_user_id,assignment_id_snapshot,routing_profile_snapshot) VALUES(?,?,?,?,?,?)')->execute([$t['id'],$step++,$row['type'],$row['user_id'],$row['assignment_id'],$profile]);}
+        if($t['type_code']==='NETSUITE_CONCERN')db()->prepare('INSERT INTO ticket_steps(ticket_id,step_no,approver_type,routing_profile_snapshot) VALUES(?,?,"ACCOUNTING",?)')->execute([$t['id'],$step,$profile]);
         if($t['filed_at']===null){
             db()->prepare('UPDATE tickets SET company_id=?,branch_id=?,business_unit_id_snapshot=?,company_group_snapshot=?,company_name_snapshot=?,filed_at=NOW() WHERE id=?')->execute([$employee['legal_entity_id'],$employee['branch_id'],$employee['business_unit_id'],$employee['company_group'],$employee['company_name'],$t['id']]);
         }
@@ -191,7 +192,7 @@ final class TicketService
                 $t['current_step_no']=(int)$next['step_no'];db()->prepare('UPDATE tickets SET current_step_no=? WHERE id=?')->execute([$t['current_step_no'],$id]);self::transition($t,$next['approver_type']==='HR'?'PENDING_HR':'PENDING_APPROVAL',$remarks);return $id;
             }
             if(!$p['hr'])throw new RuntimeException('Only another authorized HR reviewer can handle this step.');
-            if($action==='START'){self::transition($t,'IN_PROGRESS',$remarks);return $id;}
+            if($action==='START'){if($t['type_code']==='NETSUITE_CONCERN')throw new RuntimeException('NetSuite uses Pending and Complete.');self::transition($t,'IN_PROGRESS',$remarks);return $id;}
             if($action!=='COMPLETE')throw new RuntimeException('Unknown ticket action.');
             if($t['type_code']!=='PAYROLL_CONCERN'){TicketTypes::complete($t);self::decideStep($step,'APPROVED',$remarks);self::transition($t,'COMPLETED',$remarks);return $id;}
             $remarks=self::text($remarks,5000,'HR outcome explanation');

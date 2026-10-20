@@ -37,7 +37,7 @@ function ticket_new_page(array $employee,array $types,string $key,array $old):vo
 }
 function ticket_list_page(string $mode,array $result,array $filters):void
 {
-    if($mode==='services'){ticket_service_list($result,$filters);return;}
+    if(in_array($mode,['services','accounting'],true)){ticket_service_list($result,$filters,$mode);return;}
     $page=match($mode){'hr'=>'hr-payroll-concerns','inbox'=>'hr-request-inbox',default=>'hr-requests-my'};
     $title=match($mode){'hr'=>'Payroll Concern Queue','inbox'=>'HR Request Inbox',default=>'My HR Requests'};ticket_header($page,$title);
     page_head('HR Concerns',$title,Auth::can('tickets.request_self')?'<a class="btn primary" href="'.url('hr-request-new').'">File an HR request</a>':'');
