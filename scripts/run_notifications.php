@@ -14,5 +14,11 @@ foreach(array_slice($argv,1) as $arg) {
         exit(0);
     }
 }
+// Reuse the existing scheduled notification job for durable HR-request retries.
+require_once 'app/TicketNotifications.php';
+if(FoundationRepository::tableExists('ticket_notification_outbox')) {
+    try { $tickets=TicketNotifications::flush(500); echo 'HR request notifications: '.$tickets['delivered'].' delivered, '.$tickets['pending']." deferred.\n"; }
+    catch(Throwable) { error_log('HR request notification retry deferred.'); }
+}
 $result=ProbationService::run();
 echo date('Y-m-d H:i').' checked '.$result['checked'].', new reminders '.$result['created'].', emailed '.$result['emailed'].', email failed '.$result['email_failed'].(Mailer::configured()?'':' (email not set up)')."\n";

@@ -15,6 +15,10 @@ function need_db(): void {
     exit;
 }
 
+require_once __DIR__.'/app/TicketModule.php';
+ticket_handle($page);
+require_once __DIR__.'/app/TicketAssignmentModule.php';
+ticket_assignment_handle($page);
 require_once __DIR__.'/app/AdminDataResetModule.php';
 admin_data_reset_handle($page);
 require_once __DIR__.'/app/EmployeeRosterImportModule.php';
@@ -815,6 +819,13 @@ if ($page === 'employee-dashboard') {
     $leaveBalances=$employee?PayrollRepository::leaveBalances((int)$employee['id']):[];
     $displayBalances=array_slice($leaveBalances,0,2);
     $recentRequests=$employee?array_slice(PayrollRepository::myPayrollRequests((int)$employee['id']),0,3):[];
+    foreach($recentRequests as &$recent){$recent['_engine']='Payroll & Timekeeping';$recent['_detail_page']='payroll-request';}unset($recent);
+    if(Auth::can('tickets.request_self') && TicketRepository::ready()){
+        foreach(TicketRepository::listing('my',[],3)['rows'] as $recent){$recentRequests[]=['id'=>$recent['id'],'type_name'=>$recent['type_name'],'request_no'=>$recent['ticket_no'],'status'=>$recent['status'],'created_at'=>$recent['created_at'],'_engine'=>'HR Concern','_detail_page'=>'hr-request'];}
+        usort($recentRequests,static fn($a,$b)=>strcmp($b['created_at'],$a['created_at']) ?: strcmp($b['request_no'],$a['request_no']));
+        $recentRequests=array_slice($recentRequests,0,5);
+    }
+
     $attendanceHome=$employee && Auth::can('attendance.view_self') && PayrollAttendanceService::ready()?EmployeeAttendanceService::current():null;
     render_portal_header('employee',$page,'Employee Home');
     dashboard_hero('Employee self-service','Good morning, '.explode(' ',trim((string)$u['name']))[0].'.','Here is your personal HR workspace for today.'); ?>
@@ -823,8 +834,8 @@ if ($page === 'employee-dashboard') {
       <section class="panel"><div class="panel-head"><div><h2>Leave balance</h2><p>Available credits</p></div><a class="panel-link" href="<?=url('employee-leave')?>">View details</a></div><div class="panel-body"><?php if(!$employee):?><div class="empty phase3a-dashboard-empty">Link your Employee 201 File to view leave credits.</div><?php elseif(!$displayBalances):?><div class="empty phase3a-dashboard-empty">No leave credits have been assigned yet.</div><?php else:?><div class="balance-grid"><?php foreach($displayBalances as $b):?><div class="balance-card"><strong><?=number_format((float)$b['balance'],2)?></strong><span><?=e($b['name'])?></span><?php if((float)$b['pending']>0):?><small><?=number_format((float)$b['pending'],2)?> pending</small><?php endif;?></div><?php endforeach;?></div><?php endif;?></div></section>
     </div>
     <div class="dashboard-grid equal">
-      <section class="panel"><div class="panel-head"><div><h2>Quick actions</h2><p>Common employee requests</p></div></div><div class="panel-body"><div class="quick-actions"><a class="quick-action" href="<?=url('employee-leave')?>"><span class="qa-icon"><?=icon_svg('calendar')?></span><span><strong>Apply for leave</strong><span>View credits and submit leave</span></span></a><a class="quick-action" href="<?=url('employee-request-new')?>"><span class="qa-icon"><?=icon_svg('clock')?></span><span><strong>Payroll & Timekeeping</strong><span>TA, OB, OT and attendance adjustments</span></span></a><a class="quick-action" href="#"><span class="qa-icon"><?=icon_svg('file')?></span><span><strong>Request COE</strong><span>Employment document request</span></span></a><a class="quick-action" href="<?=url('employee-requests')?>"><span class="qa-icon"><?=icon_svg('clipboard')?></span><span><strong>My requests</strong><span>Track submitted requests</span></span></a></div></div></section>
-      <section class="panel"><div class="panel-head"><div><h2>Recent requests</h2><p>Your latest Payroll & Timekeeping activity</p></div><a class="panel-link" href="<?=url('employee-requests')?>">View all</a></div><div class="panel-body"><?php if(!$recentRequests):?><div class="empty phase3a-dashboard-empty">No requests submitted yet.</div><?php else:?><div class="timeline-list"><?php foreach($recentRequests as $r):?><div class="timeline-row"><div class="time"><?=e(date('M j',strtotime($r['created_at'])))?></div><span class="timeline-dot"></span><div class="detail"><strong><?=e($r['type_name'])?></strong><span><?=e($r['request_no'])?></span></div><span class="phase3a-status"><?=e(stage_label($r['status']))?></span></div><?php endforeach;?></div><?php endif;?></div></section>
+      <section class="panel"><div class="panel-head"><div><h2>Quick actions</h2><p>Common employee requests</p></div></div><div class="panel-body"><div class="quick-actions"><a class="quick-action" href="<?=url('employee-leave')?>"><span class="qa-icon"><?=icon_svg('calendar')?></span><span><strong>Apply for leave</strong><span>View credits and submit leave</span></span></a><a class="quick-action" href="<?=url('employee-request-new')?>"><span class="qa-icon"><?=icon_svg('clock')?></span><span><strong>Payroll & Timekeeping</strong><span>TA, OB, OT and attendance adjustments</span></span></a><a class="quick-action" href="#"><span class="qa-icon"><?=icon_svg('file')?></span><span><strong>Request COE</strong><span>Employment document request</span></span></a><a class="quick-action" href="<?=url('employee-requests')?>"><span class="qa-icon"><?=icon_svg('clipboard')?></span><span><strong>My requests</strong><span>Track submitted requests</span></span></a><?php if(Auth::can('tickets.request_self')):?><a class="quick-action" href="<?=url('hr-requests-my')?>"><span class="qa-icon"><?=icon_svg('clipboard')?></span><span><strong>HR Concerns</strong><span>Payroll concern and other HR requests</span></span></a><?php endif;?></div></div></section>
+      <section class="panel"><div class="panel-head"><div><h2>Recent requests</h2><p>Your latest payroll tickets and HR concerns</p></div><a class="panel-link" href="<?=url('employee-requests')?>">View all</a></div><div class="panel-body"><?php if(!$recentRequests):?><div class="empty phase3a-dashboard-empty">No requests submitted yet.</div><?php else:?><div class="timeline-list"><?php foreach($recentRequests as $r):?><div class="timeline-row"><div class="time"><?=e(date('M j',strtotime($r['created_at'])))?></div><span class="timeline-dot"></span><div class="detail"><strong><a href="<?=url($r['_detail_page'],['id'=>$r['id']])?>"><?=e($r['_engine'].' · '.$r['type_name'])?></a></strong><span><?=e($r['request_no'])?></span></div><span class="phase3a-status"><?=e(stage_label($r['status']))?></span></div><?php endforeach;?></div><?php endif;?></div></section>
     </div>
     <?php render_portal_footer(); exit;
 }

@@ -1,0 +1,58 @@
+<?php
+declare(strict_types=1);
+function ticket_service_select(array $types,int $selected):void { ?>
+ <div class="field"><label for="ticket-type">Request type</label><select name="ticket_type_id" id="ticket-type" required onchange="location.href='index.php?page=hr-request-new&type='+this.value"><option value="">Choose a type</option><?php foreach($types as $ty):?><option value="<?=(int)$ty['id']?>" <?=(int)$ty['id']===$selected?'selected':''?>><?=e($ty['name'])?></option><?php endforeach;?></select></div>
+<?php }
+function ticket_service_fields(string $code,array $old):void {
+ foreach(TicketTypes::definition($code)['fields'] as $key=>$field){$value=$old[$key]??''; ?>
+ <div class="field"><label for="field-<?=e($key)?>"><?=e($field['label'])?></label>
+ <?php if(isset($field['options'])):?><select id="field-<?=e($key)?>" name="<?=e($key)?>" required><option value="">Choose</option><?php foreach($field['options'] as $option):?><option value="<?=e($option)?>" <?=(string)$value===(string)$option?'selected':''?>><?=e($option)?></option><?php endforeach;?></select>
+ <?php elseif(($field['kind']??'')==='text'):?><textarea id="field-<?=e($key)?>" name="<?=e($key)?>" maxlength="<?=(int)($field['max']??5000)?>" rows="4" required><?=e((string)$value)?></textarea>
+ <?php else:?><input id="field-<?=e($key)?>" name="<?=e($key)?>" type="<?=e($field['kind']??'text')?>" value="<?=e((string)$value)?>" <?=isset($field['min'])?'min="'.(int)$field['min'].'"':''?> <?=isset($field['max_value'])?'max="'.(int)$field['max_value'].'"':''?> <?=empty($field['optional'])?'required':''?>><?php endif;?></div>
+ <?php }
+}
+function ticket_service_new(array $employee,array $types,array $type,string $key,array $old):void {
+ ticket_header('hr-requests-my','File an HR Request');page_head('HR Requests',$type['name']);
+ ?>
+ <form method="post" enctype="multipart/form-data" class="panel ticket-panel"><?=csrf_field()?><input type="hidden" name="action" value="core_ticket_create"><input type="hidden" name="submission_key" value="<?=e($key)?>"><div class="panel-body">
+ <?php ticket_service_select($types,(int)$type['id']);?><p>Requested by: <strong><?=e(Auth::user()['name'])?></strong> · <?=e($employee['branch_name'])?></p>
+ <?php ticket_service_fields($type['code'],$old);ticket_upload_input('new-attachments');?><div class="ticket-actions"><button class="btn" name="intent" value="DRAFT">Save draft</button><button class="btn primary" name="intent" value="SUBMIT">Submit HR request</button></div></div></form>
+ <?php render_portal_footer();
+}
+function ticket_service_list(array $result,array $filters):void {
+ ticket_header('hr-service-requests','HR Request Queue');page_head('HR Requests','HR Request Queue'); ?>
+ <form method="get" class="panel ticket-panel"><input type="hidden" name="page" value="hr-service-requests"><div class="panel-body ticket-filters">
+ <div class="field"><label for="queue-type">Type</label><select name="type_code" id="queue-type"><option value="">All service types</option><?php foreach(TicketRepository::types() as $ty):if($ty['code']==='INCIDENT_REPORT')continue;?><option value="<?=e($ty['code'])?>" <?=($filters['type_code']??'')===$ty['code']?'selected':''?>><?=e($ty['name'])?></option><?php endforeach;?></select></div>
+ <div class="field"><label for="queue-status">Status</label><select name="status" id="queue-status"><option value="">All statuses</option><?php foreach(array_keys(TicketPolicy::TRANSITIONS) as $status):if($status==='DRAFT')continue;?><option value="<?=e($status)?>" <?=($filters['status']??'')===$status?'selected':''?>><?=e(TicketTypes::label($status))?></option><?php endforeach;?></select></div>
+ <div class="field"><label for="queue-company">Company</label><select id="queue-company" name="business_unit_id"><option value="">All companies</option><?php foreach(FoundationRepository::businessUnits() as $row):?><option value="<?=(int)$row['id']?>" <?=(int)($filters['business_unit_id']??0)===(int)$row['id']?'selected':''?>><?=e($row['name'])?></option><?php endforeach;?></select></div>
+ <div class="field"><label for="queue-branch">Branch</label><select id="queue-branch" name="branch_id"><option value="">All branches</option><?php foreach(FoundationRepository::branches() as $row):?><option value="<?=(int)$row['id']?>" <?=(int)($filters['branch_id']??0)===(int)$row['id']?'selected':''?>><?=e($row['name'])?></option><?php endforeach;?></select></div>
+ <?php if(($filters['type_code']??'')==='PAYROLL_CONCERN'):?><div class="field"><label for="queue-period">Cutoff</label><select name="payroll_period_id" id="queue-period"><option value="">All periods</option><?php foreach(db()->query('SELECT id,code FROM payroll_cutoffs ORDER BY period_start DESC') as $row):?><option value="<?=(int)$row['id']?>" <?=(int)($filters['payroll_period_id']??0)===(int)$row['id']?'selected':''?>><?=e($row['code'])?></option><?php endforeach;?></select></div><?php endif;?><button class="btn">Filter queue</button></div></form>
+ <section class="panel ticket-scroll"><table class="tbl"><thead><tr><th>Request</th><th>Employee</th><th>Status</th><th></th></tr></thead><tbody><?php foreach($result['rows'] as $t):?><tr><td><?=e($t['ticket_no'].' · '.$t['type_name'])?></td><td><?=e($t['first_name'].' '.$t['last_name'])?></td><td><?=e(TicketTypes::label($t['status'],$t['type_code']))?></td><td><a class="btn" href="<?=url('hr-request',['id'=>$t['id']])?>">Open</a></td></tr><?php endforeach;if(!$result['rows']):?><tr><td colspan="4">No requests found.</td></tr><?php endif;?></tbody></table></section>
+ <nav>Page <?=(int)$result['page']?> <?php foreach(['Previous'=>-1,'Next'=>1] as $label=>$delta):if(($delta<0&&$result['page']>1)||($delta>0&&$result['has_next'])):?><a class="btn" href="<?=e(url('hr-service-requests',array_replace($filters,['p'=>$result['page']+$delta])))?>"><?=e($label)?></a><?php endif;endforeach;?></nav>
+ <?php render_portal_footer();
+}
+function ticket_service_detail(array $t):void {
+ $p=TicketService::permissions($t);ticket_header('hr-requests-my',$t['ticket_no']);page_head('HR Requests / '.$t['type_name'],$t['ticket_no']);
+ $definition=TicketTypes::definition($t['type_code']);
+ ?>
+ <p><strong><?=e(TicketTypes::label($t['status'],$t['type_code']))?></strong> · <?=e($t['payload']['employee_name'])?></p>
+ <?php if(in_array($t['type_code'],['ATM_REQUEST','ID_REQUEST'],true)):
+ $q=db()->prepare('SELECT COUNT(*) FROM tickets WHERE requester_user_id=? AND ticket_type_id=? AND id<>? AND status IN ("SUBMITTED","PENDING_APPROVAL","PENDING_HR","IN_PROGRESS","RETURNED")');$q->execute([$t['requester_user_id'],$t['ticket_type_id'],$t['id']]);if($q->fetchColumn()):?><div class="alert">Another open <?=e($t['type_name'])?> exists. This request is allowed; please check whether both are needed.</div><?php endif;endif;?>
+ <section class="panel ticket-panel"><div class="panel-body"><?php foreach($definition['fields'] as $key=>$field):?><h3><?=e($field['label'])?></h3><p class="ticket-text"><?=e((string)($t['payload'][$key]??''))?></p><?php endforeach;?></div></section>
+ <?php if($p['edit']):$old=array_replace($t['payload'],$_SESSION['core_ticket_edit'][$t['id']]??[]);?>
+ <form method="post" enctype="multipart/form-data" class="panel ticket-panel"><?=csrf_field()?><input type="hidden" name="action" value="core_ticket_edit"><input type="hidden" name="ticket_id" value="<?=(int)$t['id']?>"><input type="hidden" name="version" value="<?=(int)$t['version']?>"><input type="hidden" name="ticket_type_id" value="<?=(int)$t['ticket_type_id']?>"><div class="panel-body"><?php ticket_service_fields($t['type_code'],$old);ticket_upload_input('edit-attachments');?><button class="btn" name="intent" value="DRAFT">Save changes</button><button class="btn primary" name="intent" value="SUBMIT">Submit for review</button></div></form><?php endif;?>
+ <section class="panel ticket-panel"><div class="panel-body"><h2>Approval chain</h2><ol><?php foreach($t['steps'] as $step):?><li><?=e($step['approver_type'].' · '.($step['approver_name']?:'Authorized HR reviewer').' · '.$step['status'])?></li><?php endforeach;?></ol></div></section>
+ <?php if($p['approve']||$p['hr']||$p['return_reject']||$p['cancel']):$old=$_SESSION['core_ticket_action'][$t['id']]??[];?>
+ <form method="post" class="panel ticket-panel"><?=csrf_field()?><input type="hidden" name="action" value="core_ticket_act"><input type="hidden" name="ticket_id" value="<?=(int)$t['id']?>"><input type="hidden" name="version" value="<?=(int)$t['version']?>"><div class="panel-body"><div class="field"><label for="decision-remarks">Review remarks</label><textarea id="decision-remarks" name="remarks" rows="3" maxlength="5000"><?=e($old['remarks']??'')?></textarea><small>Remarks are required for return or rejection.</small></div><div class="ticket-actions">
+ <?php if($p['approve']):?><button class="btn primary" name="decision" value="APPROVE">Approve and send to HR</button><?php endif;if($p['hr']):if($t['status']==='PENDING_HR'):?><button class="btn" name="decision" value="START">In Progress</button><?php endif;?><button class="btn primary" name="decision" value="COMPLETE">Served</button><?php endif;if($p['return_reject']):?><button class="btn" name="decision" value="RETURN">Return</button><button class="btn" name="decision" value="REJECT">Reject</button><?php endif;if($p['cancel']):?><button class="btn" name="decision" value="CANCEL" onclick="return confirm('Cancel this HR request?')">Cancel</button><?php endif;?></div></div></form>
+ <?php endif;ticket_service_evidence($t,$p);render_portal_footer();
+}
+
+function ticket_service_evidence(array $t,array $p):void { ?>
+    <section class="panel ticket-panel"><div class="panel-body"><h2>Attachments</h2><?php foreach($t['attachments'] as $file):?><p><a href="<?=url('hr-request-attachment',['id'=>$file['id']])?>"><?=e($file['original_name'])?></a> · <?=number_format($file['file_size']/1024,1)?> KB</p><?php endforeach;if(!$t['attachments']):?><p>No attachments.</p><?php endif;
+      if($p['attach'] && !$p['edit']):?><form method="post" enctype="multipart/form-data"><?=csrf_field()?><input type="hidden" name="action" value="core_ticket_attach"><input type="hidden" name="ticket_id" value="<?=(int)$t['id']?>"><?php ticket_upload_input('detail-attachments');?><button class="btn">Add attachments</button></form><?php endif;?></div></section>
+    <section class="panel ticket-panel"><div class="panel-body"><h2>Comments</h2><?php foreach($t['comments'] as $c):?><article class="ticket-comment"><strong><?=e($c['author_name'])?></strong> <small><?=e($c['created_at'])?></small><p class="ticket-text"><?=e($c['body'])?></p></article><?php endforeach;?><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="core_ticket_comment"><input type="hidden" name="ticket_id" value="<?=(int)$t['id']?>"><div class="field"><label for="comment-body">Add a comment</label><textarea name="body" id="comment-body" maxlength="3000" rows="3" required><?=e($_SESSION['core_ticket_comment'][$t['id']]??'')?></textarea></div><button class="btn">Post comment</button></form></div></section>
+    <section class="panel ticket-panel"><div class="panel-body"><h2>Ticket history</h2><ol class="ticket-history"><?php foreach($t['events'] as $ev):?><li><strong><?=e(stage_label($ev['event_type']))?></strong> · <?=e($ev['actor_name'])?> · <?=e($ev['created_at'])?><?php if($ev['to_status']):?> · <?=e(stage_label($ev['to_status']))?><?php endif;?></li><?php endforeach;?></ol></div></section>
+
+<?php }
+

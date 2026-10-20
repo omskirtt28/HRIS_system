@@ -1,0 +1,68 @@
+// Uses an existing Playwright installation; never installs packages or touches the live DB.
+const path = require('node:path');
+const os = require('node:os');
+const modulePath = process.env.HRIS_PLAYWRIGHT_MODULE || path.join(os.homedir(),'.cache','codex-runtimes','codex-primary-runtime','dependencies','node','node_modules','playwright');
+const { chromium } = require(modulePath);
+const fs = require('fs');
+const assert = require('node:assert/strict');
+const f = JSON.parse(fs.readFileSync('storage/slice15-private/browser-fixtures.json','utf8'));
+const base = 'http://127.0.0.1:8895/index.php';
+let passed=0;
+function pass(name){passed++;console.log('PASS '+name);}
+(async()=>{
+ const browser=await chromium.launch({channel:'msedge',headless:true});
+ try{
+  const context=await browser.newContext({viewport:{width:1365,height:900}});
+  const page=await context.newPage();const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.goto(base+'?page=login');
+  await page.getByLabel('Email',{exact:true}).fill(f.hr.email);
+  await page.getByLabel('Password',{exact:true}).fill('Slice15-Test-Only!9');
+  await page.getByRole('button',{name:'Sign in',exact:true}).click();
+  await page.getByRole('heading',{name:'Ticket Approver Assignments',exact:true}).waitFor();
+  pass('HR screen loads with synthetic company filter');
+  await page.getByRole('link',{name:'Unresolved report',exact:true}).click();
+  await page.getByText('Please ask HR to assign your Manager with an active approval account.',{exact:true}).first().waitFor();
+  pass('unresolved report supplies plain HR message');
+  await page.locator('input[name="employee_ids[]"][value="'+f.requester+'"]').check();
+  await page.locator('input[name="employee_ids[]"][value="'+f.requester_two+'"]').check();
+  await page.getByLabel('Approver type',{exact:true}).selectOption('MANAGER');
+  await page.getByLabel('Active approval account',{exact:true}).selectOption(String(f.manager.id));
+  await page.getByRole('button',{name:'Preview selected assignments',exact:true}).click();
+  await page.getByRole('heading',{name:'Review 2 assignment(s)',exact:true}).waitFor();
+  pass('bulk selection previews before save');
+  const token=await page.locator('input[name="preview_token"]').inputValue();
+  const csrf=await page.locator('input[name="csrf"]').first().inputValue();
+  await page.getByRole('button',{name:'Confirm assignments',exact:true}).click();
+  await page.getByText('2 ticket approver assignment(s) saved. Existing payroll reporting lines were preserved.',{exact:true}).waitFor();
+  await page.reload();await page.getByText('HR_BULK',{exact:true}).first().waitFor();
+  pass('confirmed assignment persists after reload');
+  const replay=await context.request.post(base+'?page=hr-ticket-approvers',{form:{action:'ticket_approvers_save',preview_token:token,csrf}});
+  assert.match(await replay.text(),/Preview expired or already saved/);pass('replayed preview token rejected');
+  const invalid=await context.request.post(base+'?page=hr-ticket-approvers',{form:{action:'ticket_approvers_preview',csrf:'bad-token'}});
+  assert.equal(invalid.status(),419);pass('missing or invalid CSRF rejected');
+  await page.goto(base+'?page=hr-ticket-approvers');
+  await page.locator('input[name="employee_ids[]"][value="'+f.manager_employee+'"]').check();
+  await page.getByLabel('Active approval account',{exact:true}).selectOption(String(f.manager.id));
+  await page.getByRole('button',{name:'Preview selected assignments',exact:true}).click();
+  await page.getByText('Approver must have an active matching approval account and cannot approve their own request.',{exact:true}).waitFor();
+  pass('self-assignment rejected by server');
+  await page.setViewportSize({width:390,height:844});
+  await page.waitForFunction(()=>{const side=document.getElementById('side');return side.getBoundingClientRect().right<=1;});
+  await page.evaluate(()=>document.fonts.ready);
+  await page.screenshot({path:'storage/slice15-private/assignment-mobile.png',fullPage:true});
+  const dimensions=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,viewport:window.innerWidth}));
+  assert.ok(dimensions.scroll<=dimensions.viewport+2,JSON.stringify(dimensions));pass('mobile page fits viewport with table scroll');
+  await page.setViewportSize({width:1365,height:900});
+  await page.screenshot({path:'storage/slice15-private/assignment-desktop.png',fullPage:true});
+  assert.deepEqual(errors,[]);pass('no browser JavaScript errors');
+  const outsider=await browser.newContext();const employeePage=await outsider.newPage();
+  await employeePage.goto(base+'?page=login');
+  await employeePage.getByLabel('Email',{exact:true}).fill(f.employee.email);
+  await employeePage.getByLabel('Password',{exact:true}).fill('Slice15-Test-Only!9');
+  await employeePage.getByRole('button',{name:'Sign in',exact:true}).click();
+  await employeePage.getByText('HR approver-assignment access is required.',{exact:true}).waitFor();
+  const denied=await outsider.request.get(base+'?page=hr-ticket-approvers');assert.equal(denied.status(),403);pass('employee direct HR screen access denied');
+  const deniedPost=await outsider.request.post(base+'?page=hr-ticket-approvers',{form:{action:'ticket_approvers_save',csrf,preview_token:token}});assert.equal(deniedPost.status(),403);pass('employee forged assignment write denied');
+  console.log('RESULT '+passed+' browser checks passed, 0 failed');
+ }finally{await browser.close();}
+})().catch(error=>{console.error(error.message);process.exitCode=1;});

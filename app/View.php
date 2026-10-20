@@ -120,6 +120,19 @@ function nav_config(string $kind): array {
         ['Operations',[['Audit Logs','admin-audit','audit',false,'audit.view'],['Clear Test Data','admin-clear-data','shield',false,'system.test_data.clear']]]
       ]]
     ];
+    // Slice-15 is a separate workspace; preserve every legacy payroll link.
+    foreach (['employee','hr','admin'] as $portal) {
+        $items=[['HR Concerns','hr-requests-my','clipboard',false,'tickets.request_self']];
+        if(Auth::can('payroll.approve_manager') || Auth::can('payroll.approve_adl'))$items[]=['HR Request Inbox','hr-request-inbox','check-square',false,null];
+        if($portal!=='employee')$items[]=['HR Request Queue','hr-service-requests','clipboard',false,'tickets.review_hr'];
+        if($portal!=='employee')$items[]=['Payroll Concerns','hr-payroll-concerns','clipboard',false,'tickets.review_hr'];
+        $base[$portal]['groups'][]=['Requests',$items];
+    }
+    foreach (['hr','admin'] as $portal) {
+        $base[$portal]['groups'][]=['HR Request Setup',[
+            ['Ticket Approvers','hr-ticket-approvers','users',false,'tickets.approvers.manage'],
+        ]];
+    }
     return $base[$kind] ?? $base['employee'];
 }
 
