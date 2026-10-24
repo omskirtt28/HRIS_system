@@ -820,7 +820,7 @@ if ($page === 'payroll-attachment') {
 
 // -------- Employee portal --------
 if (str_starts_with($page,'employee-')) {
-    need_db(); if (!Auth::check()) redirect('login'); Auth::requireRoles(['EMPLOYEE','MANAGER','SUPER_ADMIN','HRIS_ADMIN']);
+    need_db(); if (!Auth::check()) redirect('login'); if (!Auth::is('SUPER_ADMIN','HRIS_ADMIN')) Auth::requirePortal('employee');
 }
 
 if ($page === 'employee-dashboard') {

@@ -242,3 +242,8 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 - Approvals: ADL and TC are ADL approvers, OIC is a Manager approver, SC approves nothing. Their users show up in **Ticket Approvers** accordingly.
 - The existing **Coordinator** role (HR portal, Recruitment) is unchanged; it is not TC.
 - Migration: `database/migrations/20261024_011_lead_roles.sql` (rollback: `.down.sql`, refuses once a new role has users or edited permissions).
+
+## 2026-10-24 — Employee portal access follows the role's portal
+- ADL, SC, OIC, TC and any role HR creates on the employee portal can now open the Employee Self-Service pages (dashboard, requests, leave). Before, only Employee and Manager could, even though the new roles could already file HR requests.
+- HR-portal roles (e.g. Coordinator, HR User) and client accounts are still refused there. Super Admin and HRIS Admin keep access.
+- What a role can do on those pages is still set by its permissions on the Roles screen. No database change.

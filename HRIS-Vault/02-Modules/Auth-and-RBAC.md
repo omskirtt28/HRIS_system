@@ -269,6 +269,10 @@ Escalation guards (server-side, in `FoundationRepository`):
 
 Roles are still never deleted (no delete action exists), so a role in use cannot be removed.
 
+### Employee portal gate (2026-10-24)
+
+Access to the `employee-*` pages follows the role's portal (`roles.portal = 'employee'`), not a list of role codes. `index.php` runs `Auth::requirePortal('employee')` for every `employee-*` page, with `SUPER_ADMIN` and `HRIS_ADMIN` (admin portal) let through explicitly. So ADL, SC, OIC, TC, MANAGER, EMPLOYEE and any employee-portal role HR creates later reach the employee dashboard, requests and leave pages with no code change; HR-portal roles (e.g. COORDINATOR, HR_USER) and `CLIENT_USER` get 403. What each role can do on those pages is still decided by its permissions (`leave.view_self`, `tickets.request_self`, `ticket.file.<type>`, `payroll.approve_adl` / `payroll.approve_manager`), checked server-side. The HR Concerns pages (`hr-requests-my`, `hr-request-new`, `hr-request-inbox`) and `manager-approvals` were already permission-based. Test: `tests/ticket_employee_portal_gate_test.php`.
+
 ## Open Questions
 
 - [ ] Do all employees get accounts, or only office staff? → Q15 in [[Open-Questions]]
