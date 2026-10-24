@@ -22,6 +22,9 @@ After Stage B, apply to the localhost database (`pmbsi_hris`) right away, withou
 ### Vault sync (mandatory)
 The Obsidian vault is the ONLY source of truth. Vault sync is MANDATORY before the final report of every patch: Progress.md, the matching 02-Modules note, Data-Model.md for every migration, Business-Rules.md, Screens.md/API-Surface.md for new screens or routes, Decision-Log.md, Open-Questions.md and CHANGELOG.md. The final report MUST list the vault files changed. A patch with no vault files listed is not finished. Never add content to the repo-root SCHEMA/ARCHITECTURE/RULES/DESIGN docs.
 
+### Plan and session log (mandatory)
+When John says "plan" (or plan mode is used), write the plan to `HRIS-Vault/05-Implementation/Plans/<YYYY-MM-DD>-<slug>.md` from `Plans/_Template.md` (including the ready-to-paste PowerShell `claude "..."` execute prompt) and add an entry to `HRIS-Vault/05-Implementation/Session-Log.md` BEFORE calling ExitPlanMode. After execution, set the plan's Status to done and log it in Session-Log.md. At the start of a session, read the latest Session-Log.md entries so John does not have to re-explain. Plans and logs are written in Taglish like the conversation; keep them short.
+
 Repo-root SCHEMA.md, ARCHITECTURE.md, RULES.md and DESIGN.md are frozen pointers to the vault. The hub note for the ticket engine is `HRIS-Vault/02-Modules/Employee-Tickets.md`.
 
 ## Skills
