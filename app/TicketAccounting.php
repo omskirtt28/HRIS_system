@@ -17,7 +17,7 @@ final class TicketAccounting
     public static function remark(int $id,string $lane,string $body):void {
         $body=trim($body);if($body===''||mb_strlen($body)>5000)throw new RuntimeException('Remarks must contain 1 to 5000 characters.');
         db()->beginTransaction();try{
-            $t=TicketRepository::find($id,true);
+            $t=TicketRepository::find($id,true);if(!empty($t['viewer_only']))throw new RuntimeException('View-only access: you cannot add remarks.');
             if($t['type_code']!=='NETSUITE_CONCERN'||!in_array($lane,['HR','ACCOUNTING'],true))throw new RuntimeException('Invalid remarks lane.');
             if($lane==='HR'&&!TicketRepository::isHr())throw new RuntimeException('Only HR can edit HR remarks.');
             if($lane==='ACCOUNTING'&&(!self::canView()||$t['status']!=='COMPLETED'))throw new RuntimeException('Accounting follow-up is available after HR completion.');

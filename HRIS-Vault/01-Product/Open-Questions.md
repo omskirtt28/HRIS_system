@@ -44,6 +44,10 @@ Decisions John needs to make. Each is blocking something concrete. When one is d
 - [ ] **Q29. Staff lost Manpower and NetSuite.** Migration 010 gave the `EMPLOYEE` role only the five staff types, so plain employees can no longer file Manpower or NetSuite Concern (by design). Confirm no staff member needs them before ADL/SC/OIC/TC roles exist. → [[Self-Service-Portal]]
 - [ ] **Q30. Approvers for unassigned employees.** 363 active employees still have no Manager/ADL approver for Payroll Concern. Once HR creates the ADL/TC/OIC/Manager accounts and links them to employees, assign them in Ticket Approvers. Who does this, and by when? → [[Auth-and-RBAC]]
 - [ ] **Q31. Super Admin from the UI.** Super Admin cannot be assigned from the user screen by anyone (BR-122). Is a DB-level procedure acceptable for the rare new Super Admin, or is a guarded UI path wanted? → [[Auth-and-RBAC]]
+- [ ] **Q32. Override semantics.** Extra viewers only add; there is no way to remove the branch lead's or ADL's view of one employee. Is replacement ever needed? → [[Self-Service-Portal]]
+- [ ] **Q33. Branch lead data.** 23 of 63 staffed retail branches have no Sales Captain on record, 1 branch has two, and only one Sales Captain has an account. Who supplies the leads and creates the accounts? → [[Org-Structure]]
+- [ ] **Q34. ADL setup.** 7 of 8 ADLs have no account, none has Assigned areas, 4 show branch Head Office, 3 active retail branches have no area. HR to complete before ADL coverage works. → [[Org-Structure]]
+- [ ] **Q35. Attachments for viewers.** Viewers see no attachment list and cannot download (strict reading of read-only). Confirm, or allow download. → [[Self-Service-Portal]]
 
 ## Compliance
 

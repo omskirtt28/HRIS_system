@@ -172,6 +172,14 @@ One index of every `BR-###` in the vault. Rules are **defined in the module note
 | BR-721 | Type access is enforced server-side at the type list, create, edit/resubmit and the new-request page, not only by hiding dropdown options. (2026-10-24) | [[Self-Service-Portal]] |
 | BR-722 | A draft or returned ticket of a type the role can no longer file cannot be edited or resubmitted; it can still be cancelled. (2026-10-24) | [[Self-Service-Portal]] |
 | BR-723 | Manpower Request routes HR_ONLY; Payroll Concern keeps Manager/ADL then HR. Other ticket types are HR_ONLY. (2026-10-24) | [[Self-Service-Portal]] |
+| BR-724 | Read-only ticket viewers: a branch lead, the ADL covering the branch's area, the Head Office employee's Manager, or an HR-set extra viewer may read the employee's HR requests (list, detail, ordinary comments, history). They cannot approve, return, reject, cancel, complete, edit, comment or attach, and receive no notifications. View access never implies approve permission. (2026-10-24) | [[Self-Service-Portal]] |
+| BR-725 | Viewer access needs the `ticket.view_team` permission (deny by default; seeded to ADL, SC, OIC, TC, MANAGER) and an active account linked to an active employee. (2026-10-24) | [[Self-Service-Portal]] |
+| BR-726 | Incident Reports and drafts are never visible through viewer access. (2026-10-24) | [[Self-Service-Portal]] |
+| BR-727 | Retail: viewers are resolved from the ticket's frozen `branch_id` (full history, not the employee's current branch). Head Office: the employee's Manager as returned by the routing resolver. Evaluated when read, never snapshotted; a changed lead or ADL gains or loses the existing tickets at once and routing steps are untouched. (2026-10-24) | [[Org-Structure]] |
+| BR-728 | A branch may have several leads (`branch_leads`, effective-dated, history kept). Leads cannot be set on Head Office. (2026-10-24) | [[Org-Structure]] |
+| BR-729 | ADL coverage = branches whose `area_id` is in the ADL's `directory_area_ids`, only for an ADL (directory rule) with a linked active account; branches added to an area later are covered with no reassignment. Every change to `directory_area_ids` is audited (`CHANGE_ADL_AREAS`). (2026-10-24) | [[Org-Structure]] |
+| BR-730 | `ticket_viewer_overrides` adds one extra viewer for one employee (effective-dated); it never removes a lead, ADL or Manager. (2026-10-24) | [[Org-Structure]] |
+| BR-731 | HR sees, by name, employees with no resolvable viewer, branches without a usable lead, ADLs without account/area, retail branches without an area, and ADLs whose branch is Head Office (Ticket Viewers screen). (2026-10-24) | [[Org-Structure]] |
 
 ## 800s - Lifecycle: recruitment, offboarding, performance
 

@@ -19,6 +19,8 @@ require_once __DIR__.'/app/TicketModule.php';
 ticket_handle($page);
 require_once __DIR__.'/app/TicketAssignmentModule.php';
 ticket_assignment_handle($page);
+require_once __DIR__.'/app/TicketViewerModule.php';
+ticket_viewers_handle($page);
 require_once __DIR__.'/app/AdminDataResetModule.php';
 admin_data_reset_handle($page);
 require_once __DIR__.'/app/EmployeeRosterImportModule.php';

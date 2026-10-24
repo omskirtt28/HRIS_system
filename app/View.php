@@ -124,6 +124,7 @@ function nav_config(string $kind): array {
     foreach (['employee','hr','admin'] as $portal) {
         $items=[['HR Concerns','hr-requests-my','clipboard',false,Auth::can('ticket.file_for_others')?null:'tickets.request_self']];
         if(Auth::can('payroll.approve_manager') || Auth::can('payroll.approve_adl'))$items[]=['HR Request Inbox','hr-request-inbox','check-square',false,null];
+        if(Auth::can('ticket.view_team') && TicketViewerService::ready())$items[]=['Team Requests','hr-request-team','users',false,null];
         if($portal!=='employee')$items[]=['HR Request Queue','hr-service-requests','clipboard',false,'tickets.review_hr'];
         if($portal!=='employee')$items[]=['Payroll Concerns','hr-payroll-concerns','clipboard',false,'tickets.review_hr'];
         if(TicketRepository::ready() && TicketAccounting::canView())$items[]=['Accounting Follow-up','hr-accounting-requests','clipboard',false,null];
@@ -133,6 +134,7 @@ function nav_config(string $kind): array {
     foreach (['hr','admin'] as $portal) {
         $base[$portal]['groups'][]=['HR Request Setup',[
             ['Ticket Approvers','hr-ticket-approvers','users',false,'tickets.approvers.manage'],
+            ['Ticket Viewers','hr-ticket-viewers','users',false,'tickets.approvers.manage'],
             ['Accounting Members','hr-ticket-accounting-members','users',false,'tickets.review_hr'],
             ['Printable HR Forms','hr-print-forms','file',false,'tickets.review_hr'],
         ]];

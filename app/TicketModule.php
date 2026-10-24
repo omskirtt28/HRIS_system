@@ -7,7 +7,7 @@ require_once __DIR__.'/TicketPrintForms.php';
 
 function ticket_handle(string $page):void
 {
-    $pages=['hr-requests-my','hr-request-new','hr-request','hr-request-inbox','hr-payroll-concerns','hr-request-attachment','hr-service-requests','hr-accounting-requests','hr-ticket-accounting-members','hr-incidents','hr-print-forms'];
+    $pages=['hr-requests-my','hr-request-new','hr-request','hr-request-inbox','hr-payroll-concerns','hr-request-attachment','hr-service-requests','hr-accounting-requests','hr-ticket-accounting-members','hr-incidents','hr-print-forms','hr-request-team'];
     $action=(string)($_POST['action']??'');
     if(!in_array($page,$pages,true) && !str_starts_with($action,'core_ticket_'))return;
     need_db();if(!Auth::check())redirect('login');
@@ -65,7 +65,7 @@ function ticket_handle(string $page):void
             ticket_new_page($employee,TicketRepository::types(),$key,$old);
         }elseif($page==='hr-request')ticket_detail_page(TicketRepository::detail($id));
         else{
-            $mode=match($page){'hr-request-inbox'=>'inbox','hr-payroll-concerns'=>'hr','hr-service-requests'=>'services','hr-accounting-requests'=>'accounting','hr-incidents'=>'feed',default=>'my'};
+            $mode=match($page){'hr-request-inbox'=>'inbox','hr-payroll-concerns'=>'hr','hr-service-requests'=>'services','hr-accounting-requests'=>'accounting','hr-incidents'=>'feed','hr-request-team'=>'team',default=>'my'};
             if($mode==='my'&&!Auth::can('tickets.request_self')&&!Auth::can('ticket.file_for_others'))throw new RuntimeException('Filing permission is required.');
             ticket_list_page($mode,TicketRepository::listing($mode,$_GET),$_GET);
         }

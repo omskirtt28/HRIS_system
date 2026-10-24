@@ -196,6 +196,18 @@ Migration 010 kept today's access for existing roles: `EMPLOYEE` got the five st
 |---|---|---|
 | FR-726 | The system shall show in "File an HR Request" only the types the user's role may file, and reject any other type server-side. (BR-720, BR-721) | Must |
 | FR-727 | The system shall let HR grant or remove a type for a role from Roles & Permissions, with no code change. | Must |
+| FR-728 | The system shall give branch leads, covering ADLs, Head Office Managers and HR-set extra viewers a read-only Team Requests list and ticket detail, enforced in the ticket read gate so list, URL, comments, events, attachments and downloads follow one rule. (BR-724..727) | Must |
+| FR-729 | The system shall let HR assign branch leads in bulk by area/branch, add extra viewers, and see the unresolved-viewers report. (BR-728, BR-730, BR-731) | Must |
+| FR-730 | The system shall audit every change to an ADL's assigned areas. (BR-729) | Must |
+
+## As built: read-only ticket viewers (2026-10-24)
+
+Migration `20261024_012_ticket_viewers.sql` (+ guarded `.down.sql`, refuses once any lead or override exists) adds `branch_leads`, `ticket_viewer_overrides`, a seed ledger and the permission `ticket.view_team`. HR handling and routing are unchanged: HR stays the only handler (HR_ONLY), Payroll Concern still goes Manager/ADL then HR.
+
+- **Gate:** `TicketRepository::find()` tries the direct rules first (requester, HR, named step approver, Accounting, Incident staff); only if none match does `TicketViewerService::clause()` apply, and the ticket then carries `viewer_only=true`. `TicketService::act/comment/attach/attachment` and `TicketAccounting::remark` refuse `viewer_only`; `permissions()` returns all false. Viewers see comments marked ALL and history, but no attachment list or download.
+- **List:** `Team Requests` (`hr-request-team`) excludes drafts, Incident Reports and the viewer's own tickets.
+- **HR screen:** `Ticket Viewers` (`hr-ticket-viewers`, permission `tickets.approvers.manage`): bulk branch leads by area/branch, extra viewers, unresolved report.
+- **Not built (by decision):** notifications to viewers; a viewer comment path.
 
 ## Open Questions
 

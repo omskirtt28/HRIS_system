@@ -3,7 +3,7 @@ title: Org Structure
 type: module
 status: draft
 tags: [module, hris, mvp]
-updated: 2026-10-17
+updated: 2026-10-24
 ---
 
 # Org Structure
@@ -142,6 +142,15 @@ Called by [[Attendance-and-DTR]] and [[Payroll]] for every DTR day.
 | Employee works at a different branch from their assigned one | Attendance records the punch location; the branch on the placement governs holiday applicability. Flag the mismatch rather than guessing. |
 | Position renamed | Keep the position row and its code; past payroll and 2316 forms may show the historical title, so a title snapshot on hire is worth storing. |
 | New branch opened mid-year with no calendar | Orphan check flags it. Fall back to the national calendar with a visible warning rather than silently applying nothing. |
+
+## As built: branch leads and ADL areas (2026-10-24)
+
+Employee Directory groups (SW Retail, Ocampo's Retail, Head Office SW/Ocampo's, Urban Farm, Department Managers, ADL) are display groups. Two org facts now also decide who may read tickets (read-only, see [[Self-Service-Portal]], BR-724..731):
+
+- **Branch leads** (`branch_leads`): the Sales Captain / Team Coordinator of a retail branch, set by HR once per branch and inherited by every employee of the branch. Several per branch, effective-dated. At a branch the SC and the TC are the same role in practice: no retail "Team Coordinator" position exists in the data; all Team Coordinators sit in Head Office departments.
+- **ADL areas** (`employees.directory_area_ids`, "Assigned areas for ADL" in Employee 201): an ADL covers every branch whose `area_id` is in the list, including branches added later. Ocampo's has one area (`OCAMPOS`, 6 branches), SW has eight (MM1, MM2, MM3, North, Province South, Metro South, Visayas, Mindanao). A retail branch with no area cannot be covered by any ADL.
+- **Head Office:** the viewer is the employee's Manager from the routing resolver (assignment, then Reporting To).
+- **Data seen on localhost (2026-10-24):** 8 ADLs, 7 without an account, none with an area, 4 showing branch "Head Office"; 23 of 63 staffed retail branches have no Sales Captain; 3 active retail branches have no area. HR fixes these from the Ticket Viewers report.
 
 ## Open Questions
 

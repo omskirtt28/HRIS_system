@@ -247,3 +247,10 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 - ADL, SC, OIC, TC and any role HR creates on the employee portal can now open the Employee Self-Service pages (dashboard, requests, leave). Before, only Employee and Manager could, even though the new roles could already file HR requests.
 - HR-portal roles (e.g. Coordinator, HR User) and client accounts are still refused there. Super Admin and HRIS Admin keep access.
 - What a role can do on those pages is still set by its permissions on the Roles screen. No database change.
+
+## 2026-10-24 — Read-only ticket viewers
+- Branch leads (Sales Captain / Team Coordinator), the ADL covering the branch's area, and a Head Office employee's Manager can now read that employee's HR requests from a new **Team Requests** page. Strictly read-only: no approve, return, reject, cancel, complete, comment or attachments, no notifications; Incident Reports and drafts are never shown.
+- HR: new **Ticket Viewers** screen to assign branch leads in bulk by area or branch (several per branch), add an extra viewer for one employee, and see who has no viewer (employees, branches without a lead, ADLs without an account or area, retail branches without an area).
+- ADL coverage uses "Assigned areas for ADL" in Employee 201; changing it is now written to the audit log.
+- New permission "View team HR requests (read-only)", given to ADL, SC, OIC, TC and Manager only.
+- Migration: `database/migrations/20261024_012_ticket_viewers.sql` (rollback `.down.sql` refuses once leads exist). Not applied to the live database yet.

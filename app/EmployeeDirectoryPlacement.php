@@ -116,6 +116,8 @@ final class EmployeeDirectoryPlacement
         $areaValue=$ids ? ','.implode(',',$ids).',' : null;
         if (strlen((string)$areaValue)>1000) throw new RuntimeException('Too many assigned areas.');
         $after=['directory_company_group'=>$company ?: null,'directory_role'=>$role ?: null,'directory_area_ids'=>$areaValue];
+        // An ADL's assigned areas now decide which branches' HR requests they can read (TicketViewerService), so every change is audited.
+        if ((string)($old['directory_area_ids'] ?? '')!==(string)$areaValue) audit('Employees','CHANGE_ADL_AREAS','employee',$id,['areas_before'=>self::areaIds($old['directory_area_ids'] ?? null),'areas_after'=>$ids]);
         db()->prepare('UPDATE employees SET directory_company_group=?,directory_role=?,directory_area_ids=? WHERE id=?')->execute([$after['directory_company_group'],$after['directory_role'],$areaValue,$id]);
         return $after;
     }

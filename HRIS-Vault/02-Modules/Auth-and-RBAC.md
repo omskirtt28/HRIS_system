@@ -273,6 +273,10 @@ Roles are still never deleted (no delete action exists), so a role in use cannot
 
 Access to the `employee-*` pages follows the role's portal (`roles.portal = 'employee'`), not a list of role codes. `index.php` runs `Auth::requirePortal('employee')` for every `employee-*` page, with `SUPER_ADMIN` and `HRIS_ADMIN` (admin portal) let through explicitly. So ADL, SC, OIC, TC, MANAGER, EMPLOYEE and any employee-portal role HR creates later reach the employee dashboard, requests and leave pages with no code change; HR-portal roles (e.g. COORDINATOR, HR_USER) and `CLIENT_USER` get 403. What each role can do on those pages is still decided by its permissions (`leave.view_self`, `tickets.request_self`, `ticket.file.<type>`, `payroll.approve_adl` / `payroll.approve_manager`), checked server-side. The HR Concerns pages (`hr-requests-my`, `hr-request-new`, `hr-request-inbox`) and `manager-approvals` were already permission-based. Test: `tests/ticket_employee_portal_gate_test.php`.
 
+## As built: team request viewing (2026-10-24)
+
+Permission `ticket.view_team` ("View team HR requests (read-only)") is created by migration 012 and seeded to ADL, SC, OIC, TC and MANAGER only; any other role (including EMPLOYEE and the HR roles) must be granted it on the Roles screen. It is necessary but not sufficient: the person must also be a branch lead, a covering ADL, the Head Office Manager or an HR extra viewer, with an active account linked to an active employee. It grants reading only and is separate from `payroll.approve_*`, `ticket.sensitive.view` and `tickets.review_hr`. The role/user guards (BR-124, BR-125) apply to it like any permission.
+
 ## Open Questions
 
 - [ ] Do all employees get accounts, or only office staff? → Q15 in [[Open-Questions]]

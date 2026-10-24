@@ -165,6 +165,7 @@ final class TicketService
         $self=$own || (int)($t['subject_user_id']??0)===$uid;
         $q=db()->prepare('SELECT * FROM ticket_steps WHERE ticket_id=? AND step_no=? AND status="PENDING"');$q->execute([$t['id'],$t['current_step_no']]);$step=$q->fetch();
         $named=$step && (int)$step['approver_user_id']===$uid && Auth::can($step['approver_type']==='ADL'?'payroll.approve_adl':'payroll.approve_manager');
+        if(!empty($t['viewer_only']))return ['edit'=>false,'cancel'=>false,'approve'=>false,'hr'=>false,'return_reject'=>false,'attach'=>false];// read-only viewer
         $hr=TicketRepository::isHr();$hrStep=$hr && $step && $step['approver_type']==='HR' && in_array($t['status'],['PENDING_HR','IN_PROGRESS'],true);$pending=in_array($t['status'],['PENDING_APPROVAL','PENDING_HR','IN_PROGRESS'],true);
         return ['edit'=>$own && TicketTypes::canFile($t['type_code']) && in_array($t['status'],['DRAFT','RETURNED'],true),
             'cancel'=>!(($t['type_code']==='NETSUITE_CONCERN')&&$t['filed_at']!==null) && (($own&&in_array($t['status'],['DRAFT','RETURNED','PENDING_APPROVAL'],true))||(!$self&&($hrStep||($hr&&$t['type_code']==='INCIDENT_REPORT'&&$t['status']==='SUBMITTED')))),
@@ -177,7 +178,7 @@ final class TicketService
     public static function act(int $id,int $version,string $action,string $remarks='',string $outcome='',int $target=0,array $completionData=[]):int
     {
         return self::transaction(function()use($id,$version,$action,$remarks,$outcome,$target,$completionData){
-            $t=TicketRepository::find($id,true);$p=self::permissions($t);$remarks=trim($remarks);
+            $t=TicketRepository::find($id,true);if(!empty($t['viewer_only']))throw new RuntimeException('View-only access: you cannot act on this request.');$p=self::permissions($t);$remarks=trim($remarks);
             if($t['type_code']==='NETSUITE_CONCERN'&&$t['filed_at']!==null&&in_array($action,['START','RETURN','REJECT','CANCEL'],true))throw new RuntimeException('NetSuite uses Pending and Complete.');
             if(mb_strlen($remarks)>5000)throw new RuntimeException('Remarks must be 5000 characters or fewer.');
             if($action==='COMPLETE' && $t['status']==='COMPLETED'){
@@ -232,7 +233,7 @@ final class TicketService
     }
     public static function comment(int $id,string $body,string $visibility='ALL'):int
     {
-        $body=self::text($body,3000,'Comment');return self::transaction(function()use($id,$body,$visibility){$t=TicketRepository::find($id,true);
+        $body=self::text($body,3000,'Comment');return self::transaction(function()use($id,$body,$visibility){$t=TicketRepository::find($id,true);if(!empty($t['viewer_only']))throw new RuntimeException('View-only access: you cannot comment on this request.');
             if(!in_array($visibility,['ALL','STAFF_ONLY'],true)||($visibility==='STAFF_ONLY'&&($t['type_code']!=='INCIDENT_REPORT'||!TicketRepository::isStaff($t))))throw new RuntimeException('Staff-only comments require authorized staff access.');
             if(FoundationRepository::columnExists('ticket_comments','visibility'))db()->prepare('INSERT INTO ticket_comments(ticket_id,author_user_id,body,visibility) VALUES(?,?,?,?)')->execute([$id,TicketRepository::uid(),$body,$visibility]);
             else db()->prepare('INSERT INTO ticket_comments(ticket_id,author_user_id,body) VALUES(?,?,?)')->execute([$id,TicketRepository::uid(),$body]);$comment=(int)db()->lastInsertId();
@@ -264,7 +265,7 @@ final class TicketService
     public static function attachment(int $id):array
     {
         $q=db()->prepare('SELECT * FROM ticket_attachments WHERE id=?');$q->execute([$id]);$file=$q->fetch();
-        if(!$file)throw new RuntimeException('Attachment not found.');TicketRepository::find((int)$file['ticket_id']);
+        if(!$file)throw new RuntimeException('Attachment not found.');$ticket=TicketRepository::find((int)$file['ticket_id']);if(!empty($ticket['viewer_only']))throw new RuntimeException('View-only access: attachments are not available.');
         $path=dirname(__DIR__).'/storage/ticket_attachments/'.$file['stored_name'];
         if(!preg_match('/^[a-f0-9]{48}\.(pdf|jpg|png|webp)$/',$file['stored_name']) || !is_file($path))throw new RuntimeException('Attachment file is missing.');
         return $file+['path'=>$path];
