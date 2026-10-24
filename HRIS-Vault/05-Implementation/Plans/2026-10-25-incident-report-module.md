@@ -8,7 +8,7 @@ updated: 2026-10-25
 
 # Incident Report (IR): hiwalay na module na may case thread
 
-Status: executing, I1 done (John answered the three rule questions, 2026-10-25; design and architecture delegated to Claude)
+Status: executing, I1 and I2 done (John answered the three rule questions, 2026-10-25; design and architecture delegated to Claude)
 Session: [[Session-Log]] · Hub: [[Employee-Tickets]] · UI rules: [[Design-System]] · Rules: [[Business-Rules]] (BR-726, BR-744, BR-761)
 Depends on: [[2026-10-25-ticketing-ui-ux-redesign]] P1 (shared components) at ang Design-System; hindi kailangang hintayin ang P2.
 
@@ -50,9 +50,23 @@ Aalisin ang Incident Report sa listahan ng uri sa File an HR Request (`TicketTyp
 
 ## Phase (isang slice kada session)
 - [x] **I1 Design at data** (done 2026-10-25, migration 017 applied; 111/111 incident tests; see [[Progress]]): isulat sa vault ang rules (bagong BR numbers), Data-Model, Screens, API-Surface, Design-System "Case thread" pattern; migration (up/re-run/down/up, down guarded), TicketPolicy at access, participants at status service, notifications (walang private text), tests kasama ang access matrix (reporter, CC, HR, hindi kasali, viewer, accounting) at privacy.
-- [ ] **I2 Employee UI**: sidebar, My Incidents, File an Incident (participants picker), alisin ang IR sa File an HR Request at i-redirect ang lumang feed.
+- [x] **I2 Employee UI** (done 2026-10-25, no migration; 38 UI tests, 25 browser checks; see [[Progress]]): sidebar, My Incidents, File an Incident (participants picker), alisin ang IR sa File an HR Request at i-redirect ang lumang feed.
 - [ ] **I3 Case page**: thread, participants rail, stepper, HR panel (status, participants, internal note), responsive at accessibility.
 - [ ] **I4 HR Incident Cases at polish**: HR queue, dashboard at report count na tumutugma, final screenshots ng bawat role, dark mode, a11y pass.
+
+## I2 scope at mga desisyon (2026-10-25, John: "kung ano ang mas okay doon tayo")
+- **Kategorya (6)**: Workplace conduct, Harassment or discrimination, Safety and health, Property or equipment, Attendance-related, Other. Palitan ang `TicketIncident::CATEGORIES` (codes: dagdag na `HARASSMENT_DISCRIMINATION`; ang `SAFETY` at `PROPERTY` ay mananatiling code, bagong label) at ang `options` sa `config/ticket_types.php`. Label at filter lang; walang legal na panuntunan (Q59 NEEDS VERIFICATION). Ang "Other" ay kailangan ng paliwanag sa "ano ang nangyari".
+- **Q60**: read-only check sa live DB: lahat ng role na puwedeng mag-file ay may `ticket.file.incident` na (SUPER_ADMIN ay may bypass), kaya **walang grant migration** sa I2. Ang kailangan pa rin ay linked Employee 201 record; ipakita sa form ang malinaw na mensahe (hindi dead end) at i-update ang Q60.
+- **Walang draft** sa I2: Submit lang (ang draft editing ay hindi pa sakop ang participants).
+- **Routes**: `incident-new`, `incident-mine`, `incident-people` (JSON search: min 2 character, max 10, pangalan at branch lang, active accounts, hindi ang sarili, kailangan ng filing permission). POST action `core_incident_create` na nagse-set ng type sa server.
+- **Lumang feed**: ang `hr-incidents` ay nananatili para sa HR hanggang I4; ang hindi-HR ay ire-redirect sa `incident-mine`. Sidebar group **Incident Reports** (My Incidents, File an Incident, at para sa HR ang Incident Cases).
+- **File an HR Request**: alisin ang Incident Report sa listahan at i-reject ang `core_ticket_create` na may IR type. Tone ng bagong status sa `ticket_tone` (Under review/In progress blue, Resolved green, Dismissed red, Closed gray).
+
+## I3 scope (approved 2026-10-25; simulan lang pagkatapos ma-commit ang I2)
+- Case page ng IR sa `hr-request` (papalit sa generic `ticket_service_detail` para sa IR): header card na may status chip at 5-hakbang na stepper; thread na may HR update card at HR-only internal note (wala sa markup ng iba); participants rail (role chip para sa Reporter at CC lang, ibang label para sa handling HR lang); case summary, attachments, timeline; sticky composer (sarado kapag `!mayComment`).
+- HR panel (handler lang): status na may required remarks at optional HR-only note, add/remove participant, internal note, reopen ng Resolved/Closed. Gamitin ang umiiral na `TicketService::incidentStatus`, `incidentAddParticipant`, `incidentRemoveParticipant`; bagong POST actions sa `TicketModule` (`core_incident_status`, `core_incident_participant_add/remove`). Cancel ng reporter habang SUBMITTED.
+- Walang pagbabago sa access rule (BR-769..775); walang schema change inaasahan. Tests: bagong `incident_case_ui_test` (HTTP-level access matrix at privacy), muling patakbuhin ang `incident_case_test` (111), ang test ng I2, ticket suites at `hr_ops_browser`. Screenshots: Reporter, CC, HR; light at dark; 1440px at 390px.
+- Execute prompt: nasa `C:\Users\John Joshua\.claude\plans\so-ano-na-sunod-elegant-minsky.md`; palitan ang "I1" ng "I3" sa prompt sa ibaba kung gagamitin ang seksyong ito.
 
 ## NEEDS VERIFICATION
 - Retention, confidentiality at due-process na patakaran para sa incident at disciplinary records (batas at policy ng kompanya): hindi ko ito ituturing na tiyak. Ilagay sa Open-Questions para kay John at HR; walang hard-code na panahon ng retention.

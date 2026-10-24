@@ -52,7 +52,7 @@ P1 Foundation done 2026-10-25: shared components and date/label helpers ([[Desig
 
 ## Incident cases (plan [[2026-10-25-incident-report-module]])
 
-Phase I1 (data, rules, access, status and people services, notifications, tests) done 2026-10-25 with migration 017; no screens yet, so HR cannot change a case status from the UI until I3 (the service and tests exist). I2 employee screens, I3 case page, I4 HR queue pending. Rules BR-769 to BR-776; participants and fields in [[Data-Model]]. Open: Q56 to Q60.
+Phase I1 (data, rules, access, status and people services, notifications, tests) done 2026-10-25 with migration 017. Phase I2 (employee UI) done 2026-10-25, no migration: sidebar group Incident Reports (My Incidents, File an Incident, HR: Incident Cases), `incident-mine`, `incident-new`, `incident-people`, `core_incident_create`, six categories, Incident Report removed from File an HR Request and My HR Requests, old links redirected (BR-777 to BR-779, SCR-768/769). HR still cannot change a case status from a screen until I3 (the service and tests exist). I3 case page and I4 HR Incident Cases pending. Rules BR-769 to BR-779; fields and participants in [[Data-Model]]. Open: Q56 to Q60.
 
 ## Open Questions
 

@@ -17,6 +17,8 @@ function need_db(): void {
 
 require_once __DIR__.'/app/TicketModule.php';
 ticket_handle($page);
+require_once __DIR__.'/app/IncidentModule.php';
+incident_handle($page);
 require_once __DIR__.'/app/TicketAssignmentModule.php';
 ticket_assignment_handle($page);
 require_once __DIR__.'/app/TicketViewerModule.php';

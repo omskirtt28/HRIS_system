@@ -15,12 +15,12 @@ function perm(int $role,string $code,bool $on):void {
 }
 function codes():array { $c=array_column(TicketRepository::types(),'code');sort($c);return $c; }
 function audited(string $action,string $type,int $id):array { return row('SELECT details_json FROM audit_logs WHERE action=? AND record_type=? AND record_id=? ORDER BY id DESC LIMIT 1',[$action,$type,$id]); }
-$staff=['ATM_REQUEST','ID_REQUEST','INCIDENT_REPORT','PAYROLL_CONCERN','UNIFORM_REQUEST'];
+$staff=['ATM_REQUEST','ID_REQUEST','PAYROLL_CONCERN','UNIFORM_REQUEST'];
 check('migration 010 permissions exist',count(db()->query('SELECT id FROM permissions WHERE code LIKE "ticket.file.%" AND code NOT IN ("ticket.file.oic_authorization","ticket.file.coe")')->fetchAll())===7); // the eighth, ticket.file.oic_authorization, and ticket.file.coe from 014 come from later migrations; 013
 
 // Access matrix. The outsider fixture becomes Staff by dropping the lead-only types.
 foreach(['ticket.file.manpower','ticket.file.netsuite'] as $code)perm($f['outsider']['role_id'],$code,false);
-act($f['outsider']);check('Staff sees exactly the five staff types',codes()===$staff);
+act($f['outsider']);check('Staff sees exactly the four staff types (Incident Report has its own screen, I2)',codes()===$staff);
 foreach(['MANPOWER_REQUEST','NETSUITE_CONCERN','BRANCH_TRANSFER'] as $code)check('Staff server-side create denied: '.$code,rejects(fn()=>TicketService::create(form($code,['concern'=>'x','reason'=>'x']),true)));
 $atm=TicketService::create(form('ATM_REQUEST',['reason'=>'Synthetic staff request']),false);check('Staff can file ATM',$atm>0);
 perm($f['outsider']['role_id'],'ticket.file.atm',false);act($f['outsider']);
@@ -28,7 +28,7 @@ check('Edit hidden after type access removed',!TicketService::permissions(Ticket
 check('Edit/submit denied server-side after access removed',rejects(fn()=>TicketService::edit($atm,(int)TicketRepository::find($atm)['version'],form('ATM_REQUEST',['reason'=>'Changed']),true)));
 perm($f['outsider']['role_id'],'ticket.file.payroll_concern',false);act($f['outsider']);
 check('Payroll Concern create denied without its permission',rejects(fn()=>TicketService::create(form('PAYROLL_CONCERN',['concern_date'=>date('Y-m-d'),'explanation'=>'x']),true))&&!in_array('PAYROLL_CONCERN',codes(),true));
-act($f['employee']);check('Lead sees staff types plus Manpower and NetSuite',codes()===['ATM_REQUEST','ID_REQUEST','INCIDENT_REPORT','MANPOWER_REQUEST','NETSUITE_CONCERN','PAYROLL_CONCERN','UNIFORM_REQUEST']);
+act($f['employee']);check('Lead sees staff types plus Manpower and NetSuite',codes()===['ATM_REQUEST','ID_REQUEST','MANPOWER_REQUEST','NETSUITE_CONCERN','PAYROLL_CONCERN','UNIFORM_REQUEST']);
 perm($f['employee']['role_id'],'tickets.request_self',false);act($f['employee']);
 check('Type permission alone is not enough without filing access',!TicketTypes::canFile('ATM_REQUEST')&&codes()===[]);
 perm($f['employee']['role_id'],'tickets.request_self',true);

@@ -130,8 +130,10 @@ function nav_config(string $kind): array {
         if($portal!=='employee')$items[]=['Payroll Concerns','hr-payroll-concerns','clipboard',false,'tickets.review_hr'];
         if($portal!=='employee')$items[]=['Ticketing Report','hr-ticket-report','chart',false,'ticket.report.view'];
         if(TicketRepository::ready() && TicketAccounting::canView())$items[]=['Accounting Follow-up','hr-accounting-requests','clipboard',false,null];
-        $items[]=['Incident Feed','hr-incidents','clipboard',false,null];
         $base[$portal]['groups'][]=['Requests',$items];
+        $inc=[['My Incidents','incident-mine','alert',false,null],['File an Incident','incident-new','alert',false,'ticket.file.incident']];
+        if($portal!=='employee')$inc[]=['Incident Cases','hr-incidents','clipboard',false,'tickets.review_hr'];
+        $base[$portal]['groups'][]=['Incident Reports',$inc];
     }
     foreach (['hr','admin'] as $portal) {
         // Third group, not last: at the end it sat ~1400px down the HR sidebar and was never seen without scrolling it.

@@ -13,8 +13,10 @@ declare(strict_types=1);
 final class TicketIncident
 {
     public const CODE='INCIDENT_REPORT';
-    /** Assumption not yet confirmed by John: the category list (Open-Questions). Codes are stored, labels are shown. */
-    public const CATEGORIES=['WORKPLACE_CONDUCT'=>'Workplace conduct','SAFETY'=>'Safety','PROPERTY'=>'Property','ATTENDANCE_RELATED'=>'Attendance-related','OTHER'=>'Other'];
+    /** Six labels for sorting and filtering only (John delegated the list, 2026-10-25; Q56). Codes are stored, labels are shown. Not a legal classification (Q59). */
+    public const CATEGORIES=['WORKPLACE_CONDUCT'=>'Workplace conduct','HARASSMENT_DISCRIMINATION'=>'Harassment or discrimination','SAFETY'=>'Safety and health','PROPERTY'=>'Property or equipment','ATTENDANCE_RELATED'=>'Attendance-related','OTHER'=>'Other'];
+    /** A case filed as Other must say what it is about, since the category tells HR nothing. */
+    public const OTHER_MIN_CHARS=30;
     public const ROLES=['CC'=>'CC','INVOLVED'=>'Involved','WITNESS'=>'Witness'];
     public const MAX_PARTICIPANTS=20;
     /** Statuses in which readers may still post messages. */
@@ -96,6 +98,7 @@ final class TicketIncident
             $q=db()->prepare('SELECT id FROM branches WHERE id=? AND active=1');$q->execute([(int)$rawBranch]);
             if(!ctype_digit(trim((string)$rawBranch))||!$q->fetchColumn())throw new RuntimeException('Choose an active branch.');$branch=(int)$rawBranch;
         }
+        if($category==='OTHER'&&mb_strlen(trim((string)($out['explanation']??'')))<self::OTHER_MIN_CHARS)throw new RuntimeException('Please explain what happened in at least '.self::OTHER_MIN_CHARS.' characters when the category is Other.');
         $out=array_diff_key($out,['incident_at'=>1,'location'=>1,'category'=>1]);
         $out['_incident']=['incident_at'=>$at->format('Y-m-d H:i:s'),'location_text'=>$location,'branch_id'=>$branch,'category'=>$category,'participants'=>self::pickedParticipants($data['participants']??[])];
         return $out;
@@ -118,7 +121,7 @@ final class TicketIncident
     /** @return int|null the linked employee id */
     private static function activeUser(int $userId):?int
     {
-        $q=db()->prepare('SELECT id FROM users WHERE id=? AND status="ACTIVE"');$q->execute([$userId]);
+        $q=db()->prepare('SELECT u.id FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=? AND u.status="ACTIVE" AND r.portal IN ("employee","hr","admin")');$q->execute([$userId]);
         if(!$q->fetchColumn())throw new RuntimeException('Choose an active account.');
         $q=db()->prepare('SELECT id FROM employees WHERE user_id=? AND status IN ("ACTIVE","PROBATIONARY","ON_LEAVE") ORDER BY id LIMIT 1');$q->execute([$userId]);$e=$q->fetchColumn();return $e?(int)$e:null;
     }
@@ -140,6 +143,39 @@ final class TicketIncident
         }
     }
 
+    // ---- employee screens (I2) ----------------------------------------------------------------------------------------
+    /**
+     * Name search for the participants picker. Active accounts only, never the signed-in user, two characters minimum, ten results at most;
+     * returns the name and the branch and nothing else. The caller has already checked the filing permission.
+     * @return array<int,array{id:int,name:string,branch:string}>
+     */
+    public static function searchPeople(string $term):array
+    {
+        $term=trim($term);if(mb_strlen($term)<2)return [];
+        $like='%'.addcslashes(mb_substr($term,0,60),'\\%_').'%';
+        $q=db()->prepare('SELECT u.id,u.full_name name,COALESCE(b.name,"") branch FROM users u
+            LEFT JOIN employees e ON e.id=(SELECT MIN(x.id) FROM employees x WHERE x.user_id=u.id AND x.status IN ("ACTIVE","PROBATIONARY","ON_LEAVE"))
+            LEFT JOIN branches b ON b.id=e.branch_id
+            JOIN roles r ON r.id=u.role_id AND r.portal IN ("employee","hr","admin")
+            WHERE u.status="ACTIVE" AND u.id<>? AND u.full_name LIKE ? ORDER BY u.full_name,u.id LIMIT 10');
+        $q->execute([TicketRepository::uid(),$like]);
+        return array_map(fn($r)=>['id'=>(int)$r['id'],'name'=>(string)$r['name'],'branch'=>(string)$r['branch']],$q->fetchAll());
+    }
+    /** Category and when, for a page of cases the caller has already been allowed to list. @return array<int,array> keyed by ticket id */
+    public static function summaries(array $ticketIds):array
+    {
+        $ids=array_values(array_unique(array_map('intval',$ticketIds)));if(!$ids||!self::ready())return [];
+        $q=db()->prepare('SELECT ticket_id,incident_at,category FROM incident_details WHERE ticket_id IN ('.implode(',',array_fill(0,count($ids),'?')).')');$q->execute($ids);$out=[];
+        foreach($q->fetchAll() as $r)$out[(int)$r['ticket_id']]=['incident_at'=>$r['incident_at'],'category_label'=>self::CATEGORIES[$r['category']]??$r['category']];
+        return $out;
+    }
+    /** Names for ids the reporter picked earlier (to redraw the form after an error); active accounts only. */
+    public static function namesFor(array $userIds):array
+    {
+        $ids=array_values(array_unique(array_filter(array_map('intval',$userIds))));if(!$ids)return [];
+        $q=db()->prepare('SELECT u.id,u.full_name FROM users u JOIN roles r ON r.id=u.role_id AND r.portal IN ("employee","hr","admin") WHERE u.status="ACTIVE" AND u.id IN ('.implode(',',array_fill(0,count($ids),'?')).')');$q->execute($ids);
+        return array_column($q->fetchAll(),'full_name','id');
+    }
     // ---- HR managing people -------------------------------------------------------------------------------------------
     /** Validated row for an HR addition: HR may include anyone with an active account in any role, and that always grants access. */
     public static function hrAddition(int $ticketId,array $t,int $userId,string $role):array

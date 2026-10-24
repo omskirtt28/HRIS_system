@@ -12,7 +12,7 @@ return [
         'explanation'=>['label'=>'What happened','kind'=>'text','max'=>5000],
         'incident_at'=>['label'=>'When it happened','kind'=>'datetime-local'],
         'location'=>['label'=>'Where it happened','kind'=>'text','max'=>200,'rows'=>2],
-        'category'=>['label'=>'Category','options'=>['Workplace conduct','Safety','Property','Attendance-related','Other']],
+        'category'=>['label'=>'Category','options'=>['Workplace conduct','Harassment or discrimination','Safety and health','Property or equipment','Attendance-related','Other']],
     ]],
     'BRANCH_TRANSFER'=>['name'=>'Branch Transfer','profile'=>'HR_ONLY','fields'=>[
         'employee'=>['label'=>'Employee','kind'=>'employee'],

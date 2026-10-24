@@ -41,7 +41,7 @@ $inc=fn(array $extra=[])=>form('INCIDENT_REPORT',array_replace(['title'=>'Synthe
 // ---------------------------------------------------------------- filing and case fields (BR-776)
 act($rep);$id=TicketService::create($inc(),true);
 $d=row('SELECT * FROM incident_details WHERE ticket_id=?',[$id]);
-check('test_BR_776 case fields live in incident_details, not payload_json',$d&&$d['category']==='OTHER'&&$d['location_text']==='SECRET place '.$tag&&!str_contains(row('SELECT payload_json FROM tickets WHERE id=?',[$id])['payload_json'],'SECRET place')&&!str_contains(row('SELECT payload_json FROM tickets WHERE id=?',[$id])['payload_json'],'participants'));
+check('test_BR_776 case fields live in incident_details, not payload_json',$d&&$d['category']==='WORKPLACE_CONDUCT'&&$d['location_text']==='SECRET place '.$tag&&!str_contains(row('SELECT payload_json FROM tickets WHERE id=?',[$id])['payload_json'],'SECRET place')&&!str_contains(row('SELECT payload_json FROM tickets WHERE id=?',[$id])['payload_json'],'participants'));
 check('test_BR_776 case publishes as SUBMITTED with no approval steps',$status($id)==='SUBMITTED'&&!row('SELECT id FROM ticket_steps WHERE ticket_id=?',[$id]));
 foreach(['no time'=>['incident_at'=>''],'bad time'=>['incident_at'=>'yesterday'],'future'=>['incident_at'=>date('Y-m-d\TH:i',strtotime('+2 days'))],'no place'=>['location'=>''],'long place'=>['location'=>str_repeat('X',201)],'bad category'=>['category'=>'Gossip'],'bad branch'=>['branch_id'=>'999999999']] as $name=>$bad)
     check('test_BR_776 rejects '.$name,rejects(fn()=>TicketService::create($inc($bad),true)));

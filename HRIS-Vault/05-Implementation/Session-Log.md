@@ -10,6 +10,23 @@ updated: 2026-10-25
 
 Isang entry kada session, pinakabago sa taas. Mga plano ay nasa `Plans/` (template: [[_Template]]). Slice status ay nasa [[Progress]].
 
+## 2026-10-25 - Incident Report module I3 (plan)
+- **Napagdesisyunan:** I3 ay Case page (thread, participants rail, HR panel) gamit ang umiiral na service methods; walang pagbabago sa access rule; magsisimula lang pagkatapos ma-commit ang I2 (tumatakbo sa hiwalay na PowerShell ni John).
+- **Ginawa:** idinagdag ang I3 scope sa [[2026-10-25-incident-report-module]]. Walang code na binago.
+- **Susunod:** i-run ang I2, tapos ang I3 execute prompt.
+
+## 2026-10-25 - Incident Report module I2 (executed)
+- **Ginawa:** sidebar group Incident Reports, My Incidents, File an Incident (may people picker), JSON na people search, `core_incident_create`, anim na kategorya, inalis ang IR sa File an HR Request at My HR Requests, at may redirect ang mga lumang link. Walang migration; walang ginalaw sa `pmbsi_hris`.
+- **Nakita:** tama ang I1 check: lahat ng role na puwedeng mag-file ay may `ticket.file.incident`. Ang tunay na hadlang ay ang linked Employee 201 record (12 active accounts ang wala), kaya may malinaw na mensahe na sa form. Sinara ang client-portal accounts sa picker pagkatapos ng code review.
+- **Tests:** `incident_ui_test` 38/38, browser 25/25 (Reporter, CC, Involved, HR, outsider; light/dark; 1440/390), `incident_case_test` 111/111, 16 ticket suites at `hr_ops_browser` 13/13 pasado.
+- **Open:** Q60 (accounts na walang employee record). **Susunod:** I3 Case page (thread, participants rail, stepper, HR panel). Local commit lang, walang push.
+
+## 2026-10-25 - Incident Report module I2 (plan)
+- **Napagdesisyunan (John delegated):** 6 kategorya (may Harassment or discrimination), walang draft sa I2, ang `hr-incidents` ay nananatili para sa HR hanggang I4.
+- **Nakita (read-only):** lahat ng role na puwedeng mag-file ay may `ticket.file.incident` na, kaya walang grant migration. Q60 ay employee-record link na lang.
+- **Ginawa:** idinagdag ang I2 scope sa [[2026-10-25-incident-report-module]]. Walang code na binago.
+- **Susunod:** patakbuhin ang I2 execute prompt.
+
 ## 2026-10-25 - Incident Report module I1 (executed)
 - **Ginawa:** migration 017 (`incident_details`, `incident_participants`, 4 bagong status), `TicketIncident` na may isang read rule, HR status flow, add/remove ng participants, notifications na walang private text, at `incident_case_test` (access matrix, 111/111). Na-apply na sa `pmbsi_hris` pagkatapos ng verified dump at up/re-run/down/up; 7 tickets walang nagbago, 0 IR ang laman dati.
 - **Pinili ko (ipapakita kay John):** ang Involved/Witness na pinili ng nag-file ay hindi nakakabasa hangga't hindi isinasama ni HR; HR na kasama sa case ay hindi na handler; sensitive.view ay hindi na gate. Nakasulat sa Decision-Log at Q56-Q60.

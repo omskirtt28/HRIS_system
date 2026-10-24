@@ -23,6 +23,9 @@ function ticket_handle(string $page):void
             }elseif($action==='core_ticket_netsuite_remark'){
                 TicketAccounting::remark($id,(string)($_POST['lane']??''),(string)($_POST['body']??''));flash('success','Remarks recorded.');
             }elseif($action==='core_ticket_create'){
+                // Incident Reports have their own filing page and action (core_incident_create); this one never files them.
+                $q=db()->prepare('SELECT code FROM ticket_types WHERE id=?');$q->execute([(int)($_POST['ticket_type_id']??0)]);
+                if($q->fetchColumn()==='INCIDENT_REPORT'){flash('error','Incident reports are filed from File an Incident.');redirect('incident-new');}
                 $_SESSION['core_ticket_old']=$_POST;
                 $key=is_string($_POST['submission_key']??null)?$_POST['submission_key']:'';
                 if(($_SESSION['core_ticket_keys'][$key]??0)<time())throw new RuntimeException('This filing form expired. Open a new request form.');
@@ -62,6 +65,11 @@ function ticket_handle(string $page):void
             $file=TicketService::attachment($id);header('X-Content-Type-Options: nosniff');header('Content-Type: '.$file['mime_type']);
             header('Content-Disposition: attachment; filename="attachment.'.pathinfo($file['stored_name'],PATHINFO_EXTENSION).'"; filename*=UTF-8\'\''.rawurlencode($file['original_name']));
             header('Content-Length: '.filesize($file['path']));readfile($file['path']);exit;
+        }
+        if($page==='hr-incidents'&&!TicketRepository::isHr())redirect('incident-mine');// the feed stays for HR until phase I4
+        if($page==='hr-request-new'){
+            $q=db()->prepare('SELECT 1 FROM ticket_types WHERE id=? AND code="INCIDENT_REPORT"');$q->execute([(int)($_GET['type']??0)]);
+            if($q->fetchColumn())redirect('incident-new');// old link to the Incident Report form
         }
         if($page==='hr-print-forms'){ticket_print_forms();}
         elseif($page==='hr-request-preview'){

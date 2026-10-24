@@ -180,6 +180,9 @@ The `/api/v1` JSON contract above is the target. The running app is server-rende
 | POST | `core_ticket_quick`, `core_ticket_bulk` | `tickets.review_hr`, HR portal | One ticket at a time through `act()` (BR-740..742) |
 | POST | `core_ticket_comment`, `core_ticket_attach` | requester/approver/HR, never `viewer_only` | Comment (ALL or STAFF_ONLY), attachment |
 | service | `TicketService::incidentStatus`, `incidentAddParticipant`, `incidentRemoveParticipant`; listing mode `incidents_mine` (I1, **no HTTP route or form yet**; routes arrive with the I2/I3 screens) | handling HR reviewer (status, people); reporter may cancel while SUBMITTED; `mine` for reporter and participants with access (BR-769..775) | Case status with required remarks and optional HR-only note; include or remove a person; audited events |
+| GET | `incident-mine`, `incident-new` | signed-in employee/HR/admin account; `incident-new` also needs the filing permission | My Incidents list; the filing form with a single-use submission key |
+| GET | `incident-people?q=` | filing permission; JSON `{people:[{id,name,branch}]}`, min 2 characters, max 10, active employee/HR/admin accounts, not the caller | Participants picker search (BR-778) |
+| POST | `core_incident_create` | CSRF + filing permission + one linked active Employee 201; field allowlist; type set server-side | Files the case through `TicketService::create` (BR-777); `core_ticket_create` refuses this type |
 | POST | `core_ticket_netsuite_remark`, `core_ticket_accounting_member` | HR lane / Accounting membership | NetSuite remarks; membership |
 | POST | `ticket_approvers_preview` / `_save` / `_cancel` | `tickets.approvers.manage` | Effective-dated Manager/ADL assignments |
 | POST | `coe_template_upload` / `coe_template_activate` / `coe_settings_save` | `ticket.coe.template.manage` | COE template versions and signatory |

@@ -30,7 +30,7 @@ function ticket_service_new(array $employee,array $types,array $type,string $key
  <?php render_portal_footer();
 }
 function ticket_service_list(array $result,array $filters,string $mode='services'):void {
- ticket_header('hr-service-requests',$mode==='accounting'?'Accounting Follow-up':($mode==='feed'?'Incident Feed':'HR Request Queue'));page_head('HR Requests',$mode==='accounting'?'Accounting Follow-up':($mode==='feed'?'Incident Feed':'HR Request Queue')); ?>
+ ticket_header($mode==='feed'?'hr-incidents':'hr-service-requests',$mode==='accounting'?'Accounting Follow-up':($mode==='feed'?'Incident Cases':'HR Request Queue'));page_head($mode==='feed'?'Incident Reports':'HR Requests',$mode==='accounting'?'Accounting Follow-up':($mode==='feed'?'Incident Cases':'HR Request Queue')); ?>
  <?php if($mode==='services'):?><form method="get" class="panel ticket-panel"><input type="hidden" name="page" value="hr-service-requests"><div class="panel-body ticket-filters">
  <div class="field"><label for="queue-type">Type</label><select name="type_code" id="queue-type"><option value="">All service types</option><?php foreach(TicketRepository::types() as $ty):if($ty['code']==='INCIDENT_REPORT')continue;?><option value="<?=e($ty['code'])?>" <?=($filters['type_code']??'')===$ty['code']?'selected':''?>><?=e($ty['name'])?></option><?php endforeach;?></select></div>
  <div class="field"><label for="queue-status">Status</label><select name="status" id="queue-status"><option value="">All statuses</option><?php foreach(array_keys(TicketPolicy::TRANSITIONS) as $status):if($status==='DRAFT')continue;?><option value="<?=e($status)?>" <?=($filters['status']??'')===$status?'selected':''?>><?=e(TicketTypes::label($status))?></option><?php endforeach;?></select></div>
@@ -45,7 +45,7 @@ function ticket_service_list(array $result,array $filters,string $mode='services
 /** "Oct 25, 2026 3:04 PM" for the detail page; empty text when the value is missing. */
 function ticket_when(?string $value):string { return $value ? date('M j, Y g:i A',strtotime($value)) : ''; }
 /** Status pill tone. The label always carries the meaning; colour only reinforces it. */
-function ticket_tone(string $status):string { return match($status){'COMPLETED'=>'green','REJECTED','CANCELLED'=>'red','RETURNED'=>'amber','IN_PROGRESS'=>'blue',default=>'gray'}; }
+function ticket_tone(string $status):string { return match($status){'COMPLETED','RESOLVED'=>'green','REJECTED','CANCELLED','DISMISSED'=>'red','RETURNED'=>'amber','IN_PROGRESS','UNDER_REVIEW'=>'blue',default=>'gray'}; }
 /** Relative time for a tooltip ("5 minutes ago"); empty when the value is missing. */
 function ticket_ago(?string $value):string {
  if(!$value)return '';$diff=time()-(int)strtotime($value);if($diff<0)return 'just now';

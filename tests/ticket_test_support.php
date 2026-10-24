@@ -41,4 +41,4 @@ function fixtures(): array{
     return $out;
 }
 /** Incident Reports now need when/where/category as well; other types get nothing. Callers pass their own values in $extra to override. */
-function incident_fields(string $code): array{return $code==='INCIDENT_REPORT'?['incident_at'=>date('Y-m-d\TH:i',strtotime('-1 day')),'location'=>'Synthetic location','category'=>'Other']:[];}
+function incident_fields(string $code): array{return $code==='INCIDENT_REPORT'?['incident_at'=>date('Y-m-d\TH:i',strtotime('-1 day')),'location'=>'Synthetic location','category'=>'Workplace conduct']:[];}

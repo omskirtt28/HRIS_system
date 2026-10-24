@@ -112,7 +112,7 @@ final class TicketRepository
     }
     public static function types():array
     {
-        self::uid();return array_values(array_filter(db()->query('SELECT id,code,name FROM ticket_types WHERE active=1 ORDER BY name')->fetchAll(),fn($type)=>($type['code']==='PAYROLL_CONCERN'||isset(TicketTypes::definitions()[$type['code']]))&&TicketTypes::canFile($type['code'])));
+        self::uid();return array_values(array_filter(db()->query('SELECT id,code,name FROM ticket_types WHERE active=1 ORDER BY name')->fetchAll(),fn($type)=>$type['code']!=='INCIDENT_REPORT'&&($type['code']==='PAYROLL_CONCERN'||isset(TicketTypes::definitions()[$type['code']]))&&TicketTypes::canFile($type['code'])));
     }
     /** WHERE parts shared by the Payroll Concern queue ('hr') and the HR Request Queue ('services'). @return array{0:string[],1:array} */
     public static function hrFilters(string $mode,array $filters):array
@@ -148,7 +148,7 @@ final class TicketRepository
             if(!self::canApprove())throw new RuntimeException('Manager or ADL approval access is required.');
             $where[]='t.status="PENDING_APPROVAL" AND t.requester_user_id<>? AND COALESCE(e.user_id,0)<>? AND EXISTS(SELECT 1 FROM ticket_steps s WHERE s.ticket_id=t.id AND s.step_no=t.current_step_no AND s.status="PENDING" AND s.approver_user_id=? AND ((s.approver_type="MANAGER" AND ?=1) OR (s.approver_type="ADL" AND ?=1)))';
             $params=[$uid,$uid,$uid,Auth::can('payroll.approve_manager')?1:0,Auth::can('payroll.approve_adl')?1:0];
-        }elseif($mode==='my'){$where[]='t.requester_user_id=?';$params[]=$uid;}
+        }elseif($mode==='my'){$where[]='t.requester_user_id=? AND ty.code<>"INCIDENT_REPORT"';$params[]=$uid;}// incidents are listed in My Incidents
         else throw new RuntimeException('Invalid ticket list.');
         $page=max(1,min(10000,(int)($filters['p']??1)));$limit=max(1,min(100,$limit));$offset=($page-1)*$limit;
         $q=db()->prepare(self::selectSql().' WHERE '.implode(' AND ',$where).' ORDER BY t.created_at DESC,t.id DESC LIMIT '.($limit+1).' OFFSET '.$offset);$q->execute($params);$rows=$q->fetchAll();

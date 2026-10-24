@@ -57,3 +57,22 @@
 .tk-bubble time{white-space:nowrap}
 .tk-steps time,.tk-dates time{white-space:nowrap}
 @media(max-width:650px){.ticket-panel .panel-body{padding:18px}.tk-card{padding:18px}.tk-kv{grid-template-columns:1fr}}
+/* Incident Reports, employee screens (I2). Tokens only; no new colours. */
+.tk-confidential{margin:0 0 16px;padding:12px 16px;border:1px solid var(--hris-line);border-left:4px solid var(--hris-warning);border-radius:12px;background:var(--hris-warning-soft);color:var(--hris-text)}
+.tk-case-list{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.tk-case-list>.tk-case{margin:0;display:flex;gap:16px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap}
+.tk-case-main{min-width:0;flex:1 1 320px}.tk-case-main p{margin:4px 0 0}
+.tk-case-title{font-weight:700;font-size:16px;color:var(--hris-text);text-decoration:none;overflow-wrap:anywhere}.tk-case-title:hover{text-decoration:underline}
+.tk-case-meta{color:var(--hris-muted);font-size:13px}
+.tk-case-side{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tk-form{max-width:760px}.tk-form h2{margin:0 0 14px;font-size:17px}
+.tk-form .field input[type=text],.tk-form .field input[type=search],.tk-form .field input[type=datetime-local],.tk-form .field select,.tk-form .field textarea{width:100%;box-sizing:border-box}
+.tk-picker{border:1px solid var(--hris-line);border-radius:12px;padding:16px;margin:18px 0;min-width:0}.tk-picker legend{padding:0 8px;font-weight:600}
+.tk-hint{color:var(--hris-muted);font-size:13px;margin:0 0 12px}
+.tk-results,.tk-people{list-style:none;margin:0;padding:0;display:grid;gap:8px}.tk-people{margin-top:12px}
+.tk-result-btn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;min-height:44px;padding:8px 14px;text-align:left;background:var(--hris-surface);color:var(--hris-text);border:1px solid var(--hris-line);border-radius:10px;cursor:pointer;font:inherit}
+.tk-result-btn small{color:var(--hris-muted)}.tk-result-btn:hover{background:var(--hris-brand-soft)}
+.tk-person{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 12px;border:1px solid var(--hris-line);border-radius:10px;background:var(--hris-bg)}
+.tk-person-name{flex:1 1 160px;font-weight:600;overflow-wrap:anywhere}.tk-person select{min-height:40px}
+.tk-result-btn:focus-visible,.tk-person button:focus-visible,.tk-person select:focus-visible,.tk-case-title:focus-visible{outline:2px solid var(--hris-brand);outline-offset:2px}
+@media(max-width:650px){.tk-picker{padding:12px}.tk-person select,.tk-person button{flex:1 1 100%;min-height:44px}}
