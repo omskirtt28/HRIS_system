@@ -132,12 +132,13 @@ function nav_config(string $kind): array {
         $base[$portal]['groups'][]=['Requests',$items];
     }
     foreach (['hr','admin'] as $portal) {
-        $base[$portal]['groups'][]=['HR Request Setup',[
+        // Third group, not last: at the end it sat ~1400px down the HR sidebar and was never seen without scrolling it.
+        array_splice($base[$portal]['groups'],2,0,[['HR Request Setup',[
             ['Ticket Approvers','hr-ticket-approvers','users',false,'tickets.approvers.manage'],
             ['Ticket Viewers','hr-ticket-viewers','users',false,'tickets.approvers.manage'],
             ['Accounting Members','hr-ticket-accounting-members','users',false,'tickets.review_hr'],
             ['Printable HR Forms','hr-print-forms','file',false,'tickets.review_hr'],
-        ]];
+        ]]]);
     }
     return $base[$kind] ?? $base['employee'];
 }

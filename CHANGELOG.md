@@ -1,3 +1,7 @@
+## 2026-10-24 · HR Request Setup sidebar group moved up
+- The HR Request Setup group (Ticket Approvers, Ticket Viewers, Accounting Members, Printable HR Forms) was the last group of the HR sidebar, below the fold. It now sits third, under People, for the HR and Admin portals.
+- No permission or database change; each entry still needs its existing permission.
+
 ## 2026-10-24 · Ticket viewers on localhost and the Employee 201 viewer line
 - Applied migration 012 (read-only ticket viewers) to the localhost database after a verified backup and clean up/re-run/down/up test; no existing business rows changed.
 - Employee 201 Employment tab now shows a read-only "Ticket viewers (view only)" line (branch leads and covering ADL, or the Manager for Head Office, or "No viewer set").

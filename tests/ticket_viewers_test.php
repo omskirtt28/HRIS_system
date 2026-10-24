@@ -265,6 +265,15 @@ $v=TicketViewerService::viewersFor($staffN['employee']);check('201 line: an HR e
 $tNv=atm($staffN['user']);check('201 line agrees with the access rule (extra viewer can open the ticket)',sees($stranger['user'],$tNv));
 act($f['employee']);check('201 line shows no Ticket Viewers link to a non-HR reader',!str_contains($line($staffN['employee']),'hr-ticket-viewers'));
 act($hr);
+// ---- Sidebar: HR Request Setup sits near the top for HR, and Ticket Viewers shows only with tickets.approvers.manage
+$navVisible=function(string $kind):array{$out=[];foreach(nav_config($kind)['groups'] as [$g,$items]){foreach($items as $i){[$l,,,,$perm]=array_pad($i,5,null);if($perm===null||Auth::can($perm))$out[$g][]=$l;}}return $out;};
+act($hr);$nav=$navVisible('hr');$groups=array_column(nav_config('hr')['groups'],0);
+check('HR sidebar lists Ticket Viewers under HR Request Setup',in_array('Ticket Viewers',$nav['HR Request Setup']??[],true));
+check('HR Request Setup is the third sidebar group, above Payroll & Timekeeping',array_search('HR Request Setup',$groups,true)===2&&array_search('HR Request Setup',$groups,true)<array_search('Payroll & Timekeeping',$groups,true));
+$navOnly=person($tag,'navonly',role($tag,'navonly',['tickets.review_hr'],'hr'),$f['branch'],$f);act($navOnly['user']);$nav=$navVisible('hr');
+check('an HR role without tickets.approvers.manage gets no Ticket Viewers or Ticket Approvers entry',!in_array('Ticket Viewers',$nav['HR Request Setup']??[],true)&&!in_array('Ticket Approvers',$nav['HR Request Setup']??[],true));
+act($f['employee']);check('the employee portal sidebar has no HR Request Setup group',!isset($navVisible('employee')['HR Request Setup']));
+act($hr);
 // ---- Existing paths unchanged
 act($hr);check('HR service queue still lists the branch ticket',(function()use($t1){foreach(TicketRepository::listing('services',[],100)['rows'] as $r)if((int)$r['id']===$t1)return true;return false;})());
 act($staff['user']);check('requester still sees and edits own ticket path',TicketRepository::find($t1)['viewer_only']===false);
