@@ -313,3 +313,8 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 - Fixed: a request served straight from Pending showed a "3" on the In Progress step as if it was still to do. It now shows a dash and is read as "skipped, not needed".
 - Dates in History and Comments now read "Oct 25, 2026 2:04 AM" (hover shows how long ago) instead of raw timestamps; history shows the readable status, and the Approval chain on service requests is a timeline with initials, role, name and status.
 - New shared pieces for the next screens (header card, key-value grid, empty state, comment box) and equal 22px card padding. Looks and wording only: permissions, routing and privacy are unchanged.
+
+## 2026-10-25 · File TA form shows the logs you already have
+- Fixed: the Time Adjustment form showed all four logs as Missing (and four empty boxes) on days where Check Attendance already showed a Time In and Break Out, such as one or two punches. It now shows the same times, hides those boxes and asks only for what is missing, for example "Add missing Break In, Time Out."
+- Submitting can no longer replace a time that is already logged. If nothing is missing, the request is refused.
+- No database change. No time is invented, attendance records are not changed, and payroll computation and closed cutoffs are untouched.

@@ -20,17 +20,24 @@ final class EmployeeAttendanceService
         if($cutoffId && !$matched) throw new RuntimeException('Choose a cutoff that includes the affected date.');
         $values=array_fill_keys(PayrollCalculator::FIELDS,null);
         if($matched) {
+            // Same inputs as Check Attendance: the saved row (unless stale) or the raw punches of this duty day.
+            $policy=PayrollAttendanceService::attendancePolicy((int)($employee['branch_id']??0));
             $q=db()->prepare('SELECT * FROM attendance_daily WHERE employee_id=? AND cutoff_id=? AND work_date=?');
-            $q->execute([(int)$employee['id'],$matched,$date]); $row=$q->fetch();
-            if($row) {
+            $q->execute([(int)$employee['id'],$matched,$date]); $row=$q->fetch()?:null;
+            $owned=[];
+            foreach(($row?(json_decode($row['rate_snapshot_json']??'{}',true)?:[]):[])['raw_punch_ids']??[] as $id) $owned[(int)$id]=true;
+            $q=db()->prepare('SELECT p.* FROM attendance_punches p JOIN attendance_import_rows r ON r.id=p.import_row_id JOIN attendance_imports i ON i.id=r.import_id WHERE p.employee_id=? AND i.state="IMPORTED" AND p.punched_at>=? AND p.punched_at<? ORDER BY p.punched_at,p.id');
+            $q->execute([(int)$employee['id'],$date.' 00:00:00',(new DateTimeImmutable($date))->modify('+2 days')->format('Y-m-d').' 00:00:00']);
+            $punches=array_values(array_filter($q->fetchAll(),static fn($punch)=>isset($owned[(int)$punch['id']]) || self::punchDay($punch,$policy,[])===$date));
+            $stale=$row && array_diff(array_map('intval',array_column($punches,'id')),array_keys($owned));
+            if($row && !$stale) {
                 foreach(PayrollCalculator::FIELDS as $field) $values[$field]=$row['original_'.$field]?:($row[$field]??null);
+                $issues=json_decode($row['issues_json']??'[]',true)?:[];
             } else {
-                $q=db()->prepare('SELECT p.* FROM attendance_punches p JOIN attendance_import_rows r ON r.id=p.import_row_id JOIN attendance_imports i ON i.id=r.import_id WHERE p.employee_id=? AND i.state="IMPORTED" AND p.punched_at>=? AND p.punched_at<? ORDER BY p.punched_at,p.id');
-                $q->execute([(int)$employee['id'],$date.' 00:00:00',(new DateTimeImmutable($date))->modify('+2 days')->format('Y-m-d').' 00:00:00']);
-                $policy=PayrollAttendanceService::attendancePolicy((int)($employee['branch_id']??0));
-                $punches=array_values(array_filter($q->fetchAll(),static fn($punch)=>self::punchDay($punch,$policy,[])===$date));
-                $values=PayrollCalculator::assign($punches,[])['original'];
+                $assignment=PayrollCalculator::assign($punches,[]); $values=$assignment['original']; $issues=$assignment['issues'];
             }
+            // Display placement only: nothing is written and stored or payroll values are untouched.
+            [$values]=self::placeAmbiguousForDisplay($values,$issues,$punches);
         }
         return ['date'=>$date,'cutoff_id'=>$matched,'values'=>$values,
             'missing'=>array_values(array_filter(PayrollCalculator::FIELDS,static fn($field)=>empty($values[$field])))];
@@ -189,12 +196,7 @@ final class EmployeeAttendanceService
             $issues=$assignment?$assignment['issues']:(json_decode($row['issues_json']??'[]',true)?:[]);
             // Display only: show every recorded punch in time order. Stored values, issues and payroll are untouched.
             $slotDisplay=AttendanceSlotDisplay::assign($raw);
-            if(array_intersect($issues,['AMBIGUOUS_PUNCHES','EXTRA_PUNCHES_REVIEW']) && !array_filter($values)) {
-                $shown=array_filter($values);
-                foreach(self::LABELS as $field=>$label) if(empty($values[$field]) && $slotDisplay['slots'][$field] && !in_array($slotDisplay['slots'][$field],$shown,true)) $values[$field]=$slotDisplay['slots'][$field];
-                // Placed by time, not confirmed by the device: no longer "ambiguous", just incomplete.
-                if(!$slotDisplay['extra']) $issues=array_values(array_diff($issues,['AMBIGUOUS_PUNCHES']));
-            }
+            [$values,$issues]=self::placeAmbiguousForDisplay($values,$issues,$raw);
             $extraPunches=$slotDisplay['extra'] && in_array('EXTRA_PUNCHES_REVIEW',$issues,true);
             $ambiguous=(bool)array_intersect($issues,['AMBIGUOUS_PUNCHES','EXTRA_PUNCHES_REVIEW','INVALID_PUNCH_SEQUENCE']);
             $missing=[]; foreach(self::LABELS as $field=>$label) if(empty($values[$field])) $missing[]=$label;
@@ -246,6 +248,22 @@ final class EmployeeAttendanceService
             ORDER BY c.period_start DESC LIMIT 1');
         $q->execute([$employeeId,$employeeId,$employeeId]); $latestEntries=$q->fetch()?:null;
         return ['employee'=>$employee,'run'=>$run,'days'=>$days,'logs'=>$logs,'adjustments'=>$adjustments,'leave_days'=>$leaveDays,'ob_days'=>$obDays,'entries'=>$entries,'totals'=>$totals,'types'=>$types,'closed'=>$closed,'deadline_passed'=>$late,'latest_cutoff'=>$latest,'latest_entry_cutoff'=>$latestEntries];
+    }
+
+    /**
+     * One source of truth for "existing logs" on Check Attendance and the File TA form. When the device
+     * statuses leave every slot ambiguous, show the punches placed by time (AttendanceSlotDisplay).
+     * Display only: no time is invented and stored attendance or payroll values are not changed.
+     * @return array{0:array,1:array} values and issues (AMBIGUOUS_PUNCHES dropped once placed by time)
+     */
+    private static function placeAmbiguousForDisplay(array $values,array $issues,array $punches): array
+    {
+        if(!array_intersect($issues,['AMBIGUOUS_PUNCHES','EXTRA_PUNCHES_REVIEW']) || array_filter($values)) return [$values,$issues];
+        $slotDisplay=AttendanceSlotDisplay::assign($punches); $shown=array_filter($values);
+        foreach(self::LABELS as $field=>$label) if(empty($values[$field]) && $slotDisplay['slots'][$field] && !in_array($slotDisplay['slots'][$field],$shown,true)) $values[$field]=$slotDisplay['slots'][$field];
+        // Placed by time, not confirmed by the device: no longer "ambiguous", just incomplete.
+        if(!$slotDisplay['extra']) $issues=array_values(array_diff($issues,['AMBIGUOUS_PUNCHES']));
+        return [$values,$issues];
     }
 
     /** Read-only compatibility for TA approvals saved before the missing-only rule. */

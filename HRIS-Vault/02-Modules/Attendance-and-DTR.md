@@ -213,6 +213,9 @@ Full definitions in [[Business-Rules]].
 - [ ] Should employees be able to punch from the portal, and if so with what anti-abuse control?
 - [ ] What is the sanity ceiling for hours per day before a flag?
 
+## As built: File TA form existing logs (2026-10-25, BR-768)
+Check Attendance and the File TA form share `EmployeeAttendanceService::placeAmbiguousForDisplay()`. `requestTimes()` (also behind `employee-ta-context` and the submit guard in `PayrollRepository::createPayrollRequest`) shows the same existing times, the form hides inputs that have a log and asks only for the missing slots. Display only; no write to `attendance_daily`, no change to `PayrollCalculator::assign()`. Tests: `tests/ta_existing_logs_test.php`, browser `tests/ta_form_browser.cjs`. Open: Q55 (is the last punch a Time Out?).
+
 ## Related
 
 [[Payroll]] · [[Leave-Management]] · [[Org-Structure]] · [[Employee-Records]] · [[Self-Service-Portal]] · [[Notifications]] · [[Business-Rules]] · [[Data-Model]] · [[API-Surface]] · [[Screens]] · [[Reports-and-Analytics]] · [[PH-Labor-and-Payroll-Notes]] · [[ADR-003-Payroll-Engine-Approach]]
