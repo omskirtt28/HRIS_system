@@ -10,6 +10,18 @@ updated: 2026-10-25
 
 Isang entry kada session, pinakabago sa taas. Mga plano ay nasa `Plans/` (template: [[_Template]]). Slice status ay nasa [[Progress]].
 
+## 2026-10-25 - Incident Report module I1 (executed)
+- **Ginawa:** migration 017 (`incident_details`, `incident_participants`, 4 bagong status), `TicketIncident` na may isang read rule, HR status flow, add/remove ng participants, notifications na walang private text, at `incident_case_test` (access matrix, 111/111). Na-apply na sa `pmbsi_hris` pagkatapos ng verified dump at up/re-run/down/up; 7 tickets walang nagbago, 0 IR ang laman dati.
+- **Pinili ko (ipapakita kay John):** ang Involved/Witness na pinili ng nag-file ay hindi nakakabasa hangga't hindi isinasama ni HR; HR na kasama sa case ay hindi na handler; sensitive.view ay hindi na gate. Nakasulat sa Decision-Log at Q56-Q60.
+- **Open:** Q59 retention/confidentiality (NEEDS VERIFICATION), Q60 sino ang puwedeng mag-file (`ticket.file.incident` at walang employee record). Wala pang screen kaya hindi pa makapagpalit ng status si HR sa UI hanggang I3.
+- **Susunod:** I2 Employee UI (isang phase kada session). Local commit lang, walang push.
+
+## 2026-10-25 - Incident Report module (plan)
+- **Napagdesisyunan (John):** lahat ng user ay puwedeng mag-file; nakakabasa lang ang nag-file, HR, mga isinama ni HR at mga CC na pinili ng nag-file; 5 hakbang na status na imamarka ni HR; tatanggalin ang IR sa File an HR Request at gagawing hiwalay na module.
+- **Pinili ko:** nananatili sa ticket engine, may bagong `incident_details` at `incident_participants`, thread na may HR-only internal note, 4 na phase (I1-I4).
+- **Ginawa:** [[2026-10-25-incident-report-module]] (approved, may execute prompt). Walang code na binago.
+- **Open:** retention at confidentiality ng incident records (NEEDS VERIFICATION); kung makakabasa pa ang CC na tinanggal ng HR.
+
 ## 2026-10-25 - TA form existing logs (executed)
 - **Ginawa:** na-reproduce ang bug sa isolated DB (1 at 2 ambiguous punches = null sa `requestTimes()`, pero may placement sa Check Attendance), tapos shared `placeAmbiguousForDisplay()` para pareho ang existing logs; form, context JSON at submit guard ay sumusunod. Walang migration, walang sulat sa `attendance_daily`, hindi ginalaw ang `PayrollCalculator::assign`. Tests: `ta_existing_logs_test` 19/19, browser 8/8, screenshots before/after; fresh-DB suites pasado.
 - **Open:** Q55 (5:08 PM sa Break Out o Time Out?). Hindi nag-apply sa `pmbsi_hris` dahil walang DB change; local commit lang, walang push.

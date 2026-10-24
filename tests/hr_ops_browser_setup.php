@@ -6,7 +6,7 @@ require_once dirname(__DIR__).'/app/View.php';
 require_once dirname(__DIR__).'/app/TicketService.php';
 $f=fixtures();
 foreach(['dashboard.hr.view'] as $code){$p=row('SELECT id FROM permissions WHERE code=?',[$code]);if($p)db()->prepare('INSERT IGNORE INTO role_permissions(role_id,permission_id) VALUES(?,?)')->execute([$f['hr']['role_id'],$p['id']]);}
-function form(string $code,array $extra=[]):array{return array_replace(['ticket_type_id'=>(int)row('SELECT id FROM ticket_types WHERE code=?',[$code])['id'],'submission_key'=>bin2hex(random_bytes(32))],$extra);}
+function form(string $code,array $extra=[]):array{return array_replace(incident_fields($code),['ticket_type_id'=>(int)row('SELECT id FROM ticket_types WHERE code=?',[$code])['id'],'submission_key'=>bin2hex(random_bytes(32))],$extra);}
 $ids=[];
 act($f['employee']);
 $sizes=['S','M','M','L','XL','M','2XL','L'];

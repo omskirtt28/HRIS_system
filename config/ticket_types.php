@@ -9,7 +9,10 @@ return [
     ]],
     'INCIDENT_REPORT'=>['name'=>'Incident Report','profile'=>null,'fields'=>[
         'title'=>['label'=>'Incident title','kind'=>'text','max'=>200],
-        'explanation'=>['label'=>'Explanation','kind'=>'text','max'=>5000],
+        'explanation'=>['label'=>'What happened','kind'=>'text','max'=>5000],
+        'incident_at'=>['label'=>'When it happened','kind'=>'datetime-local'],
+        'location'=>['label'=>'Where it happened','kind'=>'text','max'=>200,'rows'=>2],
+        'category'=>['label'=>'Category','options'=>['Workplace conduct','Safety','Property','Attendance-related','Other']],
     ]],
     'BRANCH_TRANSFER'=>['name'=>'Branch Transfer','profile'=>'HR_ONLY','fields'=>[
         'employee'=>['label'=>'Employee','kind'=>'employee'],

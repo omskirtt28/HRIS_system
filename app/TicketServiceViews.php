@@ -115,7 +115,7 @@ function ticket_stepper(array $t):void {
 /** The remarks HR (or an approver) wrote on a status change. Requester and HR only; the query path already enforces that. */
 function ticket_response_card(array $t):void {
  $hr=TicketRepository::isHr();$own=(int)$t['requester_user_id']===TicketRepository::uid();
- if(!empty($t['viewer_only']) || (!$hr && !($own && $t['type_code']!=='INCIDENT_REPORT')))return;
+ if(!empty($t['viewer_only']) || ($t['type_code']!=='INCIDENT_REPORT' && !$hr && !$own))return;
  $items=$t['responses'];$latest=$items?end($items):null;$title=$latest&&$latest['who']==='Approver'?'Approver response':'HR response';
  echo '<section class="tk-response" aria-labelledby="tk-response-h"><h2 id="tk-response-h">'.e($title).'</h2>';
  if($latest){

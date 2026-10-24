@@ -50,7 +50,7 @@ final class HrDashboard
     public static function data(array $p,?DateTimeImmutable $today=null):array
     {
         $isHr=TicketRepository::isHr();
-        $canIncident=$isHr||Auth::can('ticket.sensitive.view');
+        $canIncident=$isHr;// ticket.sensitive.view no longer reaches incident cases (plan 2026-10-25-incident-report-module)
         $w=self::window($p['period'],$today);$group=$p['company']==='ALL'?'':$p['company'];
         $cw=$group!==''?' AND t.company_group_snapshot=?':'';$cp=$group!==''?[$group]:[];
         $from=' FROM tickets t JOIN ticket_types ty ON ty.id=t.ticket_type_id WHERE ';
@@ -81,11 +81,12 @@ final class HrDashboard
             try{EmployeeApproverAssignmentService::requireHr();$d['setup']=self::setup();}catch(RuntimeException){$d['setup']=null;}
         }
         if($canIncident){
+            $readable=TicketIncident::readClause(TicketRepository::uid(),true);// titles only for cases this reviewer may open; the counts stay counts (BR-744)
             $inc=' FROM tickets t JOIN ticket_types ty ON ty.id=t.ticket_type_id WHERE ty.code="INCIDENT_REPORT" AND t.status<>"DRAFT"'.$cw;
             $d['incident']=['open'=>self::one('SELECT COUNT(*)'.$inc.' AND t.status="SUBMITTED"',$cp),
                 'new'=>self::one('SELECT COUNT(*)'.$inc.' AND '.self::FILED.'>=? AND '.self::FILED.'<?',array_merge($cp,[$w['start'].' 00:00:00',$w['end'].' 00:00:00'])),
                 'new_before'=>self::one('SELECT COUNT(*)'.$inc.' AND '.self::FILED.'>=? AND '.self::FILED.'<?',array_merge($cp,[$w['prev_start'].' 00:00:00',$w['prev_end'].' 00:00:00'])),
-                'latest'=>self::rows('SELECT t.id,t.ticket_no,t.status,'.self::FILED.' filed,JSON_UNQUOTE(JSON_EXTRACT(t.payload_json,"$.title")) title'.$inc.' ORDER BY '.self::FILED.' DESC,t.id DESC LIMIT 5',$cp)];
+                'latest'=>self::rows('SELECT t.id,t.ticket_no,t.status,'.self::FILED.' filed,JSON_UNQUOTE(JSON_EXTRACT(t.payload_json,"$.title")) title'.$inc.' AND '.$readable[0].' ORDER BY '.self::FILED.' DESC,t.id DESC LIMIT 5',array_merge($cp,$readable[1]))];
         }
         return $d;
     }

@@ -4,7 +4,7 @@ require __DIR__.'/ticket_test_support.php';
 require_once dirname(__DIR__).'/app/TicketService.php';
 $f=fixtures();
 function service_form(string $code,array $extra=[]):array {
-    return array_replace(['ticket_type_id'=>(int)row('SELECT id FROM ticket_types WHERE code=?',[$code])['id'],'submission_key'=>bin2hex(random_bytes(32))],$extra);
+    return array_replace(incident_fields($code),['ticket_type_id'=>(int)row('SELECT id FROM ticket_types WHERE code=?',[$code])['id'],'submission_key'=>bin2hex(random_bytes(32))],$extra);
 }
 function service_action(int $id,string $decision,string $remarks=''):void {
     TicketService::act($id,(int)TicketRepository::find($id)['version'],$decision,$remarks);

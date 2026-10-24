@@ -9,7 +9,7 @@ function perm(int $role,string $code):void{$p=row('SELECT id FROM permissions WH
 perm($f['employee']['role_id'],'ticket.file.coe');perm($f['hr']['role_id'],'ticket.coe.template.manage');perm($f['outsider']['role_id'],'ticket.file.coe');
 $pos=insert('INSERT INTO positions(code,name) VALUES(?,?)',[$f['tag'].'_P','Accounting Clerk']);
 db()->prepare('UPDATE employees SET position_id=?,first_name="Kate Anne",last_name="Cadiz",hire_date="2021-03-15" WHERE id=?')->execute([$pos,$f['requester']]);
-function form(string $code,array $extra=[]):array{return array_replace(['ticket_type_id'=>(int)row('SELECT id FROM ticket_types WHERE code=?',[$code])['id'],'submission_key'=>bin2hex(random_bytes(32))],$extra);}
+function form(string $code,array $extra=[]):array{return array_replace(incident_fields($code),['ticket_type_id'=>(int)row('SELECT id FROM ticket_types WHERE code=?',[$code])['id'],'submission_key'=>bin2hex(random_bytes(32))],$extra);}
 $base=['purpose'=>'Bank','purpose_other'=>'','needed_by'=>date('Y-m-d',strtotime('+5 days')),'delivery'=>'Email'];
 act($f['employee']);$f['pending']=TicketService::create(form('COE_REQUEST',$base),true);
 act($f['outsider']);$f['other']=TicketService::create(form('COE_REQUEST',array_replace($base,['purpose'=>'Other','purpose_other'=>'Embassy <b>visa</b> & loan'])),true);

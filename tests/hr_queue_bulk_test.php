@@ -9,7 +9,7 @@ require_once dirname(__DIR__).'/app/TicketModule.php';
 function need_db():void{db();}
 $f=fixtures();
 $hr=$f['hr'];
-function form(string $code,array $extra=[]):array{return array_replace(['ticket_type_id'=>(int)row('SELECT id FROM ticket_types WHERE code=?',[$code])['id'],'submission_key'=>bin2hex(random_bytes(32))],$extra);}
+function form(string $code,array $extra=[]):array{return array_replace(incident_fields($code),['ticket_type_id'=>(int)row('SELECT id FROM ticket_types WHERE code=?',[$code])['id'],'submission_key'=>bin2hex(random_bytes(32))],$extra);}
 function file_as(array $user,string $code,array $extra):int{act($user);return TicketService::create(form($code,$extra),true);}
 function raw(array $f,string $code,string $status,array $payload=[],?string $filed=null,?string $closed=null,?int $requester=null):int
 {

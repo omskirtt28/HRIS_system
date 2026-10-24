@@ -3,6 +3,7 @@ declare(strict_types=1);
 require_once __DIR__.'/TicketBranchTransfer.php';
 require_once __DIR__.'/TicketOicAuthorization.php';
 require_once __DIR__.'/TicketCoe.php';
+require_once __DIR__.'/TicketIncident.php';
 final class TicketTypes
 {
     public const FILE_PERMISSIONS=['ATM_REQUEST'=>'ticket.file.atm','ID_REQUEST'=>'ticket.file.id','INCIDENT_REPORT'=>'ticket.file.incident','UNIFORM_REQUEST'=>'ticket.file.uniform','PAYROLL_CONCERN'=>'ticket.file.payroll_concern','MANPOWER_REQUEST'=>'ticket.file.manpower','NETSUITE_CONCERN'=>'ticket.file.netsuite','BRANCH_TRANSFER'=>'ticket.file_for_others','OIC_AUTHORIZATION'=>'ticket.file.oic_authorization','COE_REQUEST'=>'ticket.file.coe'];
@@ -54,6 +55,7 @@ final class TicketTypes
         if($code==='BRANCH_TRANSFER')$out=TicketBranchTransfer::validate($out,$employee);
         if($code==='OIC_AUTHORIZATION')$out=TicketOicAuthorization::validate($out,$employee);
         if($code==='COE_REQUEST')$out=TicketCoe::validate($out);
+        if($code==='INCIDENT_REPORT')$out=TicketIncident::validate($out,$data);
         return $out;
     }
     public static function save(int $id,string $code,array $payload):void {
@@ -64,6 +66,7 @@ final class TicketTypes
         }
         if($code==='OIC_AUTHORIZATION')TicketOicAuthorization::save($id,$payload);
         if($code==='COE_REQUEST')TicketCoe::save($id,$payload);
+        if($code==='INCIDENT_REPORT')TicketIncident::save($id,$payload);
         if($code==='BRANCH_TRANSFER')db()->prepare('INSERT INTO branch_transfers(ticket_id,employee_id,from_branch_id,to_branch_id,effective_date,company) VALUES(?,?,?,?,?,?) ON DUPLICATE KEY UPDATE from_branch_id=VALUES(from_branch_id),to_branch_id=VALUES(to_branch_id),effective_date=VALUES(effective_date),company=VALUES(company)')->execute([$id,$payload['employee'],$payload['from_branch'],$payload['to_branch'],$payload['effective_date'],$payload['company']]);
     }
     public static function complete(array $ticket,array $data=[]):bool {

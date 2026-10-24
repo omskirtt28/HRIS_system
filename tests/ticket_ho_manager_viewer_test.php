@@ -35,7 +35,7 @@ function sees(array $user,int $ticket):bool { act($user);try{TicketRepository::f
 function listed(array $user,int $ticket):bool { act($user);foreach(TicketRepository::listing('team',[],100)['rows'] as $r)if((int)$r['id']===$ticket)return true;return false; }
 function inInbox(array $user,int $ticket):bool { act($user);foreach(TicketRepository::listing('inbox',[],100)['rows'] as $r)if((int)$r['id']===$ticket)return true;return false; }
 function type(string $code):int { return (int)row('SELECT id FROM ticket_types WHERE code=?',[$code])['id']; }
-function file_ticket(array $user,string $code,array $extra,bool $submit=true):int { act($user);return TicketService::create(array_replace(['ticket_type_id'=>type($code),'submission_key'=>bin2hex(random_bytes(32))],$extra),$submit); }
+function file_ticket(array $user,string $code,array $extra,bool $submit=true):int { act($user);return TicketService::create(array_replace(incident_fields($code),['ticket_type_id'=>type($code),'submission_key'=>bin2hex(random_bytes(32))],$extra),$submit); }
 function atm(array $user,bool $submit=true):int { return file_ticket($user,'ATM_REQUEST',['reason'=>'Synthetic HO viewer test'],$submit); }
 function problems(array $v):array { return array_column($v['problems'],0); }
 function cutoff(string $start,string $end):int {

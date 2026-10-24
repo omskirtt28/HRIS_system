@@ -179,6 +179,7 @@ The `/api/v1` JSON contract above is the target. The running app is server-rende
 | POST | `core_ticket_act` | approver / HR / requester per `TicketService::permissions()`; `version` check | Approve, return, reject, In Progress, Served, Cancel; HR note (BR-767) |
 | POST | `core_ticket_quick`, `core_ticket_bulk` | `tickets.review_hr`, HR portal | One ticket at a time through `act()` (BR-740..742) |
 | POST | `core_ticket_comment`, `core_ticket_attach` | requester/approver/HR, never `viewer_only` | Comment (ALL or STAFF_ONLY), attachment |
+| service | `TicketService::incidentStatus`, `incidentAddParticipant`, `incidentRemoveParticipant`; listing mode `incidents_mine` (I1, **no HTTP route or form yet**; routes arrive with the I2/I3 screens) | handling HR reviewer (status, people); reporter may cancel while SUBMITTED; `mine` for reporter and participants with access (BR-769..775) | Case status with required remarks and optional HR-only note; include or remove a person; audited events |
 | POST | `core_ticket_netsuite_remark`, `core_ticket_accounting_member` | HR lane / Accounting membership | NetSuite remarks; membership |
 | POST | `ticket_approvers_preview` / `_save` / `_cancel` | `tickets.approvers.manage` | Effective-dated Manager/ADL assignments |
 | POST | `coe_template_upload` / `coe_template_activate` / `coe_settings_save` | `ticket.coe.template.manage` | COE template versions and signatory |

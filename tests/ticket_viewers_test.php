@@ -14,7 +14,7 @@ require_once dirname(__DIR__).'/app/TicketViewerViews.php';
 $f=fixtures();$tag=$f['tag'];
 
 function form(string $code,array $extra=[]):array {
-    return array_replace(['ticket_type_id'=>(int)row('SELECT id FROM ticket_types WHERE code=?',[$code])['id'],'submission_key'=>bin2hex(random_bytes(32))],$extra);
+    return array_replace(incident_fields($code),['ticket_type_id'=>(int)row('SELECT id FROM ticket_types WHERE code=?',[$code])['id'],'submission_key'=>bin2hex(random_bytes(32))],$extra);
 }
 function perm(int $role,string $code,bool $on):void {
     $p=row('SELECT id FROM permissions WHERE code=?',[$code]);

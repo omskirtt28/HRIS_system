@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__.'/TicketAccounting.php';
 require_once __DIR__.'/TicketViewerService.php';
+require_once __DIR__.'/TicketIncident.php';
 
 final class TicketRepository
 {
@@ -45,8 +46,10 @@ final class TicketRepository
     }
     public static function find(int $id,bool $lock=false):array
     {
-        $uid=self::uid();$q=db()->prepare(self::selectSql().' WHERE t.id=? AND (t.requester_user_id=? OR ?=1 OR EXISTS(SELECT 1 FROM ticket_steps s WHERE s.ticket_id=t.id AND s.approver_user_id=?) OR (ty.code="NETSUITE_CONCERN" AND t.status="COMPLETED" AND ?=1) OR (ty.code="INCIDENT_REPORT" AND ?=1))'.($lock?' FOR UPDATE':''));
-        $q->execute([$id,$uid,self::isHr()?1:0,$uid,TicketAccounting::canView()?1:0,Auth::can('ticket.sensitive.view')?1:0]);$t=$q->fetch();
+        $uid=self::uid();[$ir,$irArgs]=TicketIncident::readClause($uid,self::isHr());
+        // Incident Reports follow the case rule only (TicketIncident::readClause); every other type keeps the generic rule.
+        $q=db()->prepare(self::selectSql().' WHERE t.id=? AND ((ty.code<>"INCIDENT_REPORT" AND (t.requester_user_id=? OR ?=1 OR EXISTS(SELECT 1 FROM ticket_steps s WHERE s.ticket_id=t.id AND s.approver_user_id=?) OR (ty.code="NETSUITE_CONCERN" AND t.status="COMPLETED" AND ?=1))) OR (ty.code="INCIDENT_REPORT" AND '.$ir.'))'.($lock?' FOR UPDATE':''));
+        $q->execute(array_merge([$id,$uid,self::isHr()?1:0,$uid,TicketAccounting::canView()?1:0],$irArgs));$t=$q->fetch();
         $viewer=false;
         if(!$t&&($view=TicketViewerService::clause($uid))!==null){
             // Read-only viewer (branch lead, ADL area, Head Office Manager, HR override). Never Incident Reports or drafts.
@@ -73,8 +76,13 @@ final class TicketRepository
         }
         $t['responses']=self::responses($t);
         $t['hr_notes']=[];
+        if($t['type_code']==='INCIDENT_REPORT'){
+            $t['payload']=array_replace($t['payload'],TicketIncident::details($id));$t['participants']=TicketIncident::participants($t);
+            // People changes are visible to the handling HR reviewer only.
+            if(!TicketIncident::isHandler($t))$t['events']=array_values(array_filter($t['events'],fn($ev)=>!in_array($ev['event_type'],['PARTICIPANT_ADDED','PARTICIPANT_REMOVED'],true)));
+        }
         // Internal notes are loaded for HR reviewers only; every other viewer gets an empty list from this query path.
-        if(!$t['viewer_only'] && self::isHr() && FoundationRepository::tableExists('ticket_hr_notes')){
+        if(!$t['viewer_only'] && ($t['type_code']==='INCIDENT_REPORT'?TicketIncident::isHandler($t):self::isHr()) && FoundationRepository::tableExists('ticket_hr_notes')){
             $q=db()->prepare('SELECT n.*,u.full_name author_name FROM ticket_hr_notes n JOIN users u ON u.id=n.author_user_id WHERE n.ticket_id=? ORDER BY n.id');$q->execute([$id]);$t['hr_notes']=$q->fetchAll();
         }
         return $t;
@@ -87,17 +95,18 @@ final class TicketRepository
     {
         if(!empty($t['viewer_only']))return [];
         $hr=self::isHr();$own=(int)$t['requester_user_id']===self::uid();
-        if(!$hr && !($own && $t['type_code']!=='INCIDENT_REPORT'))return [];
+        if($t['type_code']!=='INCIDENT_REPORT' && !$hr && !$own)return [];// anyone who can read an incident case sees the HR updates on it
         $out=[];
         foreach($t['events'] as $ev){
             if($ev['event_type']!=='TRANSITION' || (int)$ev['actor_user_id']===(int)$t['requester_user_id'])continue;
             $remarks=trim((string)(json_decode($ev['details_json']?:'{}',true)['remarks']??''));
             if($remarks==='')continue;
-            $out[]=['event_id'=>(int)$ev['id'],'who'=>in_array($ev['from_status'],['PENDING_HR','IN_PROGRESS'],true)?'HR':'Approver','actor_name'=>$ev['actor_name'],'to_status'=>$ev['to_status'],'at'=>$ev['created_at'],'remarks'=>$remarks];
+            $out[]=['event_id'=>(int)$ev['id'],'who'=>($t['type_code']==='INCIDENT_REPORT'||in_array($ev['from_status'],['PENDING_HR','IN_PROGRESS'],true))?'HR':'Approver','actor_name'=>$ev['actor_name'],'to_status'=>$ev['to_status'],'at'=>$ev['created_at'],'remarks'=>$remarks];
         }
         return $out;
     }
     public static function isStaff(array $ticket):bool {
+        if(($ticket['type_code']??'')==='INCIDENT_REPORT')return TicketIncident::isHandler($ticket);// ticket.sensitive.view no longer opens incident cases
         if(self::isHr()||Auth::can('ticket.sensitive.view'))return true;
         $q=db()->prepare('SELECT 1 FROM ticket_steps WHERE ticket_id=? AND approver_user_id=?');$q->execute([$ticket['id'],self::uid()]);return (bool)$q->fetchColumn();
     }
@@ -123,8 +132,9 @@ final class TicketRepository
             if(!self::isHr())throw new RuntimeException('HR ticket review access is required.');
             [$where,$params]=self::hrFilters($mode,$filters);
         }elseif($mode==='feed'){
-            $where[]='ty.code="INCIDENT_REPORT" AND (t.requester_user_id=? OR ?=1 OR ?=1 OR EXISTS(SELECT 1 FROM ticket_steps s WHERE s.ticket_id=t.id AND s.approver_user_id=?))';
-            $params=[$uid,self::isHr()?1:0,Auth::can('ticket.sensitive.view')?1:0,$uid];
+            [$clause,$params]=TicketIncident::readClause($uid,self::isHr());$where[]='ty.code="INCIDENT_REPORT" AND '.$clause;
+        }elseif($mode==='incidents_mine'){
+            [$clause,$params]=TicketIncident::mineClause($uid);$where[]='ty.code="INCIDENT_REPORT" AND '.$clause;
         }elseif($mode==='team'){
             $view=TicketViewerService::clause($uid);if($view===null)throw new RuntimeException('Team request access is required.');
             $where[]='ty.code NOT IN ("INCIDENT_REPORT","COE_REQUEST") AND t.status<>"DRAFT" AND t.requester_user_id<>? AND COALESCE(e.user_id,0)<>? AND '.$view[0];

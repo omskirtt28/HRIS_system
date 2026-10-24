@@ -267,7 +267,7 @@ erDiagram
 | `users` | unique `email` | Account identifier |
 | `payroll_*` | FKs restrict delete where a run exists | BR-224, FR-111 |
 
-## As built: HR ticket engine tables (migrations 001-016)
+## As built: HR ticket engine tables (migrations 001-017)
 
 Verified 2026-10-25 against `database/migrations/*` and the live `pmbsi_hris` (SHOW/SELECT only; MariaDB 10.4.32, 116 tables). Hub note: [[Employee-Tickets]]. Files are `2026102x_NNN_name.sql` + a guarded `.down.sql` that refuses once the table holds used data. Every migration is re-runnable. "Seed ledger" tables record which permissions/roles/grants a migration created, so its down script removes only what it owned.
 
@@ -289,6 +289,7 @@ Verified 2026-10-25 against `database/migrations/*` and the live `pmbsi_hris` (S
 | 014 | `coe_request` | `coe_requests` (purpose, needed_by, delivery, `include_salary`), `coe_templates` (versioned .docx, one active), `coe_documents` (one generated file per ticket), `coe_settings` (signatory, display name), `coe_seed` | Permissions `ticket.file.coe`, `ticket.coe.template.manage`; type `COE_REQUEST` |
 | 015 | `ticket_report` | `ticket_report_seed` | Permission `ticket.report.view` |
 | 016 | `ticket_hr_notes` | `ticket_hr_notes` (ticket, event, author, note up to 2000 chars) | HR-only internal note, BR-767 |
+| 017 | `incident_cases` | `incident_details` (1:1 ticket: `incident_at`, `location_text` up to 200, nullable `branch_id`, `category` code), `incident_participants` (PK ticket+user, `employee_id` nullable, `role` CC/INVOLVED/WITNESS, `has_access`, `added_by`, `added_by_hr`, `added_at`; index on user for My Incidents) | `tickets.status` CHECK gains UNDER_REVIEW, RESOLVED, CLOSED, DISMISSED (old values kept). CHECKs: category shape, non-blank location, role list, access only for a CC unless HR added the person. All FKs `ON DELETE RESTRICT`. No soft delete: removing a person deletes the row and `ticket_events` keeps the audit. Down is guarded (refuses when any case row, participant or incident-only status exists). Live held 0 Incident Reports, so nothing was migrated. BR-769..776 |
 
 ### Ticket-related permissions, roles and grants (live, 2026-10-25)
 

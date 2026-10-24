@@ -19,7 +19,7 @@ Hub note for the HR ticket engine ("HR Concerns" / "HR Requests" in the app): on
 | Payroll Concern (`PAYROLL_CONCERN`) | everyone | Manager (Head Office) or ADL (branch), then HR; HR-only when late or no cutoff | `payroll_concerns` | BR-766, [[Payroll]] |
 | ATM (`ATM_REQUEST`), ID (`ID_REQUEST`) | everyone | HR_ONLY | none | bulk-serviceable |
 | Uniform (`UNIFORM_REQUEST`) | everyone | HR_ONLY | `uniform_requests` | size summary per branch |
-| Incident Report (`INCIDENT_REPORT`) | everyone | HR_ONLY, no steps | none | restricted, BR-726, BR-744 |
+| Incident Report (`INCIDENT_REPORT`) | everyone | no approval steps; HR sets the case status (SUBMITTED to CLOSED, DISMISSED) | `incident_details`, `incident_participants` | confidential case with participants and a thread, BR-769..776; still excluded from the queue, report and CSV (BR-744, BR-761) |
 | Certificate of Employment (`COE_REQUEST`) | self | HR_ONLY | `coe_*` | .docx template, private file, BR-750..755 |
 | Manpower (`MANPOWER_REQUEST`) | leads and above | HR_ONLY | `ticket_manpower_requests` | not the recruitment requisition, see [[Recruitment-and-Onboarding]] |
 | NetSuite Concern (`NETSUITE_CONCERN`) | leads and above | HR_ONLY, Accounting follow-up | `ticket_netsuite_remarks` | Accounting members see it once Completed |
@@ -44,16 +44,20 @@ An employee (or a lead filing for someone) opens File an HR Request and sees onl
 
 ## Verified state (2026-10-25)
 
-10 ticket types active, 3 routing profiles, 116 tables, migrations 001-016 applied on localhost. Tests live under `tests/` (core, services, Payroll Concern, assignments, viewers, OIC, COE, queue/bulk, dashboard, report, HR response, file access, lead roles, portal gate, legacy regression) and run only against an isolated database copy; `ticket_migration_roundtrips` and the older browser suites were not re-run in the last patches. The COE suite has one known order-dependent check (seed equals ATM grants).
+10 ticket types active, 3 routing profiles, 118 tables, migrations 001-017 applied on localhost (017 = incident cases). Tests live under `tests/` (core, services, Payroll Concern, assignments, viewers, OIC, COE, queue/bulk, dashboard, report, HR response, file access, lead roles, portal gate, legacy regression) and run only against an isolated database copy; `ticket_migration_roundtrips` and the older browser suites were not re-run in the last patches. The COE suite has one known order-dependent check (seed equals ATM grants).
 
 ## UI redesign (plan [[2026-10-25-ticketing-ui-ux-redesign]])
 
 P1 Foundation done 2026-10-25: shared components and date/label helpers ([[Design-System]]), stepper shows "skipped" when a Served request skipped In Progress. P2-P5 pending. Lesson: the approval timeline must not show step remarks or the acting HR name to view-only users (caught by `ticket_hr_response_test`).
 
+## Incident cases (plan [[2026-10-25-incident-report-module]])
+
+Phase I1 (data, rules, access, status and people services, notifications, tests) done 2026-10-25 with migration 017; no screens yet, so HR cannot change a case status from the UI until I3 (the service and tests exist). I2 employee screens, I3 case page, I4 HR queue pending. Rules BR-769 to BR-776; participants and fields in [[Data-Model]]. Open: Q56 to Q60.
+
 ## Open Questions
 
 - [ ] ADL holds `tickets.approvers.manage` and `ticket.accounting.view` live; neither is in migration 011. Intended? See [[Open-Questions]].
-- [ ] No live role holds `ticket.sensitive.view`; who should read the Incident feed? See [[Open-Questions]].
+- [x] ~~No live role holds `ticket.sensitive.view`; who should read the Incident feed?~~ Closed by Incident phase I1 (2026-10-25): readers are the reporter, handling HR, included participants and reporter-picked CCs (BR-769); `ticket.sensitive.view` no longer opens a case. See [[Open-Questions]] Q51.
 - [ ] Payroll cutoff calendar statuses are stale (cutoff 1 OPEN after it ended, cutoff 47 UPCOMING after it started); not changed. [[Payroll]]
 
 ## Related

@@ -29,7 +29,7 @@ final class TicketService
     private static function transition(array &$t,string $status,string $remarks='',string $event='TRANSITION'):void
     {
         TicketPolicy::assertTransition($t['status'],$status,$remarks,$t['type_code']);$from=$t['status'];
-        db()->prepare('UPDATE tickets SET status=?,version=version+1,closed_at=? WHERE id=?')->execute([$status,in_array($status,['COMPLETED','REJECTED','CANCELLED'],true)?date('Y-m-d H:i:s'):null,$t['id']]);
+        db()->prepare('UPDATE tickets SET status=?,version=version+1,closed_at=? WHERE id=?')->execute([$status,in_array($status,['COMPLETED','REJECTED','CANCELLED','CLOSED','DISMISSED'],true)?date('Y-m-d H:i:s'):null,$t['id']]);
         $t['status']=$status;$t['version']++;$eventId=self::event((int)$t['id'],$event,$from,$status,['remarks'=>$remarks]);
         if(self::$internalNote!==''){db()->prepare('INSERT INTO ticket_hr_notes(ticket_id,event_id,author_user_id,note) VALUES(?,?,?,?)')->execute([$t['id'],$eventId,TicketRepository::uid(),self::$internalNote]);self::$internalNote='';}
         TicketNotifications::enqueue($eventId,$t);
@@ -96,7 +96,7 @@ final class TicketService
             $fields=self::fields($data);$snapshot=self::snapshot($employee);$payload=$snapshot+($fields['payload']??['explanation'=>$fields['explanation']]);
             $no='HR-'.date('Ymd').'-'.strtoupper(bin2hex(random_bytes(6)));
             $q=db()->prepare('INSERT INTO tickets(ticket_no,ticket_type_id,requester_user_id,subject_employee_id,company_id,branch_id,payroll_period_id,company_group_snapshot,company_name_snapshot,business_unit_id_snapshot,payload_json) VALUES(?,?,?,?,?,?,?,?,?,?,?)');
-            $q->execute([$no,$fields['type']['id'],TicketRepository::uid(),$employee['id'],$employee['legal_entity_id'],$employee['branch_id'],$fields['period']['id']??null,$employee['company_group'],$employee['company_name'],$employee['business_unit_id'],json_encode($payload,JSON_THROW_ON_ERROR)]);$id=(int)db()->lastInsertId();
+            $q->execute([$no,$fields['type']['id'],TicketRepository::uid(),$employee['id'],$employee['legal_entity_id'],$employee['branch_id'],$fields['period']['id']??null,$employee['company_group'],$employee['company_name'],$employee['business_unit_id'],json_encode(TicketIncident::storable($payload),JSON_THROW_ON_ERROR)]);$id=(int)db()->lastInsertId();
             if($fields['type']['code']==='PAYROLL_CONCERN')db()->prepare('INSERT INTO payroll_concerns(ticket_id,concern_date) VALUES(?,?)')->execute([$id,$fields['date']]);
             else TicketTypes::save($id,$fields['type']['code'],$payload);
             db()->prepare('INSERT INTO ticket_submission_keys(submission_key,requester_user_id,ticket_id) VALUES(?,?,?)')->execute([$key,TicketRepository::uid(),$id]);
@@ -122,7 +122,7 @@ final class TicketService
             if($t['type_code']==='PAYROLL_CONCERN' && $t['filed_at']!==null && ($fields['date']!==$t['concern_date'] || (int)($fields['period']['id']??0)!==(int)$t['payroll_period_id']))throw new RuntimeException('Keep the original concern date and cutoff. File a separate ticket for another cutoff.');
             $payload=$t['payload'];$oldHash=hash('sha256',json_encode($payload));$payload=array_replace($payload,$fields['payload']??['explanation'=>$fields['explanation']]);
             if($t['filed_at']===null)$payload=array_replace($payload,self::snapshot($e));
-            db()->prepare('UPDATE tickets SET payroll_period_id=?,payload_json=?,version=version+1 WHERE id=?')->execute([$fields['period']['id']??null,json_encode($payload,JSON_THROW_ON_ERROR),$id]);
+            db()->prepare('UPDATE tickets SET payroll_period_id=?,payload_json=?,version=version+1 WHERE id=?')->execute([$fields['period']['id']??null,json_encode(TicketIncident::storable($payload),JSON_THROW_ON_ERROR),$id]);
             if($t['type_code']==='PAYROLL_CONCERN')db()->prepare('UPDATE payroll_concerns SET concern_date=? WHERE ticket_id=?')->execute([$fields['date'],$id]);
             else TicketTypes::save($id,$t['type_code'],$payload);
             self::event($id,'EDITED',$t['status'],$t['status'],['fields'=>['explanation','concern_date'],'before_explanation_sha256'=>$oldHash,'after_explanation_sha256'=>hash('sha256',json_encode($payload))]);
@@ -177,6 +177,7 @@ final class TicketService
     }
     public static function permissions(array $t):array
     {
+        if($t['type_code']==='INCIDENT_REPORT')return TicketIncident::permissions($t);
         $uid=TicketRepository::uid();$own=(int)$t['requester_user_id']===$uid;
         $self=$own || (int)($t['subject_user_id']??0)===$uid;
         $q=db()->prepare('SELECT * FROM ticket_steps WHERE ticket_id=? AND step_no=? AND status="PENDING"');$q->execute([$t['id'],$t['current_step_no']]);$step=$q->fetch();
@@ -204,6 +205,7 @@ final class TicketService
                 if(!FoundationRepository::tableExists('ticket_hr_notes'))throw new RuntimeException('Internal notes are not set up yet. Ask your administrator to run the update.');
                 self::$internalNote=$internalNote;
             }
+            if($t['type_code']==='INCIDENT_REPORT'&&$action!=='CANCEL')throw new RuntimeException('Incident cases use the case status update.');
             if($t['type_code']==='NETSUITE_CONCERN'&&$t['filed_at']!==null&&in_array($action,['START','RETURN','REJECT','CANCEL'],true))throw new RuntimeException('NetSuite uses Pending and Complete.');
             if(mb_strlen($remarks)>5000)throw new RuntimeException('Remarks must be 5000 characters or fewer.');
             if($action==='COMPLETE' && $t['status']==='COMPLETED'){
@@ -252,6 +254,57 @@ final class TicketService
             db()->prepare('UPDATE payroll_concerns SET outcome=?,outcome_note=? WHERE ticket_id=?')->execute([$outcome,$remarks,$id]);self::decideStep($step,'APPROVED',$remarks);self::transition($t,'COMPLETED',$remarks);return $id;
         });}finally{self::$internalNote='';}
     }
+    /** HR sets the case status (SUBMITTED to CLOSED, or DISMISSED with a reason); the reporter may only cancel a SUBMITTED case. Remarks are required and the optional internal note stays HR-only. */
+    public static function incidentStatus(int $id,int $version,string $to,string $remarks,string $internalNote=''):int
+    {
+        self::$internalNote='';
+        try{return self::transaction(function()use($id,$version,$to,$remarks,$internalNote){
+            $t=TicketRepository::find($id,true);if($t['type_code']!=='INCIDENT_REPORT'||!empty($t['viewer_only']))throw new RuntimeException('Ticket not found or access denied.');
+            self::assertVersion($t,$version);
+            $reporterCancel=(int)$t['requester_user_id']===TicketRepository::uid()&&$to==='CANCELLED'&&$t['status']==='SUBMITTED';
+            $handler=TicketIncident::isHandler($t);
+            if(!$reporterCancel&&!$handler)throw new RuntimeException('Only an HR reviewer who is not part of this case can change its status.');
+            $remarks=trim($remarks);if(mb_strlen($remarks)>5000)throw new RuntimeException('Remarks must be 5000 characters or fewer.');
+            if($to==='CANCELLED'&&!$reporterCancel&&$remarks==='')throw new RuntimeException('Remarks are required when HR cancels a case.');
+            $internalNote=trim($internalNote);
+            if($internalNote!==''){
+                if(!$handler)throw new RuntimeException('Internal notes are limited to the HR reviewer handling the case.');
+                if(mb_strlen($internalNote)>2000)throw new RuntimeException('Internal note must be 2000 characters or fewer.');
+                if(!FoundationRepository::tableExists('ticket_hr_notes'))throw new RuntimeException('Internal notes are not set up yet. Ask your administrator to run the update.');
+                self::$internalNote=$internalNote;
+            }
+            self::transition($t,$to,$remarks);return $id;
+        });}finally{self::$internalNote='';}
+    }
+    /** HR includes someone in the case; that always lets them read it. Only the handling HR reviewer may do this. */
+    public static function incidentAddParticipant(int $id,int $userId,string $role):int
+    {
+        return self::transaction(function()use($id,$userId,$role){
+            $t=self::incidentForHandler($id);$row=TicketIncident::hrAddition($id,$t,$userId,$role);
+            db()->prepare('INSERT INTO incident_participants(ticket_id,user_id,employee_id,role,has_access,added_by,added_by_hr) VALUES(?,?,?,?,1,?,1) ON DUPLICATE KEY UPDATE role=VALUES(role),has_access=1,added_by=VALUES(added_by),added_by_hr=1')->execute([$id,$userId,$row['employee_id'],$role,TicketRepository::uid()]);
+            $event=self::event($id,'PARTICIPANT_ADDED',$t['status'],$t['status'],['user_id'=>$userId,'role'=>$role]);TicketNotifications::enqueue($event,$t);
+            audit('Tickets','INCIDENT_PARTICIPANT_ADDED','ticket',$id,['user_id'=>$userId,'role'=>$role]);return $id;
+        });
+    }
+    /** Removing a person ends their access at once; the audit event keeps who and when. */
+    public static function incidentRemoveParticipant(int $id,int $userId):int
+    {
+        return self::transaction(function()use($id,$userId){
+            $t=self::incidentForHandler($id);$q=db()->prepare('SELECT role FROM incident_participants WHERE ticket_id=? AND user_id=? FOR UPDATE');$q->execute([$id,$userId]);$role=$q->fetchColumn();
+            if(!$role)throw new RuntimeException('That person is not on the case.');
+            db()->prepare('DELETE FROM incident_participants WHERE ticket_id=? AND user_id=?')->execute([$id,$userId]);
+            self::event($id,'PARTICIPANT_REMOVED',$t['status'],$t['status'],['user_id'=>$userId,'role'=>$role]);
+            audit('Tickets','INCIDENT_PARTICIPANT_REMOVED','ticket',$id,['user_id'=>$userId,'role'=>$role]);return $id;
+        });
+    }
+    private static function incidentForHandler(int $id):array
+    {
+        $t=TicketRepository::find($id,true);
+        if($t['type_code']!=='INCIDENT_REPORT'||!empty($t['viewer_only']))throw new RuntimeException('Ticket not found or access denied.');
+        if(!TicketIncident::isHandler($t))throw new RuntimeException('Only an HR reviewer who is not part of this case can manage who is on it.');
+        if(in_array($t['status'],['DRAFT','CANCELLED'],true))throw new RuntimeException('This case cannot take changes to who is on it.');
+        return $t;
+    }
     private static function decideStep(array $step,string $status,string $remarks):void
     {
         db()->prepare('UPDATE ticket_steps SET status=?,remarks=?,acted_by=?,acted_at=NOW() WHERE id=?')->execute([$status,$remarks,TicketRepository::uid(),$step['id']]);
@@ -260,6 +313,7 @@ final class TicketService
     {
         $body=self::text($body,3000,'Comment');return self::transaction(function()use($id,$body,$visibility){$t=TicketRepository::find($id,true);if(!empty($t['viewer_only']))throw new RuntimeException('View-only access: you cannot comment on this request.');
             if(!in_array($visibility,['ALL','STAFF_ONLY'],true)||($visibility==='STAFF_ONLY'&&($t['type_code']!=='INCIDENT_REPORT'||!TicketRepository::isStaff($t))))throw new RuntimeException('Staff-only comments require authorized staff access.');
+            if($t['type_code']==='INCIDENT_REPORT'&&$visibility!=='STAFF_ONLY'&&!TicketIncident::mayComment($t))throw new RuntimeException('This case is closed to new messages.');
             if(FoundationRepository::columnExists('ticket_comments','visibility'))db()->prepare('INSERT INTO ticket_comments(ticket_id,author_user_id,body,visibility) VALUES(?,?,?,?)')->execute([$id,TicketRepository::uid(),$body,$visibility]);
             else db()->prepare('INSERT INTO ticket_comments(ticket_id,author_user_id,body) VALUES(?,?,?)')->execute([$id,TicketRepository::uid(),$body]);$comment=(int)db()->lastInsertId();
             $event=self::event($id,'COMMENT_ADDED',$t['status'],$t['status'],['comment_id'=>$comment]);if($visibility==='ALL')TicketNotifications::enqueue($event,$t);return $id;});

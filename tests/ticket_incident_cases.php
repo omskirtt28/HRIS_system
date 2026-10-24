@@ -12,8 +12,8 @@ check('Shared HR queue excludes Incident',!in_array($id,array_column(TicketRepos
 act($f['employee']);$own=TicketRepository::detail($id);check('Author cannot read staff-only comment or event',count($own['comments'])===1&&count($own['events'])===count($all['events'])-1);
 check('Incident has no approval/completion action',rejects(fn()=>service_action($id,'APPROVE'))&&rejects(fn()=>service_action($id,'COMPLETE')));
 db()->prepare('INSERT IGNORE INTO role_permissions(role_id,permission_id) SELECT ?,id FROM permissions WHERE code="ticket.sensitive.view"')->execute([$f['manager']['role_id']]);
-act($f['manager']);check('Sensitive holder can read Incident and staff comments',count(TicketRepository::detail($id)['comments'])===2);
-check('Sensitive holder cannot change HR status',rejects(fn()=>service_action($id,'CANCEL')));
+act($f['manager']);check('Sensitive-view holder is NOT a case reader any more (plan 2026-10-25-incident-report-module)',rejects(fn()=>TicketRepository::detail($id))&&!in_array($id,array_column(TicketRepository::listing('feed')['rows'],'id')));
+check('Sensitive-view holder cannot change the status',rejects(fn()=>service_action($id,'CANCEL'))&&rejects(fn()=>TicketService::incidentStatus($id,1,'UNDER_REVIEW','x')));
 act($f['hr']);service_action($id,'CANCEL');check('HR can cancel Incident without approval chain',TicketRepository::find($id)['status']==='CANCELLED');
 require_once dirname(__DIR__).'/app/TicketPrintForms.php';require_once dirname(__DIR__).'/app/TicketViews.php';
 $beforeTickets=(int)db()->query('SELECT COUNT(*) FROM tickets')->fetchColumn();$forms=require dirname(__DIR__).'/config/hr_print_forms.php';

@@ -5,7 +5,7 @@ require __DIR__.'/ticket_test_support.php';
 require_once dirname(__DIR__).'/app/View.php';
 require_once dirname(__DIR__).'/app/TicketService.php';
 $f=fixtures();
-function form(string $code,array $extra=[]):array{return array_replace(['ticket_type_id'=>(int)row('SELECT id FROM ticket_types WHERE code=?',[$code])['id'],'submission_key'=>bin2hex(random_bytes(32))],$extra);}
+function form(string $code,array $extra=[]):array{return array_replace(incident_fields($code),['ticket_type_id'=>(int)row('SELECT id FROM ticket_types WHERE code=?',[$code])['id'],'submission_key'=>bin2hex(random_bytes(32))],$extra);}
 $act=fn(int $id,string $a,string $r,string $n='')=>TicketService::act($id,(int)row('SELECT version FROM tickets WHERE id=?',[$id])['version'],$a,$r,'',0,[],$n);
 act($f['employee']);
 $f['served']=TicketService::create(form('ATM_REQUEST',['reason'=>'test1']),true);

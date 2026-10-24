@@ -12,7 +12,7 @@ require_once dirname(__DIR__).'/app/TicketAccountingViews.php';
 function need_db():void{db();}
 $f=fixtures();$hr=$f['hr'];$req=$f['employee'];
 db()->exec('DELETE FROM coe_documents');db()->exec('DELETE FROM coe_templates');db()->exec('DELETE FROM coe_settings');// reruns on the same scratch database start with no template
-function form(string $code,array $extra=[]):array{return array_replace(['ticket_type_id'=>(int)row('SELECT id FROM ticket_types WHERE code=?',[$code])['id'],'submission_key'=>bin2hex(random_bytes(32))],$extra);}
+function form(string $code,array $extra=[]):array{return array_replace(incident_fields($code),['ticket_type_id'=>(int)row('SELECT id FROM ticket_types WHERE code=?',[$code])['id'],'submission_key'=>bin2hex(random_bytes(32))],$extra);}
 function perm(int $role,string $code,bool $on=true):void{$p=row('SELECT id FROM permissions WHERE code=?',[$code]);if(!$p)throw new RuntimeException('missing permission '.$code);
     if($on)db()->prepare('INSERT IGNORE INTO role_permissions(role_id,permission_id) VALUES(?,?)')->execute([$role,$p['id']]);else db()->prepare('DELETE FROM role_permissions WHERE role_id=? AND permission_id=?')->execute([$role,$p['id']]);Auth::clearPermissionCache();}
 $W='http://schemas.openxmlformats.org/wordprocessingml/2006/main';
