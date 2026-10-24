@@ -12,6 +12,8 @@ db()->exec('DELETE rp FROM role_permissions rp JOIN lead_role_seed s ON s.role_i
 db()->exec('INSERT INTO role_permissions(role_id,permission_id) SELECT role_id,permission_id FROM lead_role_grant_seed');
 // Later migrations that grant these roles something add their own ledger rows (012: ticket.view_team).
 if(FoundationRepository::tableExists('ticket_viewer_seed'))db()->exec('INSERT IGNORE INTO role_permissions(role_id,permission_id) SELECT v.role_id,v.permission_id FROM ticket_viewer_seed v JOIN lead_role_seed s ON s.role_id=v.role_id AND s.owned=1 WHERE v.role_id<>0');
+// 013: ticket.file.oic_authorization goes to ADL and SC only.
+if(FoundationRepository::tableExists('oic_authorization_seed'))db()->exec('INSERT IGNORE INTO role_permissions(role_id,permission_id) SELECT v.role_id,v.permission_id FROM oic_authorization_seed v JOIN lead_role_seed s ON s.role_id=v.role_id AND s.owned=1 WHERE v.role_id<>0');
 db()->exec('UPDATE roles r JOIN lead_role_seed s ON s.role_id=r.id AND s.owned=1 SET r.portal="employee"');
 Auth::clearPermissionCache();
 function role_codes(string $role):array { $q=db()->prepare('SELECT p.code FROM role_permissions rp JOIN roles r ON r.id=rp.role_id JOIN permissions p ON p.id=rp.permission_id WHERE r.code=? ORDER BY p.code');$q->execute([$role]);return $q->fetchAll(PDO::FETCH_COLUMN); }
@@ -19,7 +21,7 @@ function as_user(int $id):array { $u=row('SELECT u.id,u.role_id,u.full_name name
 $approvers=['ADL'=>['payroll.approve_adl'],'SC'=>[],'OIC'=>['payroll.approve_manager'],'TC'=>['payroll.approve_adl']];
 $names=['ADL'=>'Area Development Leader','SC'=>'Sales Captain','OIC'=>'OIC','TC'=>'Team Coordinator'];
 // The shared base is the seeded ADL role minus its approver permission; every other lead role must equal it (HR may later edit the live MANAGER role).
-$base=array_values(array_filter(role_codes('ADL'),fn($c)=>!str_starts_with($c,'payroll.approve_')));
+$base=array_values(array_filter(role_codes('ADL'),fn($c)=>!str_starts_with($c,'payroll.approve_')&&$c!=='ticket.file.oic_authorization'));
 $staff=['ticket.file.atm','ticket.file.id','ticket.file.incident','ticket.file.payroll_concern','ticket.file.uniform'];
 $hrOrAdmin=db()->query('SELECT code FROM permissions WHERE module IN ("Administration","Security","Recruitment","Reports") OR code LIKE "%.manage" OR code LIKE "%.view_all" OR code LIKE "%_hr" OR code IN ("tickets.review_hr","tickets.approvers.manage","ticket.file_for_others","ticket.sensitive.view","ticket.accounting.view","payroll.process","payroll.configure","payroll.finalize","payroll.export","payroll.mark_paid","payroll.biometric_import","employees.create","employees.import","employees.delete")')->fetchAll(PDO::FETCH_COLUMN);
 
@@ -27,7 +29,7 @@ foreach($approvers as $code=>$extra){
     $r=row('SELECT name,portal FROM roles WHERE code=?',[$code]);$have=role_codes($code);
     check($code.' exists on the employee portal as '.$names[$code],$r!==[]&&$r['portal']==='employee'&&$r['name']===$names[$code]);
     check($code.' has the five staff types, Manpower, NetSuite and tickets.request_self',!array_diff([...$staff,'ticket.file.manpower','ticket.file.netsuite','tickets.request_self'],$have));
-    $expected=array_merge($base,$extra);sort($expected);
+    $expected=array_merge($base,$extra,in_array($code,['ADL','SC'],true)?['ticket.file.oic_authorization']:[]);sort($expected);
     check($code.' = shared lead base (MANAGER-style portal access) + '.($extra?implode(',',$extra):'no approver permission'),$have===$expected);
     check($code.' holds no HR or admin permission',!array_intersect($have,$hrOrAdmin));
 }

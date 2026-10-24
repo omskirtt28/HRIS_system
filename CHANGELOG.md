@@ -1,3 +1,9 @@
+## 2026-10-24 · Automatic ticket viewers and OIC Authorization
+- Who may read an employee's HR requests is now worked out automatically: the covering ADL, the Sales Captain and the OIC of the employee's branch (same-branch employees by position, with an active account), or the Manager for Head Office. Nothing is assigned by hand; the old branch-lead and extra-viewer entries are retired and no longer give access.
+- Employee 201 Employment tab shows "Who can view this employee's tickets" with each person's account status and red PROBLEM lines (no Sales Captain, Sales Captain without an account, no covering ADL, more than one Sales Captain). Ticket Viewers is now a read-only problem report.
+- New request type OIC Authorization: an ADL or Sales Captain asks HR to let an employee of their branch/area act as OIC for a date range. HR serves it and gives the OIC role in Users; after the end date the access ends and the account goes back to its previous role automatically.
+- Migration `20261024_013_oic_authorization.sql` (rollback `.down.sql` refuses once any authorization exists). Applied to the localhost database after a verified backup and clean up/re-run/down/up test; no existing business rows changed.
+
 ## 2026-10-24 · HR Request Setup sidebar group moved up
 - The HR Request Setup group (Ticket Approvers, Ticket Viewers, Accounting Members, Printable HR Forms) was the last group of the HR sidebar, below the fold. It now sits third, under People, for the HR and Admin portals.
 - No permission or database change; each entry still needs its existing permission.

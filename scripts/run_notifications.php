@@ -20,5 +20,10 @@ if(FoundationRepository::tableExists('ticket_notification_outbox')) {
     try { $tickets=TicketNotifications::flush(500); echo 'HR request notifications: '.$tickets['delivered'].' delivered, '.$tickets['pending']." deferred.\n"; }
     catch(Throwable) { error_log('HR request notification retry deferred.'); }
 }
+// OIC Authorization expiry (same scheduled task; idempotent).
+require_once 'app/TicketOicAuthorization.php';
+$oic=TicketOicAuthorization::runDue();
+if($oic)echo 'OIC authorizations expired: '.$oic['expired'].', roles restored: '.$oic['restored']."
+";
 $result=ProbationService::run();
 echo date('Y-m-d H:i').' checked '.$result['checked'].', new reminders '.$result['created'].', emailed '.$result['emailed'].', email failed '.$result['email_failed'].(Mailer::configured()?'':' (email not set up)')."\n";

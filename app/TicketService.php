@@ -33,7 +33,15 @@ final class TicketService
         TicketRepository::uid();if(!Auth::can('tickets.request_self')&&!Auth::can('ticket.file_for_others'))throw new RuntimeException('You do not have permission to file HR requests.');
         if(!empty($data['employee'])){
             $q=db()->prepare('SELECT code FROM ticket_types WHERE id=? AND active=1');$q->execute([(int)($data['ticket_type_id']??0)]);
-            if($q->fetchColumn()==='BRANCH_TRANSFER'){
+            $typeCode=$q->fetchColumn();
+            if($typeCode==='OIC_AUTHORIZATION'){
+                TicketTypes::assertCanFile('OIC_AUTHORIZATION');
+                // The subject is the nominee; TicketOicAuthorization::validate decides whether this filer may nominate them.
+                $employee=EmployeeApproverAssignmentService::employee((int)$data['employee'],true);
+                if(!in_array($employee['status'],['ACTIVE','PROBATIONARY','ON_LEAVE'],true))throw new RuntimeException('Choose an active employee.');
+                return $employee;
+            }
+            if($typeCode==='BRANCH_TRANSFER'){
                 $employee=EmployeeApproverAssignmentService::employee((int)$data['employee'],true);
                 if((int)$employee['user_id']!==TicketRepository::uid()&&!Auth::can('ticket.file_for_others'))throw new RuntimeException('You cannot file a ticket for another employee.');
                 if(!in_array($employee['status'],['ACTIVE','PROBATIONARY','ON_LEAVE'],true))throw new RuntimeException('Choose an active employee.');
@@ -101,9 +109,9 @@ final class TicketService
             $t=TicketRepository::find($id,true);self::assertVersion($t,$version);
             if((int)$t['requester_user_id']!==TicketRepository::uid() || !in_array($t['status'],['DRAFT','RETURNED'],true))throw new RuntimeException('Only your draft or returned request can be edited.');
             $e=EmployeeApproverAssignmentService::employee((int)$t['subject_employee_id'],true);
-            if((int)$e['user_id']!==TicketRepository::uid() && !($t['type_code']==='BRANCH_TRANSFER'&&Auth::can('ticket.file_for_others')))throw new RuntimeException('Please ask HR to check your linked employee record.');
+            if((int)$e['user_id']!==TicketRepository::uid() && !($t['type_code']==='BRANCH_TRANSFER'&&Auth::can('ticket.file_for_others')) && $t['type_code']!=='OIC_AUTHORIZATION')throw new RuntimeException('Please ask HR to check your linked employee record.');
             $fields=self::fields($data);
-            if($t['type_code']==='BRANCH_TRANSFER'&&(int)$fields['payload']['employee']!==(int)$t['subject_employee_id'])throw new RuntimeException('The subject employee cannot change.');
+            if(in_array($t['type_code'],['BRANCH_TRANSFER','OIC_AUTHORIZATION'],true)&&(int)$fields['payload']['employee']!==(int)$t['subject_employee_id'])throw new RuntimeException('The subject employee cannot change.');
             if((int)$fields['type']['id']!==(int)$t['ticket_type_id'])throw new RuntimeException('Keep this ticket type. File a separate request for another type.');
             if($t['type_code']==='PAYROLL_CONCERN' && $t['filed_at']!==null && ($fields['date']!==$t['concern_date'] || (int)$fields['period']['id']!==(int)$t['payroll_period_id']))throw new RuntimeException('Keep the original concern date and cutoff. File a separate ticket for another cutoff.');
             $payload=$t['payload'];$oldHash=hash('sha256',json_encode($payload));$payload=array_replace($payload,$fields['payload']??['explanation'=>$fields['explanation']]);

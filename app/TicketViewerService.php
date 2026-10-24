@@ -5,20 +5,27 @@ require_once __DIR__.'/EmployeeDirectoryPlacement.php';
 
 /**
  * Read-only ticket viewers: the people above an employee see that employee's HR requests and can do nothing else.
- *  - Retail branch: the branch leads (branch_leads, effective-dated, several allowed) and the ADL whose assigned areas
- *    (employees.directory_area_ids) contain the ticket's frozen branch area.
+ * Every viewer is DERIVED from facts already on file; nobody is assigned by hand.
+ *  - Retail branch: (1) the ADL whose assigned areas (employees.directory_area_ids) contain the branch's area,
+ *    (2) the Sales Captain of the branch, (3) the OIC of the branch. Sales Captain / OIC are employees of the SAME
+ *    branch whose position is Sales Captain / Officer In Charge (an OIC may also be an approved, dated OIC
+ *    Authorization held by an account on the OIC role, see TicketOicAuthorization) with an active linked account.
  *  - Head Office: the employee's Manager as resolved for routing (EmployeeApproverAssignmentService::resolve).
- *  - HR override: ticket_viewer_overrides adds one extra viewer for one employee.
  * Everything needs ticket.view_team and an active linked account, is evaluated when a ticket is read (never
  * snapshotted), and never covers Incident Reports or drafts. Approval stays in TicketService::permissions().
+ *
+ * DEPRECATED: branch_leads and ticket_viewer_overrides (migration 012) are kept but never read as access input.
  */
 final class TicketViewerService
 {
     private const ACTIVE='("ACTIVE","PROBATIONARY","ON_LEAVE")';
+    /** Upper-cased trimmed position names. */
+    public const SC_POSITIONS=['SALES CAPTAIN'];
+    public const OIC_POSITIONS=['OFFICER IN CHARGE','OFFICER-IN-CHARGE','OIC'];
 
     public static function ready(): bool
     {
-        return FoundationRepository::tableExists('branch_leads') && FoundationRepository::tableExists('ticket_viewer_overrides');
+        return FoundationRepository::tableExists('ticket_viewer_seed');
     }
 
     /** Active account whose role holds ticket.view_team. Deny by default. */
@@ -30,23 +37,50 @@ final class TicketViewerService
         $q->execute([$uid]);return (bool)$q->fetchColumn();
     }
 
-    /** @return array{branch_ids:int[],area_ids:int[],manager_employee_ids:int[],employee_ids:int[]}|null null = no viewer access */
+    /** NONE = no account, DISABLED = account not active, NO_PERMISSION = role lacks ticket.view_team, ACTIVE = can view. */
+    public static function accountState(?int $uid): string
+    {
+        if (!$uid) return 'NONE';
+        $q=db()->prepare('SELECT status FROM users WHERE id=?');$q->execute([$uid]);$status=$q->fetchColumn();
+        if ($status===false) return 'NONE';
+        if ($status!=='ACTIVE') return 'DISABLED';
+        return self::permitted($uid)?'ACTIVE':'NO_PERMISSION';
+    }
+
+    /** Employee rows for the lead rules, one SELECT shared by scope() and branchLeads() so they cannot disagree. */
+    private static function leadSql(string $today): string
+    {
+        // $today comes from date(), never from input.
+        $auth=FoundationRepository::tableExists('oic_authorizations')
+            ?'(SELECT COUNT(*) FROM oic_authorizations a WHERE a.employee_id=e.id AND a.branch_id=e.branch_id AND a.status="APPROVED" AND a.start_date<="'.$today.'" AND a.end_date>="'.$today.'")':'0';
+        return 'SELECT e.id,e.employee_no,e.first_name,e.last_name,e.user_id,e.branch_id,e.directory_area_ids,UPPER(TRIM(COALESCE(p.name,""))) pos,r.code role_code,'.$auth.' oic_auth,'
+            .EmployeeDirectoryPlacement::isAdlSql('e','p').' is_adl
+            FROM employees e LEFT JOIN positions p ON p.id=e.position_id LEFT JOIN users u ON u.id=e.user_id LEFT JOIN roles r ON r.id=u.role_id
+            WHERE e.status IN '.self::ACTIVE;
+    }
+
+    /** 'SC', 'OIC' or null for an employee row from leadSql(). */
+    private static function leadKind(array $row): ?string
+    {
+        if (in_array($row['pos'],self::SC_POSITIONS,true)) return 'SC';
+        if (in_array($row['pos'],self::OIC_POSITIONS,true)) return 'OIC';
+        return ($row['role_code']??'')==='OIC' && (int)$row['oic_auth']>0 ? 'OIC' : null;
+    }
+
+    /** @return array{branch_ids:int[],area_ids:int[],manager_employee_ids:int[]}|null null = no viewer access */
     public static function scope(int $uid): ?array
     {
         if (!self::permitted($uid)) return null;
-        $today=date('Y-m-d');$scope=['branch_ids'=>[],'area_ids'=>[],'manager_employee_ids'=>[],'employee_ids'=>[]];
-        $q=db()->prepare('SELECT e.id,e.directory_area_ids,'.EmployeeDirectoryPlacement::isAdlSql('e','p').' is_adl FROM employees e LEFT JOIN positions p ON p.id=e.position_id WHERE e.user_id=? AND e.status IN '.self::ACTIVE);
-        $q->execute([$uid]);$mine=$q->fetchAll();$mineIds=array_map(static fn($r)=>(int)$r['id'],$mine);
-        foreach ($mine as $e) if (!empty($e['is_adl'])) $scope['area_ids']=array_merge($scope['area_ids'],EmployeeDirectoryPlacement::areaIds($e['directory_area_ids']));
-        if ($mineIds) {
-            $in=implode(',',array_fill(0,count($mineIds),'?'));
-            $q=db()->prepare('SELECT DISTINCT bl.branch_id FROM branch_leads bl WHERE bl.employee_id IN ('.$in.') AND bl.superseded_at IS NULL AND bl.effective_from<=? AND (bl.effective_to IS NULL OR bl.effective_to>=?)');
-            $q->execute(array_merge($mineIds,[$today,$today]));$scope['branch_ids']=array_map('intval',$q->fetchAll(PDO::FETCH_COLUMN));
-            $q=db()->prepare('SELECT DISTINCT o.employee_id FROM ticket_viewer_overrides o WHERE o.viewer_employee_id IN ('.$in.') AND o.superseded_at IS NULL AND o.effective_from<=? AND (o.effective_to IS NULL OR o.effective_to>=?)');
-            $q->execute(array_merge($mineIds,[$today,$today]));$scope['employee_ids']=array_map('intval',$q->fetchAll(PDO::FETCH_COLUMN));
+        $today=date('Y-m-d');$scope=['branch_ids'=>[],'area_ids'=>[],'manager_employee_ids'=>[]];
+        $q=db()->prepare(self::leadSql($today).' AND e.user_id=?');$q->execute([$uid]);$mine=$q->fetchAll();
+        $mineIds=array_map(static fn($r)=>(int)$r['id'],$mine);
+        foreach ($mine as $e) {
+            if (!empty($e['is_adl'])) $scope['area_ids']=array_merge($scope['area_ids'],EmployeeDirectoryPlacement::areaIds($e['directory_area_ids']));
+            if ($e['branch_id'] && self::leadKind($e)!==null) $scope['branch_ids'][]=(int)$e['branch_id'];
         }
         $scope['manager_employee_ids']=self::managedHeadOffice($uid,$mineIds,$today);
         $scope['area_ids']=array_values(array_unique($scope['area_ids']));
+        $scope['branch_ids']=array_values(array_unique($scope['branch_ids']));
         return $scope;
     }
 
@@ -81,148 +115,71 @@ final class TicketViewerService
         $branchParts=[];
         if ($s['branch_ids']) {$branchParts[]='t.branch_id IN ('.implode(',',array_fill(0,count($s['branch_ids']),'?')).')';$params=array_merge($params,$s['branch_ids']);}
         if ($s['area_ids']) {$branchParts[]='b.area_id IN ('.implode(',',array_fill(0,count($s['area_ids']),'?')).')';$params=array_merge($params,$s['area_ids']);}
-        // A lead or ADL never sees Head Office tickets through the branch rule.
+        // A Sales Captain, OIC or ADL never sees Head Office tickets through the branch rule.
         if ($branchParts) $parts[]='(b.site_type<>"HEAD_OFFICE" AND ('.implode(' OR ',$branchParts).'))';
         if ($s['manager_employee_ids']) {$parts[]='(b.site_type="HEAD_OFFICE" AND t.subject_employee_id IN ('.implode(',',array_fill(0,count($s['manager_employee_ids']),'?')).'))';$params=array_merge($params,$s['manager_employee_ids']);}
-        if ($s['employee_ids']) {$parts[]='t.subject_employee_id IN ('.implode(',',array_fill(0,count($s['employee_ids']),'?')).')';$params=array_merge($params,$s['employee_ids']);}
         return [$parts?'('.implode(' OR ',$parts).')':'0=1',$params];
     }
 
-    // ---------------------------------------------------------------- HR setup and report (tickets.approvers.manage)
+    // ---------------------------------------------------------------- derived people per branch
 
-    private static function ymd(string $value,string $label): string
+    /** Sales Captains and OICs of one branch with their account state. @return array{SC:array,OIC:array} */
+    public static function branchLeads(int $branchId,?string $today=null): array
     {
-        $d=DateTimeImmutable::createFromFormat('!Y-m-d',$value);
-        if (!$d || $d->format('Y-m-d')!==$value) throw new RuntimeException('Enter a valid '.$label.'.');
-        return $value;
-    }
-
-    private static function window(array $data): array
-    {
-        $from=self::ymd((string)($data['effective_from']??''),'effective date');$to=trim((string)($data['effective_to']??''));
-        if ($from<date('Y-m-d')) throw new RuntimeException('Effective date must be today or later. Past assignments are kept as history.');
-        if ($to!=='') {$to=self::ymd($to,'end date');if ($to<$from) throw new RuntimeException('End date must be on or after the effective date.');}
-        return [$from,$to?:null];
-    }
-
-    private static function employeeByNo(string $no,string $label): array
-    {
-        $no=trim($no);
-        $q=db()->prepare('SELECT id,employee_no,first_name,last_name,user_id FROM employees WHERE employee_no=? AND status IN '.self::ACTIVE);$q->execute([$no]);
-        $e=$q->fetch();if (!$e) throw new RuntimeException('No active employee has the '.$label.' number you entered.');
-        return $e;
-    }
-
-    /** Bulk: one lead (several allowed per branch) for many branches. Returns [added, skippedAlreadyLeading]. */
-    public static function assignLeads(array $data): array
-    {
-        EmployeeApproverAssignmentService::requireHr();
-        $lead=self::employeeByNo((string)($data['lead_employee_no']??''),'lead employee');[$from,$to]=self::window($data);
-        $raw=$data['branch_ids']??[];
-        if (!is_array($raw) || count($raw)<1 || count($raw)>200) throw new RuntimeException('Select 1 to 200 branches.');
-        $ids=[];foreach ($raw as $id) {if (!is_scalar($id)||!ctype_digit((string)$id)||(int)$id<1) throw new RuntimeException('Invalid branch selection.');$ids[]=(int)$id;}
-        $ids=array_values(array_unique($ids));$added=0;$skipped=0;$uid=(int)Auth::user()['id'];db()->beginTransaction();
-        try {
-            foreach ($ids as $branchId) {
-                $q=db()->prepare('SELECT id,name,site_type,code,active FROM branches WHERE id=? FOR UPDATE');$q->execute([$branchId]);$b=$q->fetch();
-                if (!$b || !(int)$b['active']) throw new RuntimeException('One selected branch is not active. Refresh the page.');
-                if ($b['site_type']==='HEAD_OFFICE' || $b['code']==='HEAD_OFFICE') throw new RuntimeException('Head Office has no branch lead; its viewer is the Manager.');
-                $q=db()->prepare('SELECT COUNT(*) FROM branch_leads WHERE branch_id=? AND employee_id=? AND superseded_at IS NULL AND effective_from<=COALESCE(?,"9999-12-31") AND (effective_to IS NULL OR effective_to>=?)');
-                $q->execute([$branchId,$lead['id'],$to,$from]);
-                if ((int)$q->fetchColumn()) {$skipped++;continue;}
-                db()->prepare('INSERT INTO branch_leads(branch_id,employee_id,effective_from,effective_to,assigned_by) VALUES(?,?,?,?,?)')->execute([$branchId,$lead['id'],$from,$to,$uid]);
-                audit('HR Requests','ASSIGN_BRANCH_LEAD','branch',$branchId,['branch_lead_id'=>(int)db()->lastInsertId(),'employee_id'=>(int)$lead['id'],'effective_from'=>$from,'effective_to'=>$to]);
-                $added++;
-            }
-            db()->commit();return [$added,$skipped];
-        } catch (Throwable $e) {if (db()->inTransaction()) db()->rollBack();throw $e;}
-    }
-
-    /** Ends a lead today (or cancels one that has not started). History stays. */
-    public static function endLead(int $id): void
-    {
-        EmployeeApproverAssignmentService::requireHr();self::end('branch_leads',$id,'END_BRANCH_LEAD','branch');
-    }
-
-    public static function addOverride(array $data): int
-    {
-        EmployeeApproverAssignmentService::requireHr();
-        $subject=self::employeeByNo((string)($data['employee_no']??''),'employee');$viewer=self::employeeByNo((string)($data['viewer_employee_no']??''),'viewer');
-        if ((int)$subject['id']===(int)$viewer['id']) throw new RuntimeException('An employee cannot be their own viewer.');
-        [$from,$to]=self::window($data);
-        $q=db()->prepare('SELECT COUNT(*) FROM ticket_viewer_overrides WHERE employee_id=? AND viewer_employee_id=? AND superseded_at IS NULL AND effective_from<=COALESCE(?,"9999-12-31") AND (effective_to IS NULL OR effective_to>=?)');
-        $q->execute([$subject['id'],$viewer['id'],$to,$from]);
-        if ((int)$q->fetchColumn()) throw new RuntimeException('That viewer already covers this employee in this date range.');
-        db()->prepare('INSERT INTO ticket_viewer_overrides(employee_id,viewer_employee_id,effective_from,effective_to,assigned_by) VALUES(?,?,?,?,?)')->execute([$subject['id'],$viewer['id'],$from,$to,(int)Auth::user()['id']]);
-        $id=(int)db()->lastInsertId();
-        audit('HR Requests','ADD_VIEWER_OVERRIDE','employee',(int)$subject['id'],['override_id'=>$id,'viewer_employee_id'=>(int)$viewer['id'],'effective_from'=>$from,'effective_to'=>$to]);
-        return $id;
-    }
-
-    public static function endOverride(int $id): void
-    {
-        EmployeeApproverAssignmentService::requireHr();self::end('ticket_viewer_overrides',$id,'END_VIEWER_OVERRIDE','employee');
-    }
-
-    private static function end(string $table,int $id,string $action,string $record): void
-    {
-        db()->beginTransaction();
-        try {
-            $q=db()->prepare('SELECT * FROM '.$table.' WHERE id=? AND superseded_at IS NULL FOR UPDATE');$q->execute([$id]);$row=$q->fetch();
-            if (!$row) throw new RuntimeException('That assignment is already ended.');
-            $today=date('Y-m-d');
-            if ($row['effective_to']!==null && $row['effective_to']<$today) throw new RuntimeException('That assignment is already ended.');
-            if ($row['effective_from']>=$today) db()->prepare('UPDATE '.$table.' SET superseded_at=NOW() WHERE id=?')->execute([$id]);
-            else db()->prepare('UPDATE '.$table.' SET effective_to=?, superseded_at=NULL WHERE id=?')->execute([date('Y-m-d',strtotime('-1 day')),$id]);
-            audit('HR Requests',$action,$record,(int)($table==='branch_leads'?$row['branch_id']:$row['employee_id']),['id'=>$id,'was_effective_from'=>$row['effective_from'],'was_effective_to'=>$row['effective_to']]);
-            db()->commit();
-        } catch (Throwable $e) {if (db()->inTransaction()) db()->rollBack();throw $e;}
-    }
-
-    /** Active branch rows for the setup page: lead names, ADL coverage, employee count. */
-    public static function branchRows(int $areaId,int $branchId): array
-    {
-        EmployeeApproverAssignmentService::requireHr();$today=date('Y-m-d');
-        $where=['b.active=1','b.site_type<>"HEAD_OFFICE"','COALESCE(b.code,"")<>"HEAD_OFFICE"'];$params=[];
-        if ($areaId===-1) $where[]='b.area_id IS NULL'; elseif ($areaId>0) {$where[]='b.area_id=?';$params[]=$areaId;}
-        if ($branchId>0) {$where[]='b.id=?';$params[]=$branchId;}
-        $q=db()->prepare('SELECT b.id,b.code,b.name,b.area_id,a.name area_name,(SELECT COUNT(*) FROM employees e WHERE e.branch_id=b.id AND e.status IN '.self::ACTIVE.') emps
-            FROM branches b LEFT JOIN areas a ON a.id=b.area_id WHERE '.implode(' AND ',$where).' ORDER BY a.name IS NULL,a.name,b.name LIMIT 300');
-        $q->execute($params);$rows=$q->fetchAll();
-        $adls=self::adlsWithCoverage();
-        foreach ($rows as &$r) {
-            $r['leads']=self::leadsForBranch((int)$r['id'],$today);
-            $r['lead_ready']=(bool)array_filter($r['leads'],static fn($l)=>$l['can_view']);
-            $r['adls']=self::adlsCovering($r['area_id']?(int)$r['area_id']:null,$adls);
+        $today??=date('Y-m-d');$out=['SC'=>[],'OIC'=>[]];
+        $q=db()->prepare(self::leadSql($today).' AND e.branch_id=? ORDER BY e.last_name,e.first_name,e.id');$q->execute([$branchId]);
+        foreach ($q->fetchAll() as $e) {
+            $kind=self::leadKind($e);if ($kind===null) continue;
+            $e['account']=self::accountState($e['user_id']?(int)$e['user_id']:null);$e['can_view']=$e['account']==='ACTIVE';
+            $e['via']=in_array($e['pos'],self::SC_POSITIONS,true)||in_array($e['pos'],self::OIC_POSITIONS,true)?'position':'authorization';
+            $out[$kind][]=$e;
         }
-        return $rows;
+        return $out;
     }
 
-    /** Current and future leads of one branch with whether each can actually view (account + ticket.view_team). */
-    private static function leadsForBranch(int $branchId,string $today): array
+    /** All ADLs (from adlsWithCoverage) whose assigned areas contain this area; usableOnly keeps those who can view. */
+    private static function adlsCovering(?int $areaId,array $adls,bool $usableOnly=true): array
     {
-        $q=db()->prepare('SELECT bl.id,bl.effective_from,bl.effective_to,e.employee_no,e.first_name,e.last_name,e.user_id FROM branch_leads bl JOIN employees e ON e.id=bl.employee_id
-            WHERE bl.branch_id=? AND bl.superseded_at IS NULL AND (bl.effective_to IS NULL OR bl.effective_to>=?) ORDER BY bl.effective_from,bl.id');
-        $q->execute([$branchId,$today]);$leads=$q->fetchAll();
-        foreach ($leads as &$l) $l['can_view']=$l['user_id'] && self::permitted((int)$l['user_id']);
-        unset($l);return $leads;
+        return array_values(array_filter($adls,static fn($a)=>$areaId && in_array($areaId,$a['areas'],true) && (!$usableOnly || $a['can_view'])));
     }
 
-    /** The ADLs (from adlsWithCoverage) whose assigned areas contain this area and who can actually view. */
-    private static function adlsCovering(?int $areaId,array $adls): array
+    private static function personName(array $p): string
     {
-        return array_values(array_filter($adls,static fn($a)=>$areaId && in_array($areaId,$a['areas'],true) && $a['can_view']));
+        return trim(($p['first_name']??'').' '.($p['last_name']??'')).(!empty($p['employee_no'])?' ('.$p['employee_no'].')':'');
+    }
+
+    private const ACCOUNT_TEXT=['NONE'=>'has no linked account','DISABLED'=>'has a disabled account','NO_PERMISSION'=>'has a role that cannot view team requests'];
+
+    /**
+     * Who can view a retail branch's tickets and what is wrong with it. One answer for the Employee 201 panel and the
+     * HR report. problems[] = [code,text]; all are PROBLEMs (shown in red).
+     * @return array{sc:array,oic:array,adls:array,problems:array,has_viewer:bool}
+     */
+    private static function branchSet(array $branch,array $adls,string $today): array
+    {
+        $leads=self::branchLeads((int)$branch['id'],$today);$areaId=!empty($branch['area_id'])?(int)$branch['area_id']:null;
+        $covering=self::adlsCovering($areaId,$adls,false);$problems=[];
+        if (!$leads['SC']) $problems[]=['NO_SC','This branch has no Sales Captain on record. Only the ADL can view its requests.'];
+        foreach ($leads['SC'] as $sc) if (!$sc['can_view']) $problems[]=['SC_NO_ACCOUNT','Sales Captain '.self::personName($sc).' '.self::ACCOUNT_TEXT[$sc['account']].'.'];
+        if (count($leads['SC'])>1) $problems[]=['MULTI_SC','This branch has '.count($leads['SC']).' Sales Captains; there must be one.'];
+        if (!$areaId) $problems[]=['NO_ADL_AREA','This branch has no area, so no ADL can cover it.'];
+        elseif (!$covering) $problems[]=['NO_ADL','No ADL has this branch\'s area in Assigned areas.'];
+        foreach ($covering as $a) {
+            if (!$a['can_view']) $problems[]=['ADL_NO_ACCOUNT','ADL '.self::personName($a).' '.self::ACCOUNT_TEXT[$a['account']].'.'];
+            if (($a['site_type']??'')==='HEAD_OFFICE' || !$a['branch_name']) $problems[]=['ADL_IN_HEAD_OFFICE','ADL '.self::personName($a).' is recorded under Head Office, not a retail branch. Coverage comes from Assigned areas; check the record.'];
+        }
+        $usable=static fn(array $rows)=>(bool)array_filter($rows,static fn($r)=>$r['can_view']);
+        return ['sc'=>$leads['SC'],'oic'=>$leads['OIC'],'adls'=>$covering,'problems'=>$problems,'has_viewer'=>$usable($leads['SC'])||$usable($leads['OIC'])||$usable($covering)];
     }
 
     /**
      * Read-only answer for the Employee 201 Employment tab: who can read this employee's HR requests today.
-     * Same rules as scope()/clause(): retail = branch leads + covering ADL, Head Office = the routing Manager,
-     * plus HR extra viewers. Nothing is written; HR-only screens are not required to look at it.
-     * @return array{ready:bool,head_office:bool,leads:array,adls:array,manager:?array,extra:array,has_viewer:bool}
+     * Same rules as scope()/clause(). Nothing is written; HR-only screens are not required to look at it.
+     * @return array{ready:bool,head_office:bool,branch:?array,sc:array,oic:array,adls:array,manager:?array,problems:array,has_viewer:bool}
      */
     public static function viewersFor(int $employeeId): array
     {
-        $out=['ready'=>self::ready(),'head_office'=>false,'leads'=>[],'adls'=>[],'manager'=>null,'extra'=>[],'has_viewer'=>false];
+        $out=['ready'=>self::ready(),'head_office'=>false,'branch'=>null,'sc'=>[],'oic'=>[],'adls'=>[],'manager'=>null,'problems'=>[],'has_viewer'=>false];
         if (!$out['ready']) return $out;
         $today=date('Y-m-d');$employee=EmployeeApproverAssignmentService::employee($employeeId);
         $out['head_office']=EmployeeApproverAssignmentService::kind($employee)==='MANAGER';
@@ -232,24 +189,21 @@ final class TicketViewerService
                 $uid=(int)$route['user_id'];
                 $q=db()->prepare('SELECT COALESCE(NULLIF(TRIM(CONCAT(e.first_name," ",e.last_name)),""),u.full_name) name,e.employee_no FROM users u LEFT JOIN employees e ON e.user_id=u.id WHERE u.id=? ORDER BY e.id LIMIT 1');
                 $q->execute([$uid]);$m=$q->fetch()?:['name'=>'Manager','employee_no'=>null];
-                $out['manager']=$m+['can_view'=>self::permitted($uid)];
-            }
+                $out['manager']=$m+['account'=>self::accountState($uid),'can_view'=>self::permitted($uid)];
+                if (!$out['manager']['can_view']) $out['problems'][]=['MANAGER_CANNOT_VIEW','The Manager\'s role cannot view team requests.'];
+            } else $out['problems'][]=['NO_MANAGER','No Manager is set for this Head Office employee, so nobody can view their requests.'];
+            $out['has_viewer']=$out['manager'] && $out['manager']['can_view'];
         } elseif (!empty($employee['branch_id'])) {
-            $q=db()->prepare('SELECT area_id FROM branches WHERE id=?');$q->execute([(int)$employee['branch_id']]);$area=(int)$q->fetchColumn();
-            $out['leads']=self::leadsForBranch((int)$employee['branch_id'],$today);
-            $out['adls']=self::adlsCovering($area?:null,self::adlsWithCoverage());
-        }
-        $q=db()->prepare('SELECT v.employee_no,v.first_name,v.last_name,v.user_id FROM ticket_viewer_overrides o JOIN employees v ON v.id=o.viewer_employee_id
-            WHERE o.employee_id=? AND o.superseded_at IS NULL AND o.effective_from<=? AND (o.effective_to IS NULL OR o.effective_to>=?) ORDER BY o.id');
-        $q->execute([$employeeId,$today,$today]);$out['extra']=$q->fetchAll();
-        foreach ($out['extra'] as &$x) $x['can_view']=$x['user_id'] && self::permitted((int)$x['user_id']);
-        unset($x);
-        $out['has_viewer']=(bool)array_filter($out['leads'],static fn($l)=>$l['can_view'] && $l['effective_from']<=$today)
-            || $out['adls'] || ($out['manager'] && $out['manager']['can_view']) || (bool)array_filter($out['extra'],static fn($x)=>$x['can_view']);
+            $q=db()->prepare('SELECT b.id,b.name,b.area_id,a.name area_name FROM branches b LEFT JOIN areas a ON a.id=b.area_id WHERE b.id=?');$q->execute([(int)$employee['branch_id']]);$branch=$q->fetch();
+            if ($branch) {
+                $set=self::branchSet($branch,self::adlsWithCoverage(),$today);
+                $out=array_replace($out,['branch'=>$branch,'sc'=>$set['sc'],'oic'=>$set['oic'],'adls'=>$set['adls'],'problems'=>$set['problems'],'has_viewer'=>$set['has_viewer']]);
+            }
+        } else $out['problems'][]=['NO_BRANCH','This employee has no branch on record, so no Sales Captain or ADL can be found.'];
         return $out;
     }
 
-    /** ADL employees (directory rule) with their assigned area ids and account status. */
+    /** ADL employees (directory rule) with their assigned area ids and account state. */
     public static function adlsWithCoverage(): array
     {
         $q=db()->query('SELECT e.id,e.employee_no,e.first_name,e.last_name,e.user_id,e.directory_area_ids,b.name branch_name,b.site_type
@@ -258,30 +212,32 @@ final class TicketViewerService
         $out=[];
         foreach ($q->fetchAll() as $e) {
             $e['areas']=EmployeeDirectoryPlacement::areaIds($e['directory_area_ids']);
-            $q=db()->prepare('SELECT COUNT(*) FROM users WHERE id=? AND status="ACTIVE"');$q->execute([(int)$e['user_id']]);
-            $e['user_id']=(int)$q->fetchColumn()?(int)$e['user_id']:0;
-            $e['can_view']=$e['user_id'] && self::permitted($e['user_id']);
+            $e['account']=self::accountState($e['user_id']?(int)$e['user_id']:null);
+            $e['user_id']=in_array($e['account'],['ACTIVE','NO_PERMISSION'],true)?(int)$e['user_id']:0;
+            $e['can_view']=$e['account']==='ACTIVE';
             $out[]=$e;
         }
         return $out;
     }
 
-    public static function overrides(): array
+    // ---------------------------------------------------------------- HR problem report (tickets.approvers.manage)
+
+    /** Active retail branches with their derived viewers and problems, for the report table. */
+    public static function branchRows(int $areaId,int $branchId,bool $problemsOnly=false): array
     {
         EmployeeApproverAssignmentService::requireHr();$today=date('Y-m-d');
-        $q=db()->prepare('SELECT o.id,o.effective_from,o.effective_to,s.employee_no s_no,s.first_name s_first,s.last_name s_last,v.employee_no v_no,v.first_name v_first,v.last_name v_last
-            FROM ticket_viewer_overrides o JOIN employees s ON s.id=o.employee_id JOIN employees v ON v.id=o.viewer_employee_id
-            WHERE o.superseded_at IS NULL AND (o.effective_to IS NULL OR o.effective_to>=?) ORDER BY o.id DESC LIMIT 100');
-        $q->execute([$today]);return $q->fetchAll();
-    }
-
-    /** Datalist for the lead field: Sales Captains / Team Coordinators and anyone on an SC, TC, OIC or ADL account. */
-    public static function leadCandidates(): array
-    {
-        EmployeeApproverAssignmentService::requireHr();
-        return db()->query('SELECT e.employee_no,e.first_name,e.last_name,b.name branch_name FROM employees e LEFT JOIN branches b ON b.id=e.branch_id LEFT JOIN positions p ON p.id=e.position_id
-            LEFT JOIN users u ON u.id=e.user_id LEFT JOIN roles r ON r.id=u.role_id WHERE e.status IN '.self::ACTIVE.'
-            AND (UPPER(COALESCE(p.name,"")) LIKE "%SALES CAPTAIN%" OR UPPER(COALESCE(p.name,"")) LIKE "%TEAM COORDINATOR%" OR r.code IN ("SC","TC","OIC")) ORDER BY e.last_name,e.first_name LIMIT 400')->fetchAll();
+        $where=['b.active=1','b.site_type<>"HEAD_OFFICE"','COALESCE(b.code,"")<>"HEAD_OFFICE"'];$params=[];
+        if ($areaId===-1) $where[]='b.area_id IS NULL'; elseif ($areaId>0) {$where[]='b.area_id=?';$params[]=$areaId;}
+        if ($branchId>0) {$where[]='b.id=?';$params[]=$branchId;}
+        $q=db()->prepare('SELECT b.id,b.code,b.name,b.area_id,a.name area_name,(SELECT COUNT(*) FROM employees e WHERE e.branch_id=b.id AND e.status IN '.self::ACTIVE.') emps
+            FROM branches b LEFT JOIN areas a ON a.id=b.area_id WHERE '.implode(' AND ',$where).' ORDER BY a.name IS NULL,a.name,b.name LIMIT 300');
+        $q->execute($params);$adls=self::adlsWithCoverage();$out=[];
+        foreach ($q->fetchAll() as $r) {
+            $r+=self::branchSet($r,$adls,$today);
+            if ($problemsOnly && (!$r['problems'] || !$r['emps'])) continue;
+            $out[]=$r;
+        }
+        return $out;
     }
 
     /**
@@ -290,7 +246,7 @@ final class TicketViewerService
      */
     public static function report(int $page=1): array
     {
-        EmployeeApproverAssignmentService::requireHr();$today=date('Y-m-d');
+        EmployeeApproverAssignmentService::requireHr();
         $branchCovered=[];$areaCovered=[];$employeeCovered=[];
         $users=db()->query('SELECT DISTINCT u.id FROM users u JOIN roles r ON r.id=u.role_id WHERE u.status="ACTIVE" AND r.code<>"SUPER_ADMIN"
             AND EXISTS(SELECT 1 FROM role_permissions rp JOIN permissions p ON p.id=rp.permission_id WHERE rp.role_id=r.id AND p.code="ticket.view_team")')->fetchAll(PDO::FETCH_COLUMN);
@@ -298,7 +254,7 @@ final class TicketViewerService
             $s=self::scope((int)$uid);if (!$s) continue;
             foreach ($s['branch_ids'] as $id) $branchCovered[$id]=true;
             foreach ($s['area_ids'] as $id) $areaCovered[$id]=true;
-            foreach (array_merge($s['manager_employee_ids'],$s['employee_ids']) as $id) $employeeCovered[$id]=true;
+            foreach ($s['manager_employee_ids'] as $id) $employeeCovered[$id]=true;
         }
         $q=db()->query('SELECT e.id,e.employee_no,e.first_name,e.last_name,e.user_id,b.id branch_id,b.name branch_name,b.area_id,(b.site_type="HEAD_OFFICE" OR COALESCE(b.code,"")="HEAD_OFFICE") is_ho,bu.company_group
             FROM employees e LEFT JOIN branches b ON b.id=e.branch_id LEFT JOIN business_units bu ON bu.id=e.business_unit_id WHERE e.status IN '.self::ACTIVE.' ORDER BY e.last_name,e.first_name,e.id');
@@ -308,18 +264,18 @@ final class TicketViewerService
             if ($ok) {$count['with_viewer']++;continue;}
             $e['is_ho']?$count['ho_missing']++:$count['retail_missing']++;$missing[]=$e;
         }
-        $branches=[];
-        foreach (self::branchRows(0,0) as $b) {
-            if ($b['lead_ready'] || !$b['emps']) continue;
-            $b['adl_covered']=!empty($b['adls']);$branches[]=$b;
-        }
+        $problemBranches=self::branchRows(0,0,true);
         $adls=self::adlsWithCoverage();
         $noSetup=array_values(array_filter($adls,static fn($a)=>!$a['user_id'] || !$a['areas'] || !$a['can_view']));
         $adlInHo=array_values(array_filter($adls,static fn($a)=>($a['site_type']??'')==='HEAD_OFFICE' || !$a['branch_name']));
         $noArea=db()->query('SELECT b.id,b.code,b.name,(SELECT COUNT(*) FROM employees e WHERE e.branch_id=b.id AND e.status IN '.self::ACTIVE.') emps FROM branches b
             WHERE b.active=1 AND b.site_type<>"HEAD_OFFICE" AND COALESCE(b.code,"")<>"HEAD_OFFICE" AND b.area_id IS NULL ORDER BY b.name')->fetchAll();
         $page=max(1,$page);
+        $withoutSc=array_values(array_filter($problemBranches,static fn($b)=>in_array('NO_SC',array_column($b['problems'],0),true)));
+        $scNoAccount=array_values(array_filter($problemBranches,static fn($b)=>in_array('SC_NO_ACCOUNT',array_column($b['problems'],0),true)));
+        $multiSc=array_values(array_filter($problemBranches,static fn($b)=>in_array('MULTI_SC',array_column($b['problems'],0),true)));
         return ['counts'=>$count,'missing'=>array_slice($missing,($page-1)*50,50),'missing_total'=>count($missing),'page'=>$page,'pages'=>max(1,(int)ceil(count($missing)/50)),
-            'branches_without_lead'=>$branches,'adls'=>$adls,'adls_unready'=>$noSetup,'adls_in_head_office'=>$adlInHo,'branches_without_area'=>$noArea];
+            'branches_with_problems'=>$problemBranches,'branches_without_sc'=>$withoutSc,'branches_sc_no_account'=>$scNoAccount,'branches_multi_sc'=>$multiSc,
+            'adls'=>$adls,'adls_unready'=>$noSetup,'adls_in_head_office'=>$adlInHo,'branches_without_area'=>$noArea];
     }
 }

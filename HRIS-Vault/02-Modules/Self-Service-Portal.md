@@ -182,6 +182,7 @@ Scope discipline: the portal owns **no data**. Every screen is a scoped read of 
 | Manpower Request | `ticket.file.manpower` | — | ✓ | ✓ |
 | NetSuite Concern | `ticket.file.netsuite` | — | ✓ | ✓ |
 | Branch Transfer | `ticket.file_for_others` | — | — | ✓ |
+| OIC Authorization | `ticket.file.oic_authorization` | — | ADL, SC only | ✓ (for others, via `ticket.file_for_others`) |
 
 Routing: everything is HR_ONLY except **Payroll Concern**, which keeps Manager (Head Office) or ADL (Branch) then HR, and late filings straight to HR (SLICE-15 unchanged). **Manpower** moved from Manager/ADL-then-HR to HR_ONLY: leads file it, HR sets the status. Manpower tickets already open keep their frozen steps. The Recruitment `manpower_requests` table is untouched.
 
@@ -196,10 +197,13 @@ Migration 010 kept today's access for existing roles: `EMPLOYEE` got the five st
 |---|---|---|
 | FR-726 | The system shall show in "File an HR Request" only the types the user's role may file, and reject any other type server-side. (BR-720, BR-721) | Must |
 | FR-727 | The system shall let HR grant or remove a type for a role from Roles & Permissions, with no code change. | Must |
-| FR-728 | The system shall give branch leads, covering ADLs, Head Office Managers and HR-set extra viewers a read-only Team Requests list and ticket detail, enforced in the ticket read gate so list, URL, comments, events, attachments and downloads follow one rule. (BR-724..727) | Must |
-| FR-729 | The system shall let HR assign branch leads in bulk by area/branch, add extra viewers, and see the unresolved-viewers report. (BR-728, BR-730, BR-731) | Must |
+| FR-728 | The system shall give the covering ADL, the Sales Captain and OIC of the branch, and the Head Office Manager a read-only Team Requests list and ticket detail, enforced in the ticket read gate so list, URL, comments, events, attachments and downloads follow one rule. (BR-724..727) | Must |
+| FR-729 | The system shall derive those viewers automatically and give HR a read-only Ticket Viewers problem report (no assign form). (BR-728, BR-730, BR-731, BR-733) | Must |
 | FR-730 | The system shall audit every change to an ADL's assigned areas. (BR-729) | Must |
-| FR-732 | The system shall show on the Employee 201 Employment tab, read-only, who can view this employee's HR requests (branch leads and covering ADL, or the Manager for Head Office, plus extra viewers), or "No viewer set". (BR-732) | Should |
+| FR-732 | The system shall show on the Employee 201 Employment tab, read-only, the panel "Who can view this employee's tickets" (ADL, Sales Captain, OIC, or the Manager for Head Office) with account status and red PROBLEM lines. (BR-732) | Should |
+| FR-733 | The system shall let an ADL or Sales Captain (and HR/Admin for others) file an OIC Authorization for an employee in their branch/area, routed to HR only. (BR-734) | Must |
+| FR-734 | The system shall block an OIC Authorization for a nominee who already holds a higher role, at filing and when HR serves it. (BR-736) | Must |
+| FR-735 | The system shall end OIC access on the end date and return the account to its recorded previous role automatically, idempotently and with an audit entry. (BR-735) | Must |
 
 ## As built: read-only ticket viewers (2026-10-24)
 
@@ -207,8 +211,15 @@ Migration `20261024_012_ticket_viewers.sql` (+ guarded `.down.sql`, refuses once
 
 - **Gate:** `TicketRepository::find()` tries the direct rules first (requester, HR, named step approver, Accounting, Incident staff); only if none match does `TicketViewerService::clause()` apply, and the ticket then carries `viewer_only=true`. `TicketService::act/comment/attach/attachment` and `TicketAccounting::remark` refuse `viewer_only`; `permissions()` returns all false. Viewers see comments marked ALL and history, but no attachment list or download.
 - **List:** `Team Requests` (`hr-request-team`) excludes drafts, Incident Reports and the viewer's own tickets.
-- **HR screen:** `Ticket Viewers` (`hr-ticket-viewers`, permission `tickets.approvers.manage`): bulk branch leads by area/branch, extra viewers, unresolved report.
+- **HR screen:** `Ticket Viewers` (`hr-ticket-viewers`, permission `tickets.approvers.manage`) is a read-only problem report (migration 013): branches with no Sales Captain, Sales Captain without a usable account, two Sales Captains, ADL gaps, employees with no resolvable viewer. The assign-lead and extra-viewer forms are removed; `branch_leads` / `ticket_viewer_overrides` are deprecated and never read.
 - **Not built (by decision):** notifications to viewers; a viewer comment path.
+
+## As built: automatic viewers and OIC Authorization (2026-10-24, migration 013)
+
+Viewers are no longer assigned. `TicketViewerService` derives them when a ticket is read: the ADL whose `directory_area_ids` contain the branch area, the Sales Captain of the branch (same-branch employee, position `Sales Captain`, active linked account with `ticket.view_team`) and the OIC of the branch (position `Officer In Charge`, or an account on the OIC role with a served authorization covering today). Head Office stays the routing Manager. One SELECT (`leadSql`) feeds both `scope()` (access) and `branchLeads()` (panel and report), so the panel cannot disagree with the rule.
+
+- **OIC Authorization** (`OIC_AUTHORIZATION`, HR_ONLY): the subject of the ticket is the nominee, the requester is the filer. `TicketOicAuthorization` validates scope and escalation, `save()` writes `oic_authorizations` (REQUESTED), HR "Served" calls `complete()` (APPROVED, previous role recorded, `ticket_effects` row, audit). HR then creates or links the user in Users (a Super Admin or PMBSI Administrator account, per `users.manage`) and gives the OIC role by hand.
+- **Expiry:** `TicketOicAuthorization::runDue()` runs from `render_portal_header()` (one indexed lookup when nothing is due) and from `scripts/run_notifications.php` (the existing scheduled task). Date-bound viewer access ends the day after the end date regardless of when the role is reverted.
 
 ## Open Questions
 

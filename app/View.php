@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/TicketOicAuthorization.php';
 
 function icon_svg(string $name, string $class=''): string {
     $paths = [
@@ -146,6 +147,8 @@ function nav_config(string $kind): array {
 function render_portal_header(string $kind,string $active,string $title): void {
     // Probation reminders are checked once a day, whoever opens the system first. Never block the page.
     try { if(Auth::check()) ProbationService::runDaily(); } catch(Throwable $e) { error_log('Probation check failed: '.$e->getMessage()); }
+    // Expired OIC authorizations hand the account back to its previous role. Idempotent; one indexed lookup when nothing is due.
+    if(Auth::check()) TicketOicAuthorization::runDue();
     $u=Auth::user() ?? ['name'=>'User','role_name'=>'Account'];
     // Shared payroll and employee screens retain the administrator's navigation.
     $payrollWorkspace=str_starts_with($active,'payroll-') || in_array($active,['employee-attendance','employee-requests','hr-payroll-processing','hr-timekeeping','manager-approvals','hr-leave'],true);

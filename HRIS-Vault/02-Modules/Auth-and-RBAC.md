@@ -279,7 +279,9 @@ The HR and Admin sidebars list the **HR Request Setup** group (Ticket Approvers,
 
 ## As built: team request viewing (2026-10-24)
 
-Permission `ticket.view_team` ("View team HR requests (read-only)") is created by migration 012 and seeded to ADL, SC, OIC, TC and MANAGER only; any other role (including EMPLOYEE and the HR roles) must be granted it on the Roles screen. It is necessary but not sufficient: the person must also be a branch lead, a covering ADL, the Head Office Manager or an HR extra viewer, with an active account linked to an active employee. It grants reading only and is separate from `payroll.approve_*`, `ticket.sensitive.view` and `tickets.review_hr`. The role/user guards (BR-124, BR-125) apply to it like any permission.
+Permission `ticket.view_team` ("View team HR requests (read-only)") is created by migration 012 and seeded to ADL, SC, OIC, TC and MANAGER only; any other role (including EMPLOYEE and the HR roles) must be granted it on the Roles screen. It is necessary but not sufficient: the person must also be derived as a viewer (the covering ADL, the Sales Captain or OIC of the employee's branch, or the Head Office Manager) with an active account linked to an active employee. Nothing is assigned by hand (migration 013). It grants reading only and is separate from `payroll.approve_*`, `ticket.sensitive.view` and `tickets.review_hr`. The role/user guards (BR-124, BR-125) apply to it like any permission.
+
+Permission `ticket.file.oic_authorization` (migration 013) lets a role file an OIC Authorization; it is seeded to ADL and SC only. HR/Admin file for others through `ticket.file_for_others` (HR or admin portal only; an ADL role that also holds it stays limited to its own areas). The OIC role is granted by hand in Users by a `users.manage` holder (Super Admin or PMBSI Administrator); expiry returns the account to its recorded previous role and never changes a Super Admin, HR, admin or client account (BR-735, BR-736).
 
 ## Open Questions
 

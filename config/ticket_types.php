@@ -12,6 +12,13 @@ return [
         'effective_date'=>['label'=>'Effective date','kind'=>'date'],
         'company'=>['label'=>'Company label','options'=>['SW','OFJI']],
     ]],
+    'OIC_AUTHORIZATION'=>['name'=>'OIC Authorization','profile'=>'HR_ONLY','fields'=>[
+        'employee'=>['label'=>'Proposed OIC (employee)','kind'=>'employee'],
+        'branch'=>['label'=>'Branch','kind'=>'branch'],
+        'reason'=>['label'=>'Reason','kind'=>'text','max'=>2000],
+        'start_date'=>['label'=>'Start date','kind'=>'date'],
+        'end_date'=>['label'=>'End date','kind'=>'date'],
+    ]],
     'MANPOWER_REQUEST'=>['name'=>'Manpower Request','profile'=>'HR_ONLY','fields'=>[
         'section_branch'=>['label'=>'Section / Branch','kind'=>'text','max'=>160],
         'position_code'=>['label'=>'Position code','options'=>['BS','SC','VS']],

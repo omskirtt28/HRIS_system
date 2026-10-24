@@ -16,7 +16,7 @@ function perm(int $role,string $code,bool $on):void {
 function codes():array { $c=array_column(TicketRepository::types(),'code');sort($c);return $c; }
 function audited(string $action,string $type,int $id):array { return row('SELECT details_json FROM audit_logs WHERE action=? AND record_type=? AND record_id=? ORDER BY id DESC LIMIT 1',[$action,$type,$id]); }
 $staff=['ATM_REQUEST','ID_REQUEST','INCIDENT_REPORT','PAYROLL_CONCERN','UNIFORM_REQUEST'];
-check('migration 010 permissions exist',count(db()->query('SELECT id FROM permissions WHERE code LIKE "ticket.file.%"')->fetchAll())===7);
+check('migration 010 permissions exist',count(db()->query('SELECT id FROM permissions WHERE code LIKE "ticket.file.%" AND code<>"ticket.file.oic_authorization"')->fetchAll())===7); // the eighth, ticket.file.oic_authorization, comes from migration 013
 
 // Access matrix. The outsider fixture becomes Staff by dropping the lead-only types.
 foreach(['ticket.file.manpower','ticket.file.netsuite'] as $code)perm($f['outsider']['role_id'],$code,false);

@@ -18,6 +18,7 @@ $connection=cfg('db');$name=getenv('HRIS_TEST_DB');if($connection['database']===
 $GLOBALS['pdo']=Database::connect($connection);$GLOBALS['config']['db']['database']=$name;
 require_once $root.'/app/View.php';
 require_once $root.'/app/NotificationService.php';
+require_once $root.'/app/TicketRepository.php'; // nav_config() reads TicketRepository / TicketAccounting
 require_once $root.'/app/TicketAssignmentModule.php';
 function need_db():void{db();}
 $fixtures=json_decode(file_get_contents($root.'/storage/slice15-private/browser-fixtures.json'),true,512,JSON_THROW_ON_ERROR);

@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
-// Migration 012: read-only ticket viewers (branch leads, ADL areas, Head Office Manager, HR override). Synthetic fixtures only.
+// Automatic read-only ticket viewers (migrations 012 + 013): ADL by area, Sales Captain and OIC by branch, Head Office Manager.
+// Nobody is assigned by hand; branch_leads / ticket_viewer_overrides are deprecated and must never grant access. Synthetic fixtures only.
 require __DIR__.'/ticket_test_support.php';
 require_once dirname(__DIR__).'/app/TicketService.php';
 require_once dirname(__DIR__).'/app/TicketViewerService.php';
@@ -24,24 +25,31 @@ function perm(int $role,string $code,bool $on):void {
 function role(string $tag,string $key,array $perms,string $portal='employee'):int {
     $id=insert('INSERT INTO roles(code,name,portal) VALUES(?,?,?)',[$tag.'_'.$key,'Slice15 '.$key,$portal]);foreach($perms as $c)perm($id,$c,true);return $id;
 }
-/** @return array{user:array,employee:int} an account plus a linked active employee at $branch */
-function person(string $tag,string $key,int $roleId,int $branch,array $f,?int $positionId=null):array {
-    $r=row('SELECT code,portal FROM roles WHERE id=?',[$roleId]);$email=strtolower($tag.'_v_'.$key).'@example.test';
-    $uid=insert('INSERT INTO users(role_id,full_name,email,password_hash,status) VALUES(?,?,?,?,"ACTIVE")',[$roleId,'Slice15 Test '.$key,$email,password_hash('Slice15-Test-Only!9',PASSWORD_DEFAULT)]);
-    $emp=insert('INSERT INTO employees(employee_no,first_name,last_name,user_id,branch_id,position_id,legal_entity_id,business_unit_id,status,hire_date) VALUES(?,?,?,?,?,?,?,?,"ACTIVE",?)',[$tag.'_v_'.$key,'Slice15','Test '.$key,$uid,$branch,$positionId,$f['legal'],$f['company'],date('Y-m-d',strtotime('-1 year'))]);
-    return ['user'=>['id'=>$uid,'role_id'=>$roleId,'role_code'=>$r['code'],'role_portal'=>$r['portal'],'name'=>'Slice15 Test '.$key,'role_name'=>'Test '.$key,'email'=>$email,'client_id'=>null],'employee'=>$emp,'no'=>$tag.'_v_'.$key];
+/** @return array{user:?array,employee:int,no:string} a linked active employee at $branch, with an account unless $account is false */
+function person(string $tag,string $key,int $roleId,int $branch,array $f,?int $positionId=null,bool $account=true):array {
+    $r=row('SELECT code,portal FROM roles WHERE id=?',[$roleId]);$email=strtolower($tag.'_v_'.$key).'@example.test';$uid=null;$user=null;
+    if($account){
+        $uid=insert('INSERT INTO users(role_id,full_name,email,password_hash,status) VALUES(?,?,?,?,"ACTIVE")',[$roleId,'Slice15 Test '.$key,$email,password_hash('Slice15-Test-Only!9',PASSWORD_DEFAULT)]);
+        $user=['id'=>$uid,'role_id'=>$roleId,'role_code'=>$r['code'],'role_portal'=>$r['portal'],'name'=>'Slice15 Test '.$key,'role_name'=>'Test '.$key,'email'=>$email,'client_id'=>null];
+    }
+    $emp=insert('INSERT INTO employees(employee_no,first_name,last_name,user_id,branch_id,position_id,legal_entity_id,business_unit_id,status,hire_date) VALUES(?,?,?,?,?,?,?,?,"ACTIVE",?)',[$tag.'_v_'.$key,'Slice15','Test '.$key,$uid,$branch,$positionId,$f['legal'],$f['company'],date('Y-m-d',strtotime('-2 years'))]);
+    return ['user'=>$user,'employee'=>$emp,'no'=>$tag.'_v_'.$key];
 }
 function sees(array $user,int $ticket):bool { act($user);try{TicketRepository::find($ticket);return true;}catch(RuntimeException){return false;} }
 function listed(array $user,int $ticket,array $filters=[]):bool { act($user);foreach(TicketRepository::listing('team',$filters,100)['rows'] as $r)if((int)$r['id']===$ticket)return true;return false; }
 function file_ticket(array $user,string $code,array $extra,bool $submit=true):int { act($user);return TicketService::create(form($code,$extra),$submit); }
 function atm(array $user,bool $submit=true):int { return file_ticket($user,'ATM_REQUEST',['reason'=>'Synthetic viewer test'],$submit); }
 function steps(int $ticket):int { return (int)row('SELECT COUNT(*) c FROM ticket_steps WHERE ticket_id=?',[$ticket])['c']; }
+function problems(array $v):array { return array_column($v['problems'],0); }
 
-// ---- Migration 012 shape
+// ---- Migration shapes
 check('ticket.view_team exists',row('SELECT id FROM permissions WHERE code="ticket.view_team"')!==[]);
 $granted=array_column(db()->query('SELECT r.code FROM role_permissions rp JOIN roles r ON r.id=rp.role_id JOIN permissions p ON p.id=rp.permission_id WHERE p.code="ticket.view_team" AND r.code NOT LIKE "T15\_%" ORDER BY r.code')->fetchAll(),'code');
 check('seeded to ADL, SC, OIC, TC, MANAGER only (deny by default)',$granted===['ADL','MANAGER','OIC','SC','TC']);
 check('EMPLOYEE and HR roles do not hold it',!array_intersect(['EMPLOYEE','HR_USER','HRIS_ADMIN'],$granted));
+check('the manual-assignment API is gone',!method_exists('TicketViewerService','assignLeads')&&!method_exists('TicketViewerService','addOverride')&&!method_exists('TicketViewerService','endLead')&&!method_exists('TicketViewerService','endOverride')&&!method_exists('TicketViewerService','overrides')&&!method_exists('TicketViewerService','leadCandidates'));
+$dep=db()->query('SELECT table_name,table_comment FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ("branch_leads","ticket_viewer_overrides")')->fetchAll(PDO::FETCH_KEY_PAIR);
+check('branch_leads and ticket_viewer_overrides are marked DEPRECATED in the schema',count($dep)===2&&!array_filter($dep,fn($c)=>!str_starts_with($c,'DEPRECATED')));
 
 // ---- Fixtures: two areas, branches in them, an area-less branch.
 $areaA=insert('INSERT INTO areas(code,name) VALUES(?,?)',[$tag.'_A','T15 Area A']);$areaB=insert('INSERT INTO areas(code,name) VALUES(?,?)',[$tag.'_B','T15 Area B']);
@@ -50,17 +58,20 @@ $brB=insert('INSERT INTO branches(code,name,site_type,area_id) VALUES(?,?,"BRANC
 $brNone=insert('INSERT INTO branches(code,name,site_type) VALUES(?,?,"BRANCH")',[$tag.'_BN','T15 Branch no area']);
 $viewRole=role($tag,'viewrole',['ticket.view_team','tickets.request_self','ticket.file.atm','ticket.file.incident']);
 $plainRole=role($tag,'plainrole',['tickets.request_self','ticket.file.atm','ticket.file.incident']);
+$scPos=insert('INSERT INTO positions(code,name) VALUES(?,?)',[$tag.'_SC','Sales Captain']);
+$oicPos=insert('INSERT INTO positions(code,name) VALUES(?,?)',[$tag.'_OIC','Officer In Charge']);
 $adlPos=insert('INSERT INTO positions(code,name) VALUES(?,?)',[$tag.'_ADL','Area Development Leader']);
+$baPos=insert('INSERT INTO positions(code,name) VALUES(?,?)',[$tag.'_BA','Beauty Advisor']);
 
-$staff=person($tag,'staff',$plainRole,$f['branch'],$f);          // subject at the area A branch
-$staffB=person($tag,'staffb',$plainRole,$brB,$f);                // subject at the area B branch
-$staffN=person($tag,'staffn',$plainRole,$brNone,$f);             // subject at the branch with no area / no lead
-$lead=person($tag,'lead',$viewRole,$f['branch'],$f);             // SC / TC at the area A branch
-$lead2=person($tag,'lead2',$viewRole,$f['branch'],$f);           // second lead
-$leadNoPerm=person($tag,'leadnoperm',$plainRole,$f['branch'],$f);// assigned lead but role lacks the permission
-$stranger=person($tag,'stranger',$viewRole,$brB,$f);             // has the permission, not in scope of the area A branch
-$adl=person($tag,'adl',$viewRole,$f['ho'],$f,$adlPos);           // ADL whose own branch is Head Office
-$hr=$f['hr'];$hrAdminEmployee=null;
+$staff=person($tag,'staff',$plainRole,$f['branch'],$f,$baPos);        // subject at the area A branch
+$staffB=person($tag,'staffb',$plainRole,$brB,$f,$baPos);              // subject at the area B branch
+$staffN=person($tag,'staffn',$plainRole,$brNone,$f,$baPos);           // subject at the branch with no area / no SC
+$sc=person($tag,'sc',$viewRole,$f['branch'],$f,$scPos);               // the Sales Captain of the area A branch
+$notSc=person($tag,'notsc',$viewRole,$f['branch'],$f,$baPos);         // same branch, holds the permission, but not a Sales Captain
+$scOther=person($tag,'scother',$viewRole,$brB,$f,$scPos);             // Sales Captain of the area B branch
+$stranger=person($tag,'stranger',$viewRole,$brNone,$f,$baPos);        // permitted, in scope of nothing
+$adl=person($tag,'adl',$viewRole,$f['ho'],$f,$adlPos);                // ADL whose own branch is Head Office
+$hr=$f['hr'];
 
 // ---- Tickets
 $t1=atm($staff['user']);$t2=atm($staff['user'],false);$t3=file_ticket($staff['user'],'INCIDENT_REPORT',['title'=>'T15 incident','explanation'=>'Synthetic'],true);
@@ -68,41 +79,21 @@ $tB=atm($staffB['user']);$tN=atm($staffN['user']);$tHo=atm($f['employee']);
 check('ATM filed and routed HR only',(string)row('SELECT status FROM tickets WHERE id=?',[$t1])['status']==='PENDING_HR'&&(string)row('SELECT status FROM tickets WHERE id=?',[$t2])['status']==='DRAFT');
 $stepsBefore=steps($t1);
 
-// ---- Nobody is a viewer until HR sets it up
-check('no lead yet: the permitted lead cannot see the ticket',!sees($lead['user'],$t1)&&!listed($lead['user'],$t1));
-act($lead['user']);check('own team list renders empty, not an error',TicketRepository::listing('team')['rows']===[]);
-
-// ---- HR assigns leads (bulk, several leads per branch)
-act($f['employee']);check('non-HR cannot assign leads',rejects(fn()=>TicketViewerService::assignLeads(['branch_ids'=>[$f['branch']],'lead_employee_no'=>$lead['no'],'effective_from'=>date('Y-m-d')])));
-act($hr);
-check('Head Office has no branch lead',rejects(fn()=>TicketViewerService::assignLeads(['branch_ids'=>[$f['ho']],'lead_employee_no'=>$lead['no'],'effective_from'=>date('Y-m-d')])));
-check('unknown employee number rejected',rejects(fn()=>TicketViewerService::assignLeads(['branch_ids'=>[$f['branch']],'lead_employee_no'=>'NOPE','effective_from'=>date('Y-m-d')])));
-check('past effective date rejected',rejects(fn()=>TicketViewerService::assignLeads(['branch_ids'=>[$f['branch']],'lead_employee_no'=>$lead['no'],'effective_from'=>date('Y-m-d',strtotime('-1 day'))])));
-[$added,$skipped]=TicketViewerService::assignLeads(['branch_ids'=>[$f['branch'],$brB],'lead_employee_no'=>$lead['no'],'effective_from'=>date('Y-m-d')]);
-check('bulk assign saves one lead per selected branch',$added===2&&$skipped===0);
-[$added,$skipped]=TicketViewerService::assignLeads(['branch_ids'=>[$f['branch']],'lead_employee_no'=>$lead['no'],'effective_from'=>date('Y-m-d')]);
-check('same lead twice is skipped, not duplicated',$added===0&&$skipped===1);
-[$added]=TicketViewerService::assignLeads(['branch_ids'=>[$f['branch']],'lead_employee_no'=>$lead2['no'],'effective_from'=>date('Y-m-d')]);
-check('a branch may have several leads',$added===1&&(int)row('SELECT COUNT(*) c FROM branch_leads WHERE branch_id=?',[$f['branch']])['c']===2);
-TicketViewerService::assignLeads(['branch_ids'=>[$f['branch']],'lead_employee_no'=>$leadNoPerm['no'],'effective_from'=>date('Y-m-d')]);
-check('assignment is audited',row('SELECT id FROM audit_logs WHERE action="ASSIGN_BRANCH_LEAD" AND record_id=?',[$f['branch']])!==[]);
-
-// ---- Viewer sees, read-only
-check('lead sees the branch ticket by detail URL',sees($lead['user'],$t1));
-check('second lead sees it too',sees($lead2['user'],$t1)&&listed($lead2['user'],$t1));
-check('lead sees it in the team list',listed($lead['user'],$t1));
-act($lead['user']);$tk=TicketRepository::find($t1);check('ticket is flagged viewer_only',$tk['viewer_only']===true);
-$p=TicketService::permissions($tk);check('every action permission is false for a viewer',!array_filter($p));
-check('draft is hidden from viewers (list and URL)',!sees($lead['user'],$t2)&&!listed($lead['user'],$t2));
-check('Incident Report hidden from viewers (list and URL)',!sees($lead['user'],$t3)&&!listed($lead['user'],$t3));
-check('other branch tickets stay hidden from the lead',!sees($lead['user'],$tN)&&!sees($lead['user'],$tHo));
-check('role without ticket.view_team is denied even when assigned lead',!sees($leadNoPerm['user'],$t1)&&rejects(fn()=>TicketRepository::listing('team')));
-act($leadNoPerm['user']);check('no-permission team list throws',rejects(fn()=>TicketRepository::listing('team')));
-check('permitted person outside scope is denied by guessed URL',!sees($stranger['user'],$t1));
+// ---- Sales Captain: automatic, by position + same branch + account + permission. No HR assignment exists.
+check('the Sales Captain sees the branch ticket with no setup at all',sees($sc['user'],$t1)&&listed($sc['user'],$t1));
+act($sc['user']);$tk=TicketRepository::find($t1);check('ticket is flagged viewer_only',$tk['viewer_only']===true);
+check('every action permission is false for a viewer',!array_filter(TicketService::permissions($tk)));
+check('draft is hidden from viewers (list and URL)',!sees($sc['user'],$t2)&&!listed($sc['user'],$t2));
+check('Incident Report hidden from viewers (list and URL)',!sees($sc['user'],$t3)&&!listed($sc['user'],$t3));
+check('Sales Captain of another branch is denied by guessed URL',!sees($scOther['user'],$t1)&&!listed($scOther['user'],$t1)&&sees($scOther['user'],$tB));
+check('same branch + permission but another position is denied',!sees($notSc['user'],$t1));
+check('Sales Captain does not see other branches or Head Office',!sees($sc['user'],$tB)&&!sees($sc['user'],$tN)&&!sees($sc['user'],$tHo));
+check('a permitted person in scope of nothing sees nothing',!sees($stranger['user'],$t1)&&!sees($stranger['user'],$tB)&&!sees($stranger['user'],$tN));
 check('plain staff of another branch denied by guessed URL',!sees($staffB['user'],$t1)&&!sees($f['outsider'],$t1));
+act($sc['user']);$own=atm($sc['user']);check('the Sales Captain\'s own ticket is theirs, not a team row',!TicketRepository::find($own)['viewer_only']&&!listed($sc['user'],$own));
 
 // Forged POSTs (service layer is what the POST handler calls)
-act($lead['user']);$ver=(int)TicketRepository::find($t1)['version'];
+act($sc['user']);$ver=(int)TicketRepository::find($t1)['version'];
 foreach(['APPROVE','START','COMPLETE','RETURN','REJECT','CANCEL'] as $action)check('forged '.$action.' by viewer denied',rejects(fn()=>TicketService::act($t1,$ver,$action,'forged remarks','NO_CHANGE')));
 check('forged comment by viewer denied',rejects(fn()=>TicketService::comment($t1,'forged comment')));
 check('forged staff-only comment by viewer denied',rejects(fn()=>TicketService::comment($t1,'forged','STAFF_ONLY')));
@@ -110,52 +101,88 @@ check('forged attachment upload by viewer denied',rejects(fn()=>TicketService::a
 check('forged edit by viewer denied',rejects(fn()=>TicketService::edit($t1,$ver,form('ATM_REQUEST',['reason'=>'x']),true)));
 check('forged NetSuite remark by viewer denied',rejects(fn()=>TicketAccounting::remark($t1,'ACCOUNTING','forged')));
 check('nothing changed after the forged attempts',(int)row('SELECT version v FROM tickets WHERE id=?',[$t1])['v']===$ver&&(int)row('SELECT COUNT(*) c FROM ticket_comments WHERE ticket_id=?',[$t1])['c']===0&&steps($t1)===$stepsBefore&&(string)row('SELECT status FROM tickets WHERE id=?',[$t1])['status']==='PENDING_HR');
-// Attachments: not listed, not downloadable
 $att=insert('INSERT INTO ticket_attachments(ticket_id,original_name,stored_name,mime_type,file_size,uploaded_by) VALUES(?,?,?,?,?,?)',[$t1,'evidence.pdf',bin2hex(random_bytes(24)).'.pdf','application/pdf',10,$staff['user']['id']]);
-act($lead['user']);check('viewer detail lists no attachments',TicketRepository::detail($t1)['attachments']===[]);
+act($sc['user']);check('viewer detail lists no attachments',TicketRepository::detail($t1)['attachments']===[]);
 check('viewer cannot download an attachment',rejects(fn()=>TicketService::attachment($att)));
 act($staff['user']);check('requester still lists their attachment',count(TicketRepository::detail($t1)['attachments'])===1);
-// Staff-only comments by HR on the ticket stay hidden from the viewer; ALL comments are visible.
 act($hr);TicketService::comment($t1,'T15 visible comment');
-act($lead['user']);$d=TicketRepository::detail($t1);check('viewer reads comments and events',count($d['comments'])===1&&count($d['events'])>=2);
-// Page output carries no action forms
-foreach([[$t1,'ticket_detail_page']] as [$id]){ob_start();ticket_detail_page(TicketRepository::detail($id));$html=ob_get_clean();
-    check('viewer detail page has no decision, comment or upload form',!str_contains($html,'core_ticket_comment')&&!str_contains($html,'core_ticket_act')&&!str_contains($html,'core_ticket_attach')&&str_contains($html,'View-only'));}
+act($sc['user']);$d=TicketRepository::detail($t1);check('viewer reads comments and events',count($d['comments'])===1&&count($d['events'])>=2);
+ob_start();ticket_detail_page(TicketRepository::detail($t1));$html=ob_get_clean();
+check('viewer detail page has no decision, comment or upload form',!str_contains($html,'core_ticket_comment')&&!str_contains($html,'core_ticket_act')&&!str_contains($html,'core_ticket_attach')&&str_contains($html,'View-only'));
 ob_start();ticket_list_page('team',TicketRepository::listing('team'),[]);$html=ob_get_clean();check('team list page renders the ticket',str_contains($html,TicketRepository::find($t1)['ticket_no'])&&str_contains($html,'view only'));
-// Notifications: viewers receive nothing
-$q=db()->prepare('SELECT COUNT(*) c FROM ticket_notification_outbox o JOIN ticket_events e ON e.id=o.event_id WHERE e.ticket_id=? AND o.recipient_user_id IN (?,?)');$q->execute([$t1,$lead['user']['id'],$lead2['user']['id']]);
+$q=db()->prepare('SELECT COUNT(*) c FROM ticket_notification_outbox o JOIN ticket_events e ON e.id=o.event_id WHERE e.ticket_id=? AND o.recipient_user_id=?');$q->execute([$t1,$sc['user']['id']]);
 check('viewers are never queued for notifications',(int)$q->fetchColumn()===0);
-// Own tickets are not duplicated into the team list; HR path is unchanged
-$own=atm($lead['user']);act($lead['user']);check('lead sees own ticket directly, not in team list',!TicketRepository::find($own)['viewer_only']&&!listed($lead['user'],$own));
 act($hr);check('HR still sees the ticket directly (not viewer_only)',TicketRepository::find($t1)['viewer_only']===false&&TicketRepository::find($t3)['viewer_only']===false);
 
-// ---- Frozen branch_id: a transfer does not move old tickets
+// ---- Deprecated tables cannot grant anything, even with rows in them.
+db()->prepare('INSERT INTO branch_leads(branch_id,employee_id,effective_from) VALUES(?,?,CURDATE())')->execute([$f['branch'],$stranger['employee']]);
+db()->prepare('INSERT INTO ticket_viewer_overrides(employee_id,viewer_employee_id,effective_from) VALUES(?,?,CURDATE())')->execute([$staffN['employee'],$stranger['employee']]);
+check('a branch_leads row grants no access',!sees($stranger['user'],$t1)&&!listed($stranger['user'],$t1));
+check('a ticket_viewer_overrides row grants no access',!sees($stranger['user'],$tN)&&!listed($stranger['user'],$tN));
+act($stranger['user']);check('and the scope stays empty',TicketViewerService::scope($stranger['user']['id'])===['branch_ids'=>[],'area_ids'=>[],'manager_employee_ids'=>[]]);
+$v=TicketViewerService::viewersFor($staff['employee']);check('the 201 answer does not list a deprecated lead',!array_filter($v['sc'],fn($p)=>(int)$p['id']===$stranger['employee'])&&!array_filter($v['oic'],fn($p)=>(int)$p['id']===$stranger['employee']));
+
+// ---- Access follows position, employment, account and permission at once
+db()->prepare('UPDATE employees SET position_id=? WHERE id=?')->execute([$baPos,$sc['employee']]);
+check('Sales Captain whose position changes loses access at once',!sees($sc['user'],$t1));
+db()->prepare('UPDATE employees SET position_id=? WHERE id=?')->execute([$scPos,$sc['employee']]);
+check('and gets it back when the position is Sales Captain again',sees($sc['user'],$t1));
+db()->prepare('UPDATE employees SET status="INACTIVE" WHERE id=?')->execute([$sc['employee']]);
+check('an inactive Sales Captain employee loses access',!sees($sc['user'],$t1));
+db()->prepare('UPDATE employees SET status="ACTIVE" WHERE id=?')->execute([$sc['employee']]);
+db()->prepare('UPDATE users SET status="INACTIVE" WHERE id=?')->execute([$sc['user']['id']]);
+check('a Sales Captain with a disabled account loses access',!sees($sc['user'],$t1));
+db()->prepare('UPDATE users SET status="ACTIVE" WHERE id=?')->execute([$sc['user']['id']]);
+db()->prepare('UPDATE employees SET user_id=NULL WHERE id=?')->execute([$sc['employee']]);
+check('a Sales Captain with no linked account has no access',!sees($sc['user'],$t1));
+db()->prepare('UPDATE employees SET user_id=? WHERE id=?')->execute([$sc['user']['id'],$sc['employee']]);
+perm($viewRole,'ticket.view_team',false);check('removing ticket.view_team ends all viewer access',!sees($sc['user'],$t1)&&!sees($scOther['user'],$tB));
+perm($viewRole,'ticket.view_team',true);check('and granting it restores access',sees($sc['user'],$t1));
+// Frozen branch_id: a transfer does not move old tickets
 db()->prepare('UPDATE employees SET branch_id=? WHERE id=?')->execute([$brB,$staff['employee']]);
-check('after the employee moves, the old branch lead keeps the old ticket',sees($lead['user'],$t1));
-check('new branch lead does not get the old ticket (frozen branch_id)',!sees($stranger['user'],$t1));
+check('after the employee moves, the old branch Sales Captain keeps the old ticket',sees($sc['user'],$t1));
+check('the new branch Sales Captain does not get the old ticket (frozen branch_id)',!sees($scOther['user'],$t1));
 db()->prepare('UPDATE employees SET branch_id=? WHERE id=?')->execute([$f['branch'],$staff['employee']]);
+// A Sales Captain moved to another branch follows the new branch
+db()->prepare('UPDATE employees SET branch_id=? WHERE id=?')->execute([$brNone,$sc['employee']]);
+check('a Sales Captain who moves branch loses the old branch and gains the new one',!sees($sc['user'],$t1)&&sees($sc['user'],$tN));
+db()->prepare('UPDATE employees SET branch_id=? WHERE id=?')->execute([$f['branch'],$sc['employee']]);
 
-// ---- Lead changes: access follows the dates, routing steps untouched
-act($hr);$leadRow=(int)row('SELECT id FROM branch_leads WHERE branch_id=? AND employee_id=?',[$f['branch'],$lead['employee']])['id'];
-TicketViewerService::endLead($leadRow);
-check('ended lead loses the open ticket at once, second lead keeps it',!sees($lead['user'],$t1)&&sees($lead2['user'],$t1));
-check('ending a lead does not touch ticket steps or status',steps($t1)===$stepsBefore&&(string)row('SELECT status FROM tickets WHERE id=?',[$t1])['status']==='PENDING_HR');
-act($hr);check('ending twice is refused',rejects(fn()=>TicketViewerService::endLead($leadRow)));
-act($hr);TicketViewerService::assignLeads(['branch_ids'=>[$f['branch']],'lead_employee_no'=>$lead['no'],'effective_from'=>date('Y-m-d',strtotime('+3 days'))]);
-check('a future-dated lead sees nothing yet',!sees($lead['user'],$t1));
-db()->prepare('UPDATE branch_leads SET effective_from=CURDATE() WHERE branch_id=? AND employee_id=? AND effective_from>CURDATE()')->execute([$f['branch'],$lead['employee']]);
-check('the same lead sees the full history once effective',sees($lead['user'],$t1));
-act($hr);TicketViewerService::assignLeads(['branch_ids'=>[$f['branch']],'lead_employee_no'=>$lead['no'],'effective_from'=>date('Y-m-d',strtotime('+30 days'))]);
-db()->prepare('UPDATE employees SET status="INACTIVE" WHERE id=?')->execute([$lead2['employee']]);
-check('an inactive lead employee loses access',!sees($lead2['user'],$t1));
-db()->prepare('UPDATE employees SET status="ACTIVE" WHERE id=?')->execute([$lead2['employee']]);
-db()->prepare('UPDATE users SET status="INACTIVE" WHERE id=?')->execute([$lead2['user']['id']]);
-check('a lead with a disabled account loses access',!sees($lead2['user'],$t1));
-db()->prepare('UPDATE users SET status="ACTIVE" WHERE id=?')->execute([$lead2['user']['id']]);
+// ---- Two Sales Captains in one branch: both can view, and it is a PROBLEM
+$sc2=person($tag,'sc2',$viewRole,$f['branch'],$f,$scPos);
+check('a second Sales Captain can view too',sees($sc2['user'],$t1)&&sees($sc['user'],$t1));
+act($hr);$v=TicketViewerService::viewersFor($staff['employee']);
+check('201 answer lists both and flags MULTI_SC',count($v['sc'])===2&&in_array('MULTI_SC',problems($v),true));
+db()->prepare('UPDATE employees SET status="INACTIVE" WHERE id=?')->execute([$sc2['employee']]);
+check('a single Sales Captain has no MULTI_SC problem',!in_array('MULTI_SC',problems(TicketViewerService::viewersFor($staff['employee'])),true));
 
+// ---- OIC by position (permanent) and by dated authorization
+$oic=person($tag,'oic',$viewRole,$f['branch'],$f,$oicPos);
+check('an OIC by position sees the branch tickets, read-only',sees($oic['user'],$t1)&&listed($oic['user'],$t1)&&TicketRepository::find($t1)['viewer_only']===true);
+check('the OIC does not see other branches',!sees($oic['user'],$tB)&&!sees($oic['user'],$tN));
+$oicRole=(int)row('SELECT id FROM roles WHERE code="OIC"')['id'];
+$temp=person($tag,'temp',$oicRole,$f['branch'],$f,$baPos);
+check('an OIC-role account with no authorization sees nothing',!sees($temp['user'],$t1));
+$auth=function(int $ticket,string $from,string $to,string $status='APPROVED')use($temp,$f){
+    db()->prepare('DELETE FROM oic_authorizations WHERE employee_id=?')->execute([$temp['employee']]);
+    db()->prepare('INSERT INTO oic_authorizations(ticket_id,employee_id,branch_id,start_date,end_date,status) VALUES(?,?,?,?,?,?)')->execute([$ticket,$temp['employee'],$f['branch'],$from,$to,$status]);
+};
+$day=fn(int $n)=>date('Y-m-d',strtotime(($n>=0?'+':'').$n.' days'));
+$auth($tB,$day(-1),$day(3));check('an approved authorization covering today gives OIC viewer access',sees($temp['user'],$t1));
+$auth($tB,$day(-5),$day(-1));check('an expired authorization removes access at once, before any role change',!sees($temp['user'],$t1));
+$auth($tB,$day(2),$day(5));check('a future authorization gives nothing yet',!sees($temp['user'],$t1));
+$auth($tB,$day(0),$day(0));check('the end date itself is still covered',sees($temp['user'],$t1));
+$auth($tB,$day(-1),$day(3),'REQUESTED');check('a requested (not served) authorization gives nothing',!sees($temp['user'],$t1));
+$auth($tB,$day(-1),$day(3));db()->prepare('UPDATE oic_authorizations SET branch_id=? WHERE employee_id=?')->execute([$brB,$temp['employee']]);
+check('an authorization for another branch than the employee\'s gives nothing',!sees($temp['user'],$t1)&&!sees($temp['user'],$tB));
+$auth($tB,$day(-1),$day(3));
+db()->prepare('UPDATE employees SET branch_id=? WHERE id=?')->execute([$brB,$temp['employee']]);
+check('an OIC who moves branch loses the authorization (branch must match)',!sees($temp['user'],$t1)&&!sees($temp['user'],$tB));
+db()->prepare('UPDATE employees SET branch_id=? WHERE id=?')->execute([$f['branch'],$temp['employee']]);
+
+db()->prepare('DELETE FROM oic_authorizations WHERE employee_id=?')->execute([$temp['employee']]);
 // ---- ADL coverage from assigned areas
-$areaIds=static fn(array $ids)=>$ids?','.implode(',',$ids).',':null;
-$setAreas=function(array $ids)use($adl,$f){db()->prepare('UPDATE employees SET directory_role="ADL",directory_area_ids=? WHERE id=?')->execute([$ids?','.implode(',',$ids).',':null,$adl['employee']]);};
+$setAreas=function(array $ids)use($adl){db()->prepare('UPDATE employees SET directory_role="ADL",directory_area_ids=? WHERE id=?')->execute([$ids?','.implode(',',$ids).',':null,$adl['employee']]);};
 $setAreas([]);check('ADL with no assigned area sees nothing',!sees($adl['user'],$t1)&&!sees($adl['user'],$tB));
 $setAreas([$areaA]);check('ADL sees the branches of an assigned area',sees($adl['user'],$t1)&&listed($adl['user'],$t1));
 check('ADL does not see another area, Head Office or no-area branches',!sees($adl['user'],$tB)&&!sees($adl['user'],$tN)&&!sees($adl['user'],$tHo));
@@ -163,7 +190,7 @@ act($adl['user']);check('ADL is read-only',TicketRepository::find($t1)['viewer_o
 $setAreas([$areaB]);check('changing the area moves coverage at once',!sees($adl['user'],$t1)&&sees($adl['user'],$tB));
 $setAreas([$areaA,$areaB]);check('several areas cover all of them',sees($adl['user'],$t1)&&sees($adl['user'],$tB));
 $brNew=insert('INSERT INTO branches(code,name,site_type,area_id) VALUES(?,?,"BRANCH",?)',[$tag.'_NEW','T15 New branch',$areaA]);
-$staffNew=person($tag,'staffnew',$plainRole,$brNew,$f);$tNew=atm($staffNew['user']);
+$staffNew=person($tag,'staffnew',$plainRole,$brNew,$f,$baPos);$tNew=atm($staffNew['user']);
 check('a branch added later to the area is covered with no reassignment',sees($adl['user'],$tNew));
 db()->prepare('UPDATE branches SET area_id=NULL WHERE id=?')->execute([$brNew]);
 check('removing a branch from the area removes coverage',!sees($adl['user'],$tNew));
@@ -174,8 +201,6 @@ db()->prepare('UPDATE users SET status="ACTIVE" WHERE id=?')->execute([$adl['use
 db()->prepare('UPDATE employees SET user_id=NULL WHERE id=?')->execute([$adl['employee']]);
 check('ADL without a linked account has no coverage',!sees($adl['user'],$t1));
 db()->prepare('UPDATE employees SET user_id=? WHERE id=?')->execute([$adl['user']['id'],$adl['employee']]);
-perm($viewRole,'ticket.view_team',false);check('removing ticket.view_team ends all viewer access',!sees($adl['user'],$t1)&&!sees($lead2['user'],$t1));
-perm($viewRole,'ticket.view_team',true);check('and granting it restores access',sees($adl['user'],$t1));
 // Audit on directory_area_ids
 act($hr);db()->beginTransaction();$old=row('SELECT * FROM employees WHERE id=?',[$adl['employee']]);
 $data=['directory_fields_present'=>1,'directory_company_group'=>'SW','directory_role'=>'ADL','directory_area_ids'=>[$areaB]];
@@ -199,81 +224,80 @@ act($mgr);check('HO Manager forged actions denied',rejects(fn()=>TicketService::
 check('HO Manager does not see branch tickets',!sees($mgr,$t1)&&!sees($mgr,$tN));
 perm($mgr['role_id'],'ticket.view_team',false);check('HO Manager without the permission sees nothing',!sees($mgr,$tHo));
 perm($mgr['role_id'],'ticket.view_team',true);
-check('branch lead rule never reaches Head Office tickets',!sees($lead2['user'],$tHo));
+check('branch rules never reach Head Office tickets',!sees($sc['user'],$tHo)&&!sees($oic['user'],$tHo));
 
-// ---- Per-employee override (extra viewer)
-act($hr);check('override cannot make someone their own viewer',rejects(fn()=>TicketViewerService::addOverride(['employee_no'=>$staffN['no'],'viewer_employee_no'=>$staffN['no'],'effective_from'=>date('Y-m-d')])));
-check('stranger cannot see the no-area branch ticket yet',!sees($stranger['user'],$tN));
-act($hr);$ov=TicketViewerService::addOverride(['employee_no'=>$staffN['no'],'viewer_employee_no'=>$stranger['no'],'effective_from'=>date('Y-m-d')]);
-check('override gives that one employee\'s tickets to the extra viewer',sees($stranger['user'],$tN)&&listed($stranger['user'],$tN));
-check('override covers only that employee',!sees($stranger['user'],$t1));
-check('override viewer is read-only too',rejects(fn()=>TicketService::comment($tN,'x')));
-act($hr);check('duplicate override rejected',rejects(fn()=>TicketViewerService::addOverride(['employee_no'=>$staffN['no'],'viewer_employee_no'=>$stranger['no'],'effective_from'=>date('Y-m-d')])));
-TicketViewerService::endOverride($ov);check('ending the override removes access at once',!sees($stranger['user'],$tN));
-check('override still never exposes an Incident Report',(function()use($hr,$staffN,$stranger,$tag){act($hr);TicketViewerService::addOverride(['employee_no'=>$staffN['no'],'viewer_employee_no'=>$stranger['no'],'effective_from'=>date('Y-m-d')]);
-    $inc=file_ticket($staffN['user'],'INCIDENT_REPORT',['title'=>'T15 incident n','explanation'=>'Synthetic'],true);return !sees($stranger['user'],$inc);})());
+// ---- Employee 201 panel (viewersFor + TicketViewerEmploymentLine)
+act($hr);
+$line=fn(int $employee)=>TicketViewerEmploymentLine::html($employee);
+$v=TicketViewerService::viewersFor($staffN['employee']);
+check('201: a branch with no area, no Sales Captain and no ADL resolves to nobody',!$v['has_viewer']&&!$v['sc']&&!$v['adls']&&$v['manager']===null&&!$v['head_office']);
+check('201: it lists NO_SC and NO_ADL_AREA as PROBLEMs',in_array('NO_SC',problems($v),true)&&in_array('NO_ADL_AREA',problems($v),true));
+$html=$line($staffN['employee']);
+check('201: the panel is titled and shows the problems in red',str_contains($html,'Who can view this employee')&&str_contains($html,'data-viewer-problem="NO_SC"')&&str_contains($html,'alert error')&&str_contains($html,'PROBLEM'));
+check('201: the panel has no assign button or form',!str_contains($html,'<form')&&!str_contains($html,'<button')&&!str_contains($html,'ticket_viewers_'));
+$v=TicketViewerService::viewersFor($staff['employee']);
+check('201: ADL, Sales Captain and OIC are all shown, the Sales Captain with its account',$v['has_viewer']&&count($v['adls'])===1&&count($v['sc'])===1&&(int)$v['sc'][0]['id']===$sc['employee']&&$v['sc'][0]['account']==='ACTIVE'&&count($v['oic'])===1);
+$html=$line($staff['employee']);
+check('201: rendered rows are labelled ADL, Sales Captain, OIC with employee numbers',str_contains($html,'>ADL<')&&str_contains($html,'>Sales Captain<')&&str_contains($html,'>OIC<')&&str_contains($html,$sc['no'])&&str_contains($html,'Account active'));
+check('201: the ADL recorded under Head Office is flagged',in_array('ADL_IN_HEAD_OFFICE',problems($v),true)&&str_contains($html,'data-viewer-problem="ADL_IN_HEAD_OFFICE"'));
+check('201: a healthy branch row set has no NO_SC / SC_NO_ACCOUNT problem',!array_intersect(['NO_SC','SC_NO_ACCOUNT','MULTI_SC'],problems($v)));
+// Sales Captain without an account
+db()->prepare('UPDATE employees SET user_id=NULL WHERE id=?')->execute([$scOther['employee']]);
+$v=TicketViewerService::viewersFor($staffB['employee']);
+check('201: a Sales Captain with no account is shown and flagged SC_NO_ACCOUNT, ADL only can view',count($v['sc'])===1&&$v['sc'][0]['account']==='NONE'&&in_array('SC_NO_ACCOUNT',problems($v),true)&&!array_filter($v['sc'],fn($p)=>$p['can_view']));
+check('201: the no-account Sales Captain is named in the panel',str_contains($line($staffB['employee']),'No account')&&str_contains($line($staffB['employee']),'has no linked account'));
+db()->prepare('UPDATE employees SET position_id=? WHERE id=?')->execute([$baPos,$scOther['employee']]);
+$v=TicketViewerService::viewersFor($staffB['employee']);check('201: with no Sales Captain on record the problem is NO_SC',in_array('NO_SC',problems($v),true));
+db()->prepare('UPDATE employees SET position_id=? WHERE id=?')->execute([$scPos,$scOther['employee']]);
+perm($viewRole,'ticket.view_team',false);
+$v=TicketViewerService::viewersFor($staff['employee']);
+check('201: a Sales Captain whose role lacks the permission is flagged, not counted',!$v['has_viewer']&&$v['sc'][0]['account']==='NO_PERMISSION'&&in_array('SC_NO_ACCOUNT',problems($v),true));
+perm($viewRole,'ticket.view_team',true);
+// Head Office
+$v=TicketViewerService::viewersFor($f['requester']);
+check('201: Head Office shows the routing Manager and no Sales Captain, OIC or ADL',$v['head_office']&&$v['manager']!==null&&$v['manager']['can_view']===true&&!$v['sc']&&!$v['oic']&&!$v['adls']&&$v['has_viewer']&&str_contains($line($f['requester']),'>Manager<'));
+db()->prepare('UPDATE employees SET manager_employee_id=NULL WHERE id=?')->execute([$f['requester']]);
+$v=TicketViewerService::viewersFor($f['requester']);check('201: Head Office without a Manager shows nobody and a PROBLEM',$v['head_office']&&!$v['has_viewer']&&in_array('NO_MANAGER',problems($v),true));
+db()->prepare('UPDATE employees SET manager_employee_id=? WHERE id=?')->execute([$f['manager_employee'],$f['requester']]);
+// The panel must agree with what people can really read.
+$tNv=atm($staffN['user']);check('201 agrees with the access rule: nobody listed, stranger cannot open the ticket',!sees($stranger['user'],$tNv));
+act($f['employee']);check('201 shows no problem-report link to a non-HR reader',!str_contains($line($staffN['employee']),'hr-ticket-viewers'));
+act($hr);check('201 shows the problem-report link to HR',str_contains($line($staffN['employee']),'hr-ticket-viewers'));
 
-// ---- Branch with no lead: HR only, and the report names it
+// ---- Problem report and screen (read-only)
 act($hr);$rep=TicketViewerService::report();
-$noLead=array_column($rep['branches_without_lead'],'id');
-check('report lists the branch with employees and no lead',in_array($brNone,$noLead,true)&&!in_array($f['branch'],$noLead,true));
-$missing=[];for($pg=1;$pg<=$rep['pages'];$pg++)foreach(TicketViewerService::report($pg)['missing'] as $m)$missing[]=(int)$m['id'];
-check('report lists employees with no resolvable viewer (and not covered ones)',in_array($staffNew['employee'],$missing,true)===false&&in_array($staff['employee'],$missing,true)===false);
-db()->prepare('UPDATE branch_leads SET superseded_at=NOW() WHERE branch_id=?')->execute([$brB]);db()->prepare('UPDATE ticket_viewer_overrides SET superseded_at=NOW()')->execute();
-db()->prepare('UPDATE employees SET directory_area_ids=NULL WHERE id=?')->execute([$adl['employee']]);
-$rep=TicketViewerService::report();$missing=[];for($pg=1;$pg<=$rep['pages'];$pg++)foreach(TicketViewerService::report($pg)['missing'] as $m)$missing[]=(int)$m['id'];
-check('uncovered employees appear in the missing list',in_array($staffN['employee'],$missing,true)&&in_array($staffB['employee'],$missing,true));
+$ids=fn(string $key)=>array_column($rep[$key],'id');
+check('report lists the branch with employees and no Sales Captain',in_array($brNone,$ids('branches_without_sc'),true)&&!in_array($f['branch'],$ids('branches_without_sc'),true));
+check('report lists the branch whose Sales Captain has no usable account',in_array($brB,$ids('branches_sc_no_account'),true));
+$sc3=person($tag,'sc3',$viewRole,$f['branch'],$f,$scPos);$rep=TicketViewerService::report();$ids=fn(string $key)=>array_column($rep[$key],'id');
+check('report lists the branch with two Sales Captains',in_array($f['branch'],$ids('branches_multi_sc'),true));
+db()->prepare('UPDATE employees SET status="INACTIVE" WHERE id=?')->execute([$sc3['employee']]);
+$missing=[];$rep=TicketViewerService::report();for($pg=1;$pg<=$rep['pages'];$pg++)foreach(TicketViewerService::report($pg)['missing'] as $m)$missing[]=(int)$m['id'];
+check('report lists uncovered employees and not covered ones',in_array($staffN['employee'],$missing,true)&&!in_array($staff['employee'],$missing,true)&&!in_array($staffNew['employee'],$missing,true));
 check('report counts add up',$rep['counts']['with_viewer']+$rep['missing_total']===$rep['counts']['employees']);
+db()->prepare('UPDATE employees SET directory_area_ids=NULL WHERE id=?')->execute([$adl['employee']]);
+$rep=TicketViewerService::report();
 check('report flags the ADL without areas',(bool)array_filter($rep['adls_unready'],fn($a)=>(int)$a['id']===$adl['employee']));
 check('report flags the ADL whose branch is Head Office',(bool)array_filter($rep['adls_in_head_office'],fn($a)=>(int)$a['id']===$adl['employee']));
+$setAreas([$areaA]);
 db()->prepare('UPDATE branches SET area_id=NULL WHERE id=?')->execute([$brB]);
 check('report lists retail branches without an area',in_array($brB,array_column(TicketViewerService::report()['branches_without_area'],'id'),true));
 db()->prepare('UPDATE branches SET area_id=? WHERE id=?')->execute([$areaB,$brB]);
 act($f['employee']);check('the report is HR only',rejects(fn()=>TicketViewerService::report()));
-ob_start();act($hr);ticket_viewers_page(['area_id'=>0,'branch_id'=>0,'p'=>1],TicketViewerService::branchRows(0,0),TicketViewerService::report(),TicketViewerService::overrides(),TicketViewerService::leadCandidates());$html=ob_get_clean();
-check('HR Ticket Viewers page renders',str_contains($html,'Unresolved viewers')&&str_contains($html,'Branch leads'));
+ob_start();act($hr);ticket_viewers_page(['area_id'=>0,'branch_id'=>0,'problems'=>false,'p'=>1],TicketViewerService::branchRows(0,0),TicketViewerService::report());$html=ob_get_clean();
+check('Ticket Viewers page renders as a read-only problem report',str_contains($html,'Unresolved viewers')&&str_contains($html,'Problem report only')&&str_contains($html,'PROBLEM')&&!str_contains($html,'ticket_viewers_assign')&&!str_contains($html,'Assign lead')&&!str_contains($html,'type="submit">Assign')&&!str_contains($html,'ticket_viewers_add_override'));
+check('the page has no POST form at all (filters are GET)',substr_count($html,'method="post"')===0);
+// The old POST actions are refused by the module (no handler left)
+check('the module source has no assign/override handlers',!str_contains((string)file_get_contents(dirname(__DIR__).'/app/TicketViewerModule.php'),'assignLeads')&&!str_contains((string)file_get_contents(dirname(__DIR__).'/app/TicketViewerModule.php'),'addOverride'));
 
-// ---- Employee 201 read-only line (viewersFor + TicketViewerEmploymentLine)
-require_once dirname(__DIR__).'/app/TicketViewerViews.php';
-act($hr);
-$line=fn(int $employee)=>TicketViewerEmploymentLine::html($employee);
-$v=TicketViewerService::viewersFor($staffN['employee']);
-check('201 line: retail branch with no lead, area or extra viewer resolves to nobody',!$v['has_viewer']&&!$v['leads']&&!$v['adls']&&!$v['extra']&&$v['manager']===null&&!$v['head_office']);
-check('201 line renders "No viewer set" and the HR link',str_contains($line($staffN['employee']),'No viewer set')&&str_contains($line($staffN['employee']),'Ticket viewers (view only)')&&str_contains($line($staffN['employee']),'hr-ticket-viewers'));
-db()->prepare('UPDATE employees SET directory_role="ADL",directory_area_ids=? WHERE id=?')->execute([','.$areaB.',',$adl['employee']]);
-$v=TicketViewerService::viewersFor($staffB['employee']);
-check('201 line: ADL whose area covers the branch is shown',$v['has_viewer']&&count($v['adls'])===1&&(int)$v['adls'][0]['id']===$adl['employee']&&!$v['leads']);
-check('201 line: the ADL name is in the rendered HTML, labelled ADL',str_contains($line($staffB['employee']),'ADL: ')&&!str_contains($line($staffB['employee']),'No viewer set'));
-[$added]=TicketViewerService::assignLeads(['branch_ids'=>[$brB],'lead_employee_no'=>$stranger['no'],'effective_from'=>date('Y-m-d')]);
-$v=TicketViewerService::viewersFor($staffB['employee']);
-check('201 line: branch lead and ADL are both listed',$added===1&&count($v['leads'])===1&&$v['leads'][0]['employee_no']===$stranger['no']&&$v['leads'][0]['can_view']&&count($v['adls'])===1);
-$lines=$line($staffB['employee']);check('201 line: lead shown as Branch lead',str_contains($lines,'Branch lead: '));
-db()->prepare('UPDATE employees SET directory_area_ids=NULL WHERE id=?')->execute([$adl['employee']]);
-$v=TicketViewerService::viewersFor($staffB['employee']);check('201 line: clearing the ADL area drops the ADL but keeps the lead',!$v['adls']&&count($v['leads'])===1&&$v['has_viewer']);
-perm($viewRole,'ticket.view_team',false);
-$v=TicketViewerService::viewersFor($staffB['employee']);
-check('201 line: a lead whose role lacks ticket.view_team is flagged, not counted',!$v['has_viewer']&&$v['leads'][0]['can_view']===false&&str_contains($line($staffB['employee']),'no usable account'));
-perm($viewRole,'ticket.view_team',true);
-$v=TicketViewerService::viewersFor($f['requester']);
-check('201 line: Head Office shows the routing Manager and no branch lead or ADL',$v['head_office']&&$v['manager']!==null&&$v['manager']['can_view']===true&&!$v['leads']&&!$v['adls']&&$v['has_viewer']&&str_contains($line($f['requester']),'Manager: '));
-db()->prepare('UPDATE employees SET manager_employee_id=NULL WHERE id=?')->execute([$f['requester']]);
-$v=TicketViewerService::viewersFor($f['requester']);check('201 line: Head Office without a Manager shows nobody',$v['head_office']&&!$v['has_viewer']&&str_contains($line($f['requester']),'No viewer set'));
-db()->prepare('UPDATE employees SET manager_employee_id=? WHERE id=?')->execute([$f['manager_employee'],$f['requester']]);
-TicketViewerService::addOverride(['employee_no'=>$staffN['no'],'viewer_employee_no'=>$stranger['no'],'effective_from'=>date('Y-m-d')]);
-$v=TicketViewerService::viewersFor($staffN['employee']);check('201 line: an HR extra viewer is shown and counted',$v['has_viewer']&&count($v['extra'])===1&&str_contains($line($staffN['employee']),'Extra viewer: '));
-// The line must agree with what the access rule really lets people read.
-$tNv=atm($staffN['user']);check('201 line agrees with the access rule (extra viewer can open the ticket)',sees($stranger['user'],$tNv));
-act($f['employee']);check('201 line shows no Ticket Viewers link to a non-HR reader',!str_contains($line($staffN['employee']),'hr-ticket-viewers'));
-act($hr);
-// ---- Sidebar: HR Request Setup sits near the top for HR, and Ticket Viewers shows only with tickets.approvers.manage
+// ---- Sidebar: HR Request Setup near the top for HR; Ticket Viewers needs tickets.approvers.manage; Printable HR Forms and Accounting Members stay
 $navVisible=function(string $kind):array{$out=[];foreach(nav_config($kind)['groups'] as [$g,$items]){foreach($items as $i){[$l,,,,$perm]=array_pad($i,5,null);if($perm===null||Auth::can($perm))$out[$g][]=$l;}}return $out;};
 act($hr);$nav=$navVisible('hr');$groups=array_column(nav_config('hr')['groups'],0);
-check('HR sidebar lists Ticket Viewers under HR Request Setup',in_array('Ticket Viewers',$nav['HR Request Setup']??[],true));
+check('HR sidebar keeps Ticket Viewers, Accounting Members and Printable HR Forms under HR Request Setup',!array_diff(['Ticket Viewers','Accounting Members','Printable HR Forms'],$nav['HR Request Setup']??[]));
 check('HR Request Setup is the third sidebar group, above Payroll & Timekeeping',array_search('HR Request Setup',$groups,true)===2&&array_search('HR Request Setup',$groups,true)<array_search('Payroll & Timekeeping',$groups,true));
-$navOnly=person($tag,'navonly',role($tag,'navonly',['tickets.review_hr'],'hr'),$f['branch'],$f);act($navOnly['user']);$nav=$navVisible('hr');
+$navOnly=person($tag,'navonly',role($tag,'navonly',['tickets.review_hr'],'hr'),$f['branch'],$f,$baPos);act($navOnly['user']);$nav=$navVisible('hr');
 check('an HR role without tickets.approvers.manage gets no Ticket Viewers or Ticket Approvers entry',!in_array('Ticket Viewers',$nav['HR Request Setup']??[],true)&&!in_array('Ticket Approvers',$nav['HR Request Setup']??[],true));
 act($f['employee']);check('the employee portal sidebar has no HR Request Setup group',!isset($navVisible('employee')['HR Request Setup']));
-act($hr);
 // ---- Existing paths unchanged
 act($hr);check('HR service queue still lists the branch ticket',(function()use($t1){foreach(TicketRepository::listing('services',[],100)['rows'] as $r)if((int)$r['id']===$t1)return true;return false;})());
 act($staff['user']);check('requester still sees and edits own ticket path',TicketRepository::find($t1)['viewer_only']===false);
