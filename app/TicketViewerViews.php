@@ -57,3 +57,24 @@ function ticket_viewers_page(array $filter,array $rows,array $report,array $over
     </script>
     <?php render_portal_footer();
 }
+
+/** Read-only line for the Employee 201 Employment tab. Never edits; the setup lives on the Ticket Viewers screen (HR only). */
+final class TicketViewerEmploymentLine
+{
+    public static function html(int $employeeId): string
+    {
+        try {$v=TicketViewerService::viewersFor($employeeId);} catch (Throwable) {return '';}
+        if (!$v['ready']) return '';
+        $today=date('Y-m-d');$parts=[];
+        $name=static fn(array $p):string=>e(trim(($p['first_name']??'').' '.($p['last_name']??'')).(!empty($p['employee_no'])?' · '.$p['employee_no']:''));
+        $badge=static fn(bool $ok):string=>$ok?'':' <span class="badge amber">no usable account</span>';
+        foreach ($v['leads'] as $l) $parts[]='<span>Branch lead: '.$name($l).$badge((bool)$l['can_view']).($l['effective_from']>$today?' <span class="badge gray">from '.e($l['effective_from']).'</span>':'').'</span>';
+        foreach ($v['adls'] as $a) $parts[]='<span>ADL: '.$name($a).'</span>';
+        if ($v['manager']) $parts[]='<span>Manager: '.e((string)$v['manager']['name']).(!empty($v['manager']['employee_no'])?' · '.e((string)$v['manager']['employee_no']):'').$badge((bool)$v['manager']['can_view']).'</span>';
+        foreach ($v['extra'] as $x) $parts[]='<span>Extra viewer: '.$name($x).$badge((bool)$x['can_view']).'</span>';
+        $link=Auth::can('tickets.approvers.manage')?' <a href="'.e(url('hr-ticket-viewers')).'">Ticket Viewers screen</a>':'';
+        return '<div class="panel-body" data-ticket-viewers-line><div class="field full"><label>Ticket viewers (view only)</label>'
+            .($parts?'<div>'.implode('<br>',$parts).'</div>':'<div><span class="badge amber">No viewer set</span></div>')
+            .'<small>Can read this employee\'s HR requests, not act on them. Set by HR, not edited here.'.$link.'</small></div></div>';
+    }
+}

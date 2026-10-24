@@ -151,6 +151,8 @@ Employee Directory groups (SW Retail, Ocampo's Retail, Head Office SW/Ocampo's, 
 - **ADL areas** (`employees.directory_area_ids`, "Assigned areas for ADL" in Employee 201): an ADL covers every branch whose `area_id` is in the list, including branches added later. Ocampo's has one area (`OCAMPOS`, 6 branches), SW has eight (MM1, MM2, MM3, North, Province South, Metro South, Visayas, Mindanao). A retail branch with no area cannot be covered by any ADL.
 - **Head Office:** the viewer is the employee's Manager from the routing resolver (assignment, then Reporting To).
 - **Data seen on localhost (2026-10-24):** 8 ADLs, 7 without an account, none with an area, 4 showing branch "Head Office"; 23 of 63 staffed retail branches have no Sales Captain; 3 active retail branches have no area. HR fixes these from the Ticket Viewers report.
+- **Employee 201 (2026-10-24):** the Employment tab shows a read-only "Ticket viewers (view only)" line with the resolved branch lead(s) and covering ADL (retail) or the Manager (Head Office), HR extra viewers, or "No viewer set"; HR sees a link to the Ticket Viewers screen. It is display only; leads and extra viewers are set on Ticket Viewers, ADL areas in this tab's "Assigned areas for ADL".
+- **Localhost update (2026-10-24, after migration 012 applied):** 8 ADLs, 1 with an account, 1 with an assigned area (Ocampos, the same ADL); no branch leads set yet. A Sales Captain also carries the Ocampos area, which is ignored because only an ADL's areas count (Q37).
 
 ## Open Questions
 

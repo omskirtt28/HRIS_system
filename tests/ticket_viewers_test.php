@@ -233,6 +233,38 @@ act($f['employee']);check('the report is HR only',rejects(fn()=>TicketViewerServ
 ob_start();act($hr);ticket_viewers_page(['area_id'=>0,'branch_id'=>0,'p'=>1],TicketViewerService::branchRows(0,0),TicketViewerService::report(),TicketViewerService::overrides(),TicketViewerService::leadCandidates());$html=ob_get_clean();
 check('HR Ticket Viewers page renders',str_contains($html,'Unresolved viewers')&&str_contains($html,'Branch leads'));
 
+// ---- Employee 201 read-only line (viewersFor + TicketViewerEmploymentLine)
+require_once dirname(__DIR__).'/app/TicketViewerViews.php';
+act($hr);
+$line=fn(int $employee)=>TicketViewerEmploymentLine::html($employee);
+$v=TicketViewerService::viewersFor($staffN['employee']);
+check('201 line: retail branch with no lead, area or extra viewer resolves to nobody',!$v['has_viewer']&&!$v['leads']&&!$v['adls']&&!$v['extra']&&$v['manager']===null&&!$v['head_office']);
+check('201 line renders "No viewer set" and the HR link',str_contains($line($staffN['employee']),'No viewer set')&&str_contains($line($staffN['employee']),'Ticket viewers (view only)')&&str_contains($line($staffN['employee']),'hr-ticket-viewers'));
+db()->prepare('UPDATE employees SET directory_role="ADL",directory_area_ids=? WHERE id=?')->execute([','.$areaB.',',$adl['employee']]);
+$v=TicketViewerService::viewersFor($staffB['employee']);
+check('201 line: ADL whose area covers the branch is shown',$v['has_viewer']&&count($v['adls'])===1&&(int)$v['adls'][0]['id']===$adl['employee']&&!$v['leads']);
+check('201 line: the ADL name is in the rendered HTML, labelled ADL',str_contains($line($staffB['employee']),'ADL: ')&&!str_contains($line($staffB['employee']),'No viewer set'));
+[$added]=TicketViewerService::assignLeads(['branch_ids'=>[$brB],'lead_employee_no'=>$stranger['no'],'effective_from'=>date('Y-m-d')]);
+$v=TicketViewerService::viewersFor($staffB['employee']);
+check('201 line: branch lead and ADL are both listed',$added===1&&count($v['leads'])===1&&$v['leads'][0]['employee_no']===$stranger['no']&&$v['leads'][0]['can_view']&&count($v['adls'])===1);
+$lines=$line($staffB['employee']);check('201 line: lead shown as Branch lead',str_contains($lines,'Branch lead: '));
+db()->prepare('UPDATE employees SET directory_area_ids=NULL WHERE id=?')->execute([$adl['employee']]);
+$v=TicketViewerService::viewersFor($staffB['employee']);check('201 line: clearing the ADL area drops the ADL but keeps the lead',!$v['adls']&&count($v['leads'])===1&&$v['has_viewer']);
+perm($viewRole,'ticket.view_team',false);
+$v=TicketViewerService::viewersFor($staffB['employee']);
+check('201 line: a lead whose role lacks ticket.view_team is flagged, not counted',!$v['has_viewer']&&$v['leads'][0]['can_view']===false&&str_contains($line($staffB['employee']),'no usable account'));
+perm($viewRole,'ticket.view_team',true);
+$v=TicketViewerService::viewersFor($f['requester']);
+check('201 line: Head Office shows the routing Manager and no branch lead or ADL',$v['head_office']&&$v['manager']!==null&&$v['manager']['can_view']===true&&!$v['leads']&&!$v['adls']&&$v['has_viewer']&&str_contains($line($f['requester']),'Manager: '));
+db()->prepare('UPDATE employees SET manager_employee_id=NULL WHERE id=?')->execute([$f['requester']]);
+$v=TicketViewerService::viewersFor($f['requester']);check('201 line: Head Office without a Manager shows nobody',$v['head_office']&&!$v['has_viewer']&&str_contains($line($f['requester']),'No viewer set'));
+db()->prepare('UPDATE employees SET manager_employee_id=? WHERE id=?')->execute([$f['manager_employee'],$f['requester']]);
+TicketViewerService::addOverride(['employee_no'=>$staffN['no'],'viewer_employee_no'=>$stranger['no'],'effective_from'=>date('Y-m-d')]);
+$v=TicketViewerService::viewersFor($staffN['employee']);check('201 line: an HR extra viewer is shown and counted',$v['has_viewer']&&count($v['extra'])===1&&str_contains($line($staffN['employee']),'Extra viewer: '));
+// The line must agree with what the access rule really lets people read.
+$tNv=atm($staffN['user']);check('201 line agrees with the access rule (extra viewer can open the ticket)',sees($stranger['user'],$tNv));
+act($f['employee']);check('201 line shows no Ticket Viewers link to a non-HR reader',!str_contains($line($staffN['employee']),'hr-ticket-viewers'));
+act($hr);
 // ---- Existing paths unchanged
 act($hr);check('HR service queue still lists the branch ticket',(function()use($t1){foreach(TicketRepository::listing('services',[],100)['rows'] as $r)if((int)$r['id']===$t1)return true;return false;})());
 act($staff['user']);check('requester still sees and edits own ticket path',TicketRepository::find($t1)['viewer_only']===false);

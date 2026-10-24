@@ -1,3 +1,8 @@
+## 2026-10-24 · Ticket viewers on localhost and the Employee 201 viewer line
+- Applied migration 012 (read-only ticket viewers) to the localhost database after a verified backup and clean up/re-run/down/up test; no existing business rows changed.
+- Employee 201 Employment tab now shows a read-only "Ticket viewers (view only)" line (branch leads and covering ADL, or the Manager for Head Office, or "No viewer set").
+- Fixed two tests that depended on live data (lead roles, ADL reporting) so they build their own fixtures.
+
 ## 2026-09-26 · Manager approval history
 - Added persistent manager decision history for Payroll & Timekeeping and Leave approvals.
 - Added summary counts for pending, approved, returned/rejected, and total manager decisions.

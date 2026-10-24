@@ -1357,7 +1357,7 @@ if ($page === 'hr-employee') {
         </div>
         <div class="field"><label>Hire date</label><input type="date" name="hire_date" value="<?=e($e['hire_date'])?>" <?=!empty($e['roster_needs_details'])?'':'required'?>></div><div class="field"><label>Regularization date</label><input type="date" name="regularization_date" value="<?=e($e['regularization_date']??'')?>"><small>Automatic while Probationary (6 months after the hire date).</small></div><?php employee_term_end_field($e['probation_end_date']??'',EmployeeStatusPolicy::isSeasonal(EmployeeStatusPolicy::code(isset($e['employment_type_id'])?(int)$e['employment_type_id']:null))?'End of contract (Seasonal, 3 months)':'End of probation (6 months)');?><div class="field"><label>Effective date of this change</label><input type="date" name="effective_date" value="<?=e(date('Y-m-d'))?>"></div><div class="field full"><label>Change remarks</label><textarea name="remarks" rows="3" placeholder="Example: Transferred to Makati HQ; promoted to HR Associate."></textarea><small>When department, position, branch, employment type, or status changes, HRIS creates an employment history entry automatically.</small></div>
         <div class="phase2b-form-actions full"><button class="btn primary" type="submit">Save employment changes</button></div>
-      </form><?php endif;?></section>
+      </form><?php endif;?><?=TicketViewerEmploymentLine::html((int)$e['id'])?></section>
 
       <?php employee_regularization_script();?>
     <?php elseif($tab==='government'):?>

@@ -46,8 +46,10 @@ Decisions John needs to make. Each is blocking something concrete. When one is d
 - [ ] **Q31. Super Admin from the UI.** Super Admin cannot be assigned from the user screen by anyone (BR-122). Is a DB-level procedure acceptable for the rare new Super Admin, or is a guarded UI path wanted? → [[Auth-and-RBAC]]
 - [ ] **Q32. Override semantics.** Extra viewers only add; there is no way to remove the branch lead's or ADL's view of one employee. Is replacement ever needed? → [[Self-Service-Portal]]
 - [ ] **Q33. Branch lead data.** 23 of 63 staffed retail branches have no Sales Captain on record, 1 branch has two, and only one Sales Captain has an account. Who supplies the leads and creates the accounts? → [[Org-Structure]]
-- [ ] **Q34. ADL setup.** 7 of 8 ADLs have no account, none has Assigned areas, 4 show branch Head Office, 3 active retail branches have no area. HR to complete before ADL coverage works. → [[Org-Structure]]
+- [ ] **Q34. ADL setup.** (Updated 2026-10-24 after 012: 7 of 8 ADLs still have no account; 1 ADL now has Assigned areas, Ocampos.) Originally: 7 of 8 ADLs have no account, none has Assigned areas, 4 show branch Head Office, 3 active retail branches have no area. HR to complete before ADL coverage works. → [[Org-Structure]]
 - [ ] **Q35. Attachments for viewers.** Viewers see no attachment list and cannot download (strict reading of read-only). Confirm, or allow download. → [[Self-Service-Portal]]
+- [ ] **Q36. Hazelyn Cabrera as OMOA lead.** Hazelyn Cabrera (1637, Sales Captain, active account, works at OMOA) is not yet a branch lead of OMOA, so Ocampo's OMOA employees show the ADL only. HR to assign her on Ticket Viewers (confirm she is the lead, and whether other Ocampo's branches need leads). → [[Org-Structure]]
+- [ ] **Q37. Stale area on a non-ADL.** Employee 1651 (Sales Captain, no account) carries the Ocampos area in Assigned areas for ADL. It has no effect (only an ADL's areas count), but it looks like a mistaken entry; HR to clear it or confirm. → [[Org-Structure]]
 
 ## Compliance
 

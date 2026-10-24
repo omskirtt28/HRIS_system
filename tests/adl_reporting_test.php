@@ -39,10 +39,23 @@ try {
     $retail = one("SELECT id FROM departments WHERE UPPER(code)='RETAIL'");
     $headOfficeDept = one("SELECT id FROM departments WHERE name LIKE 'MIS%' LIMIT 1");
     $mgr = one("SELECT e.id FROM employees e JOIN users u ON u.id=e.user_id JOIN roles r ON r.id=u.role_id WHERE r.code='MANAGER' AND e.status='ACTIVE' LIMIT 1");
-    $adlA = one("SELECT e.id FROM employees e JOIN positions p ON p.id=e.position_id WHERE UPPER(p.name)='AREA DEVELOPMENT LEADER' AND e.directory_company_group='OC' LIMIT 1");
-    $adlB = one("SELECT e.id FROM employees e JOIN positions p ON p.id=e.position_id WHERE UPPER(p.name)='AREA DEVELOPMENT LEADER' AND e.directory_company_group='SW' LIMIT 1");
-    $ocRetail = one("SELECT id FROM employees WHERE department_id=$retail AND directory_company_group='OC' AND employee_no IS NOT NULL AND hire_date IS NOT NULL AND manager_employee_id IS NULL AND status='ACTIVE' ORDER BY id LIMIT 1");
-    $swRetail = one("SELECT id FROM employees WHERE department_id=$retail AND directory_company_group='SW' AND employee_no IS NOT NULL AND hire_date IS NOT NULL AND manager_employee_id IS NULL AND status='ACTIVE' ORDER BY id LIMIT 1");
+    // The two ADLs are synthetic (own fixtures), so the result does not depend on which real ADLs have accounts or areas.
+    $adlPosition = one("SELECT id FROM positions WHERE UPPER(name)='AREA DEVELOPMENT LEADER' ORDER BY id LIMIT 1");
+    $adlBranch = one("SELECT id FROM branches ORDER BY id LIMIT 1");
+    $adlLegal = one("SELECT id FROM legal_entities ORDER BY id LIMIT 1");
+    $adlUnit = one("SELECT id FROM business_units ORDER BY id LIMIT 1");
+    $mkAdl = function (string $group, string $tag) use ($adlPosition, $adlBranch, $adlLegal, $adlUnit): ?int {
+        if (!$adlPosition) return null;
+        $q = db()->prepare("INSERT INTO employees(employee_no,first_name,last_name,branch_id,legal_entity_id,business_unit_id,position_id,directory_company_group,status,hire_date) VALUES(?,?,?,?,?,?,?,?,'ACTIVE','2020-01-01')");
+        $q->execute(['ADLFIX_'.$tag, 'Fixture', 'ADL '.$tag, $adlBranch, $adlLegal, $adlUnit, $adlPosition, $group]);
+        return (int)db()->lastInsertId();
+    };
+    $adlA = $mkAdl('OC', 'A');
+    $adlB = $mkAdl('SW', 'B');
+    // Nobody holds an area at the start; the areas HR has set on real ADLs are irrelevant to this rule.
+    db()->exec("UPDATE employees SET directory_area_ids=NULL WHERE directory_area_ids IS NOT NULL");
+    $ocRetail = one("SELECT id FROM employees WHERE department_id=$retail AND directory_company_group='OC' AND employee_no IS NOT NULL AND hire_date IS NOT NULL AND status='ACTIVE' ORDER BY id LIMIT 1");
+    $swRetail = one("SELECT id FROM employees WHERE department_id=$retail AND directory_company_group='SW' AND employee_no IS NOT NULL AND hire_date IS NOT NULL AND status='ACTIVE' ORDER BY id LIMIT 1");
     $hoEmp = one("SELECT id FROM employees WHERE department_id=$headOfficeDept AND employee_no IS NOT NULL AND hire_date IS NOT NULL AND status='ACTIVE' ORDER BY id LIMIT 1");
     foreach (compact('retail','headOfficeDept','mgr','adlA','adlB','ocRetail','swRetail','hoEmp') as $k => $v) if (!$v) { echo "Fixture missing: $k\n"; exit(2); }
     db()->exec("UPDATE employees SET manager_employee_id=NULL WHERE id IN ($ocRetail,$swRetail,$hoEmp)");

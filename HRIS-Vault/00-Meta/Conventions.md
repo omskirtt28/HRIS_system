@@ -94,6 +94,12 @@ Apply `#needs-verification` to any note containing an unconfirmed statutory figu
 > [!warning] NEEDS VERIFICATION
 > Write the *mechanism*, never an invented number. If a rate or bracket is required to express a rule, wrap it in a `> [!warning] NEEDS VERIFICATION` callout naming the issuing agency. All such figures must become rows in a config table, not constants in code — see [[ADR-003-Payroll-Engine-Approach]].
 
+## Standing workflow: test then apply
+
+After Stage B, the migration is applied to the localhost database (`pmbsi_hris`) without asking again when: (1) a fresh mysqldump was taken and its restore verified; (2) isolated-DB tests passed, and any failing test is shown with proof it is unrelated; (3) the migration ran up, re-run, down, up cleanly and its down script is guarded. After applying: re-check that no existing business rows changed, update the vault, commit locally.
+
+**Never without John's explicit word:** `git push`, deploy to hosting, delete data or roles, history purge, or apply anything that fails a check. If a check fails: stop and report.
+
 ## Database / code naming (carried from the existing codebase)
 
 - Tables: `snake_case`, plural. PK `id`. FK `<entity>_id`. Timestamps `created_at`, `updated_at`, actors `created_by`, `updated_by`.

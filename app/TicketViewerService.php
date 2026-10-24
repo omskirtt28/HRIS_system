@@ -191,15 +191,62 @@ final class TicketViewerService
         $q->execute($params);$rows=$q->fetchAll();
         $adls=self::adlsWithCoverage();
         foreach ($rows as &$r) {
-            $q=db()->prepare('SELECT bl.id,bl.effective_from,bl.effective_to,e.employee_no,e.first_name,e.last_name,e.user_id FROM branch_leads bl JOIN employees e ON e.id=bl.employee_id
-                WHERE bl.branch_id=? AND bl.superseded_at IS NULL AND (bl.effective_to IS NULL OR bl.effective_to>=?) ORDER BY bl.effective_from,bl.id');
-            $q->execute([$r['id'],$today]);$r['leads']=$q->fetchAll();
-            foreach ($r['leads'] as &$l) $l['can_view']=$l['user_id'] && self::permitted((int)$l['user_id']);
-            unset($l);
+            $r['leads']=self::leadsForBranch((int)$r['id'],$today);
             $r['lead_ready']=(bool)array_filter($r['leads'],static fn($l)=>$l['can_view']);
-            $r['adls']=array_values(array_filter($adls,static fn($a)=>$r['area_id'] && in_array((int)$r['area_id'],$a['areas'],true) && $a['can_view']));
+            $r['adls']=self::adlsCovering($r['area_id']?(int)$r['area_id']:null,$adls);
         }
         return $rows;
+    }
+
+    /** Current and future leads of one branch with whether each can actually view (account + ticket.view_team). */
+    private static function leadsForBranch(int $branchId,string $today): array
+    {
+        $q=db()->prepare('SELECT bl.id,bl.effective_from,bl.effective_to,e.employee_no,e.first_name,e.last_name,e.user_id FROM branch_leads bl JOIN employees e ON e.id=bl.employee_id
+            WHERE bl.branch_id=? AND bl.superseded_at IS NULL AND (bl.effective_to IS NULL OR bl.effective_to>=?) ORDER BY bl.effective_from,bl.id');
+        $q->execute([$branchId,$today]);$leads=$q->fetchAll();
+        foreach ($leads as &$l) $l['can_view']=$l['user_id'] && self::permitted((int)$l['user_id']);
+        unset($l);return $leads;
+    }
+
+    /** The ADLs (from adlsWithCoverage) whose assigned areas contain this area and who can actually view. */
+    private static function adlsCovering(?int $areaId,array $adls): array
+    {
+        return array_values(array_filter($adls,static fn($a)=>$areaId && in_array($areaId,$a['areas'],true) && $a['can_view']));
+    }
+
+    /**
+     * Read-only answer for the Employee 201 Employment tab: who can read this employee's HR requests today.
+     * Same rules as scope()/clause(): retail = branch leads + covering ADL, Head Office = the routing Manager,
+     * plus HR extra viewers. Nothing is written; HR-only screens are not required to look at it.
+     * @return array{ready:bool,head_office:bool,leads:array,adls:array,manager:?array,extra:array,has_viewer:bool}
+     */
+    public static function viewersFor(int $employeeId): array
+    {
+        $out=['ready'=>self::ready(),'head_office'=>false,'leads'=>[],'adls'=>[],'manager'=>null,'extra'=>[],'has_viewer'=>false];
+        if (!$out['ready']) return $out;
+        $today=date('Y-m-d');$employee=EmployeeApproverAssignmentService::employee($employeeId);
+        $out['head_office']=EmployeeApproverAssignmentService::kind($employee)==='MANAGER';
+        if ($out['head_office']) {
+            $route=EmployeeApproverAssignmentService::resolve($employee,$today);
+            if ($route['type']==='MANAGER' && $route['user_id']) {
+                $uid=(int)$route['user_id'];
+                $q=db()->prepare('SELECT COALESCE(NULLIF(TRIM(CONCAT(e.first_name," ",e.last_name)),""),u.full_name) name,e.employee_no FROM users u LEFT JOIN employees e ON e.user_id=u.id WHERE u.id=? ORDER BY e.id LIMIT 1');
+                $q->execute([$uid]);$m=$q->fetch()?:['name'=>'Manager','employee_no'=>null];
+                $out['manager']=$m+['can_view'=>self::permitted($uid)];
+            }
+        } elseif (!empty($employee['branch_id'])) {
+            $q=db()->prepare('SELECT area_id FROM branches WHERE id=?');$q->execute([(int)$employee['branch_id']]);$area=(int)$q->fetchColumn();
+            $out['leads']=self::leadsForBranch((int)$employee['branch_id'],$today);
+            $out['adls']=self::adlsCovering($area?:null,self::adlsWithCoverage());
+        }
+        $q=db()->prepare('SELECT v.employee_no,v.first_name,v.last_name,v.user_id FROM ticket_viewer_overrides o JOIN employees v ON v.id=o.viewer_employee_id
+            WHERE o.employee_id=? AND o.superseded_at IS NULL AND o.effective_from<=? AND (o.effective_to IS NULL OR o.effective_to>=?) ORDER BY o.id');
+        $q->execute([$employeeId,$today,$today]);$out['extra']=$q->fetchAll();
+        foreach ($out['extra'] as &$x) $x['can_view']=$x['user_id'] && self::permitted((int)$x['user_id']);
+        unset($x);
+        $out['has_viewer']=(bool)array_filter($out['leads'],static fn($l)=>$l['can_view'] && $l['effective_from']<=$today)
+            || $out['adls'] || ($out['manager'] && $out['manager']['can_view']) || (bool)array_filter($out['extra'],static fn($x)=>$x['can_view']);
+        return $out;
     }
 
     /** ADL employees (directory rule) with their assigned area ids and account status. */

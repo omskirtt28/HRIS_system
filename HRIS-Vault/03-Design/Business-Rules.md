@@ -180,6 +180,7 @@ One index of every `BR-###` in the vault. Rules are **defined in the module note
 | BR-729 | ADL coverage = branches whose `area_id` is in the ADL's `directory_area_ids`, only for an ADL (directory rule) with a linked active account; branches added to an area later are covered with no reassignment. Every change to `directory_area_ids` is audited (`CHANGE_ADL_AREAS`). (2026-10-24) | [[Org-Structure]] |
 | BR-730 | `ticket_viewer_overrides` adds one extra viewer for one employee (effective-dated); it never removes a lead, ADL or Manager. (2026-10-24) | [[Org-Structure]] |
 | BR-731 | HR sees, by name, employees with no resolvable viewer, branches without a usable lead, ADLs without account/area, retail branches without an area, and ADLs whose branch is Head Office (Ticket Viewers screen). (2026-10-24) | [[Org-Structure]] |
+| BR-732 | The Employee 201 Employment tab shows the resolved viewers read-only, using the same lookups as the access rule (branch leads, covering ADL, routing Manager, HR extra viewers); a person without a usable account or `ticket.view_team` is flagged and not counted. It never edits, and the Ticket Viewers link is shown to HR only. (2026-10-24) | [[Org-Structure]] |
 
 ## 800s - Lifecycle: recruitment, offboarding, performance
 

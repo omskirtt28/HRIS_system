@@ -199,6 +199,7 @@ Migration 010 kept today's access for existing roles: `EMPLOYEE` got the five st
 | FR-728 | The system shall give branch leads, covering ADLs, Head Office Managers and HR-set extra viewers a read-only Team Requests list and ticket detail, enforced in the ticket read gate so list, URL, comments, events, attachments and downloads follow one rule. (BR-724..727) | Must |
 | FR-729 | The system shall let HR assign branch leads in bulk by area/branch, add extra viewers, and see the unresolved-viewers report. (BR-728, BR-730, BR-731) | Must |
 | FR-730 | The system shall audit every change to an ADL's assigned areas. (BR-729) | Must |
+| FR-732 | The system shall show on the Employee 201 Employment tab, read-only, who can view this employee's HR requests (branch leads and covering ADL, or the Manager for Head Office, plus extra viewers), or "No viewer set". (BR-732) | Should |
 
 ## As built: read-only ticket viewers (2026-10-24)
 
