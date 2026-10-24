@@ -1,3 +1,5 @@
+Source of truth: HRIS-Vault/03-Design/Design-System.md. This file is not maintained; see the vault.
+
 # HRIS Design System & UX Rules
 
 **Status:** Baseline v1  

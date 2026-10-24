@@ -267,6 +267,60 @@ erDiagram
 | `users` | unique `email` | Account identifier |
 | `payroll_*` | FKs restrict delete where a run exists | BR-224, FR-111 |
 
+## As built: HR ticket engine tables (migrations 001-016)
+
+Verified 2026-10-25 against `database/migrations/*` and the live `pmbsi_hris` (SHOW/SELECT only; MariaDB 10.4.32, 116 tables). Hub note: [[Employee-Tickets]]. Files are `2026102x_NNN_name.sql` + a guarded `.down.sql` that refuses once the table holds used data. Every migration is re-runnable. "Seed ledger" tables record which permissions/roles/grants a migration created, so its down script removes only what it owned.
+
+| # | Migration | Adds | Notes |
+|---|---|---|---|
+| 001 | `ticket_core` | `ticket_routing_profiles` (code PK, `steps_json`: HO_MANAGER_THEN_HR, BRANCH_ADL_THEN_HR, HR_ONLY), `ticket_types` (code unique uppercase, `routing_profile`, `routing_config_json`), `tickets`, `ticket_steps`, `ticket_events`, `ticket_comments`, `ticket_attachments`, `ticket_effects` | `tickets`: `ticket_no` unique and immutable (trigger), requester vs `subject_employee_id`, frozen `company_id`/`branch_id`/`company_*_snapshot`/`business_unit_id_snapshot` (immutable once filed), nullable `payroll_period_id`, `status` CHECK (DRAFT, SUBMITTED, PENDING_APPROVAL, PENDING_HR, IN_PROGRESS, COMPLETED, REJECTED, RETURNED, CANCELLED), `payload_json`, `version` (optimistic lock), `filed_at`, `closed_at`. `ticket_steps`: frozen chain (trigger blocks edits to who/what, no delete), status PENDING/APPROVED/REJECTED/RETURNED/SKIPPED. `ticket_events`: append-only (update/delete triggers). `ticket_effects`: unique `(ticket_id, effect_type)` = idempotent downstream instruction |
+| 002 | `ticket_approvers` | `employee_approver_assignments` (effective-dated MANAGER/ADL per employee, `provenance`, supersede columns), `ticket_permission_seeds` (ledger) | Permissions `tickets.approvers.manage`, `tickets.request_self`, `tickets.review_hr` |
+| 003 | `payroll_concern` | `payroll_concerns` (1:1 ticket: `concern_date`, `is_late`, `late_reason`, `outcome`), `ticket_submission_keys` (SHA-256 idempotency key per submit), `ticket_notification_outbox` | Type `PAYROLL_CONCERN` (HO_MANAGER_THEN_HR with branch override BRANCH_ADL_THEN_HR) |
+| 004 | `atm_id` | no table | Types `ATM_REQUEST`, `ID_REQUEST` (HR_ONLY) |
+| 005 | `uniform` | `uniform_requests` (position, size, company, `branch_id`, quantity, `id_lace`) | Type `UNIFORM_REQUEST` |
+| 006 | `netsuite` | `ticket_accounting_memberships` (user, active, provenance), `ticket_accounting_permission_seed`, `ticket_accounting_seed_results`, `ticket_netsuite_remarks` (lane HR/ACCOUNTING) | `ticket_steps.approver_type` CHECK widened to include `ACCOUNTING`; permission `ticket.accounting.view`; type `NETSUITE_CONCERN` (HR_ONLY, follow-up lane ACCOUNTING). The seed list names seven employee numbers in the migration file; not repeated here |
+| 007 | `manpower` | `ticket_manpower_requests` (position_code, quantity, job description/qualifications) | Type `MANPOWER_REQUEST`. Separate from the recruitment `manpower_requests` table |
+| 008 | `branch_transfer` | `employee_placements` (effective-dated branch per employee; generated `current_employee_id` + unique = one open placement), `branch_transfers` (from/to branch, effective date, company SW/OFJI), `ticket_transfer_migration_state`, `ticket_transfer_permission_seed` | Permission `ticket.file_for_others`; type `BRANCH_TRANSFER`. First run backfills one `OBSERVED_CURRENT` placement per active employee |
+| 009 | `incident_forms` | `ticket_comments.visibility` (ALL / STAFF_ONLY), `ticket_incident_permission_seed` | Permission `ticket.sensitive.view`; type `INCIDENT_REPORT` (no approval steps, restricted feed) |
+| 010 | `role_ticket_access` | `ticket_file_permission_seed`, `ticket_file_grant_seed`, `ticket_type_route_seed` | Permissions `ticket.file.{atm,id,incident,uniform,payroll_concern,manpower,netsuite}`; Manpower switched to HR_ONLY (old route kept in the ledger). First run keeps today's access for existing roles |
+| 011 | `lead_roles` | roles `ADL`, `SC`, `OIC`, `TC` (portal `employee`, not system), `lead_role_seed`, `lead_role_grant_seed` | A pre-existing role of the same code is left as HR configured it. Approver grants: ADL and TC `payroll.approve_adl`, OIC `payroll.approve_manager`, SC none |
+| 012 | `ticket_viewers` | `branch_leads`, `ticket_viewer_overrides`, `ticket_viewer_seed` | Permission `ticket.view_team`. **`branch_leads` and `ticket_viewer_overrides` are DEPRECATED as an access input** (see 013) |
+| 013 | `oic_authorization` | `oic_authorizations` (1:1 ticket: nominee, branch, start/end, status, `previous_user_id`/`previous_role_id`, `expired_at`, `restored_role_id`), `oic_authorization_seed` | Permission `ticket.file.oic_authorization`; type `OIC_AUTHORIZATION`; table comments mark `branch_leads` and `ticket_viewer_overrides` DEPRECATED. `ticket_viewer_seed` is NOT deprecated and never was an access input: it is the grant ledger for 012's `ticket.view_team` (6 rows live) and `TicketViewerService::ready()` uses its existence as the "viewer feature installed" probe. Live: `branch_leads` and `ticket_viewer_overrides` hold 0 rows |
+| 014 | `coe_request` | `coe_requests` (purpose, needed_by, delivery, `include_salary`), `coe_templates` (versioned .docx, one active), `coe_documents` (one generated file per ticket), `coe_settings` (signatory, display name), `coe_seed` | Permissions `ticket.file.coe`, `ticket.coe.template.manage`; type `COE_REQUEST` |
+| 015 | `ticket_report` | `ticket_report_seed` | Permission `ticket.report.view` |
+| 016 | `ticket_hr_notes` | `ticket_hr_notes` (ticket, event, author, note up to 2000 chars) | HR-only internal note, BR-767 |
+
+### Ticket-related permissions, roles and grants (live, 2026-10-25)
+
+Permissions: `tickets.request_self`, `tickets.review_hr`, `tickets.approvers.manage`, `ticket.file_for_others`, `ticket.file.<atm|id|incident|uniform|payroll_concern|manpower|netsuite|oic_authorization|coe>`, `ticket.view_team`, `ticket.accounting.view`, `ticket.sensitive.view`, `ticket.coe.template.manage`, `ticket.report.view`. Roles added by 011: ADL, SC, OIC, TC. Live grants:
+
+| Role | Portal | Ticket permissions held |
+|---|---|---|
+| EMPLOYEE | employee | `tickets.request_self`; file ATM, ID, Incident, Uniform, Payroll Concern, COE |
+| MANAGER, OIC, TC | employee | EMPLOYEE's plus file Manpower, NetSuite; `ticket.view_team` |
+| SC | employee | as MANAGER plus `ticket.file.oic_authorization` |
+| ADL | employee | as SC plus `ticket.file_for_others`, `ticket.accounting.view`, `tickets.approvers.manage` (**unverified why**: the last two were not in the 011 grant list; ask whether HR granted them by hand) |
+| HR_USER | hr | review, approvers manage, file_for_others, all HR-filable types, COE template manage, report view |
+| HR_TIMEKEEPING | hr | `tickets.review_hr`, `ticket.report.view` only |
+| HRIS_ADMIN | admin | as HR_USER |
+| SUPER_ADMIN | admin | explicit rows `ticket.file_for_others`, `tickets.approvers.manage`; passes other checks implicitly |
+
+Types and routing (live): HR_ONLY for ATM, ID, Uniform, NetSuite (Accounting follow-up), Manpower, Branch Transfer, Incident, OIC Authorization, COE; `PAYROLL_CONCERN` = `HO_MANAGER_THEN_HR`. `ticket.sensitive.view` has no role row in the live grants list above (unverified whether intended).
+
+## As built: tables outside the design inventory
+
+Facts moved from the retired repo-root `SCHEMA.md` (2026-10-25). Executable source is `database/schema.sql` plus `database/migrations/`. "Phase" names are the original build phases.
+
+**Recruitment (Phase 1+, one primary role per user via `users.role_id`; the `user_roles` table in the design is not built):** `recruitment_stages` (stable `code`, `sequence_no`, `stage_type` NORMAL/TERMINAL_SUCCESS/TERMINAL_FAIL/HOLD, `client_visible`, `applicant_visible`), `recruitment_rejection_reasons`, `recruitment_sources`, `interview_types`, `manpower_requests` (request_no, client, branch, department, position, headcounts, status DRAFT..CANCELLED), `job_openings` (job_code, slug, salary range, status DRAFT/PUBLISHED/PAUSED/CLOSED), `applicants` (applicant_no, consent_at, status ACTIVE/ARCHIVED/BLOCKED; never auto-merged), `applications` (application_no, `current_stage_id`, `version`, optional advisory `screening_score`, `converted_employee_id` unique + `converted_at` + `converted_by`), `application_stage_history` (append-only), `screening_reviews`, `application_ai_assessments` (optional, separate from human review), `interviews`, `interview_panelists`, `interview_feedback`, `endorsements` (`snapshot_json` = client-visible snapshot at send time), `client_reviews` (APPROVE/DECLINE/REQUEST_INTERVIEW/RETURN), `offers` (versioned), `application_documents` (visibility INTERNAL/CLIENT_ALLOWED/APPLICANT), `deployments`, `deployment_requirements`, `recruitment_employee_conversions` (unique per application and employee), `application_notes`. Constraints: headcount and openings > 0; client review must match the endorsement's client; deployment needs an accepted offer unless an exception workflow exists; stage changes only through the transition service. Do not reuse generic service-desk tables (`tickets`, `ticket_messages`, ...) for recruitment; `tickets` now belongs to the ticket engine above.
+
+**201 file (Phase 2B):** `employee_government_ids` (one row per employee and ID type), `employee_emergency_contacts` (several, one primary), `employee_documents` (metadata only; randomized stored name; bytes under `storage/employee_documents/`, streamed by authorised routes), `employee_employment_history` (immutable timeline; one `HIRED` baseline row backfilled), plus `employees` columns `place_of_birth`, `nationality`, `permanent_address_text` and photo metadata (file under `storage/employee_photos/`). `permissions` has `code` unique, `module`, `description`, `sort_order`; `role_permissions` PK `(role_id, permission_id)`; `user_sessions` stores only `session_token_hash`; `positions` carries an optional `department_id`; `employment_types` is the Employee Status master (seeded values changed by `20261012_employee_status`).
+
+**Organisation masters (Phase 3A/3B.0):** `areas`, branch-to-area mapping, `employees.manager_employee_id` (the one reporting line, used for routing), `business_units` (= Company Name master; `company_group` SW/OC/UF added by `20261012_company_name`), `legal_entities` (the single PMBSI employer row), `departments`, `positions`, `branches` (roster-derived, site type, mapping status). Legacy referenced master rows stay as inactive for FK safety. `employees.directory_company_group`, `business_unit_id`, `legal_entity_id`; `EmployeeStatusPolicy` derives internal `employees.status` from the chosen Employee Status.
+
+**Smaller migrations before the ticket engine:** `20261012_maternity_leave` -> `employee_maternity_leaves` (kind, days, start/end/return, previous employment type, linked `leave_requests` row, medical certificate received, status ACTIVE/COMPLETED/CANCELLED); `20261012_probation_notifications` -> `employees.probation_start_date`/`probation_end_date` (six months Probationary, three months Seasonal), `notifications` (per recipient, `dedupe_key` unique, bell + email columns), `job_runs` (once-a-day job guard); `20261017_lee_code_payroll_group` -> `employees.lee_code` (unique), `employees.payroll_group`; `20261017_oc_head_office_sections` -> `directory_sections` (scoped by `company_group` + `site_type`; Ocampo's Head Office sections) and nullable `employees.directory_section_id`.
+
+**Platform fact:** the live database is **MariaDB 10.4.32** on XAMPP. The old docs said MySQL 8.x; migrations are written to run on both, but 10.4 has no MySQL-8-only features. Re-check before choosing the production host (Q13 in [[Open-Questions]]).
+
 ## Open Questions
 
 - [ ] Does every table need a `company_id`? → [[ADR-002-Multi-Tenancy]], Q1 in [[Open-Questions]]

@@ -169,6 +169,16 @@ The feature that pays for the module.
 - **Recruitment manpower request** (`manpower_requests`, Recruitment module): unchanged.
 - **HR ticket "Manpower Request"** (`ticket_manpower_requests`, Slice-15 ticket engine): since migration 010 it is filed by roles holding `ticket.file.manpower` (ADL, SC, OIC, TC, Manager, HR) and routed **HR_ONLY** — no Manager/ADL approval step; HR sets the status and Served records the date. Open tickets filed under the old chain keep their frozen steps. The two are not linked; see [[Self-Service-Portal]] for the filing matrix.
 
+## As built: recruitment domain rules (moved from the retired root RULES.md and ARCHITECTURE.md, 2026-10-25)
+
+- One applicant can have many applications; one application belongs to one job opening. The current stage must have matching stage history; stage changes go through the transition service only and invalid jumps are rejected server-side. Client Review is possible only after endorsement; client users see only applications endorsed to their client, with field minimisation. Offer and deployment are separate records; an accepted offer is required before normal deployment. Duplicate applicants are flagged, never silently merged. Rejected or withdrawn applicants stay reportable subject to retention.
+- Canonical stages: APPLIED, SCREENING, INTERVIEW, ENDORSED, CLIENT_REVIEW, OFFER, DEPLOYMENT, DEPLOYED; side outcomes REJECTED, WITHDRAWN, ON_HOLD, RETURNED. Labels are configurable, codes are not.
+- Conversion to employee (Phase 2C): only a hired/deployed candidate, once per application; the converted recruitment record is then locked; duplicate employee email is checked; portal account creation or linking is optional (an available employee account or a hashed temporary password); recruitment documents may be copied into Employee Documents while originals stay; the application keeps `converted_employee_id`, `converted_at`, `converted_by`.
+- Portals: applicant (browse, apply, track, withdraw), recruitment/HR, client (endorsed candidates only, approve/decline/request interview/return), system admin. Admin privileges never grant business actions unless a permission says so.
+- Event names: `recruitment.application.created`, `.application.stage_changed`, `.interview.scheduled`, `.interview.completed`, `.endorsement.sent`, `.client_review.decided`, `.offer.sent`, `.offer.accepted`, `.offer.declined`, `.deployment.ready`, `.deployment.completed`, `.employee_conversion.completed`.
+- Critical path test: manpower request, approved/open job, application, screening, interview, endorsement, client decision, offer, deployment, employee conversion.
+- Do not use the ticket tables as recruitment tables ([[Employee-Tickets]]).
+
 ## Open Questions
 
 - [ ] Does the existing recruitment implementation match these entities, or is reconciliation needed first?

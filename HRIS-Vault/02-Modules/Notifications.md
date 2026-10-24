@@ -194,3 +194,5 @@ The design response: notifications are **event-driven, deduplicated, digestible 
 ## Related
 
 [[Leave-Management]] · [[Attendance-and-DTR]] · [[Payroll]] · [[Employee-Records]] · [[Self-Service-Portal]] · [[Auth-and-RBAC]] · [[Recruitment-and-Onboarding]] · [[Offboarding-and-Clearance]] · [[Security-and-Compliance]] · [[Architecture]] · [[Business-Rules]] · [[Data-Model]] · [[Screens]]
+
+Hub for HR requests: [[Employee-Tickets]] · UI rules: [[Design-System]]

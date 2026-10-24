@@ -1,3 +1,5 @@
+Source of truth: HRIS-Vault/03-Design/Data-Model.md. This file is not maintained; see the vault.
+
 # HRIS Database Schema Baseline
 
 **Status:** Implementation baseline v1  

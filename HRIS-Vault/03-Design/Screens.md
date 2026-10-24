@@ -87,6 +87,33 @@ One codebase, one design system, three nav configurations driven by permissions 
 | SCR-741 | Sensitive field change | employee | [[Self-Service-Portal]] | new value, supporting document, goes to SCR-205 |
 | SCR-742 | Document request | employee | [[Offboarding-and-Clearance]] | COE and similar, status tracking |
 
+## As built: HR requests and ticket screens (750s, verified 2026-10-25)
+
+Server-rendered PHP pages addressed as `?page=<id>`; the sidebar groups are built in `app/View.php`. A nav item is shown only if the permission passes; the page is still refused server-side. Hub: [[Employee-Tickets]]. UI rules: [[Design-System]].
+
+| ID | Screen (nav label) | Page id | Gate | Module |
+|---|---|---|---|---|
+| SCR-750 | HR Concerns (my requests) | `hr-requests-my` | `tickets.request_self` or `ticket.file_for_others` | [[Employee-Tickets]] |
+| SCR-751 | File an HR Request (types limited to `ticket.file.<type>`) | `hr-request-new` | same + per-type permission | [[Employee-Tickets]] |
+| SCR-752 | Ticket page: header card, status stepper, HR response card, details, chat thread, collapsed History; HR form splits "Response to the employee" and "Internal note (HR only)" | `hr-request` | read gate (requester, HR, named approver, Accounting, viewer) | [[Employee-Tickets]] |
+| SCR-753 | HR Request Inbox (Manager/ADL approvals) | `hr-request-inbox` | `payroll.approve_manager` or `payroll.approve_adl` | [[Employee-Tickets]] |
+| SCR-754 | Team Requests (read-only) | `hr-request-team` | `ticket.view_team` | [[Employee-Tickets]] |
+| SCR-755 | HR Request Queue: tabs with counts, search, filter chips, age colour, preview drawer, quick In Progress/Served/Cancel, bulk Served/Cancel (ATM, ID, Uniform), uniform size summary, CSV | `hr-service-requests` (+ `hr-request-preview`, `hr-service-requests-export`) | `tickets.review_hr`, non-employee portal | [[Employee-Tickets]] |
+| SCR-756 | Payroll Concerns (HR) | `hr-payroll-concerns` | `tickets.review_hr` | [[Payroll]] |
+| SCR-757 | Accounting Follow-up (completed NetSuite concerns) | `hr-accounting-requests` | `ticket.accounting.view` membership | [[Employee-Tickets]] |
+| SCR-758 | Incident Feed (restricted) | `hr-incidents` | `ticket.sensitive.view` (unverified: exact gate is in `TicketRepository::listing` mode `feed`) | [[Employee-Tickets]] |
+| SCR-759 | HR dashboard: "Needs your action today" strip, Company and Period filters, six KPI cards linking to the filtered queue, requests-by-type bars, pending-age chart, Requires attention panel | `hr-dashboard` | HR portal | [[Employee-Tickets]] |
+| SCR-760 | Ticketing Report (+ CSV, one-page A4 print) | `hr-ticket-report`, `-export`, `-print` | `ticket.report.view` + HR portal | [[Employee-Tickets]] |
+| SCR-761 | Ticket Approvers (Manager/ADL assignments, preview before save) | `hr-ticket-approvers` | `tickets.approvers.manage` | [[Employee-Tickets]] |
+| SCR-762 | Ticket Viewers (read-only problem report) | `hr-ticket-viewers` | `tickets.approvers.manage` | [[Org-Structure]] |
+| SCR-763 | Accounting Members | `hr-ticket-accounting-members` | `tickets.review_hr` | [[Employee-Tickets]] |
+| SCR-764 | Printable HR Forms (SW / OFJI) | `hr-print-forms` | `tickets.review_hr` | [[Employee-Tickets]] |
+| SCR-765 | COE Template (upload .docx, activate version, signatory settings) + COE preview/download | `hr-coe-template`, `hr-coe-preview`, `hr-coe-download`, `hr-coe-template-file` | `ticket.coe.template.manage` (template); preview HR; download requester + HR | [[Employee-Tickets]] |
+| SCR-766 | Users / Roles & Permissions (per-type filing grants, ADL/SC/OIC/TC) | `admin-users`, `admin-roles` | users/roles permissions | [[Auth-and-RBAC]] |
+| SCR-767 | Employee 201, Employment tab, panel "Who can view this employee's tickets" (read-only, red PROBLEM lines) | `hr-employee` | employee view | [[Org-Structure]] |
+
+Sidebar: group **Requests** (all portals) holds the ticket screens; group **HR Request Setup** (third group for HR and Admin portals) holds Ticket Approvers, Ticket Viewers, Accounting Members, COE Template, Printable HR Forms. The older SCR-7xx rows above are the design target; where both exist, the page ids here are the built ones.
+
 ## Layout and interaction rules
 
 1. **Money is right-aligned, tabular figures, two decimals, peso sign in headers not cells.** Totals row is sticky.
@@ -126,3 +153,5 @@ graph TD
 ## Related
 
 [[Self-Service-Portal]] · [[Auth-and-RBAC]] · [[User-Stories]] · [[Personas]] · [[API-Surface]] · [[Build-Plan]] · [[Architecture]]
+
+Hub for HR requests: [[Employee-Tickets]] · UI rules: [[Design-System]]

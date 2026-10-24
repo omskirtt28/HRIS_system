@@ -18,3 +18,29 @@ The product and design specs for this HRIS live in the Obsidian vault at `HRIS-V
 ### Standing workflow: test then apply
 After Stage B, apply to the localhost database (`pmbsi_hris`) right away, without asking again, when **all** of these hold: (1) a fresh mysqldump was taken and its restore verified; (2) the isolated-DB tests passed, and any failing test is shown with proof it is unrelated; (3) the migration ran up, re-run, down, up cleanly and its down script is guarded against used data. Then re-check that no existing business rows changed, update the vault and commit locally.
 **Never without John's explicit word:** `git push`, deploy to hosting, deleting data or roles, history purge, or applying anything that fails a check. If a check fails, stop and report.
+
+### Vault sync (mandatory)
+The Obsidian vault is the ONLY source of truth. Vault sync is MANDATORY before the final report of every patch: Progress.md, the matching 02-Modules note, Data-Model.md for every migration, Business-Rules.md, Screens.md/API-Surface.md for new screens or routes, Decision-Log.md, Open-Questions.md and CHANGELOG.md. The final report MUST list the vault files changed. A patch with no vault files listed is not finished. Never add content to the repo-root SCHEMA/ARCHITECTURE/RULES/DESIGN docs.
+
+Repo-root SCHEMA.md, ARCHITECTURE.md, RULES.md and DESIGN.md are frozen pointers to the vault. The hub note for the ticket engine is `HRIS-Vault/02-Modules/Employee-Tickets.md`.
+
+## Skills
+Invoke the matching skill yourself, without being asked, as soon as the task fits, and name every skill used in the final report. Only skills that exist are listed (project `.claude/skills`, user plugins `backend-design`, `fullstack-dev-skills-bundle` (a bundle that duplicates most of them; prefer the `backend-design:` name), `design`, and built-ins).
+
+| Task | Skill |
+|---|---|
+| Any change, patch, migration, fix, permission or docs/rules edit in this repo | `hris-patch` |
+| Run the app, screenshots, browser checks, isolated test DB | `run-hris-system` |
+| Writing, reviewing or running a database migration | `backend-design:migration-safety` (plus `backend-design:review-migration` before the file is committed) |
+| Schema design: new table, column, constraint, entity | `backend-design:data-modeling-discipline` |
+| Auth, roles, permissions, sessions, portal gates, scope | `backend-design:auth-and-authorization` |
+| Any new endpoint, form handler or access change (every diff) | `backend-design:security-discipline`; also `security-review` for a diff review |
+| Slow query, new list or report query, pagination, N+1 | `backend-design:query-discipline` (`backend-design:explain-this-query`, `backend-design:hunt-n-plus-one` when asked to analyse) |
+| UI or screen change | `design:design-system` (match `HRIS-Vault/03-Design/Design-System.md`); `design:accessibility-review` for new screens |
+| Report, dashboard, chart, KPI tile | `dataviz` |
+| A new server-side component before coding | `backend-design:think-before-coding` |
+| Writing or reviewing tests | `backend-design:testing-with-discernment` |
+| Something broken or wrong in the data | `backend-design:debugging-discipline` |
+| Review a diff before commit | `code-review` |
+
+Installed but not mapped (use only if the user asks): `backend-design:` boring-by-default, error-handling-as-design, idempotency-and-side-effects, observability-by-default, performance-and-scaling, audit, design; all `marketing:*`, `finance:*`, `engineering:*` (architecture, debug, deploy-checklist, documentation, incident-response, standup, system-design, tech-debt, testing-strategy), `design:` (design-critique, design-handoff, research-synthesis, user-research, ux-copy), `agentic-sdlc-kit:*`, the duplicate `fullstack-dev-skills-bundle:*` copies, `anthropic-skills:*` (docs, docx, pdf, pptx, xlsx, google-workspace, import-memory, morning, skill-creator), and the harness skills (update-config, keybindings-help, fewer-permission-prompts, loop, schedule, simplify, claude-api, claude-in-chrome, run, plugin-authoring, init, artifact-*). Do not install or edit skills as part of a patch.

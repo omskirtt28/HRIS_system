@@ -3,12 +3,14 @@ title: Start Here
 type: moc
 status: draft
 tags: [moc, dashboard]
-updated: 2026-10-17
+updated: 2026-10-25
 ---
 
 # Start Here
 
 The dashboard for the HRIS planning vault. Everything is reachable from this note.
+
+> [!important] The vault is the ONLY source of truth. Every patch must sync it before its final report (see [[Conventions]], CLAUDE.md, `.claude/skills/hris-patch`). Ticket engine hub: [[Employee-Tickets]].
 
 > [!note] Reading order for a first pass
 > [[Vision-and-Scope]] → [[Personas]] → [[Roadmap]] → [[Data-Model]] → [[Build-Plan]] → [[Claude-Code-Brief]].
@@ -42,6 +44,7 @@ These block real work. See [[Open-Questions]] for the full checklist.
 | Payroll | MVP | [[Payroll]] |
 | Auth & RBAC | MVP | [[Auth-and-RBAC]] |
 | Self-service portal | v1 | [[Self-Service-Portal]] |
+| HR tickets (HR Concerns, built) | v1 | [[Employee-Tickets]] |
 | Reports & government filings | v1 | [[Reports-and-Analytics]] |
 | Notifications | v1 | [[Notifications]] |
 | Recruitment & onboarding | v1 | [[Recruitment-and-Onboarding]] |
@@ -50,10 +53,11 @@ These block real work. See [[Open-Questions]] for the full checklist.
 
 ## Design
 
-- [[Data-Model]] — entities, key fields, ER diagram
+- [[Data-Model]] — entities, key fields, ER diagram, as-built ticket tables (migrations 001-016)
 - [[Architecture]] — layers, deployment, stack options
 - [[API-Surface]] — endpoints per module
-- [[Screens]] — SCR-### screen inventory
+- [[Screens]] — SCR-### screen inventory (HR request screens SCR-750..767)
+- [[Design-System]] — UI tokens, shell, branding, delivery rule
 - [[Security-and-Compliance]] — RA 10173, PII, retention, audit
 - [[Business-Rules]] — BR-### computation rules
 

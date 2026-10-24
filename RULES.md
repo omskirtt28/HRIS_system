@@ -1,3 +1,5 @@
+Source of truth: HRIS-Vault/00-Meta/Conventions.md. This file is not maintained; see the vault.
+
 # HRIS Engineering Rules
 
 **Status:** Mandatory baseline v1

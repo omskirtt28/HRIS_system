@@ -79,6 +79,10 @@ Decisions John needs to make. Each is blocking something concrete. When one is d
 - [ ] **Q48.** Merge later: the dead employee-dashboard tile "Request COE" (index.php) and the Offboarding COE document list (`separation_documents_issued`, planned) overlap with this request type.
 - [ ] **Q49.** Report access: granted to HR_USER, HRIS_ADMIN, HR_TIMEKEEPING. Add HR Leave or Payroll roles in Roles if they should see it.
 - [ ] **Q50.** Setup health in the report needs `tickets.approvers.manage`; HR users without it see a notice instead of those numbers.
+- [ ] **Q51. Incident feed readers.** No live role holds `ticket.sensitive.view`, so the restricted Incident feed has no assigned reader besides what BR-744 gives HR. Who should read Incidents? → [[Employee-Tickets]]
+- [ ] **Q52. HR filing OIC Authorization.** `ticket.file.oic_authorization` is held live only by ADL and SC; HR_USER and HRIS_ADMIN hold `ticket.file_for_others` but not that permission (checked 2026-10-25). Can HR file one for a branch, or is it ADL/SC only? → [[Self-Service-Portal]]
+- [ ] **Q53. Database engine.** The live database is MariaDB 10.4.32 (XAMPP), while ADR-001, the old root docs and Data-Model assumed MySQL 8. Pick the production engine and version before hosting (see Q13) and re-run the migration round-trips on it. → [[Data-Model]]
+- [ ] **Q54. Stale payroll cutoff statuses.** Calendar status is not advancing by itself (cutoff 1 still OPEN after its end date, cutoff 47 UPCOMING after its start, seen 2026-10-25). Payroll Concern filing no longer depends on it (BR-766) but other screens may. → [[Payroll]]
 
 > [!warning] NEEDS VERIFICATION
 > Q22–Q27 are all deliberately unanswered in this vault. No figure for any of them appears anywhere as fact. Each must be confirmed against the issuing agency's current circular, recorded with its effectivity date in [[PH-Labor-and-Payroll-Notes]], and entered as a config row — never as a constant in code.

@@ -167,3 +167,5 @@ Employee Directory groups (SW Retail, Ocampo's Retail, Head Office SW/Ocampo's, 
 ## Related
 
 [[Employee-Records]] · [[Attendance-and-DTR]] · [[Payroll]] · [[Auth-and-RBAC]] · [[Reports-and-Analytics]] · [[Data-Model]] · [[Business-Rules]] · [[Screens]] · [[ADR-002-Multi-Tenancy]] · [[PH-Labor-and-Payroll-Notes]]
+
+Hub for HR requests: [[Employee-Tickets]] · UI rules: [[Design-System]]

@@ -283,6 +283,15 @@ Permission `ticket.view_team` ("View team HR requests (read-only)") is created b
 
 Permission `ticket.file.oic_authorization` (migration 013) lets a role file an OIC Authorization; it is seeded to ADL and SC only. HR/Admin file for others through `ticket.file_for_others` (HR or admin portal only; an ADL role that also holds it stays limited to its own areas). The OIC role is granted by hand in Users by a `users.manage` holder (Super Admin or PMBSI Administrator); expiry returns the account to its recorded previous role and never changes a Super Admin, HR, admin or client account (BR-735, BR-736).
 
+## As built: security and RBAC rules (moved from the retired root RULES.md, 2026-10-25)
+
+- Authentication is centralised; authorisation is server-side with permission codes, never role-name or sidebar-visibility checks: `Auth::can('code')` for visibility and `Auth::requirePermission('code')` for protected actions. `SUPER_ADMIN` may bypass permission rows; every other role follows its rows. New protected functions get a stable permission code.
+- Custom roles declare a portal (`employee`, `hr`, `admin`, `client`) and get explicit permissions before use. Role, permission, user-status and organisation-master changes are audited.
+- Passwords: `password_hash()`/`password_verify()` only; never store or log a temporary password; a Super Admin reset is audited and revokes the target's sessions. Deactivation revokes tracked sessions; an administrator cannot deactivate their own account from the Users screen. Regenerate the session ID on login and after privilege changes; revoke sessions after sensitive role/scope changes; rate-limit login and public application endpoints.
+- Never trust browser-supplied IDs: every read applies scope; SQL is parameterised only; uploads are kept outside the public tree and served through authorised routes; never log passwords, tokens, full government IDs or document contents.
+- Organisation masters are shared core data; make records inactive rather than delete when history references them.
+- Approval routing for payroll/leave requests resolves the employee from the logged-in account; the Manager is `employees.manager_employee_id` and must have an active account with the manager approval permission; later stages are role/permission based (`HR_TIMEKEEPING`, `HR_LEAVE`, `PAYROLL`), never a person's name. Ticket routing: [[Employee-Tickets]].
+
 ## Open Questions
 
 - [ ] Do all employees get accounts, or only office staff? → Q15 in [[Open-Questions]]
@@ -296,3 +305,5 @@ Permission `ticket.file.oic_authorization` (migration 013) lets a role file an O
 ## Related
 
 [[Employee-Records]] · [[Org-Structure]] · [[Payroll]] · [[Leave-Management]] · [[Attendance-and-DTR]] · [[Self-Service-Portal]] · [[Security-and-Compliance]] · [[Personas]] · [[Data-Model]] · [[API-Surface]] · [[Screens]] · [[Offboarding-and-Clearance]] · [[Business-Rules]]
+
+Hub for HR requests: [[Employee-Tickets]] · UI rules: [[Design-System]]

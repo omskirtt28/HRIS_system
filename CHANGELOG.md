@@ -302,3 +302,9 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 - HR can add an optional internal note that only HR sees; it is never shown to the employee, viewers, approvers or Accounting and is not in notifications.
 - The ticket page is redesigned: summary card with status, a progress stepper, details, a chat-style comment thread and a collapsed History. The bell now tells the employee when HR changes their request.
 - Migration `20261025_016_ticket_hr_notes.sql` adds one table; applied after a verified backup and clean up/re-run/down/up tests.
+
+## 2026-10-25 · Vault is now the single source of truth (documentation only)
+- The HRIS-Vault notes now describe every table, permission, rule, screen and route added by migrations 001-016, with a new hub note for HR tickets and a UI design-system note.
+- SCHEMA.md, ARCHITECTURE.md, RULES.md and DESIGN.md are no longer maintained and point to the vault; their unique facts were moved into it.
+- Every future patch must update the vault before its final report; the rule is in CLAUDE.md and in the new `hris-patch` skill, and CLAUDE.md maps the installed skills to task types.
+- No code, database or setting changed.

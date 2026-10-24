@@ -271,6 +271,35 @@ These are not numbered rules but every rule above must preserve them.
 | BR-766 | A Payroll Concern is always fileable. The cutoff for the concern date decides only the route: open cutoff = normal chain (Manager/ADL then HR); finalized, deadline passed, calendar CLOSED or not OPEN (e.g. UPCOMING), or no single cutoff for the date = HR-only, flagged late (`FINALIZED`, `DEADLINE_EXPIRED`, `CALENDAR_CLOSED`, `CALENDAR_NOT_OPEN`, `NO_CUTOFF`). No cutoff = `payroll_period_id` NULL. Finalized/locked payroll and attendance are never touched; HR still records a manual instruction for a later open cutoff. |
 | BR-767 | Remarks written on a status change (In Progress, Served, Cancelled, Rejected, Returned) are the **response**: visible to the requester and to HR, shown on the ticket page, never to viewers, ADL/SC/OIC/Manager (beyond today), Accounting or other staff. HR may add an optional **internal note** (`ticket_hr_notes`, max 2000 characters): HR-only, never in events, comments, steps, notifications or exports; a forged note from a non-HR user is refused. Incident Reports show no requester-side response card. The requester is notified in the bell of the new status and that a response is waiting, without its text. | Self-Service-Portal | NEW |
 
+## As built: access matrix by role and ticket type (verified live 2026-10-25)
+
+Grants are `role_permissions` rows, so HR can change them; this is the state on the live database. Hub: [[Employee-Tickets]]; permission list: [[Data-Model]].
+
+**Who may FILE (BR-720, BR-721; also Roles in [[Self-Service-Portal]])**
+
+| Type | EMPLOYEE | MANAGER / OIC / TC | SC | ADL | HR_USER, HRIS_ADMIN |
+|---|---|---|---|---|---|
+| ATM, ID, Incident, Uniform, Payroll Concern, COE | yes | yes | yes | yes | yes (COE for self) |
+| Manpower, NetSuite | no | yes | yes | yes | yes |
+| OIC Authorization | no | no | yes (own branch) | yes (own areas) | HR/Admin for others only via `ticket.file_for_others` (no `ticket.file.oic_authorization` row live: unverified how HR files it) |
+| Branch Transfer | no | no | no | `ticket.file_for_others` held live (unverified intent) | yes |
+
+**Who may READ / ACT on a ticket** (one gate, `TicketRepository::find`): requester (own tickets); HR with `tickets.review_hr` on the HR portal (handler, sets status); the named step approver (Payroll Concern Manager/ADL step: inbox); Accounting members (NetSuite concerns once COMPLETED, lane remarks only); read-only viewers per BR-724..727 (list, detail, ordinary comments, history; no attachments, approve, comment, notification).
+
+**Privacy rules (summary of BR-726, BR-744, BR-754, BR-761, BR-767):**
+
+| Data | Requester | HR | Viewers (ADL/SC/OIC/Manager) | Accounting |
+|---|---|---|---|---|
+| Incident Report | own | restricted feed / count (BR-744; exact gate `ticket.sensitive.view`, no live role holds it: unverified) | never | never |
+| COE ticket and generated .docx | yes | yes (preview, serve, download; every generation/download audited) | never | never |
+| HR response (status remarks) | yes | yes | never | never |
+| HR internal note | never | yes | never | never |
+| Drafts | own | no | never | no |
+
+**Bulk and quick actions:** BR-740 to BR-744 (ATM, ID, Uniform only; Served or Cancel; one ticket at a time through `TicketService::act()`; max 100 per run; Incident never listed).
+
+**Rule-number housekeeping (2026-10-25):** the OIC/viewer functional requirements in [[Self-Service-Portal]] were renumbered FR-730,732-735 -> FR-760..764 because FR-730..739 already belong to [[Notifications]].
+
 ## Open Questions
 
 - [ ] Rules touching Q6-Q12 in [[Open-Questions]] (leave types, OT exemption, pay basis, correction model) are provisional until John answers.

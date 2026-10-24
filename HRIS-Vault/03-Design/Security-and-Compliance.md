@@ -123,6 +123,12 @@ A `data_requests` record (type: access, correction, blocking, erasure, complaint
 
 Statutory filings are in [[Reports-and-Analytics]]; labor standards in [[PH-Labor-and-Payroll-Notes]]. This note only covers privacy and security obligations.
 
+## As built: audit minimum and AI rules (moved from the retired root RULES.md, 2026-10-25)
+
+- Audit at least: login/security events, account/role/permission changes, sensitive applicant/employee field changes, stage changes, interview decisions, endorsement, client decision, offer events, deployment completion, employee conversion, document upload/delete/version, exports, integration configuration. Each row carries actor, action, module, record id, time, result and relevant old/new values without copying secrets or unnecessary PII. Audit is append-only.
+- Export actions are permission-gated and audited; reports aggregate where identity is not needed; retention rules are configurable before production.
+- AI, if ever enabled (parsing, matching, screening, drafting): output is advisory; no automatic final rejection or hiring from a score; store model/version when output affects a workflow; authorised HR can review and override; sensitive data to an external provider needs an approved privacy setup; never present demo scores as real evaluations.
+
 ## Open Questions
 
 - [ ] Who is the DPO, and has the company registered its processing with the NPC? (Q19)

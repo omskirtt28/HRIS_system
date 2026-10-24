@@ -206,6 +206,36 @@ graph TD
 | Scope creep into performance management | MVP never ships | [[Roadmap]] non-goals; revisit only after v1 |
 | Multi-company retrofitted later | Migration across every table | Decide Q1 now via [[ADR-002-Multi-Tenancy]] |
 
+## As built: code layout and request flow (verified 2026-10-25)
+
+Flat PHP modular monolith, no framework: `index.php` (front controller, page dispatch, legacy payroll screens), `router.php` (dev router), `app/*.php` (classes named by capability: `*Service`, `*Repository`, `*Module` = request handler for a page group, `*Views` = HTML), `config/`, `database/schema.sql` (clean install) and `database/migrations/` (numbered, guarded `.down.sql`), `public/assets/`, `storage/` (private uploads, outside the public tree), `scripts/` (CLI: migrations runners, scheduled notification jobs), `tests/` (PHP suites run against an isolated database copy, plus browser `.cjs` suites), `legacy/`. The `src/core` and `src/modules` Node-style folder contract in the old root ARCHITECTURE.md was never built and is dropped.
+
+Request flow: front controller -> `ticket_handle($page)` and sibling `*_handle()` functions (`TicketModule`, `TicketAssignmentModule`, `TicketViewerModule`, `TicketCoeModule`, `TicketReportModule`) -> authentication -> `Auth::can` / `Auth::requirePermission` -> scope/viewer gate -> validation -> service (transaction) -> audit + event -> notification after commit -> view. UI visibility is never the control (BR-113, BR-721).
+
+Integration rules (moved from the old ARCHITECTURE.md): recruitment may depend on core (auth, org masters, employee master, documents, notifications, audit); core must not depend on recruitment; recruitment must not read or write the ticket tables; modules reference org masters by ID and never keep their own branch/department/position lists; notification delivery happens after commit; every new module declares scope, owned tables, permissions, state transitions, events, reports and audit before coding.
+
+## As built: HR ticket engine
+
+Hub: [[Employee-Tickets]]. One generic engine files, routes, tracks and audits every HR request (Payroll Concern, ATM, ID, Uniform, NetSuite, Manpower, Branch Transfer, Incident, OIC Authorization, COE). Tables: [[Data-Model]] (migrations 001-016).
+
+| Part | Code | Job |
+|---|---|---|
+| Types and per-type fields | `TicketTypes`, `TicketBranchTransfer`, `TicketOicAuthorization`, `TicketCoe`, `PayrollTicketViews` (Payroll Concern page) | Definition, validation, `complete()` side effects per type |
+| State machine | `TicketPolicy::assertTransition`, `TicketService` (`create`, `edit`, `submitLocked`, `act`, `transition`) | Only legal moves; `version` check; events appended in the same transaction |
+| Reads and access | `TicketRepository` (`find`, `detail`, `listing`, `canApprove`, `isHr`) | One read gate for list, URL, comments, events, attachments, downloads |
+| Viewers | `TicketViewerService` | Read-only access derived live (below) |
+| Approver routing | `EmployeeApproverAssignmentService` | Effective-dated MANAGER/ADL per employee |
+| HR work | `TicketQueue(+Views)`, `HrDashboard(+Views)`, `TicketReport(+Views/Module)`, `TicketAccounting`, `TicketPrintForms` | Queue, bulk/quick actions, dashboard, report, Accounting follow-up, printable forms |
+| Notifications | `TicketNotifications` (outbox `ticket_notification_outbox`, flushed after commit; `scripts/run_ticket_notifications.php`) | Bell/email, never carries private text |
+
+**Routing profiles** (`ticket_routing_profiles`): `HR_ONLY` = [HR]; `HO_MANAGER_THEN_HR` = [MANAGER, HR]; `BRANCH_ADL_THEN_HR` = [ADL, HR]. A type's `routing_config_json` can pick HEAD_OFFICE vs BRANCH profiles (Payroll Concern). When a ticket is submitted the chain is resolved once into `ticket_steps` and then frozen (DB triggers block changing who/what; steps are never deleted), so later Manager/ADL changes never rewrite an open ticket. Late or no-cutoff Payroll Concerns are forced to HR-only (BR-766). Manager-filed requests have no line step (BR-738). Live today: every type is HR_ONLY except Payroll Concern.
+
+**Viewer resolution** (`TicketViewerService::viewersFor/scope/clause`, one `leadSql` feeds both access and the Employee 201 panel): retail ticket = the **ADL** whose `directory_area_ids` include the ticket branch's area, the **Sales Captain** and **OIC** of the ticket's frozen `branch_id` (position + active account with `ticket.view_team`; an OIC-role account counts only inside a served OIC Authorization window); Head Office ticket = the subject's direct **Manager** (`employees.manager_employee_id`, read live). Evaluated at read time, never snapshotted; viewers are read-only, get no notifications, never see Incident Reports, drafts or COE. `branch_leads` / `ticket_viewer_overrides` are deprecated and unread (BR-730).
+
+**Permission model:** a role's ticket powers are rows in `role_permissions` (list in [[Data-Model]]): filing per type (`ticket.file.<type>` + `tickets.request_self` or `ticket.file_for_others`), `ticket.view_team`, `tickets.review_hr` (HR queue), `tickets.approvers.manage`, `ticket.accounting.view`, `ticket.sensitive.view`, `ticket.coe.template.manage`, `ticket.report.view`. HR-handling pages additionally require an HR/Admin portal role (BR-760); `SUPER_ADMIN` bypasses permission rows. Access matrix by role and type: [[Business-Rules]] (BR-720 matrix).
+
+**Test-then-apply workflow:** Stage A read-only analysis; Stage B code + migration + isolated-DB tests; then, without asking again, apply to localhost `pmbsi_hris` only if a fresh mysqldump restore was verified, tests passed (any failure proved unrelated) and the migration ran up, re-run, down, up with a guarded down script; afterwards re-check existing business rows are unchanged. Never without John's word: push, deploy, delete data or roles, history purge, or apply anything that failed a check. See [[Conventions]] and CLAUDE.md.
+
 ## Open Questions
 
 - [ ] Which stack option? → [[ADR-001-Tech-Stack]], Q2 in [[Open-Questions]]

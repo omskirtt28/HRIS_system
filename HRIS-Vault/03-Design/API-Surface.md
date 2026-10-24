@@ -168,6 +168,27 @@ Permission codes are defined in [[Auth-and-RBAC]]. "Own" means the caller's link
 
 Follow the same CRUD-plus-transition pattern: resource collections (`/applicants`, `/job-offers`, `/onboarding-checklists`, `/separations`, `/clearance-items`, `/review-cycles`) with explicit transition endpoints (`POST .../{id}/convert-to-employee`, `.../clear`, `.../submit`). Detailed in [[Recruitment-and-Onboarding]], [[Offboarding-and-Clearance]], [[Performance-Management]]. Not MVP except where [[Build-Plan]] pulls them in.
 
+## As built: HTTP surface of the PHP app (2026-10-25)
+
+The `/api/v1` JSON contract above is the target. The running app is server-rendered: GET `?page=<id>` returns a page, POST `action=<name>` (CSRF token, prepared SQL) mutates then redirects. Handlers: `TicketModule`, `TicketAssignmentModule`, `TicketViewerModule`, `TicketCoeModule`, `TicketReportModule`. Screens and gates: [[Screens]] (SCR-750..767).
+
+| Kind | Name | Gate | Effect |
+|---|---|---|---|
+| POST | `core_ticket_create` (SUBMIT or draft) | filing permission + `ticket.file.<type>`; idempotency key in `ticket_submission_keys` | Create, freeze route, files attachments |
+| POST | `core_ticket_edit` | requester, draft/returned, type still fileable (BR-722) | Edit or resubmit |
+| POST | `core_ticket_act` | approver / HR / requester per `TicketService::permissions()`; `version` check | Approve, return, reject, In Progress, Served, Cancel; HR note (BR-767) |
+| POST | `core_ticket_quick`, `core_ticket_bulk` | `tickets.review_hr`, HR portal | One ticket at a time through `act()` (BR-740..742) |
+| POST | `core_ticket_comment`, `core_ticket_attach` | requester/approver/HR, never `viewer_only` | Comment (ALL or STAFF_ONLY), attachment |
+| POST | `core_ticket_netsuite_remark`, `core_ticket_accounting_member` | HR lane / Accounting membership | NetSuite remarks; membership |
+| POST | `ticket_approvers_preview` / `_save` / `_cancel` | `tickets.approvers.manage` | Effective-dated Manager/ADL assignments |
+| POST | `coe_template_upload` / `coe_template_activate` / `coe_settings_save` | `ticket.coe.template.manage` | COE template versions and signatory |
+| GET | `hr-request-attachment` | ticket read gate | Streamed download, `nosniff` |
+| GET | `hr-service-requests-export` | `tickets.review_hr` | Queue CSV, audited, formula-safe |
+| GET | `hr-ticket-report-export`, `hr-ticket-report-print` | `ticket.report.view` | CSV (cap 5000, audited) and one-page print |
+| GET | `hr-coe-download`, `hr-coe-template-file` | requester + HR / HR | Private .docx, every download audited |
+
+Errors: a refused request returns HTTP 403 with the ticket error page. Scheduled jobs: `scripts/run_notifications.php`, `scripts/run_ticket_notifications.php`.
+
 ## Design rules
 
 1. **State changes are verbs on sub-resources** (`/release`, `/approve`), not `PATCH status=`. Prevents skipping the transition guard.
@@ -184,3 +205,5 @@ Follow the same CRUD-plus-transition pattern: resource collections (`/applicants
 ## Related
 
 [[Architecture]] · [[Data-Model]] · [[Auth-and-RBAC]] · [[Screens]] · [[Security-and-Compliance]] · [[Business-Rules]] · [[Payroll]] · [[Attendance-and-DTR]]
+
+Hub for HR requests: [[Employee-Tickets]] · UI rules: [[Design-System]]

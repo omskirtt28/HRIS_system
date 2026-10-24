@@ -283,3 +283,5 @@ See [[Business-Rules]] for full statements. Payroll-critical ones:
 ## Related
 
 [[Attendance-and-DTR]] · [[Leave-Management]] · [[Employee-Records]] · [[Org-Structure]] · [[Reports-and-Analytics]] · [[Self-Service-Portal]] · [[Offboarding-and-Clearance]] · [[Business-Rules]] · [[Data-Model]] · [[API-Surface]] · [[Screens]] · [[Security-and-Compliance]] · [[ADR-003-Payroll-Engine-Approach]] · [[PH-Labor-and-Payroll-Notes]] · [[Glossary]] · [[Notifications]]
+
+Hub for HR requests: [[Employee-Tickets]] · UI rules: [[Design-System]]

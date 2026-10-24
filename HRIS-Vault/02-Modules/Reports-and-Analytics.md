@@ -187,3 +187,5 @@ Critical reconciliation requirement: **the monthly total of each statutory repor
 ## Related
 
 [[Payroll]] · [[Attendance-and-DTR]] · [[Leave-Management]] · [[Employee-Records]] · [[Org-Structure]] · [[Offboarding-and-Clearance]] · [[Self-Service-Portal]] · [[Security-and-Compliance]] · [[Auth-and-RBAC]] · [[Business-Rules]] · [[Data-Model]] · [[Screens]] · [[API-Surface]] · [[PH-Labor-and-Payroll-Notes]] · [[Glossary]]
+
+Hub for HR requests: [[Employee-Tickets]] · UI rules: [[Design-System]]

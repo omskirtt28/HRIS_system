@@ -201,11 +201,11 @@ Migration 010 kept today's access for existing roles: `EMPLOYEE` got the five st
 | FR-727 | The system shall let HR grant or remove a type for a role from Roles & Permissions, with no code change. | Must |
 | FR-728 | The system shall give the covering ADL, the Sales Captain and OIC of the branch, and the Head Office Manager a read-only Team Requests list and ticket detail, enforced in the ticket read gate so list, URL, comments, events, attachments and downloads follow one rule. (BR-724..727) | Must |
 | FR-729 | The system shall derive those viewers automatically and give HR a read-only Ticket Viewers problem report (no assign form). (BR-728, BR-730, BR-731, BR-733) | Must |
-| FR-730 | The system shall audit every change to an ADL's assigned areas. (BR-729) | Must |
-| FR-732 | The system shall show on the Employee 201 Employment tab, read-only, the panel "Who can view this employee's tickets" (ADL, Sales Captain, OIC, or the Manager for Head Office) with account status and red PROBLEM lines. (BR-732) | Should |
-| FR-733 | The system shall let an ADL or Sales Captain (and HR/Admin for others) file an OIC Authorization for an employee in their branch/area, routed to HR only. (BR-734) | Must |
-| FR-734 | The system shall block an OIC Authorization for a nominee who already holds a higher role, at filing and when HR serves it. (BR-736) | Must |
-| FR-735 | The system shall end OIC access on the end date and return the account to its recorded previous role automatically, idempotently and with an audit entry. (BR-735) | Must |
+| FR-760 | The system shall audit every change to an ADL's assigned areas. (BR-729) | Must |
+| FR-761 | The system shall show on the Employee 201 Employment tab, read-only, the panel "Who can view this employee's tickets" (ADL, Sales Captain, OIC, or the Manager for Head Office) with account status and red PROBLEM lines. (BR-732) | Should |
+| FR-762 | The system shall let an ADL or Sales Captain (and HR/Admin for others) file an OIC Authorization for an employee in their branch/area, routed to HR only. (BR-734) | Must |
+| FR-763 | The system shall block an OIC Authorization for a nominee who already holds a higher role, at filing and when HR serves it. (BR-736) | Must |
+| FR-764 | The system shall end OIC access on the end date and return the account to its recorded previous role automatically, idempotently and with an audit entry. (BR-735) | Must |
 
 ## As built: read-only ticket viewers (2026-10-24)
 
@@ -252,3 +252,5 @@ HR Requests → Ticketing Report (`ticket.report.view`, HR roles only). Read-onl
 ## Related
 
 [[Payroll]] · [[Attendance-and-DTR]] · [[Leave-Management]] · [[Employee-Records]] · [[Auth-and-RBAC]] · [[Notifications]] · [[Reports-and-Analytics]] · [[Offboarding-and-Clearance]] · [[Screens]] · [[API-Surface]] · [[Personas]] · [[Business-Rules]] · [[Security-and-Compliance]]
+
+Hub for HR requests: [[Employee-Tickets]] · UI rules: [[Design-System]]

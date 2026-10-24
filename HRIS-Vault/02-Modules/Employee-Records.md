@@ -174,6 +174,13 @@ Defined in [[Business-Rules]], referenced here:
 | Employee under 18 | Allowed with a flag; some statutory rules differ. Flag it rather than block it. |
 | Consultant or contractor paid without statutory deductions | Employment type drives whether statutory deduction applies. Must be a type attribute, not a per-run manual exclusion. |
 
+## As built: employee master and 201 file rules (moved from the retired root RULES.md, 2026-10-25)
+
+- `employee_no` is the stable human-readable identifier and unique. One employee-portal user links to at most one employee (unlinking by authorised HR is allowed). `employees.id` is the permanent parent for every child record; future modules reference it and never duplicate identity data.
+- Department, position, branch and employment type are master-data references, never hard-coded labels; position/department selections must be consistent. Creating or editing an employee needs `employees.manage` and is audited. Changes to department, position, branch, employment type or status write an `employee_employment_history` event; history is never overwritten. Deleting a 201 child record is an audited HR action.
+- Documents live outside the public directory and are reached through authenticated routes; uploads are allow-listed by extension/MIME and size, stored under randomized names; profile photos accept JPG, PNG or WEBP only. A government ID type is unique per employee (saving the same type updates it).
+- Table list: [[Data-Model]] ("tables outside the design inventory"). Ticket viewers panel on the Employment tab: [[Employee-Tickets]].
+
 ## Open Questions
 
 - [ ] Does `employee_no` follow an existing company pattern that must be preserved? (affects BR-201)
@@ -186,3 +193,5 @@ Defined in [[Business-Rules]], referenced here:
 ## Related
 
 [[Org-Structure]] · [[Attendance-and-DTR]] · [[Leave-Management]] · [[Payroll]] · [[Recruitment-and-Onboarding]] · [[Offboarding-and-Clearance]] · [[Self-Service-Portal]] · [[Auth-and-RBAC]] · [[Data-Model]] · [[Business-Rules]] · [[Security-and-Compliance]] · [[Screens]] · [[API-Surface]] · [[ADR-002-Multi-Tenancy]]
+
+Hub for HR requests: [[Employee-Tickets]] · UI rules: [[Design-System]]

@@ -1,3 +1,5 @@
+Source of truth: HRIS-Vault/03-Design/Architecture.md. This file is not maintained; see the vault.
+
 # HRIS Architecture Baseline
 
 **Status:** Baseline v1  

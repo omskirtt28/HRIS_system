@@ -107,4 +107,19 @@ After Stage B, the migration is applied to the localhost database (`pmbsi_hris`)
 - Money: `DECIMAL(12,4)` internally, rounded to 2 only at presentation and payment. Never `FLOAT`.
 - Dates in PH local time (`Asia/Manila`); store `DATETIME` with an explicit application timezone, never rely on server default.
 
+## Engineering rules (moved from the retired root RULES.md, 2026-10-25)
+
+- **Architecture:** build by domain module, not by page; shared concerns live in core; business rules live on the server, never only in JavaScript; keep route/handler logic thin and put behaviour in services; use transactions for multi-record actions; every module has explicit permissions and scope rules. No files named `helpers2`, `misc`, `new`, `final`, `temp`.
+- **Database:** `database/schema.sql` is the clean-install bootstrap; every later change is a numbered migration, in the same change as the code; never edit a deployed migration; real relationships get foreign keys; index foreign keys and frequent filters; JSON only for flexible snapshots/configuration, not for known queried fields; never hard-delete audit logs or stage history; timezone `Asia/Manila`, converted only at the application boundary if storage ever moves to UTC. Stable references use a unique `reference_no` or domain-specific number.
+- **API:** resource-oriented, validate body/params/query, consistent error shape, no stack traces or SQL errors to clients, paginate collections, idempotency where a repeat would do harm, version checks where edits conflict.
+- **Notifications:** the business service emits events, the notification service picks channels; no direct email from a business service; failure never rolls back a committed action; deduplicate with an idempotent key; deep links re-check authorisation.
+- **Frontend:** see [[Design-System]]. No business-critical hard-coded sample data; no fake controls; every write form has CSRF and prepared SQL; local URLs come from helpers/config, never hard-coded `localhost`.
+- **Testing minimum per module:** permissions, scope isolation, validation, state transitions, transactions/rollback, duplicate/idempotency, audit rows, notification emission, report scoping, critical end-to-end flow. New permissions need seed/config updates and tests.
+- **Git/delivery:** no secrets, `.env` or real exports in Git; production must carry no debug accounts, sample data or localhost config; code passes tests before deployment.
+- **Definition of done:** UI works, validation, permission, scope, migration if needed, audit where required, tests pass, errors handled, empty/loading states, vault synced (next section).
+
+## Vault is the only source of truth (mandatory)
+
+The Obsidian vault is the ONLY source of truth. Vault sync is MANDATORY before the final report of every patch: [[Progress]], the matching `02-Modules` note, [[Data-Model]] for every migration, [[Business-Rules]], [[Screens]]/[[API-Surface]] for new screens or routes, [[Decision-Log]], [[Open-Questions]] and the repo `CHANGELOG.md`. The final report MUST list the vault files changed; a patch with no vault files listed is not finished. Never add content to the repo-root SCHEMA/ARCHITECTURE/RULES/DESIGN docs (they are frozen pointers to this vault). The enforcing skill is `.claude/skills/hris-patch/SKILL.md`; the rule is also in CLAUDE.md.
+
 Related: [[Start-Here]] · [[Business-Rules]] · [[Data-Model]] · [[Decision-Log]]
