@@ -5,7 +5,7 @@ require_once __DIR__.'/TicketServiceViews.php';
 function ticket_header(string $active,string $title):void
 {
     $portal=Auth::user()['role_portal']??'employee';render_portal_header(in_array($portal,['hr','admin'],true)?$portal:'employee',$active,$title);
-    echo '<link rel="stylesheet" href="public/assets/tickets.css?v=20261025-18">';
+    echo '<link rel="stylesheet" href="public/assets/tickets.css?v=20261025-20">';
 }
 function ticket_error_page(string $message):void
 {
@@ -64,6 +64,7 @@ function ticket_list_page(string $mode,array $result,array $filters):void
 }
 function ticket_detail_page(array $t):void
 {
+    if($t['type_code']==='INCIDENT_REPORT'){incident_case_page($t);return;}// the Case page (I3)
     if($t['type_code']!=='PAYROLL_CONCERN'){ticket_service_detail($t);return;}
     $p=TicketService::permissions($t);$actionOld=$_SESSION['core_ticket_action'][$t['id']]??[];ticket_header('hr-requests-my',$t['ticket_no']);
     page_head('HR Concerns / '.$t['type_name'],$t['ticket_no'],'<a class="btn" href="'.url(TicketRepository::isHr()?'hr-payroll-concerns':(TicketRepository::canApprove()?'hr-request-inbox':'hr-requests-my')).'">Back to requests</a>'); ?>
@@ -91,3 +92,5 @@ function ticket_detail_page(array $t):void
     <script>document.querySelector('[data-ticket-decision]')?.addEventListener('submit',event=>{const decision=event.submitter?.value;const remarks=event.target.querySelector('[name="remarks"]');remarks.required=['RETURN','REJECT','COMPLETE'].includes(decision);if(!event.target.checkValidity()){event.preventDefault();event.target.reportValidity();}});</script>
     <?php render_portal_footer();
 }
+
+require_once __DIR__.'/IncidentCaseViews.php';// defined after this file so the Case page can use the helpers above

@@ -10,6 +10,12 @@ updated: 2026-10-25
 
 Isang entry kada session, pinakabago sa taas. Mga plano ay nasa `Plans/` (template: [[_Template]]). Slice status ay nasa [[Progress]].
 
+## 2026-10-25 - Incident Report module I3 (executed)
+- **Ginawa:** Case page ng Incident Report: header na may 5-hakbang na stepper, thread (HR update at HR-only internal note), participants rail, summary, attachments, timeline, sticky composer, HR panel (status na may remarks, magdagdag/magtanggal ng tao, internal note, reopen) at withdraw ng reporter. Bagong `incident-act` POST at `incident-people?case=` para sa handler lang. Walang migration; walang ginalaw sa `pmbsi_hris`.
+- **Napagdesisyunan:** pangalan ng HR ay nakikita ng lahat ng readers (tulad ng sa messages); role labels, access wording, internal notes ay handler lang at wala sa markup ng iba. Hindi puwedeng mag-cancel ang HR, mag-dismiss lang (Q61).
+- **Tests:** `incident_case_ui_test` 40/40, `incident_case_test` 111, `incident_ui_test` 38, ticket suites, browser 44/44 (403 matrix, forged POSTs, screenshots), `hr_ops_browser` 13/13. Local commit lang, walang push.
+- **Susunod:** I4 HR Incident Cases at polish.
+
 ## 2026-10-25 - Incident Report module I3 (plan)
 - **Napagdesisyunan:** I3 ay Case page (thread, participants rail, HR panel) gamit ang umiiral na service methods; walang pagbabago sa access rule; magsisimula lang pagkatapos ma-commit ang I2 (tumatakbo sa hiwalay na PowerShell ni John).
 - **Ginawa:** idinagdag ang I3 scope sa [[2026-10-25-incident-report-module]]. Walang code na binago.

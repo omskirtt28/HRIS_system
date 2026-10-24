@@ -149,17 +149,25 @@ final class TicketIncident
      * returns the name and the branch and nothing else. The caller has already checked the filing permission.
      * @return array<int,array{id:int,name:string,branch:string}>
      */
-    public static function searchPeople(string $term):array
+    public static function searchPeople(string $term,array $exclude=[]):array
     {
         $term=trim($term);if(mb_strlen($term)<2)return [];
+        $skip=array_values(array_unique(array_filter(array_map('intval',$exclude))));// ids already on the case (HR adding people)
         $like='%'.addcslashes(mb_substr($term,0,60),'\\%_').'%';
         $q=db()->prepare('SELECT u.id,u.full_name name,COALESCE(b.name,"") branch FROM users u
             LEFT JOIN employees e ON e.id=(SELECT MIN(x.id) FROM employees x WHERE x.user_id=u.id AND x.status IN ("ACTIVE","PROBATIONARY","ON_LEAVE"))
             LEFT JOIN branches b ON b.id=e.branch_id
             JOIN roles r ON r.id=u.role_id AND r.portal IN ("employee","hr","admin")
-            WHERE u.status="ACTIVE" AND u.id<>? AND u.full_name LIKE ? ORDER BY u.full_name,u.id LIMIT 10');
-        $q->execute([TicketRepository::uid(),$like]);
+            WHERE u.status="ACTIVE" AND u.id<>? AND u.full_name LIKE ?'.($skip?' AND u.id NOT IN ('.implode(',',array_fill(0,count($skip),'?')).')':'').' ORDER BY u.full_name,u.id LIMIT 10');
+        $q->execute(array_merge([TicketRepository::uid(),$like],$skip));
         return array_map(fn($r)=>['id'=>(int)$r['id'],'name'=>(string)$r['name'],'branch'=>(string)$r['branch']],$q->fetchAll());
+    }
+    /** Reporter and everyone who already reads the case: left out of HR's search for people to add. @return int[] */
+    public static function peopleOnCase(int $ticketId):array
+    {
+        $q=db()->prepare('SELECT requester_user_id FROM tickets WHERE id=?');$q->execute([$ticketId]);$ids=[(int)$q->fetchColumn()];
+        if(self::ready()){$q=db()->prepare('SELECT user_id FROM incident_participants WHERE ticket_id=? AND has_access=1');$q->execute([$ticketId]);foreach($q->fetchAll(PDO::FETCH_COLUMN) as $id)$ids[]=(int)$id;}
+        return $ids;
     }
     /** Category and when, for a page of cases the caller has already been allowed to list. @return array<int,array> keyed by ticket id */
     public static function summaries(array $ticketIds):array

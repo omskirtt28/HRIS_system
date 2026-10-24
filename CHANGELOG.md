@@ -329,3 +329,8 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 - People can be added while filing: search by name, then choose CC, Involved or Witness. A CC can read the report; an Involved or Witness person is recorded for HR but cannot read it unless HR adds them. Search shows names and branches of active employee, HR and admin accounts only.
 - Six categories (Workplace conduct, Harassment or discrimination, Safety and health, Property or equipment, Attendance-related, Other). If your account is not linked to an Employee 201 record, the page tells you to ask HR.
 - No database change in this step. HR still cannot change a case status from a screen; that comes with the case page (step 3).
+
+## 2026-10-25 · Incident Report case page
+- Opening an incident now shows a case page: status and a five-step progress bar, a conversation everyone on the case can read, the people on the case, a summary, attachments and a timeline. Messages are sent from a composer that stays at the bottom of the screen.
+- HR reviewers handling the case can change its status (remarks are required and everyone on the case sees them), add an optional note only HR sees, include or remove people, reopen a resolved or closed case and add internal notes. The person who filed can withdraw a report until HR starts reviewing it.
+- Nobody new can read a case: the access rules are unchanged. No database change.

@@ -22,6 +22,16 @@ $f['target2']=mk($tag,'Searchtargetb','Sasha Searchtargetb',$filePerms,'employee
 $f['inactive']=mk($tag,'Searchinactive','Sasha Searchinactive',$filePerms,'employee',$f,true,'INACTIVE');
 $f['noemp']=mk($tag,'Noemployee','Nora Noemployee',$filePerms,'employee',$f,false);
 $f['hr2']=mk($tag,'Hrtwo','Hana Hrtwo',['tickets.review_hr'],'hr',$f);
+// I3 Case page fixtures: their own people, so the I2 list checks keep their exact expectations.
+$f['rita']=mk($tag,'Ritareporter','Rita Ritareporter',$filePerms,'employee',$f);
+$f['carl']=mk($tag,'Carlcc','Carl Carlcc',$filePerms,'employee',$f);
+$f['ina']=mk($tag,'Inainvolved','Ina Inainvolved',$filePerms,'employee',$f);
+$f['lena']=mk($tag,'Lenalatepick','Lena Lenalatepick',$filePerms,'employee',$f);
+$f['viewer']=mk($tag,'Vivviewer','Viv Vivviewer',['ticket.view_team','tickets.request_self','ticket.file.incident'],'employee',$f);
+$f['sens']=mk($tag,'Sensholder','Sam Sensholder',['ticket.sensitive.view','tickets.request_self'],'employee',$f);
+act($f['rita']);
+$f['caseD']=TicketService::create(form(['title'=>'Flow case for the page','participants'=>[['user_id'=>$f['carl']['id'],'role'=>'CC'],['user_id'=>$f['ina']['id'],'role'=>'INVOLVED']]]),true);
+$f['caseE']=TicketService::create(form(['title'=>'Case to withdraw']),true);
 act($f['employee']);
 $f['caseA']=TicketService::create(form(['title'=>'Fixture case with a CC','participants'=>[['user_id'=>$f['cc']['id'],'role'=>'CC'],['user_id'=>$f['involved']['id'],'role'=>'INVOLVED']]]),true);
 $f['caseB']=TicketService::create(form(['title'=>'Fixture case, reporter only','category'=>'Safety and health']),true);

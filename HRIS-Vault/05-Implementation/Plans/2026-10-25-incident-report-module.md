@@ -8,7 +8,7 @@ updated: 2026-10-25
 
 # Incident Report (IR): hiwalay na module na may case thread
 
-Status: executing, I1 and I2 done (John answered the three rule questions, 2026-10-25; design and architecture delegated to Claude)
+Status: executing, I1, I2 and I3 done (John answered the three rule questions, 2026-10-25; design and architecture delegated to Claude)
 Session: [[Session-Log]] · Hub: [[Employee-Tickets]] · UI rules: [[Design-System]] · Rules: [[Business-Rules]] (BR-726, BR-744, BR-761)
 Depends on: [[2026-10-25-ticketing-ui-ux-redesign]] P1 (shared components) at ang Design-System; hindi kailangang hintayin ang P2.
 
@@ -51,7 +51,7 @@ Aalisin ang Incident Report sa listahan ng uri sa File an HR Request (`TicketTyp
 ## Phase (isang slice kada session)
 - [x] **I1 Design at data** (done 2026-10-25, migration 017 applied; 111/111 incident tests; see [[Progress]]): isulat sa vault ang rules (bagong BR numbers), Data-Model, Screens, API-Surface, Design-System "Case thread" pattern; migration (up/re-run/down/up, down guarded), TicketPolicy at access, participants at status service, notifications (walang private text), tests kasama ang access matrix (reporter, CC, HR, hindi kasali, viewer, accounting) at privacy.
 - [x] **I2 Employee UI** (done 2026-10-25, no migration; 38 UI tests, 25 browser checks; see [[Progress]]): sidebar, My Incidents, File an Incident (participants picker), alisin ang IR sa File an HR Request at i-redirect ang lumang feed.
-- [ ] **I3 Case page**: thread, participants rail, stepper, HR panel (status, participants, internal note), responsive at accessibility.
+- [x] **I3 Case page** (done 2026-10-25, no migration; 40 UI tests, 44 browser checks; see [[Progress]]): thread, participants rail, stepper, HR panel (status, participants, internal note), responsive at accessibility.
 - [ ] **I4 HR Incident Cases at polish**: HR queue, dashboard at report count na tumutugma, final screenshots ng bawat role, dark mode, a11y pass.
 
 ## I2 scope at mga desisyon (2026-10-25, John: "kung ano ang mas okay doon tayo")

@@ -16,7 +16,7 @@ const ok=m=>{passed++;console.log('PASS '+m);};
     const over=await p.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth);assert.ok(over<=1,label+' scrolls sideways by '+over+'px');};
   const named=async(p,label)=>{const bad=await p.evaluate(()=>[...document.querySelectorAll('main input:not([type=hidden]),main select,main textarea,.main input:not([type=hidden]):not([type=search]),.main select,.main textarea')].filter(e=>{if(e.closest('.topbar'))return false;const id=e.id;return !((id&&document.querySelector('label[for="'+id+'"]'))||e.getAttribute('aria-label')||e.closest('label'));}).map(e=>e.name||e.type));
     assert.deepEqual(bad,[],label+' has unlabeled controls');};
-  const shot=async(p,name)=>{for(const [w,h] of [[1440,900],[390,844]])for(const theme of ['light','dark']){await p.setViewportSize({width:w,height:h});await p.evaluate(t=>{document.documentElement.dataset.theme=t;},theme);await p.waitForTimeout(450);await clean(p,name+' '+w+' '+theme);await p.screenshot({path:`${out}/incident-${name}-${w}-${theme}.png`,fullPage:true});}await p.setViewportSize({width:1440,height:900});await p.evaluate(()=>{document.documentElement.dataset.theme='light';});};
+  const shot=async(p,name)=>{await p.addStyleTag({content:'.tk-sticky{position:static!important}'});for(const [w,h] of [[1440,900],[390,844]])for(const theme of ['light','dark']){await p.setViewportSize({width:w,height:h});await p.evaluate(t=>{document.documentElement.dataset.theme=t;},theme);await p.waitForTimeout(450);await clean(p,name+' '+w+' '+theme);await p.screenshot({path:`${out}/incident-${name}-${w}-${theme}.png`,fullPage:true});}await p.setViewportSize({width:1440,height:900});await p.evaluate(()=>{document.documentElement.dataset.theme='light';});};
   const titles=async p=>(await p.locator('.tk-case-title').allInnerTexts());
 
   // ---- reporter
@@ -81,6 +81,86 @@ const ok=m=>{passed++;console.log('PASS '+m);};
   await hr.goto(url('incident-new'));assert.ok(await hr.locator('#inc-title').count()===0);ok('HR account without an employee record and filing permission is not offered the form');
   // ---- outsider
   const out2=await login('outsider');await out2.goto(url('incident-mine'));assert.deepEqual(await titles(out2),["Someone else's private case"]);ok('another employee sees only their own case');
+  // =============================================================== I3: Case page
+  const caseUrl=id=>url('hr-request',{id:String(id)});
+  const getCsrf=async p=>{await p.goto(url('incident-new'));return p.locator('input[name=csrf]').first().getAttribute('value');};// any page with a form carries the session token
+  const post=async(p,form,csrf)=>p.request.post(url('incident-act'),{form:{csrf,...form},maxRedirects:0});
+  const current=async p=>p.locator('.tk-step.is-current').first().innerText();
+  const rita=await login('rita');
+  rita.on('dialog',d=>d.accept());
+  await rita.goto(caseUrl(f.caseD));
+  assert.ok(await rita.getByRole('heading',{name:'Flow case for the page'}).isVisible());
+  assert.equal(await rita.locator('.tk-steps .tk-step').count(),5);assert.match(await current(rita),/Submitted/);
+  assert.ok(await rita.getByText('Withdraw this report').first().isVisible());assert.equal(await rita.getByText('HR actions').count(),0);
+  let html=await rita.content();assert.ok(!/Involved|Witness|tk-internal|cannot read this case/.test(html));
+  await named(rita,'case page (reporter)');ok('reporter: case page with header, five-step stepper, withdraw card; no HR panel, no role labels of others, controls labelled');
+  await rita.locator('#inc-message').fill('First message from the reporter');await rita.getByRole('button',{name:'Send message'}).click();await rita.waitForLoadState();
+  assert.ok(await rita.getByText('Message sent.').isVisible());assert.ok(await rita.locator('.tk-post.is-mine').getByText('First message from the reporter').isVisible());ok('reporter: posts a message from the sticky composer; it shows as theirs');
+  // HR picks it up
+  const hr2=await login('hr');hr2.on('dialog',d=>d.accept());await hr2.goto(caseUrl(f.caseD));
+  assert.ok(await hr2.getByRole('heading',{name:/HR actions/}).isVisible());html=await hr2.content();assert.ok(/Recorded for HR only; cannot read this case/.test(html)&&/Involved/.test(html));
+  await named(hr2,'case page (HR)');ok('HR: panel, role labels and access wording visible to the handling reviewer');
+  const version=await hr2.locator('input[name=version]').first().getAttribute('value');
+  await hr2.locator('#inc-to').selectOption('UNDER_REVIEW');
+  assert.ok(await hr2.evaluate(()=>document.querySelector('#inc-remarks').validity.valueMissing));ok('HR: remarks are required before a status change can be sent');
+  await hr2.locator('#inc-remarks').fill('We have started reviewing this.');await hr2.locator('#inc-status-note').fill('PRIVATE-NOTE-ONE');await hr2.getByRole('button',{name:'Save status'}).click();await hr2.waitForLoadState();
+  assert.ok(await hr2.getByText(/Status updated/).isVisible());assert.ok(await hr2.getByText('We have started reviewing this.').isVisible());assert.ok(await hr2.getByText('PRIVATE-NOTE-ONE').isVisible());
+  assert.match(await current(hr2),/Under review/);ok('HR: status saved with remarks; HR update card and the internal note are in the thread; stepper moves');
+  await hr2.locator('#inc-note').fill('PRIVATE-NOTE-TWO');await hr2.getByRole('button',{name:'Save internal note'}).click();await hr2.waitForLoadState();assert.ok(await hr2.getByText('PRIVATE-NOTE-TWO').isVisible());ok('HR: internal note saved');
+  // include Lena by search
+  await hr2.locator('#inc-add-q').fill('Lena Lenal');await hr2.locator('#inc-add-results .tk-result-btn').first().waitFor();
+  assert.match(await hr2.locator('#inc-add-results').innerText(),/Lena Lenalatepick/);
+  await hr2.locator('#inc-add-results .tk-result-btn').first().click();assert.ok(await hr2.evaluate(()=>document.activeElement.id==='inc-add-role'));
+  await hr2.locator('#inc-add-role').selectOption('WITNESS');await hr2.getByRole('button',{name:'Include in case'}).click();await hr2.waitForLoadState();
+  assert.ok(await hr2.getByText(/Person included/).first().isVisible());assert.ok(await hr2.locator('.tk-rail-person',{hasText:'Lena Lenalatepick'}).getByText(/Included by HR/).isVisible());ok('HR: finds a person, includes them as Witness; the rail says HR included them');
+  const searchJson=await (await hr2.request.get(url('incident-people',{q:'Rita',case:String(f.caseD)}))).json();assert.ok(!searchJson.people.some(p=>/Rita/.test(p.name)));ok('HR: case search leaves out people who already read the case');
+  await shot(hr2,'case-hr');
+  // CC, reporter and included person
+  const carl=await login('carl');await carl.goto(caseUrl(f.caseD));
+  html=await carl.content();assert.ok(/We have started reviewing this\./.test(html)&&/First message from the reporter/.test(html));
+  assert.ok(!/PRIVATE-NOTE|tk-internal|HR actions|Involved|Witness|Included by HR|Person included/.test(html));assert.equal(await carl.getByText('Withdraw this report').count(),0);ok('CC: sees the conversation and the HR update; no internal notes, HR panel, role labels or people events anywhere in the markup');
+  await carl.locator('#inc-message').fill('CC says hello');await carl.getByRole('button',{name:'Send message'}).click();await carl.waitForLoadState();assert.ok(await carl.getByText('CC says hello').isVisible());
+  await shot(carl,'case-cc');
+  await rita.goto(caseUrl(f.caseD));html=await rita.content();assert.ok(/CC says hello/.test(html)&&!/PRIVATE-NOTE|tk-internal|Withdraw this report|Person included/.test(html));
+  await shot(rita,'case-reporter');ok('reporter: sees the HR update and the CC message, no internal notes; withdraw card gone once HR started');
+  const lena=await login('lena');const lr=await lena.goto(caseUrl(f.caseD));assert.equal(lr.status(),200);html=await lena.content();assert.ok(!/Involved|Witness|PRIVATE-NOTE/.test(html));ok('included person: can read the case, sees no role label of others');
+  // access matrix over HTTP (GET)
+  const inaPage=await login('ina'),viewerPage=await login('viewer'),sensPage=await login('sens');const got={};
+  for(const [name,page,id] of [['ina',inaPage,f.caseD],['outsider',out2,f.caseD],['viewer',viewerPage,f.caseD],['sens',sensPage,f.caseD],['noemp',ne,f.caseD],['cc-other-case',cc,f.caseC]])got[name]=(await page.request.get(caseUrl(id),{maxRedirects:0})).status();
+  assert.deepEqual(got,{ina:403,outsider:403,viewer:403,sens:403,noemp:403,'cc-other-case':403});
+  ok('HTTP access matrix: Involved without access, outsider, viewer, sensitive-view holder, account without a record and a CC on another case all get 403 on the case page');
+  // forged POSTs (valid CSRF, wrong person)
+  const ritaCsrf=await getCsrf(rita),carlCsrf=await getCsrf(carl),inaCsrf=await getCsrf(inaPage),outCsrf=await getCsrf(out2);
+  await post(rita,{action:'core_incident_status',ticket_id:String(f.caseD),version:String(version),to:'RESOLVED',remarks:'forged'},ritaCsrf);
+  await post(rita,{action:'core_incident_note',ticket_id:String(f.caseD),body:'FORGED-NOTE'},ritaCsrf);
+  await post(rita,{action:'core_incident_participant_add',ticket_id:String(f.caseD),user_id:String(f.involved.id),role:'CC'},ritaCsrf);
+  await post(rita,{action:'core_incident_participant_remove',ticket_id:String(f.caseD),user_id:String(f.carl.id)},ritaCsrf);
+  await post(carl,{action:'core_incident_status',ticket_id:String(f.caseD),version:String(version),to:'CLOSED',remarks:'forged'},carlCsrf);
+  await post(carl,{action:'core_incident_note',ticket_id:String(f.caseD),body:'FORGED-NOTE-2'},carlCsrf);
+  await post(inaPage,{action:'core_incident_message',ticket_id:String(f.caseD),body:'FORGED-MESSAGE'},inaCsrf);
+  await post(out2,{action:'core_incident_message',ticket_id:String(f.caseD),body:'OUTSIDER-MESSAGE'},outCsrf);
+  await hr2.goto(caseUrl(f.caseD));html=await hr2.content();
+  assert.ok(!/FORGED|OUTSIDER-MESSAGE/.test(html));assert.match(await current(hr2),/Under review/);assert.equal(await hr2.locator('.tk-rail-person',{hasText:'Carl Carlcc'}).count(),1);assert.equal(await hr2.locator('.tk-rail-person',{hasText:'Ivan'}).count(),0);
+  ok('forged POSTs from the reporter, a CC, an Involved person without access and an outsider change nothing (status, notes, people, messages)');
+  const noCsrf=await rita.request.post(url('incident-act'),{form:{action:'core_incident_message',ticket_id:String(f.caseD),body:'no token'},maxRedirects:0});assert.equal(noCsrf.status(),419);
+  assert.equal((await rita.request.get(url('incident-people',{q:'Carl',case:String(f.caseD)}))).status(),403);
+  assert.equal((await out2.request.get(url('incident-people',{q:'Carl',case:String(f.caseD)}))).status(),403);
+  await rita.goto(url('incident-act'));assert.ok(rita.url().includes('page=incident-mine'));
+  ok('CSRF missing returns 419; the case people search is refused to the reporter and an outsider; GET on the action page just redirects');
+  // remove Lena, then she is locked out
+  await hr2.goto(caseUrl(f.caseD));await hr2.locator('.tk-rail-person',{hasText:'Lena Lenalatepick'}).getByRole('button',{name:/Remove/}).click();await hr2.waitForLoadState();
+  assert.ok(await hr2.getByText(/no longer read/).first().isVisible());assert.equal((await lena.request.get(caseUrl(f.caseD),{maxRedirects:0})).status(),403);ok('HR: removes a person (confirmation accepted); their access ends at once');
+  // resolve, close: composer replaced by a notice; reopen offered
+  await hr2.locator('#inc-to').selectOption('RESOLVED');await hr2.locator('#inc-remarks').fill('Resolved after talking to everyone.');await hr2.getByRole('button',{name:'Save status'}).click();await hr2.waitForLoadState();
+  assert.equal(await hr2.locator('.tk-step.is-skipped').count(),1);ok('HR: resolving straight from Under review marks In progress as skipped');
+  await hr2.locator('#inc-to').selectOption('CLOSED');await hr2.locator('#inc-remarks').fill('Closing the case.');await hr2.getByRole('button',{name:'Save status'}).click();await hr2.waitForLoadState();
+  await rita.goto(caseUrl(f.caseD));assert.ok(await rita.getByText('This case is closed to new messages.').isVisible());assert.equal(await rita.locator('#inc-message').count(),0);
+  await hr2.goto(caseUrl(f.caseD));assert.equal(await hr2.locator('#inc-to option',{hasText:'Reopen: In Progress'}).count(),1);ok('closed case: reporter has no composer; HR is offered Reopen');
+  await shot(rita,'case-reporter-closed');
+  // withdraw
+  await rita.goto(caseUrl(f.caseE));await rita.getByRole('button',{name:'Withdraw report'}).click();await rita.waitForLoadState();
+  assert.ok(await rita.getByText('The report was withdrawn.').isVisible());assert.equal(await rita.locator('.tk-step.is-stop').count(),1);assert.equal(await rita.getByText('Withdraw this report').count(),0);ok('reporter: withdraws a Submitted report; stepper stops, pill says Cancelled');
+  await rita.goto(url('incident-mine'));await rita.getByRole('link',{name:'Flow case for the page'}).click();await rita.waitForLoadState();assert.ok(rita.url().includes('page=hr-request'));assert.ok(await rita.locator('.tk-case-grid').isVisible());ok('My Incidents opens the Case page');
   assert.deepEqual(problems.filter(x=>!/favicon|fonts|Failed to load resource|http 40[0-9] /.test(x)),[]);ok('no console errors');
   console.log(`RESULT ${passed} passed`);
  }finally{await browser.close();}

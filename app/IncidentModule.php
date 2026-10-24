@@ -8,10 +8,13 @@ require_once __DIR__.'/IncidentViews.php';
  * Incident Reports, employee side (plan 2026-10-25-incident-report-module, I2): My Incidents, File an Incident, the people search and the filing action.
  * The case page and HR handling arrive in I3 and I4. Filing always goes through TicketService::create(); the type is set here on the server.
  */
+/** POST actions owned by this module. Case actions (I3) are posted to the pseudo-page incident-act and always return to the case. */
+const INCIDENT_ACTIONS=['core_incident_create','core_incident_status','core_incident_participant_add','core_incident_participant_remove','core_incident_note','core_incident_message'];
+
 function incident_handle(string $page):void
 {
     $action=(string)($_POST['action']??'');
-    if(!in_array($page,['incident-mine','incident-new','incident-people'],true)&&$action!=='core_incident_create')return;
+    if(!in_array($page,['incident-mine','incident-new','incident-people','incident-act'],true)&&!in_array($action,INCIDENT_ACTIONS,true))return;
     need_db();if(!Auth::check())redirect('login');
     // Client-portal accounts have no incident screens.
     if(!in_array(Auth::user()['role_portal']??'',['employee','hr','admin'],true)){http_response_code(403);exit('Incident Reports are not available for this account.');}
@@ -19,15 +22,22 @@ function incident_handle(string $page):void
     header('Cache-Control: no-store');
     if($_SERVER['REQUEST_METHOD']==='POST'){
         verify_csrf();
-        if($action!=='core_incident_create'){http_response_code(405);exit('That action is not available.');}
-        incident_create();
+        if(!in_array($action,INCIDENT_ACTIONS,true)){http_response_code(405);exit('That action is not available.');}
+        $action==='core_incident_create'?incident_create():incident_case_action($action);
     }
+    if($page==='incident-act')redirect('incident-mine');// case actions are POST only
     try{
         if($page==='incident-people'){
-            // Read-only JSON for the picker. Needs the filing permission; returns names and branches of active accounts only.
-            TicketTypes::assertCanFile('INCIDENT_REPORT');
+            // Read-only JSON for the picker. Needs the filing permission, or, with case=, being the HR reviewer handling that case (BR-780).
+            // Returns names and branches of active accounts only (BR-778); on a case, people who already read it are left out.
+            $case=is_string($_GET['case']??null)&&ctype_digit($_GET['case'])?(int)$_GET['case']:0;$exclude=[];
+            if($case>0){
+                $t=TicketRepository::find($case);
+                if($t['type_code']!=='INCIDENT_REPORT'||!TicketIncident::isHandler($t))throw new RuntimeException('Only the HR reviewer handling this case can search for people to add.');
+                $exclude=TicketIncident::peopleOnCase($case);
+            }else TicketTypes::assertCanFile('INCIDENT_REPORT');
             header('Content-Type: application/json; charset=utf-8');header('X-Content-Type-Options: nosniff');
-            echo json_encode(['people'=>TicketIncident::searchPeople((string)($_GET['q']??''))],JSON_THROW_ON_ERROR);exit;
+            echo json_encode(['people'=>TicketIncident::searchPeople((string)($_GET['q']??''),$exclude)],JSON_THROW_ON_ERROR);exit;
         }
         if($page==='incident-mine'){
             $result=TicketRepository::listing('incidents_mine',$_GET,25);
@@ -76,4 +86,42 @@ function incident_create():never
         flash('error','The report could not be saved. Please try again.');redirect('incident-new');
     }
     exit;
+}
+
+/**
+ * POST actions on the case page (I3). Each one goes straight to the TicketService method that enforces the rule (reader, handler, version);
+ * nothing is decided from the form beyond the ids and text the method asks for. Always returns to the case.
+ */
+function incident_case_action(string $action):never
+{
+    $id=is_string($_POST['ticket_id']??null)&&ctype_digit($_POST['ticket_id'])?(int)$_POST['ticket_id']:0;
+    $str=fn(string $k)=>is_string($_POST[$k]??null)?$_POST[$k]:'';
+    $int=fn(string $k)=>is_string($_POST[$k]??null)&&ctype_digit($_POST[$k])?(int)$_POST[$k]:0;
+    try{
+        if($id<=0)throw new RuntimeException('Ticket not found or access denied.');
+        switch($action){
+            case 'core_incident_status':
+                $_SESSION['core_incident_status'][$id]=['to'=>$str('to'),'remarks'=>$str('remarks'),'internal_note'=>$str('internal_note')];
+                $to=$str('to');TicketService::incidentStatus($id,$int('version'),$to,$str('remarks'),$str('internal_note'));
+                unset($_SESSION['core_incident_status'][$id]);
+                flash('success',$to==='CANCELLED'?'The report was withdrawn.':'Status updated. Everyone on the case can see your remarks.');break;
+            case 'core_incident_participant_add':
+                TicketService::incidentAddParticipant($id,$int('user_id'),$str('role'));flash('success','Person included. They can now read this case.');break;
+            case 'core_incident_participant_remove':
+                TicketService::incidentRemoveParticipant($id,$int('user_id'));flash('success','Person removed. They can no longer read this case.');break;
+            case 'core_incident_note':
+                $_SESSION['core_incident_note'][$id]=$str('body');TicketService::comment($id,$str('body'),'STAFF_ONLY');unset($_SESSION['core_incident_note'][$id]);flash('success','Internal note saved. Only you can see it.');break;
+            case 'core_incident_message':
+                $_SESSION['core_ticket_comment'][$id]=$str('body');TicketService::comment($id,$str('body'),'ALL');unset($_SESSION['core_ticket_comment'][$id]);flash('success','Message sent.');break;
+        }
+    }catch(PDOException $error){// a PDOException is a RuntimeException: never show database text
+        error_log('Incident case action failed: PDOException');
+        flash('error','That could not be saved. Refresh the case and try again.');
+    }catch(RuntimeException $error){
+        flash('error',$error->getMessage());
+    }catch(Throwable $error){
+        error_log('Incident case action failed: '.get_class($error));
+        flash('error','That could not be saved. Refresh the case and try again.');
+    }
+    redirect('hr-request',['id'=>$id]);
 }

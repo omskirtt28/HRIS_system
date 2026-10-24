@@ -76,3 +76,28 @@
 .tk-person-name{flex:1 1 160px;font-weight:600;overflow-wrap:anywhere}.tk-person select{min-height:40px}
 .tk-result-btn:focus-visible,.tk-person button:focus-visible,.tk-person select:focus-visible,.tk-case-title:focus-visible{outline:2px solid var(--hris-brand);outline-offset:2px}
 @media(max-width:650px){.tk-picker{padding:12px}.tk-person select,.tk-person button{flex:1 1 100%;min-height:44px}}
+/* Incident Reports, case page (I3). Tokens only; no new colours. */
+.tk-case-grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start}
+.tk-case-col,.tk-case-rail{min-width:0}.tk-case-rail>.tk-card:first-child,.tk-case-col>.tk-card:first-child{margin-top:0}
+.tk-thread{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+.tk-post{display:flex;gap:12px;align-items:flex-start}
+.tk-post-body{flex:1;min-width:0;padding:10px 14px;border:1px solid var(--hris-line);border-radius:14px;background:var(--hris-bg)}
+.tk-post.is-mine .tk-post-body{background:var(--hris-info-soft);border-color:var(--hris-info)}
+.tk-post-by{margin:0 0 4px;font-size:13px;display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}.tk-post-body .ticket-text{margin:0}
+.tk-post-update .tk-response,.tk-post-update .tk-internal{margin:0}
+.tk-sticky{position:sticky;bottom:0;z-index:5;margin:16px 0;padding:14px 16px;border:1px solid var(--hris-line);border-radius:var(--hris-radius);background:var(--hris-surface);box-shadow:var(--hris-shadow)}
+.tk-sticky .field{margin:0 0 10px}
+.tk-closed{margin:16px 0;color:var(--hris-muted)}
+.tk-rail-people{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.tk-rail-person{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.tk-rail-name{flex:1 1 140px;min-width:0;display:flex;flex-wrap:wrap;gap:2px 8px;align-items:center}.tk-rail-name .tk-hint{flex:1 0 100%;margin:0}
+.tk-inline{margin:0}.tk-inline .btn{min-height:44px}
+.tk-sub{margin:18px 0 8px;font-size:14px;color:var(--hris-muted);text-transform:uppercase;letter-spacing:.04em}.tk-hr-block>.tk-sub:first-child{margin-top:0}
+.tk-hr-panel{border-color:var(--hris-warning)}.tk-hr-block{padding:14px 0;border-top:1px solid var(--hris-line)}.tk-hr-block:first-of-type{border-top:0;padding-top:0}
+.tk-hr-panel .field select,.tk-hr-panel .field textarea,.tk-hr-panel .field input[type=search],.tk-attach input[type=file]{width:100%;box-sizing:border-box}
+.tk-hr-panel .btn,.tk-attach .btn,.tk-sticky .btn{min-height:44px}
+.tk-chosen{margin:0 0 12px;font-weight:600}
+.tk-files{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:6px}.tk-files a{overflow-wrap:anywhere}
+.tk-case-rail .tk-timeline .tk-tl-name{margin:0!important}
+@media(max-width:900px){.tk-case-grid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:650px){.tk-sticky{padding:12px}.tk-post{gap:8px}}
+@media(max-width:650px){.tk-sticky small{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}.tk-sticky textarea{min-height:52px}.tk-sticky .field{margin:0 0 8px}}

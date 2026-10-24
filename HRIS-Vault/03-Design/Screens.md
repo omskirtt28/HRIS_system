@@ -113,6 +113,7 @@ Server-rendered PHP pages addressed as `?page=<id>`; the sidebar groups are buil
 | SCR-767 | Employee 201, Employment tab, panel "Who can view this employee's tickets" (read-only, red PROBLEM lines) | `hr-employee` | employee view | [[Org-Structure]] |
 | SCR-768 | My Incidents (cases I filed or was given access to; status chip, last update, no other people's role labels) | `incident-mine` | any employee/HR/admin account (list is BR-769 scoped) | [[Employee-Tickets]] |
 | SCR-769 | File an Incident (one page: title, category, what happened, when, where, branch, participants picker, attachments, confidential note; Submit only; clear message when no Employee 201 link) | `incident-new` | `ticket.file.incident` + linked Employee 201 | [[Employee-Tickets]] |
+| SCR-770 | Incident Case page (header card, 5-step stepper, conversation, sticky composer, people rail, summary, attachments, timeline; HR panel for the handling reviewer; withdraw card for the reporter while Submitted) | `hr-request&id=` (incident cases) | reader per BR-769; HR panel handler only (BR-780) | [[Employee-Tickets]] |
 
 Sidebar: group **Requests** (all portals) holds the ticket screens; group **HR Request Setup** (third group for HR and Admin portals) holds Ticket Approvers, Ticket Viewers, Accounting Members, COE Template, Printable HR Forms. The older SCR-7xx rows above are the design target; where both exist, the page ids here are the built ones.
 
