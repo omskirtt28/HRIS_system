@@ -1,1 +1,37 @@
 .ticket-panel{margin:20px 0}.ticket-panel h2{font-size:17px;margin:0 0 12px}.ticket-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:16px 0 24px}.ticket-facts span{display:block;color:var(--hris-muted);font-size:12px;margin-bottom:5px}.ticket-facts strong{overflow-wrap:anywhere}.ticket-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0}.ticket-text{white-space:pre-wrap;overflow-wrap:anywhere}.ticket-scroll{overflow:auto;max-width:100%}.ticket-table{min-width:800px}.ticket-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.ticket-filters .field{margin:0}.ticket-chain,.ticket-history{padding-left:36px}.ticket-chain li,.ticket-history li{margin:10px 0}.ticket-comment{padding:12px 0;border-bottom:1px solid var(--hris-line)}.ticket-note{margin:14px 0}.ticket-panel textarea{width:100%}@media(max-width:650px){.ticket-facts,.ticket-filters{grid-template-columns:1fr}.ticket-actions .btn{max-width:100%;white-space:normal}.ticket-panel .panel-body{padding:18px}.ticket-panel input[type=file]{max-width:100%}}
+
+/* Request detail (tk-): header card, stepper, response card, chat thread. Tokens come from hris-modern.css. */
+.tk-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.tk-head{display:flex;gap:16px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;background:var(--hris-surface);border:1px solid var(--hris-line);border-radius:var(--hris-radius);box-shadow:var(--hris-shadow);padding:20px 22px;margin:16px 0}
+.tk-head-main{min-width:0;flex:1 1 260px}.tk-eyebrow{display:block;color:var(--hris-muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.tk-no{margin:2px 0 10px;font-size:20px;font-weight:700;overflow-wrap:anywhere}
+.tk-dates{display:flex;flex-wrap:wrap;gap:6px 28px;margin:0}.tk-dates dt{color:var(--hris-muted);font-size:12px}.tk-dates dd{margin:0;font-weight:600;font-size:14px}
+.tk-pill{display:inline-block;padding:9px 20px;border-radius:999px;font-size:16px;font-weight:700;border:1px solid var(--hris-line);background:var(--hris-bg);color:var(--hris-text)}
+.tk-pill.is-green,.tk-chip.is-green{background:var(--hris-success-soft);color:var(--hris-success);border-color:var(--hris-success)}
+.tk-pill.is-red,.tk-chip.is-red{background:var(--hris-danger-soft);color:var(--hris-danger);border-color:var(--hris-danger)}
+.tk-pill.is-amber,.tk-chip.is-amber{background:var(--hris-warning-soft);color:var(--hris-warning);border-color:var(--hris-warning)}
+.tk-pill.is-blue,.tk-chip.is-blue{background:var(--hris-info-soft);color:var(--hris-info);border-color:var(--hris-info)}
+.tk-chip{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid var(--hris-line)}
+.tk-steps-wrap{margin:0 0 18px}.tk-steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:8px}
+.tk-step{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--hris-line);border-radius:12px;background:var(--hris-surface);color:var(--hris-muted);font-size:14px;min-width:0}
+.tk-dot{flex:0 0 28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:13px;border:2px solid var(--hris-line);background:var(--hris-bg)}
+.tk-step-label{font-weight:600;overflow-wrap:anywhere}
+.tk-step.is-done{color:var(--hris-text)}.tk-step.is-done .tk-dot{background:var(--hris-success);border-color:var(--hris-success);color:#fff}
+.tk-step.is-current{color:var(--hris-text);border-color:var(--hris-brand);background:var(--hris-brand-soft)}.tk-step.is-current .tk-dot{background:var(--hris-brand);border-color:var(--hris-brand);color:#17191c}
+.tk-step.is-warn{color:var(--hris-text);border-color:var(--hris-warning);background:var(--hris-warning-soft)}.tk-step.is-warn .tk-dot{background:var(--hris-warning);border-color:var(--hris-warning);color:#fff}
+.tk-step.is-stop{color:var(--hris-text);border-color:var(--hris-danger);background:var(--hris-danger-soft)}.tk-step.is-stop .tk-dot{background:var(--hris-danger);border-color:var(--hris-danger);color:#fff}
+.tk-response{margin:0 0 18px;padding:18px 22px;border-radius:var(--hris-radius);border:1px solid var(--hris-brand);border-left-width:6px;background:var(--hris-brand-soft);color:var(--hris-text)}
+.tk-response h2,.tk-internal h2{margin:0 0 8px;font-size:17px}.tk-response-by{margin:0 0 6px;font-size:13px;color:var(--hris-muted)}.tk-response-by strong{color:var(--hris-text)}
+.tk-response-text{font-size:16px;margin:0}.tk-hint{margin:6px 0 0;color:var(--hris-muted);font-size:13px}
+.tk-earlier{margin-top:12px}.tk-earlier summary,.tk-collapse>summary{cursor:pointer;font-weight:600}.tk-earlier-item{margin-top:10px;padding-top:10px;border-top:1px solid var(--hris-line)}
+.tk-internal{margin:0 0 18px;padding:16px 22px;border-radius:var(--hris-radius);border:1px dashed var(--hris-warning);background:var(--hris-surface)}.tk-note{margin-top:10px}
+.tk-fields{margin:0;display:grid;gap:14px}.tk-fields dt{color:var(--hris-muted);font-size:12px;margin-bottom:3px}.tk-fields dd{margin:0}
+.tk-collapse>summary{padding:14px 22px;list-style-position:inside}.tk-collapse[open]>summary{border-bottom:1px solid var(--hris-line)}
+.tk-field-internal{padding:12px;border:1px dashed var(--hris-warning);border-radius:12px}.tk-field-public{padding:12px;border:1px solid var(--hris-info);border-radius:12px}
+.tk-field-public label,.tk-field-internal label{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tk-chat{display:flex;flex-direction:column;gap:10px;margin:0 0 16px}.tk-msg{display:flex}.tk-msg.is-mine{justify-content:flex-end}
+.tk-bubble{max-width:min(560px,92%);padding:10px 14px;border-radius:16px;border:1px solid var(--hris-line);background:var(--hris-bg)}
+.tk-msg.is-mine .tk-bubble{background:var(--hris-info-soft);border-color:var(--hris-info);border-bottom-right-radius:4px}.tk-msg.is-theirs .tk-bubble{border-bottom-left-radius:4px}
+.tk-msg-by{margin:0 0 4px;font-size:13px}.tk-bubble .ticket-text{margin:0}
+.tk-collapse summary:focus-visible,.tk-earlier summary:focus-visible{outline:3px solid var(--hris-info);outline-offset:2px}
+@media(max-width:650px){.tk-head{padding:16px}.tk-steps{grid-template-columns:1fr}.tk-pill{font-size:15px}.tk-response,.tk-internal{padding:14px 16px}.tk-bubble{max-width:100%}}

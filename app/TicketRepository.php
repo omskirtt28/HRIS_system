@@ -71,7 +71,31 @@ final class TicketRepository
             $hidden=[];$t['comments']=array_values(array_filter($t['comments'],function($c)use(&$hidden){if($c['visibility']==='STAFF_ONLY'){$hidden[]=(int)$c['id'];return false;}return true;}));
             $t['events']=array_values(array_filter($t['events'],function($ev)use($hidden){$details=json_decode($ev['details_json']?:'{}',true);return $ev['event_type']!=='COMMENT_ADDED'||!in_array((int)($details['comment_id']??0),$hidden,true);}));
         }
+        $t['responses']=self::responses($t);
+        $t['hr_notes']=[];
+        // Internal notes are loaded for HR reviewers only; every other viewer gets an empty list from this query path.
+        if(!$t['viewer_only'] && self::isHr() && FoundationRepository::tableExists('ticket_hr_notes')){
+            $q=db()->prepare('SELECT n.*,u.full_name author_name FROM ticket_hr_notes n JOIN users u ON u.id=n.author_user_id WHERE n.ticket_id=? ORDER BY n.id');$q->execute([$id]);$t['hr_notes']=$q->fetchAll();
+        }
         return $t;
+    }
+    /**
+     * Remarks written on a status change by someone other than the requester (BR-767). Shown to the requester and to HR only;
+     * viewers, approvers and Accounting keep seeing events without remarks, and Incident Reports stay out of the requester's view.
+     */
+    private static function responses(array $t):array
+    {
+        if(!empty($t['viewer_only']))return [];
+        $hr=self::isHr();$own=(int)$t['requester_user_id']===self::uid();
+        if(!$hr && !($own && $t['type_code']!=='INCIDENT_REPORT'))return [];
+        $out=[];
+        foreach($t['events'] as $ev){
+            if($ev['event_type']!=='TRANSITION' || (int)$ev['actor_user_id']===(int)$t['requester_user_id'])continue;
+            $remarks=trim((string)(json_decode($ev['details_json']?:'{}',true)['remarks']??''));
+            if($remarks==='')continue;
+            $out[]=['event_id'=>(int)$ev['id'],'who'=>in_array($ev['from_status'],['PENDING_HR','IN_PROGRESS'],true)?'HR':'Approver','actor_name'=>$ev['actor_name'],'to_status'=>$ev['to_status'],'at'=>$ev['created_at'],'remarks'=>$remarks];
+        }
+        return $out;
     }
     public static function isStaff(array $ticket):bool {
         if(self::isHr()||Auth::can('ticket.sensitive.view'))return true;

@@ -193,6 +193,7 @@ Migration 010 kept today's access for existing roles: `EMPLOYEE` got the five st
 - **BR-722** — If a role loses a type's permission, the user's draft or returned ticket of that type can no longer be edited or resubmitted; it can still be cancelled.
 - **BR-723** — Manpower Request routes HR_ONLY. Payroll Concern routing is unchanged.
 - **BR-766** — Payroll Concern is never blocked by the cutoff calendar. Open cutoff keeps the Manager/ADL then HR chain; closed, locked, past-deadline, not-yet-open or missing cutoff goes straight to HR with a late / no-cutoff flag and the note "This request goes directly to HR for a later-period review". Missing cutoff saves `payroll_period_id` NULL.
+- **BR-767** — HR response and internal note. Remarks HR writes when changing a status are shown to the requester in an "HR response" card on the ticket page (HR sees who wrote it, the requester sees "HR"); an optional HR-only internal note is stored separately and never leaves HR. The service ticket page now has a header card (number, type, status pill, filed and last update), a 4-step stepper (Filed, Pending, In Progress, Served/Cancelled), the response card, details, a chat-style comment thread and a collapsed History. The requester gets a bell notification on every HR status change. Payroll Concern keeps its own page.
 
 | ID | Requirement | Priority |
 |---|---|---|

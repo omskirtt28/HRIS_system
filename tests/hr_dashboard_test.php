@@ -98,7 +98,7 @@ $h=page_html(['company'=>'OC','period'=>'last_30']);check('company filter keeps 
 // ---------------------------------------------------------------- zero data: no tickets, no applications, no interviews
 // Triggers keep ticket_events append-only, so empty it with TRUNCATE. This only ever runs on the throwaway copy (the support file refuses anything else).
 db()->exec('SET FOREIGN_KEY_CHECKS=0');
-foreach(['ticket_events','ticket_steps','ticket_comments','ticket_attachments','ticket_effects','ticket_submission_keys','ticket_notification_outbox','uniform_requests','tickets','interviews','applications','manpower_requests'] as $tbl)if(FoundationRepository::tableExists($tbl))db()->exec('TRUNCATE TABLE '.$tbl);
+foreach(['ticket_hr_notes','ticket_events','ticket_steps','ticket_comments','ticket_attachments','ticket_effects','ticket_submission_keys','ticket_notification_outbox','uniform_requests','tickets','interviews','applications','manpower_requests'] as $tbl)if(FoundationRepository::tableExists($tbl))db()->exec('TRUNCATE TABLE '.$tbl);
 db()->exec('SET FOREIGN_KEY_CHECKS=1');
 $z=HrDashboard::data($p);$html=page_html([]);$html2=page_html(['company'=>'OC','period'=>'last_week']);
 check('zero data: every request figure is 0 and nothing divides by zero',$z['tickets']['pending']===0&&$z['tickets']['progress']===0&&$z['tickets']['served']===0&&$z['tickets']['oldest']===[]&&array_sum($z['tickets']['age'])===0&&$z['incident']['open']===0&&$z['recruitment']['active']===0);

@@ -296,3 +296,9 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 - Fixed: filing a Payroll Concern for a date in a cutoff that was not yet marked Open (e.g. 10/14/2026, cutoff 10/04–10/18 still "Upcoming") showed "This cutoff is not open for filing". It no longer blocks.
 - Open cutoff: unchanged (Manager/ADL, then HR). Closed, locked, past-deadline, not-yet-open, or no cutoff for the date: the request goes straight to HR, flagged late, with the cutoff shown as "No cutoff found" when none exists.
 - No database change. Locked payroll and attendance are never touched; HR still records a manual instruction for a later open cutoff.
+
+## 2026-10-25 · Employees can read HR's response on their request
+- Fixed: when HR marked a request In Progress, Served or Cancelled and wrote remarks, the employee could not see them. The ticket page now shows an "HR response" card with the remarks, who (HR) and when.
+- HR can add an optional internal note that only HR sees; it is never shown to the employee, viewers, approvers or Accounting and is not in notifications.
+- The ticket page is redesigned: summary card with status, a progress stepper, details, a chat-style comment thread and a collapsed History. The bell now tells the employee when HR changes their request.
+- Migration `20261025_016_ticket_hr_notes.sql` adds one table; applied after a verified backup and clean up/re-run/down/up tests.

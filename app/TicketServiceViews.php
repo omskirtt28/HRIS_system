@@ -42,30 +42,91 @@ function ticket_service_list(array $result,array $filters,string $mode='services
  <nav>Page <?=(int)$result['page']?> <?php foreach(['Previous'=>-1,'Next'=>1] as $label=>$delta):if(($delta<0&&$result['page']>1)||($delta>0&&$result['has_next'])):?><a class="btn" href="<?=e(url($mode==='accounting'?'hr-accounting-requests':($mode==='feed'?'hr-incidents':'hr-service-requests'),array_replace($filters,['p'=>$result['page']+$delta])))?>"><?=e($label)?></a><?php endif;endforeach;?></nav>
  <?php render_portal_footer();
 }
+/** "Oct 25, 2026 3:04 PM" for the detail page; empty text when the value is missing. */
+function ticket_when(?string $value):string { return $value ? date('M j, Y g:i A',strtotime($value)) : ''; }
+/** Status pill tone. The label always carries the meaning; colour only reinforces it. */
+function ticket_tone(string $status):string { return match($status){'COMPLETED'=>'green','REJECTED','CANCELLED'=>'red','RETURNED'=>'amber','IN_PROGRESS'=>'blue',default=>'gray'}; }
+/** Filed -> Pending -> In Progress -> Served/Cancelled. Done steps show a tick, the current one is marked for screen readers. */
+function ticket_stepper(array $t):void {
+ $status=$t['status'];$code=$t['type_code'];$reached=['PENDING_HR'=>false,'IN_PROGRESS'=>false];
+ foreach($t['events'] as $ev)if(isset($reached[$ev['to_status']??'']))$reached[$ev['to_status']]=true;
+ $terminal=in_array($status,['COMPLETED','CANCELLED','REJECTED'],true);
+ $labels=['Filed'];$keys=['FILED'];
+ $labels[]=TicketTypes::label('PENDING_HR',$code);$keys[]='PENDING_HR';
+ if($code!=='NETSUITE_CONCERN'){$labels[]='In Progress';$keys[]='IN_PROGRESS';}
+ $labels[]=match($status){'CANCELLED'=>'Cancelled','REJECTED'=>'Rejected',default=>TicketTypes::label('COMPLETED',$code)};$keys[]='END';
+ $last=count($keys)-1;$current=0;
+ if($status==='PENDING_HR')$current=array_search('PENDING_HR',$keys,true);
+ if($status==='IN_PROGRESS')$current=array_search('IN_PROGRESS',$keys,true);
+ echo '<nav class="tk-steps-wrap" aria-label="Request progress"><ol class="tk-steps">';
+ foreach($keys as $i=>$key){
+  if($status==='DRAFT')$state='todo';
+  elseif($i===$last)$state=$terminal?($status==='COMPLETED'?'done':'stop'):'todo';
+  elseif($terminal)$state=($key==='FILED'||!empty($reached[$key]))?'done':'todo';
+  else $state=$i<$current?'done':($i===$current?($status==='RETURNED'?'warn':'current'):'todo');
+  $mark=match($state){'done'=>'✓','stop'=>'✕','warn'=>'!',default=>(string)($i+1)};
+  $text=match($state){'done'=>'completed','stop'=>'ended here','warn'=>'returned for changes','current'=>'current step',default=>'not reached yet'};
+  echo '<li class="tk-step is-'.$state.'"'.($state==='current'||$state==='warn'||$state==='stop'?' aria-current="step"':'').'><span class="tk-dot" aria-hidden="true">'.$mark.'</span><span class="tk-step-label">'.e($labels[$i]).'</span><span class="tk-sr"> ('.$text.')</span></li>';
+ }
+ echo '</ol></nav>';
+}
+/** The remarks HR (or an approver) wrote on a status change. Requester and HR only; the query path already enforces that. */
+function ticket_response_card(array $t):void {
+ $hr=TicketRepository::isHr();$own=(int)$t['requester_user_id']===TicketRepository::uid();
+ if(!empty($t['viewer_only']) || (!$hr && !($own && $t['type_code']!=='INCIDENT_REPORT')))return;
+ $items=$t['responses'];$latest=$items?end($items):null;$title=$latest&&$latest['who']==='Approver'?'Approver response':'HR response';
+ echo '<section class="tk-response" aria-labelledby="tk-response-h"><h2 id="tk-response-h">'.e($title).'</h2>';
+ if($latest){
+  echo '<p class="tk-response-by"><strong>'.e($latest['who']).'</strong>'.($hr?' · '.e($latest['actor_name']):'').' · '.e(ticket_when($latest['at'])).' · <span class="tk-chip is-'.e(ticket_tone((string)$latest['to_status'])).'">'.e(TicketTypes::label((string)$latest['to_status'],$t['type_code'])).'</span></p><p class="ticket-text tk-response-text">'.e($latest['remarks']).'</p>';
+  if($hr)echo '<p class="tk-hint">The employee can read this response.</p>';
+  if(count($items)>1){echo '<details class="tk-earlier"><summary>Earlier responses ('.(count($items)-1).')</summary>';
+   foreach(array_reverse(array_slice($items,0,-1)) as $r)echo '<div class="tk-earlier-item"><p class="tk-response-by"><strong>'.e($r['who']).'</strong>'.($hr?' · '.e($r['actor_name']):'').' · '.e(ticket_when($r['at'])).' · '.e(TicketTypes::label((string)$r['to_status'],$t['type_code'])).'</p><p class="ticket-text">'.e($r['remarks']).'</p></div>';
+   echo '</details>';}
+ }elseif(in_array($t['status'],['IN_PROGRESS','COMPLETED','CANCELLED','REJECTED','RETURNED'],true)){
+  echo '<p class="tk-hint">No remarks were added with this update.</p>';
+ }else echo '<p class="tk-hint">No response yet. Remarks from HR appear here as soon as the request is updated.</p>';
+ echo '</section>';
+}
+/** HR only: notes that never leave HR. Loaded by TicketRepository::detail() for HR reviewers alone. */
+function ticket_internal_notes(array $t):void {
+ if(!TicketRepository::isHr() || !empty($t['viewer_only']) || !$t['hr_notes'])return;
+ echo '<section class="tk-internal" aria-labelledby="tk-internal-h"><h2 id="tk-internal-h">Internal notes <span class="badge amber">HR only</span></h2><p class="tk-hint">Never shown to the employee, viewers, approvers or Accounting.</p>';
+ foreach($t['hr_notes'] as $n)echo '<article class="tk-note"><p class="tk-response-by"><strong>'.e($n['author_name']).'</strong> · '.e(ticket_when($n['created_at'])).'</p><p class="ticket-text">'.e($n['note']).'</p></article>';
+ echo '</section>';
+}
 function ticket_service_detail(array $t):void {
  $p=TicketService::permissions($t);if($t['type_code']==='NETSUITE_CONCERN'&&$t['filed_at']!==null)$p['cancel']=false;ticket_header('hr-requests-my',$t['ticket_no']);page_head('HR Requests / '.$t['type_name'],$t['ticket_no']);
- $definition=TicketTypes::definition($t['type_code']);
- if($t['type_code']==='MANPOWER_REQUEST'){$q=db()->prepare('SELECT date_served FROM ticket_manpower_requests WHERE ticket_id=?');$q->execute([$t['id']]);$served=$q->fetchColumn();if($served)echo '<p>Date served: '.e($served).'</p>';}
+ $definition=TicketTypes::definition($t['type_code']);$hrActor=TicketRepository::isHr() && (int)$t['requester_user_id']!==TicketRepository::uid() && empty($t['viewer_only']);
+ $label=TicketTypes::label($t['status'],$t['type_code']);
  ?>
- <p><strong><?=e(TicketTypes::label($t['status'],$t['type_code']))?></strong> · <?=e($t['payload']['employee_name'])?></p>
- <?php if(in_array($t['type_code'],['ATM_REQUEST','ID_REQUEST'],true)):
+ <section class="tk-head" aria-label="Request summary"><div class="tk-head-main"><span class="tk-eyebrow"><?=e($t['type_name'])?></span><p class="tk-no"><?=e($t['ticket_no'])?></p>
+  <dl class="tk-dates"><div><dt>Filed</dt><dd><?=e($t['filed_at']?ticket_when($t['filed_at']):'Not filed yet (draft)')?></dd></div><div><dt>Last update</dt><dd><?=e(ticket_when($t['updated_at']??$t['created_at']))?></dd></div><div><dt>Requested by</dt><dd><?=e($t['payload']['employee_name'])?></dd></div></dl></div>
+  <span class="tk-pill is-<?=e(ticket_tone($t['status']))?>"><span class="tk-sr">Status: </span><?=e($label)?></span></section>
+ <?php ticket_stepper($t);
+ if($t['type_code']==='MANPOWER_REQUEST'){$q=db()->prepare('SELECT date_served FROM ticket_manpower_requests WHERE ticket_id=?');$q->execute([$t['id']]);$served=$q->fetchColumn();if($served)echo '<p>Date served: '.e($served).'</p>';}
+ ticket_response_card($t);ticket_internal_notes($t);
+ if(in_array($t['type_code'],['ATM_REQUEST','ID_REQUEST'],true)):
  $q=db()->prepare('SELECT COUNT(*) FROM tickets WHERE requester_user_id=? AND ticket_type_id=? AND id<>? AND status IN ("SUBMITTED","PENDING_APPROVAL","PENDING_HR","IN_PROGRESS","RETURNED")');$q->execute([$t['requester_user_id'],$t['ticket_type_id'],$t['id']]);if($q->fetchColumn()):?><div class="alert">Another open <?=e($t['type_name'])?> exists. This request is allowed; please check whether both are needed.</div><?php endif;endif;?>
- <section class="panel ticket-panel"><div class="panel-body"><?php foreach($definition['fields'] as $key=>$field):?><h3><?=e($field['label'])?></h3><p class="ticket-text"><?=e(ticket_service_value($field,$t['payload'][$key]??''))?></p><?php endforeach;?></div></section>
+ <section class="panel ticket-panel"><div class="panel-body"><h2>Request details</h2><dl class="tk-fields"><?php foreach($definition['fields'] as $key=>$field):?><div><dt><?=e($field['label'])?></dt><dd class="ticket-text"><?=e(ticket_service_value($field,$t['payload'][$key]??''))?></dd></div><?php endforeach;?></dl></div></section>
  <?php if($p['edit']):$old=array_replace($t['payload'],$_SESSION['core_ticket_edit'][$t['id']]??[]);?>
  <form method="post" enctype="multipart/form-data" class="panel ticket-panel"><?=csrf_field()?><input type="hidden" name="action" value="core_ticket_edit"><input type="hidden" name="ticket_id" value="<?=(int)$t['id']?>"><input type="hidden" name="version" value="<?=(int)$t['version']?>"><input type="hidden" name="ticket_type_id" value="<?=(int)$t['ticket_type_id']?>"><div class="panel-body"><?php ticket_service_fields($t['type_code'],$old);ticket_upload_input('edit-attachments');?><button class="btn" name="intent" value="DRAFT">Save changes</button><button class="btn primary" name="intent" value="SUBMIT">Submit for review</button></div></form><?php endif;?>
- <?php if($t['type_code']!=='INCIDENT_REPORT'):?><section class="panel ticket-panel"><div class="panel-body"><h2>Approval chain</h2><ol><?php foreach($t['steps'] as $step):?><li><?=e($step['approver_type'].' · '.($step['approver_name']?:($step['approver_type']==='ACCOUNTING'?'Accounting follow-up':'Authorized HR reviewer')).' · '.$step['status'])?></li><?php endforeach;?></ol></div></section>
- <?php endif;if($p['approve']||$p['hr']||$p['return_reject']||$p['cancel']):$old=$_SESSION['core_ticket_action'][$t['id']]??[];?>
- <form method="post" class="panel ticket-panel"><?=csrf_field()?><input type="hidden" name="action" value="core_ticket_act"><input type="hidden" name="ticket_id" value="<?=(int)$t['id']?>"><input type="hidden" name="version" value="<?=(int)$t['version']?>"><div class="panel-body"><div class="field"><label for="decision-remarks">Review remarks</label><textarea id="decision-remarks" name="remarks" rows="3" maxlength="5000"><?=e($old['remarks']??'')?></textarea><small>Remarks are required for return or rejection.</small></div><?php if($t['type_code']==='BRANCH_TRANSFER'&&$p['hr']):
+ <?php if($p['approve']||$p['hr']||$p['return_reject']||$p['cancel']):$old=$_SESSION['core_ticket_action'][$t['id']]??[];?>
+ <form method="post" class="panel ticket-panel tk-decision"><?=csrf_field()?><input type="hidden" name="action" value="core_ticket_act"><input type="hidden" name="ticket_id" value="<?=(int)$t['id']?>"><input type="hidden" name="version" value="<?=(int)$t['version']?>"><div class="panel-body"><h2>Update this request</h2>
+ <div class="field tk-field-public"><label for="decision-remarks"><?=$hrActor?'Response to the employee':'Review remarks'?> <span class="badge blue"><?=$hrActor?'Visible to the employee':'Employee can read this'?></span></label><textarea id="decision-remarks" name="remarks" rows="3" maxlength="5000"><?=e($old['remarks']??'')?></textarea><small>Remarks are required for return or rejection.<?=$hrActor?' Whatever you write here is shown to the employee on their request.':''?></small></div>
+ <?php if($hrActor):?><div class="field tk-field-internal"><label for="internal-note"><span aria-hidden="true">🔒</span> Internal note <span class="badge amber">HR only</span></label><textarea id="internal-note" name="internal_note" rows="2" maxlength="2000"><?=e($old['internal_note']??'')?></textarea><small>Never shown to the employee, viewers, approvers or Accounting. Optional.</small></div><?php endif;?>
+ <?php if($t['type_code']==='BRANCH_TRANSFER'&&$p['hr']):
  $q=db()->prepare('SELECT b.code branch_code,b.site_type,s.workplace FROM branches b LEFT JOIN payroll_site_settings s ON s.branch_id=b.id WHERE b.id=?');$q->execute([$t['payload']['to_branch']]);$destination=$q->fetch()?:[];$kind=EmployeeApproverAssignmentService::kind($destination+['site_type'=>null,'branch_code'=>'','workplace'=>null]);
  ?><p>Company label only: <?=e($t['payload']['company'])?>. OFJI means Ocampo's. Legal entity remains PMBSI.</p><p>Effective: <?=e($t['payload']['effective_date'])?>. Future transfers remain In Progress.</p><div class="field"><label for="new-approver">Destination approver (manual HR assignment)</label><select name="new_approver_user_id" id="new-approver"><option value="">Choose <?=e($kind)?></option><?php if(Auth::can('tickets.approvers.manage'))foreach(EmployeeApproverAssignmentService::candidates($kind) as $a):?><option value="<?=(int)$a['id']?>"><?=e($a['full_name'])?></option><?php endforeach;?></select><small>Select the approver before completing the transfer on its effective date.</small></div><?php endif;?><div class="ticket-actions">
  <?php if($p['approve']):?><button class="btn primary" name="decision" value="APPROVE">Approve and send to HR</button><?php endif;if($p['hr']):if($t['status']==='PENDING_HR' && $t['type_code']!=='NETSUITE_CONCERN'):?><button class="btn" name="decision" value="START">In Progress</button><?php endif;?><?php if($t['type_code']==='COE_REQUEST'):?><a class="btn primary" href="<?=e(url('hr-coe-preview',['id'=>$t['id']]))?>">Preview &amp; Served</a><?php else:?><button class="btn primary" name="decision" value="COMPLETE"><?=$t['type_code']==='NETSUITE_CONCERN'?'Complete':'Served'?></button><?php endif;?><?php endif;if($p['return_reject']):?><button class="btn" name="decision" value="RETURN">Return</button><button class="btn" name="decision" value="REJECT">Reject</button><?php endif;if($p['cancel']):?><button class="btn" name="decision" value="CANCEL" onclick="return confirm('Cancel this HR request?')">Cancel</button><?php endif;?></div></div></form>
- <?php endif;ticket_netsuite_panel($t);if($t['type_code']==='OIC_AUTHORIZATION')TicketOicAuthorization::panel($t);if($t['type_code']==='COE_REQUEST')ticket_coe_panel($t);ticket_service_evidence($t,$p);render_portal_footer();
+ <?php endif;ticket_netsuite_panel($t);if($t['type_code']==='OIC_AUTHORIZATION')TicketOicAuthorization::panel($t);if($t['type_code']==='COE_REQUEST')ticket_coe_panel($t);
+ if($t['type_code']!=='INCIDENT_REPORT'):?><details class="panel ticket-panel tk-collapse"><summary>Approval chain</summary><div class="panel-body"><ol class="ticket-chain"><?php foreach($t['steps'] as $step):?><li><?=e($step['approver_type'].' · '.($step['approver_name']?:($step['approver_type']==='ACCOUNTING'?'Accounting follow-up':'Authorized HR reviewer')).' · '.$step['status'])?></li><?php endforeach;?></ol></div></details>
+ <?php endif;ticket_service_evidence($t,$p);render_portal_footer();
 }
 
-function ticket_service_evidence(array $t,array $p):void { ?>
+function ticket_service_evidence(array $t,array $p):void { $uid=TicketRepository::uid(); ?>
     <section class="panel ticket-panel"><div class="panel-body"><h2>Attachments</h2><?php foreach($t['attachments'] as $file):?><p><a href="<?=url('hr-request-attachment',['id'=>$file['id']])?>"><?=e($file['original_name'])?></a> · <?=number_format($file['file_size']/1024,1)?> KB</p><?php endforeach;if(!empty($t['viewer_only'])):?><p>Attachments are not shown with view-only access.</p><?php elseif(!$t['attachments']):?><p>No attachments.</p><?php endif;
       if($p['attach'] && !$p['edit']):?><form method="post" enctype="multipart/form-data"><?=csrf_field()?><input type="hidden" name="action" value="core_ticket_attach"><input type="hidden" name="ticket_id" value="<?=(int)$t['id']?>"><?php ticket_upload_input('detail-attachments');?><button class="btn">Add attachments</button></form><?php endif;?></div></section>
-    <section class="panel ticket-panel"><div class="panel-body"><h2>Comments</h2><?php foreach($t['comments'] as $c):?><article class="ticket-comment"><strong><?=e($c['author_name'])?></strong> <small><?=e($c['created_at'])?> · <?=e($c['visibility']??'ALL')?></small><p class="ticket-text"><?=e($c['body'])?></p></article><?php endforeach;if(!empty($t['viewer_only'])):?><p class="ticket-note">View-only access: you can read this request but not act on it, comment or attach files.</p><?php else:?><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="core_ticket_comment"><input type="hidden" name="ticket_id" value="<?=(int)$t['id']?>"><div class="field"><label for="comment-body">Add a comment</label><textarea name="body" id="comment-body" maxlength="3000" rows="3" required><?=e($_SESSION['core_ticket_comment'][$t['id']]??'')?></textarea></div><?php if($t['type_code']==='INCIDENT_REPORT'&&TicketRepository::isStaff($t)):?><div class="field"><label for="comment-visibility">Comment visibility</label><select id="comment-visibility" name="visibility"><option value="ALL">All ticket participants</option><option value="STAFF_ONLY">Staff only</option></select></div><?php endif;?><button class="btn">Post comment</button></form><?php endif;?></div></section>
-    <section class="panel ticket-panel"><div class="panel-body"><h2>Ticket history</h2><ol class="ticket-history"><?php foreach($t['events'] as $ev):?><li><strong><?=e(stage_label($ev['event_type']))?></strong> · <?=e($ev['actor_name'])?> · <?=e($ev['created_at'])?><?php if($ev['to_status']):?> · <?=e(stage_label($ev['to_status']))?><?php endif;?></li><?php endforeach;?></ol></div></section>
+    <section class="panel ticket-panel"><div class="panel-body"><h2>Comments</h2><div class="tk-chat" role="log" aria-label="Comments"><?php foreach($t['comments'] as $c):$mine=(int)$c['author_user_id']===$uid;?><article class="tk-msg <?=$mine?'is-mine':'is-theirs'?>"><div class="tk-bubble"><p class="tk-msg-by"><strong><?=e($mine?'You':$c['author_name'])?></strong> <small><?=e(ticket_when($c['created_at']))?><?=($c['visibility']??'ALL')==='STAFF_ONLY'?' · Staff only':''?></small></p><p class="ticket-text"><?=e($c['body'])?></p></div></article><?php endforeach;if(!$t['comments']):?><p class="tk-hint">No comments yet.</p><?php endif;?></div><?php if(!empty($t['viewer_only'])):?><p class="ticket-note">View-only access: you can read this request but not act on it, comment or attach files.</p><?php else:?><form method="post" class="tk-compose"><?=csrf_field()?><input type="hidden" name="action" value="core_ticket_comment"><input type="hidden" name="ticket_id" value="<?=(int)$t['id']?>"><div class="field"><label for="comment-body">Add a comment</label><textarea name="body" id="comment-body" maxlength="3000" rows="3" required><?=e($_SESSION['core_ticket_comment'][$t['id']]??'')?></textarea></div><?php if($t['type_code']==='INCIDENT_REPORT'&&TicketRepository::isStaff($t)):?><div class="field"><label for="comment-visibility">Comment visibility</label><select id="comment-visibility" name="visibility"><option value="ALL">All ticket participants</option><option value="STAFF_ONLY">Staff only</option></select></div><?php endif;?><button class="btn">Post comment</button></form><?php endif;?></div></section>
+    <details class="panel ticket-panel tk-collapse"><summary>History (<?=count($t['events'])?>)</summary><div class="panel-body"><ol class="ticket-history"><?php foreach($t['events'] as $ev):?><li><strong><?=e(stage_label($ev['event_type']))?></strong> · <?=e($ev['actor_name'])?> · <?=e($ev['created_at'])?><?php if($ev['to_status']):?> · <?=e(stage_label($ev['to_status']))?><?php endif;?></li><?php endforeach;?></ol></div></details>
 
 <?php }

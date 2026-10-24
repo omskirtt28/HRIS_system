@@ -9,6 +9,8 @@ require_once __DIR__.'/TicketTypes.php';
 final class TicketService
 {
     private static array $movedFiles=[];
+    /** HR-only internal note for the act() in progress; stored beside the status-change event, never inside it. */
+    private static string $internalNote='';
     /** A file written inside a ticket transaction; removed again if the transaction rolls back. */
     public static function trackMoved(string $path):void { self::$movedFiles[]=$path; }
     private static function transaction(callable $work):mixed
@@ -28,7 +30,9 @@ final class TicketService
     {
         TicketPolicy::assertTransition($t['status'],$status,$remarks,$t['type_code']);$from=$t['status'];
         db()->prepare('UPDATE tickets SET status=?,version=version+1,closed_at=? WHERE id=?')->execute([$status,in_array($status,['COMPLETED','REJECTED','CANCELLED'],true)?date('Y-m-d H:i:s'):null,$t['id']]);
-        $t['status']=$status;$t['version']++;$eventId=self::event((int)$t['id'],$event,$from,$status,['remarks'=>$remarks]);TicketNotifications::enqueue($eventId,$t);
+        $t['status']=$status;$t['version']++;$eventId=self::event((int)$t['id'],$event,$from,$status,['remarks'=>$remarks]);
+        if(self::$internalNote!==''){db()->prepare('INSERT INTO ticket_hr_notes(ticket_id,event_id,author_user_id,note) VALUES(?,?,?,?)')->execute([$t['id'],$eventId,TicketRepository::uid(),self::$internalNote]);self::$internalNote='';}
+        TicketNotifications::enqueue($eventId,$t);
     }
     private static function requireFiler(array $data=[]):array
     {
@@ -187,10 +191,19 @@ final class TicketService
             'attach'=>($own && (in_array($t['status'],['DRAFT','RETURNED'],true)||($t['type_code']==='INCIDENT_REPORT'&&$t['status']==='SUBMITTED'))) || (!$self && $hr && (in_array($t['status'],['PENDING_HR','IN_PROGRESS'],true)||($t['type_code']==='INCIDENT_REPORT'&&$t['status']==='SUBMITTED'))),
         ];
     }
-    public static function act(int $id,int $version,string $action,string $remarks='',string $outcome='',int $target=0,array $completionData=[]):int
+    public static function act(int $id,int $version,string $action,string $remarks='',string $outcome='',int $target=0,array $completionData=[],string $internalNote=''):int
     {
-        return self::transaction(function()use($id,$version,$action,$remarks,$outcome,$target,$completionData){
+        self::$internalNote='';
+        try{return self::transaction(function()use($id,$version,$action,$remarks,$outcome,$target,$completionData,$internalNote){
             $t=TicketRepository::find($id,true);if(!empty($t['viewer_only']))throw new RuntimeException('View-only access: you cannot act on this request.');$p=self::permissions($t);$remarks=trim($remarks);
+            $internalNote=trim($internalNote);
+            if($internalNote!==''){
+                // Internal notes are HR-only: a forged field from anyone else is refused, not silently dropped.
+                if(!TicketRepository::isHr() || (int)$t['requester_user_id']===TicketRepository::uid())throw new RuntimeException('Internal notes are limited to HR reviewers.');
+                if(mb_strlen($internalNote)>2000)throw new RuntimeException('Internal note must be 2000 characters or fewer.');
+                if(!FoundationRepository::tableExists('ticket_hr_notes'))throw new RuntimeException('Internal notes are not set up yet. Ask your administrator to run the update.');
+                self::$internalNote=$internalNote;
+            }
             if($t['type_code']==='NETSUITE_CONCERN'&&$t['filed_at']!==null&&in_array($action,['START','RETURN','REJECT','CANCEL'],true))throw new RuntimeException('NetSuite uses Pending and Complete.');
             if(mb_strlen($remarks)>5000)throw new RuntimeException('Remarks must be 5000 characters or fewer.');
             if($action==='COMPLETE' && $t['status']==='COMPLETED'){
@@ -237,7 +250,7 @@ final class TicketService
                 self::event($id,'EFFECT_CREATED',$t['status'],$t['status'],['effect_type'=>'MANUAL_PAYROLL_ADJUSTMENT','target_period_id'=>$target]);
             }elseif($target!==0)throw new RuntimeException('No-change outcomes do not have an adjustment cutoff.');
             db()->prepare('UPDATE payroll_concerns SET outcome=?,outcome_note=? WHERE ticket_id=?')->execute([$outcome,$remarks,$id]);self::decideStep($step,'APPROVED',$remarks);self::transition($t,'COMPLETED',$remarks);return $id;
-        });
+        });}finally{self::$internalNote='';}
     }
     private static function decideStep(array $step,string $status,string $remarks):void
     {

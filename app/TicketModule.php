@@ -34,7 +34,7 @@ function ticket_handle(string $page):void
                 unset($_SESSION['core_ticket_edit'][$id]);flash('success',($_POST['intent']??'')==='SUBMIT'?'HR request submitted.':'Changes saved.');
             }elseif($action==='core_ticket_act'){
                 $_SESSION['core_ticket_action'][$id]=$_POST;
-                TicketService::act($id,(int)($_POST['version']??0),(string)($_POST['decision']??''),(string)($_POST['remarks']??''),(string)($_POST['outcome']??''),(int)($_POST['target_period_id']??0),['new_approver_user_id'=>(int)($_POST['new_approver_user_id']??0),'include_salary'=>($_POST['include_salary']??'')==='1']);unset($_SESSION['core_ticket_action'][$id]);flash('success','Ticket action recorded.');
+                TicketService::act($id,(int)($_POST['version']??0),(string)($_POST['decision']??''),(string)($_POST['remarks']??''),(string)($_POST['outcome']??''),(int)($_POST['target_period_id']??0),['new_approver_user_id'=>(int)($_POST['new_approver_user_id']??0),'include_salary'=>($_POST['include_salary']??'')==='1'],(string)($_POST['internal_note']??''));unset($_SESSION['core_ticket_action'][$id]);flash('success','Ticket action recorded.');
             }elseif($action==='core_ticket_quick'||$action==='core_ticket_bulk'){
                 // HR list actions. Server-side HR check first; every ticket then goes through TicketService::act() on its own.
                 $bulk=$action==='core_ticket_bulk';parse_str((string)($_POST['back']??''),$backQuery);$back=TicketQueue::linkParams(TicketQueue::filters(is_array($backQuery)?$backQuery:[]));
