@@ -135,6 +135,8 @@ final class TicketService
         if($t['is_late'])$late=$late?:$t['late_reason'];
         $config=json_decode($type['routing_config_json']?:'{}',true,512,JSON_THROW_ON_ERROR);
         $kind=EmployeeApproverAssignmentService::kind($employee);$key=$late?'LATE':($kind==='MANAGER'?'HEAD_OFFICE':'BRANCH');
+        // A Manager files straight to HR (no Manager above): reuse the HR-only profile of the late route.
+        if($key==='HEAD_OFFICE' && $t['type_code']==='PAYROLL_CONCERN' && EmployeeApproverAssignmentService::isManagerFiler($employee))$key='LATE';
         $profile=$config[$key]??$type['routing_profile'];$q=db()->prepare('SELECT steps_json FROM ticket_routing_profiles WHERE code=? AND active=1');$q->execute([$profile]);$json=$q->fetchColumn();
         if(!$json)throw new RuntimeException('Please ask HR to configure this request routing profile.');$chain=json_decode($json,true,512,JSON_THROW_ON_ERROR);
         if(!$chain || !is_array($chain) || end($chain)!=='HR')throw new RuntimeException('This request needs a final HR routing step.');

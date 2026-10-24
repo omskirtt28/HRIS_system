@@ -70,6 +70,9 @@ Decisions John needs to make. Each is blocking something concrete. When one is d
 - [ ] **Q26.** Confirm the de minimis benefit ceilings and the 13th-month/other-benefits tax-exempt ceiling.
 - [ ] **Q27.** Confirm current night differential percentage, OT multipliers and holiday pay rules against the Labor Code and the latest DOLE handbook.
 
+- [ ] **Q42.** A Head Office employee's approver assignment (Ticket Approvers) can name a Manager different from Reporting To. Viewing follows Reporting To only (BR-737); approving follows the assignment, then Reporting To. Confirm HR is happy for the two to differ, or whether Ticket Approvers should show a warning when they do. (2026-10-24, assumed: they may differ.)
+- [ ] **Q43.** "Manager" for BR-738 means the filer's account holds the `MANAGER` role. A Head Office head with another role (ADL, OIC, TC) still has a Manager above them. Confirm if other roles should also go straight to HR. (2026-10-24, assumed: MANAGER role only.)
+
 > [!warning] NEEDS VERIFICATION
 > Q22–Q27 are all deliberately unanswered in this vault. No figure for any of them appears anywhere as fact. Each must be confirmed against the issuing agency's current circular, recorded with its effectivity date in [[PH-Labor-and-Payroll-Notes]], and entered as a config row — never as a constant in code.
 

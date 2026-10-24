@@ -23,6 +23,14 @@ final class EmployeeApproverAssignmentService
         return ($employee['site_type'] ?: (($employee['branch_code'] === 'HEAD_OFFICE' || $employee['workplace'] === 'HEAD_OFFICE') ? 'HEAD_OFFICE' : 'BRANCH')) === 'HEAD_OFFICE' ? 'MANAGER' : 'ADL';
     }
 
+    /** A Manager files straight to HR and has no viewer above them: the employee's own account holds the MANAGER role. */
+    public static function isManagerFiler(array $employee): bool
+    {
+        if (empty($employee['user_id'])) return false;
+        $q=db()->prepare('SELECT 1 FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=? AND r.code="MANAGER"');
+        $q->execute([(int)$employee['user_id']]);return (bool)$q->fetchColumn();
+    }
+
     public static function employee(int $id, bool $lock = false): array
     {
         $q=db()->prepare('SELECT e.id,e.employee_no,e.first_name,e.last_name,e.status,e.user_id,e.branch_id,e.manager_employee_id,
@@ -54,7 +62,8 @@ final class EmployeeApproverAssignmentService
         self::date($date);$kind=self::kind($employee);
         $none=['type'=>$kind,'user_id'=>null,'assignment_id'=>null,'provenance'=>null,'source_reference'=>null,'source_actor_user_id'=>null,
             'reason'=>'Please ask HR to assign your '.($kind==='ADL'?'ADL':'Manager').' with an active approval account.'];
-        if (empty($employee['branch_id']) || empty($employee['branch_code'])) return $none;
+        // Head Office is stored with an empty branch code (roster import), so only the branch itself is required.
+        if (empty($employee['branch_id'])) return $none;
         if ($useAssignments && self::ready()) {
             $q=db()->prepare('SELECT * FROM employee_approver_assignments WHERE employee_id=? AND approver_type=? AND superseded_at IS NULL AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from DESC,id DESC LIMIT 2');
             $q->execute([$employee['id'],$kind,$date,$date]);$rows=$q->fetchAll();

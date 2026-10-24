@@ -10,7 +10,9 @@ require_once __DIR__.'/EmployeeDirectoryPlacement.php';
  *    (2) the Sales Captain of the branch, (3) the OIC of the branch. Sales Captain / OIC are employees of the SAME
  *    branch whose position is Sales Captain / Officer In Charge (an OIC may also be an approved, dated OIC
  *    Authorization held by an account on the OIC role, see TicketOicAuthorization) with an active linked account.
- *  - Head Office: the employee's Manager as resolved for routing (EmployeeApproverAssignmentService::resolve).
+ *  - Head Office: ONLY the employee's direct Manager, i.e. the "Reporting To" (employees.manager_employee_id) read live,
+ *    with an active linked account holding ticket.view_team. Viewing needs neither payroll.approve_manager nor an
+ *    approver assignment (those are for approving, not reading). A Manager (MANAGER role) has no viewer above them.
  * Everything needs ticket.view_team and an active linked account, is evaluated when a ticket is read (never
  * snapshotted), and never covers Incident Reports or drafts. Approval stays in TicketService::permissions().
  *
@@ -78,29 +80,22 @@ final class TicketViewerService
             if (!empty($e['is_adl'])) $scope['area_ids']=array_merge($scope['area_ids'],EmployeeDirectoryPlacement::areaIds($e['directory_area_ids']));
             if ($e['branch_id'] && self::leadKind($e)!==null) $scope['branch_ids'][]=(int)$e['branch_id'];
         }
-        $scope['manager_employee_ids']=self::managedHeadOffice($uid,$mineIds,$today);
+        $scope['manager_employee_ids']=self::managedHeadOffice($mineIds);
         $scope['area_ids']=array_values(array_unique($scope['area_ids']));
         $scope['branch_ids']=array_values(array_unique($scope['branch_ids']));
         return $scope;
     }
 
-    /** Head Office employees whose routing Manager is this account; resolve() is the single source of truth. */
-    private static function managedHeadOffice(int $uid,array $mineIds,string $today): array
+    /** Active Head Office employees whose "Reporting To" is one of this account's employee records. Read live; a Manager filer is skipped. */
+    private static function managedHeadOffice(array $mineIds): array
     {
-        $or=[];$params=[];
-        if ($mineIds) {$or[]='e.manager_employee_id IN ('.implode(',',array_fill(0,count($mineIds),'?')).')';$params=array_merge($params,$mineIds);}
-        if (EmployeeApproverAssignmentService::ready()) {
-            $or[]='EXISTS(SELECT 1 FROM employee_approver_assignments a WHERE a.employee_id=e.id AND a.approver_type="MANAGER" AND a.approver_user_id=? AND a.superseded_at IS NULL AND a.effective_from<=? AND (a.effective_to IS NULL OR a.effective_to>=?))';
-            array_push($params,$uid,$today,$today);
-        }
-        if (!$or) return [];
-        $q=db()->prepare('SELECT e.id FROM employees e WHERE e.status IN '.self::ACTIVE.' AND ('.implode(' OR ',$or).')');$q->execute($params);
-        $ids=[];
-        foreach ($q->fetchAll(PDO::FETCH_COLUMN) as $id) {
-            $route=EmployeeApproverAssignmentService::resolve(EmployeeApproverAssignmentService::employee((int)$id),$today);
-            if ($route['type']==='MANAGER' && (int)$route['user_id']===$uid) $ids[]=(int)$id;
-        }
-        return $ids;
+        if (!$mineIds) return [];
+        $q=db()->prepare('SELECT e.id FROM employees e JOIN branches b ON b.id=e.branch_id
+            LEFT JOIN users eu ON eu.id=e.user_id LEFT JOIN roles er ON er.id=eu.role_id
+            WHERE e.status IN '.self::ACTIVE.' AND b.site_type="HEAD_OFFICE" AND e.manager_employee_id IN ('.implode(',',array_fill(0,count($mineIds),'?')).')
+            AND e.id NOT IN ('.implode(',',array_fill(0,count($mineIds),'?')).') AND COALESCE(er.code,"")<>"MANAGER"');
+        $q->execute(array_merge($mineIds,$mineIds));
+        return array_map('intval',$q->fetchAll(PDO::FETCH_COLUMN));
     }
 
     /**
@@ -175,23 +170,27 @@ final class TicketViewerService
     /**
      * Read-only answer for the Employee 201 Employment tab: who can read this employee's HR requests today.
      * Same rules as scope()/clause(). Nothing is written; HR-only screens are not required to look at it.
-     * @return array{ready:bool,head_office:bool,branch:?array,sc:array,oic:array,adls:array,manager:?array,problems:array,has_viewer:bool}
+     * @return array{ready:bool,head_office:bool,branch:?array,sc:array,oic:array,adls:array,manager:?array,manager_filer:bool,problems:array,has_viewer:bool}
      */
     public static function viewersFor(int $employeeId): array
     {
-        $out=['ready'=>self::ready(),'head_office'=>false,'branch'=>null,'sc'=>[],'oic'=>[],'adls'=>[],'manager'=>null,'problems'=>[],'has_viewer'=>false];
+        $out=['ready'=>self::ready(),'head_office'=>false,'branch'=>null,'sc'=>[],'oic'=>[],'adls'=>[],'manager'=>null,'manager_filer'=>false,'problems'=>[],'has_viewer'=>false];
         if (!$out['ready']) return $out;
         $today=date('Y-m-d');$employee=EmployeeApproverAssignmentService::employee($employeeId);
         $out['head_office']=EmployeeApproverAssignmentService::kind($employee)==='MANAGER';
         if ($out['head_office']) {
-            $route=EmployeeApproverAssignmentService::resolve($employee,$today);
-            if ($route['type']==='MANAGER' && $route['user_id']) {
-                $uid=(int)$route['user_id'];
-                $q=db()->prepare('SELECT COALESCE(NULLIF(TRIM(CONCAT(e.first_name," ",e.last_name)),""),u.full_name) name,e.employee_no FROM users u LEFT JOIN employees e ON e.user_id=u.id WHERE u.id=? ORDER BY e.id LIMIT 1');
-                $q->execute([$uid]);$m=$q->fetch()?:['name'=>'Manager','employee_no'=>null];
-                $out['manager']=$m+['account'=>self::accountState($uid),'can_view'=>self::permitted($uid)];
-                if (!$out['manager']['can_view']) $out['problems'][]=['MANAGER_CANNOT_VIEW','The Manager\'s role cannot view team requests.'];
-            } else $out['problems'][]=['NO_MANAGER','No Manager is set for this Head Office employee, so nobody can view their requests.'];
+            if (EmployeeApproverAssignmentService::isManagerFiler($employee)) {
+                $out['manager_filer']=true;// A Manager's requests go straight to HR; nobody above them views.
+            } elseif (!empty($employee['manager_employee_id'])) {
+                $q=db()->prepare('SELECT m.employee_no,m.first_name,m.last_name,m.user_id FROM employees m WHERE m.id=? AND m.status IN '.self::ACTIVE);
+                $q->execute([(int)$employee['manager_employee_id']]);$m=$q->fetch();
+                if ($m) {
+                    $uid=$m['user_id']?(int)$m['user_id']:null;$account=self::accountState($uid);
+                    $out['manager']=$m+['account'=>$account,'can_view'=>$account==='ACTIVE'];
+                    if (!$uid) $out['problems'][]=['MANAGER_NO_ACCOUNT','The Manager '.self::personName($m).' has no linked account, so cannot view this employee\'s requests.'];
+                    elseif (!$out['manager']['can_view']) $out['problems'][]=['MANAGER_CANNOT_VIEW','The Manager '.self::personName($m).' '.self::ACCOUNT_TEXT[$account].'.'];
+                } else $out['problems'][]=['NO_MANAGER','The Reporting To person is not an active employee, so nobody can view this employee\'s requests.'];
+            } else $out['problems'][]=['NO_MANAGER','No Manager is set (Reporting To is empty), so nobody can view this employee\'s requests.'];
             $out['has_viewer']=$out['manager'] && $out['manager']['can_view'];
         } elseif (!empty($employee['branch_id'])) {
             $q=db()->prepare('SELECT b.id,b.name,b.area_id,a.name area_name FROM branches b LEFT JOIN areas a ON a.id=b.area_id WHERE b.id=?');$q->execute([(int)$employee['branch_id']]);$branch=$q->fetch();
@@ -256,10 +255,11 @@ final class TicketViewerService
             foreach ($s['area_ids'] as $id) $areaCovered[$id]=true;
             foreach ($s['manager_employee_ids'] as $id) $employeeCovered[$id]=true;
         }
-        $q=db()->query('SELECT e.id,e.employee_no,e.first_name,e.last_name,e.user_id,b.id branch_id,b.name branch_name,b.area_id,(b.site_type="HEAD_OFFICE" OR COALESCE(b.code,"")="HEAD_OFFICE") is_ho,bu.company_group
-            FROM employees e LEFT JOIN branches b ON b.id=e.branch_id LEFT JOIN business_units bu ON bu.id=e.business_unit_id WHERE e.status IN '.self::ACTIVE.' ORDER BY e.last_name,e.first_name,e.id');
+        $q=db()->query('SELECT e.id,e.employee_no,e.first_name,e.last_name,e.user_id,b.id branch_id,b.name branch_name,b.area_id,(b.site_type="HEAD_OFFICE" OR COALESCE(b.code,"")="HEAD_OFFICE") is_ho,bu.company_group,COALESCE(er.code,"")="MANAGER" is_manager
+            FROM employees e LEFT JOIN branches b ON b.id=e.branch_id LEFT JOIN business_units bu ON bu.id=e.business_unit_id LEFT JOIN users eu ON eu.id=e.user_id LEFT JOIN roles er ON er.id=eu.role_id WHERE e.status IN '.self::ACTIVE.' ORDER BY e.last_name,e.first_name,e.id');
         $employees=$q->fetchAll();$missing=[];$count=['employees'=>count($employees),'with_viewer'=>0,'retail_missing'=>0,'ho_missing'=>0];
         foreach ($employees as $e) {
+            if ($e['is_ho'] && $e['is_manager']) {$count['with_viewer']++;continue;}// A Manager goes straight to HR: no viewer expected.
             $ok=isset($employeeCovered[(int)$e['id']]) || (!$e['is_ho'] && $e['branch_id'] && (isset($branchCovered[(int)$e['branch_id']]) || ($e['area_id'] && isset($areaCovered[(int)$e['area_id']]))));
             if ($ok) {$count['with_viewer']++;continue;}
             $e['is_ho']?$count['ho_missing']++:$count['retail_missing']++;$missing[]=$e;

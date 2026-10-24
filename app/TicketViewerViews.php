@@ -67,7 +67,8 @@ final class TicketViewerEmploymentLine
         };
         $none=static fn(string $role,bool $problem):string=>'<tr><td>'.e($role).'</td><td colspan="3"><span class="badge '.($problem?'red':'gray').'">'.($problem?'None, see problem below':'None').'</span></td></tr>';
         if ($v['head_office']) {
-            if ($v['manager']) $row('Manager',$v['manager']); else $rows[]=$none('Manager',true);
+            if (!empty($v['manager_filer'])) $rows[]='<tr><td>Manager</td><td colspan="3"><span class="badge gray">Not applicable</span> This employee is a Manager: requests go straight to HR and nobody above them views.</td></tr>';
+            elseif ($v['manager']) $row('Manager',$v['manager']); else $rows[]=$none('Manager',true);
         } elseif ($v['branch']) {
             foreach ($v['adls'] as $a) $row('ADL',$a);
             if (!$v['adls']) $rows[]=$none('ADL',true);

@@ -1,3 +1,9 @@
+## 2026-10-24 · Head Office Manager can now see their team's requests
+- Fixed: a Head Office employee's Manager (Reporting To) saw "No HR requests" in Team Requests. Head Office has an empty branch code, which made the system think the employee had no Manager. Routing now needs only the branch, so this also lets a Head Office Payroll Concern reach the Manager's HR Request Inbox.
+- The only viewer of a Head Office employee's request is their direct Manager (Reporting To), checked live; a Manager change moves access, old requests included. It no longer needs the Manager to hold the approve permission.
+- A Manager's own requests go straight to HR, with no viewer above; Employee 201 shows "Not applicable" for them and a red warning when a Head Office employee's Manager has no account or cannot view team requests.
+- No database change. Incident Reports stay hidden; viewers still cannot comment, attach, approve or get notifications.
+
 ## 2026-10-24 · Automatic ticket viewers and OIC Authorization
 - Who may read an employee's HR requests is now worked out automatically: the covering ADL, the Sales Captain and the OIC of the employee's branch (same-branch employees by position, with an active account), or the Manager for Head Office. Nothing is assigned by hand; the old branch-lead and extra-viewer entries are retired and no longer give access.
 - Employee 201 Employment tab shows "Who can view this employee's tickets" with each person's account status and red PROBLEM lines (no Sales Captain, Sales Captain without an account, no covering ADL, more than one Sales Captain). Ticket Viewers is now a read-only problem report.
