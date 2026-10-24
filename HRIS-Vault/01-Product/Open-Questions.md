@@ -72,6 +72,11 @@ Decisions John needs to make. Each is blocking something concrete. When one is d
 
 - [ ] **Q42.** A Head Office employee's approver assignment (Ticket Approvers) can name a Manager different from Reporting To. Viewing follows Reporting To only (BR-737); approving follows the assignment, then Reporting To. Confirm HR is happy for the two to differ, or whether Ticket Approvers should show a warning when they do. (2026-10-24, assumed: they may differ.)
 - [ ] **Q43.** "Manager" for BR-738 means the filer's account holds the `MANAGER` role. A Head Office head with another role (ADL, OIC, TC) still has a Manager above them. Confirm if other roles should also go straight to HR. (2026-10-24, assumed: MANAGER role only.)
+- [ ] **Q44.** COE company name: {{company}} defaults to the employee's legal entity (PMBSI for most). Set the full registered name under COE Template if the certificate needs it.
+- [ ] **Q45.** 83 of 369 employees have no hire date; their COE cannot be served until Employee 201 is completed (the preview names the gap).
+- [ ] **Q46.** No salary rate exists in `payroll_employee_rates` (0 rows), so Include salary cannot be used until HR enters rates (Payroll).
+- [ ] **Q47.** COE signatory name/title and any letterhead image are not set; they print blank until HR fills COE Template (images are not supported yet; put the letterhead in the .docx itself).
+- [ ] **Q48.** Merge later: the dead employee-dashboard tile "Request COE" (index.php) and the Offboarding COE document list (`separation_documents_issued`, planned) overlap with this request type.
 
 > [!warning] NEEDS VERIFICATION
 > Q22–Q27 are all deliberately unanswered in this vault. No figure for any of them appears anywhere as fact. Each must be confirmed against the issuing agency's current circular, recorded with its effectivity date in [[PH-Labor-and-Payroll-Notes]], and entered as a config row — never as a constant in code.

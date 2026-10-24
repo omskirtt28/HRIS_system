@@ -62,3 +62,4 @@ Smaller, reversible decisions John made during implementation. Not ADRs because 
 Related: [[Start-Here]] · [[Conventions]] · [[Architecture]] · [[Open-Questions]]
 
 - 2026-10-25 Decided (John's brief): HR queue quick actions and bulk reuse the existing ticket service; bulk limited to ATM, ID, Uniform. Assumed: Pending tab = PENDING_HR; Cancelled tab = CANCELLED only; All tab uniform summary counts open requests only; the Setup block ignores the Company filter.
+- 2026-10-25 Decided (John's brief): COE is a ticket type with an HR-managed .docx template, a preview before Served, and a private file (requester and HR only). Assumed: COE tickets are hidden from every read-only viewer like Incident Reports; {{company}} is the employee's legal entity unless HR sets a display name; include-salary is chosen by HR on the preview, not by the employee; a signed-off layout is the built-in default until HR uploads a template; no PDF.

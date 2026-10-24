@@ -138,6 +138,7 @@ function nav_config(string $kind): array {
             ['Ticket Approvers','hr-ticket-approvers','users',false,'tickets.approvers.manage'],
             ['Ticket Viewers','hr-ticket-viewers','users',false,'tickets.approvers.manage'],
             ['Accounting Members','hr-ticket-accounting-members','users',false,'tickets.review_hr'],
+            ['COE Template','hr-coe-template','file',false,'ticket.coe.template.manage'],
             ['Printable HR Forms','hr-print-forms','file',false,'tickets.review_hr'],
         ]]]);
     }

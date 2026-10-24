@@ -9,6 +9,8 @@ require_once __DIR__.'/TicketTypes.php';
 final class TicketService
 {
     private static array $movedFiles=[];
+    /** A file written inside a ticket transaction; removed again if the transaction rolls back. */
+    public static function trackMoved(string $path):void { self::$movedFiles[]=$path; }
     private static function transaction(callable $work):mixed
     {
         self::$movedFiles=[];db()->beginTransaction();

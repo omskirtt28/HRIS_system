@@ -2,9 +2,10 @@
 declare(strict_types=1);
 require_once __DIR__.'/TicketBranchTransfer.php';
 require_once __DIR__.'/TicketOicAuthorization.php';
+require_once __DIR__.'/TicketCoe.php';
 final class TicketTypes
 {
-    public const FILE_PERMISSIONS=['ATM_REQUEST'=>'ticket.file.atm','ID_REQUEST'=>'ticket.file.id','INCIDENT_REPORT'=>'ticket.file.incident','UNIFORM_REQUEST'=>'ticket.file.uniform','PAYROLL_CONCERN'=>'ticket.file.payroll_concern','MANPOWER_REQUEST'=>'ticket.file.manpower','NETSUITE_CONCERN'=>'ticket.file.netsuite','BRANCH_TRANSFER'=>'ticket.file_for_others','OIC_AUTHORIZATION'=>'ticket.file.oic_authorization'];
+    public const FILE_PERMISSIONS=['ATM_REQUEST'=>'ticket.file.atm','ID_REQUEST'=>'ticket.file.id','INCIDENT_REPORT'=>'ticket.file.incident','UNIFORM_REQUEST'=>'ticket.file.uniform','PAYROLL_CONCERN'=>'ticket.file.payroll_concern','MANPOWER_REQUEST'=>'ticket.file.manpower','NETSUITE_CONCERN'=>'ticket.file.netsuite','BRANCH_TRANSFER'=>'ticket.file_for_others','OIC_AUTHORIZATION'=>'ticket.file.oic_authorization','COE_REQUEST'=>'ticket.file.coe'];
     private static ?bool $perTypeReady=null;
     public static function definitions():array { return require dirname(__DIR__).'/config/ticket_types.php'; }
     // Server-side gate for every filing path. Before migration 010, any filer keeps the old all-types access.
@@ -52,6 +53,7 @@ final class TicketTypes
         }
         if($code==='BRANCH_TRANSFER')$out=TicketBranchTransfer::validate($out,$employee);
         if($code==='OIC_AUTHORIZATION')$out=TicketOicAuthorization::validate($out,$employee);
+        if($code==='COE_REQUEST')$out=TicketCoe::validate($out);
         return $out;
     }
     public static function save(int $id,string $code,array $payload):void {
@@ -61,12 +63,14 @@ final class TicketTypes
             db()->prepare('INSERT INTO ticket_manpower_requests(ticket_id,'.implode(',',$columns).') VALUES(?,'.implode(',',array_fill(0,count($columns),'?')).') ON DUPLICATE KEY UPDATE '.implode(',',array_map(fn($c)=>$c.'=VALUES('.$c.')',$columns)))->execute(array_merge([$id],array_map(fn($c)=>$payload[$c],$columns)));
         }
         if($code==='OIC_AUTHORIZATION')TicketOicAuthorization::save($id,$payload);
+        if($code==='COE_REQUEST')TicketCoe::save($id,$payload);
         if($code==='BRANCH_TRANSFER')db()->prepare('INSERT INTO branch_transfers(ticket_id,employee_id,from_branch_id,to_branch_id,effective_date,company) VALUES(?,?,?,?,?,?) ON DUPLICATE KEY UPDATE from_branch_id=VALUES(from_branch_id),to_branch_id=VALUES(to_branch_id),effective_date=VALUES(effective_date),company=VALUES(company)')->execute([$id,$payload['employee'],$payload['from_branch'],$payload['to_branch'],$payload['effective_date'],$payload['company']]);
     }
     public static function complete(array $ticket,array $data=[]):bool {
         if($ticket['type_code']==='MANPOWER_REQUEST')db()->prepare('UPDATE ticket_manpower_requests SET date_served=CURDATE() WHERE ticket_id=? AND date_served IS NULL')->execute([$ticket['id']]);
         if($ticket['type_code']==='BRANCH_TRANSFER')return TicketBranchTransfer::complete($ticket,$data);
         if($ticket['type_code']==='OIC_AUTHORIZATION')return TicketOicAuthorization::complete($ticket,$data);
+        if($ticket['type_code']==='COE_REQUEST')return TicketCoe::complete($ticket,$data);
         return true;
     }
     public static function employeeChoices(string $code=''):array {
@@ -81,7 +85,7 @@ final class TicketTypes
         return match($status){'PENDING_HR'=>'Pending','IN_PROGRESS'=>'In Progress','COMPLETED'=>'Served','CANCELLED'=>'Cancelled',default=>stage_label($status)};
     }
     public static function openDuplicates(string $code,int $exclude=0):int {
-        if(!in_array($code,['ATM_REQUEST','ID_REQUEST'],true))return 0;
+        if(!in_array($code,['ATM_REQUEST','ID_REQUEST','COE_REQUEST'],true))return 0;
         $q=db()->prepare('SELECT COUNT(*) FROM tickets t JOIN ticket_types ty ON ty.id=t.ticket_type_id WHERE ty.code=? AND t.requester_user_id=? AND t.id<>? AND t.status IN ("SUBMITTED","PENDING_APPROVAL","PENDING_HR","IN_PROGRESS","RETURNED")');$q->execute([$code,TicketRepository::uid(),$exclude]);return (int)$q->fetchColumn();
     }
 }

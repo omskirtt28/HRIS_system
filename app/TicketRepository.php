@@ -50,7 +50,7 @@ final class TicketRepository
         $viewer=false;
         if(!$t&&($view=TicketViewerService::clause($uid))!==null){
             // Read-only viewer (branch lead, ADL area, Head Office Manager, HR override). Never Incident Reports or drafts.
-            $q=db()->prepare(self::selectSql().' WHERE t.id=? AND ty.code<>"INCIDENT_REPORT" AND t.status<>"DRAFT" AND '.$view[0].($lock?' FOR UPDATE':''));
+            $q=db()->prepare(self::selectSql().' WHERE t.id=? AND ty.code NOT IN ("INCIDENT_REPORT","COE_REQUEST") AND t.status<>"DRAFT" AND '.$view[0].($lock?' FOR UPDATE':''));
             $q->execute(array_merge([$id],$view[1]));$t=$q->fetch();$viewer=(bool)$t;
         }
         if(!$t)throw new RuntimeException('Ticket not found or access denied.');
@@ -103,7 +103,7 @@ final class TicketRepository
             $params=[$uid,self::isHr()?1:0,Auth::can('ticket.sensitive.view')?1:0,$uid];
         }elseif($mode==='team'){
             $view=TicketViewerService::clause($uid);if($view===null)throw new RuntimeException('Team request access is required.');
-            $where[]='ty.code<>"INCIDENT_REPORT" AND t.status<>"DRAFT" AND t.requester_user_id<>? AND COALESCE(e.user_id,0)<>? AND '.$view[0];
+            $where[]='ty.code NOT IN ("INCIDENT_REPORT","COE_REQUEST") AND t.status<>"DRAFT" AND t.requester_user_id<>? AND COALESCE(e.user_id,0)<>? AND '.$view[0];
             $params=array_merge([$uid,$uid],$view[1]);
             if(!empty($filters['type_code'])){$where[]='ty.code=?';$params[]=$filters['type_code'];}
             if(!empty($filters['status'])){$where[]='t.status=?';$params[]=$filters['status'];}

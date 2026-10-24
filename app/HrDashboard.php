@@ -12,7 +12,7 @@ final class HrDashboard
     public const PERIODS=['this_week'=>'This week','last_week'=>'Last week','this_month'=>'This month','last_30'=>'Last 30 days'];
     public const COMPANIES=['ALL'=>'All companies','OC'=>'Ocampo\'s','SW'=>'SW'];
     /** Chart order and the statuses each colour stands for. */
-    public const TYPE_ORDER=['ATM_REQUEST','ID_REQUEST','UNIFORM_REQUEST','PAYROLL_CONCERN','MANPOWER_REQUEST','NETSUITE_CONCERN','BRANCH_TRANSFER','OIC_AUTHORIZATION'];
+    public const TYPE_ORDER=['ATM_REQUEST','ID_REQUEST','UNIFORM_REQUEST','PAYROLL_CONCERN','MANPOWER_REQUEST','NETSUITE_CONCERN','BRANCH_TRANSFER','OIC_AUTHORIZATION','COE_REQUEST'];
     private const OPEN_DUE_DAYS=30;
     private const EXCL='ty.code<>"INCIDENT_REPORT" AND t.status<>"DRAFT"';
     private const FILED='COALESCE(t.filed_at,t.created_at)';

@@ -1,6 +1,12 @@
 <?php
 // Options and routing belong to configuration, never to browser-supplied profiles.
 return [
+    'COE_REQUEST'=>['name'=>'Certificate of Employment','profile'=>'HR_ONLY','fields'=>[
+        'purpose'=>['label'=>'Purpose','options'=>['Loan','Visa/Embassy','Bank','New employer','Other']],
+        'purpose_other'=>['label'=>'Purpose details (required when Other)','kind'=>'text','max'=>200,'optional'=>true,'rows'=>2],
+        'needed_by'=>['label'=>'Needed by','kind'=>'date'],
+        'delivery'=>['label'=>'Delivery','options'=>['HR pickup','Email']],
+    ]],
     'INCIDENT_REPORT'=>['name'=>'Incident Report','profile'=>null,'fields'=>[
         'title'=>['label'=>'Incident title','kind'=>'text','max'=>200],
         'explanation'=>['label'=>'Explanation','kind'=>'text','max'=>5000],

@@ -225,6 +225,14 @@ Viewers are no longer assigned. `TicketViewerService` derives them when a ticket
 
 HR dashboard (`hr-dashboard`): action strip, Company (All, Ocampo's, SW) and Period (this week default, last week, this month, last 30 days) filters, six KPIs whose change compares with an equal stretch before; Pending and In progress history is rebuilt from `ticket_events`. HR Request Queue (`hr-service-requests`): tabs, search, chips, drawer, quick and bulk actions, uniform summary, CSV. See [[Business-Rules]] BR-740 to BR-744. Code: `TicketQueue`, `TicketQueueViews`, `HrDashboard`, `HrDashboardViews`, `public/assets/hr-ops.css`, `hr-queue.js`.
 
+## As built: Certificate of Employment (2026-10-25, migration 014)
+
+Request type `COE_REQUEST` in File an HR Request for every role holding `ticket.file.coe` (seeded to the roles that file ATM/ID). Routing HR_ONLY; statuses Pending, In Progress, Served, Cancelled; listed in the HR Request Queue but excluded from bulk/quick Served. The old **Request COE** tile on the employee dashboard is a dead `href="#"` with no table behind it; it was not touched, and it can be repointed to this request type or removed later (US-702/FR-714 are now met by this flow).
+
+- **Serve flow:** detail page → Preview & Served (HR) → exact values + the Include salary tick → confirm → certificate generated, ticket Served. The employee and HR download the same file from the ticket; nobody else can see the ticket or the file.
+- **Template:** HR Request Setup → COE Template (`ticket.coe.template.manage`). Placeholders: `{{employee_name}} {{position}} {{hire_date}} {{company}} {{purpose}} {{date_issued}}` required; `{{salary}}` (only when HR ticks it), `{{signatory_name}}`, `{{signatory_title}}` optional. Signatory and an optional company display name are HR-admin settings; blank prints blank.
+- Code: `app/TicketCoe.php` (rules, template, fill), `TicketCoeViews.php`, `TicketCoeModule.php`; tables `coe_requests`, `coe_templates`, `coe_documents`, `coe_settings`, `coe_seed`.
+
 ## Open Questions
 
 - [ ] Do all employees get portal accounts? → Q15 in [[Open-Questions]]

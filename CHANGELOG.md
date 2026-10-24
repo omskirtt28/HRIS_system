@@ -9,6 +9,12 @@
 - HR Request Queue: status tabs with counts, one search box, collapsible filters shown as chips, colour-coded age, preview drawer, quick In Progress / Served / Cancel, bulk Served or Cancel for ATM, ID and Uniform only (confirmation with optional shared remarks and a result summary), uniform size summary per branch, CSV export, mobile cards.
 - Every action still goes through the existing ticket service one ticket at a time, so permissions, audit and events are unchanged.
 
+## 2026-10-25 · Certificate of Employment request and template
+- New request type in File an HR Request: Certificate of Employment (purpose, needed-by date, delivery). It goes straight to HR; Served is never done in bulk.
+- HR uploads a Word .docx template (HR Request Setup, COE Template) with placeholders for name, position, hire date, company, purpose and date issued; versions are kept. Until then a simple built-in layout is used. Signatory and company name are HR settings.
+- HR sees a preview of the exact values (and decides whether to include salary) before confirming Served. The employee and HR download the same Word file from the ticket; nobody else can see it. Every certificate generated and downloaded is logged.
+- Migration `20261025_014_coe_request.sql` (rollback refuses once any COE exists). Applied to the localhost database after a verified backup and clean up/re-run/down/up tests.
+
 ## 2026-10-24 · Automatic ticket viewers and OIC Authorization
 - Who may read an employee's HR requests is now worked out automatically: the covering ADL, the Sales Captain and the OIC of the employee's branch (same-branch employees by position, with an active account), or the Manager for Head Office. Nothing is assigned by hand; the old branch-lead and extra-viewer entries are retired and no longer give access.
 - Employee 201 Employment tab shows "Who can view this employee's tickets" with each person's account status and red PROBLEM lines (no Sales Captain, Sales Captain without an account, no covering ADL, more than one Sales Captain). Ticket Viewers is now a read-only problem report.

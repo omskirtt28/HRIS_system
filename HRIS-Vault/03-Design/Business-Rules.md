@@ -247,6 +247,17 @@ These are not numbered rules but every rule above must preserve them.
 | BR-743 | Age = days since filed, shown only for open requests: green up to 2 days, amber 3 to 5, red over 5. |
 | BR-744 | Incident Reports never appear in the queue, tab counts, dashboard breakdowns or CSV. Their count and latest title show on the dashboard only for HR or `ticket.sensitive.view`. |
 
+## As built: Certificate of Employment (2026-10-25)
+
+| ID | Rule |
+|---|---|
+| BR-750 | A Certificate of Employment is filed by the employee for themselves, routes HR_ONLY and is never processed by bulk or quick actions; Served requires the HR preview first. |
+| BR-751 | Served is refused unless HR opened the preview for the same values, salary choice and template in the last 30 minutes; the preview blocks on missing position, hire date, company, purpose or (when ticked) a salary rate. Nothing is invented. |
+| BR-752 | Include salary is an HR decision made at Served, default no. `{{salary}}` is filled only when ticked and a salary rate effective on the issue date exists. |
+| BR-753 | date_issued is the Served date. The generated .docx is stored once per ticket and never regenerated. |
+| BR-754 | Only the requester and HR can see the COE ticket or download the file, through the ticket access check; viewers, ADL, Sales Captain, OIC, Manager and Accounting cannot. Every generation and download is audited (no values in the audit row). |
+| BR-755 | Template upload: .docx only, real ZIP/Word structure, no macros or DOCTYPE/entities, up to 2 MB, all required placeholders and no unknown ones; versions are kept and audited. Values are written as XML text (escaped); placeholders typed into data are not substituted again. |
+
 ## Open Questions
 
 - [ ] Rules touching Q6-Q12 in [[Open-Questions]] (leave types, OT exemption, pay basis, correction model) are provisional until John answers.

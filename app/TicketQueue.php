@@ -20,9 +20,10 @@ final class TicketQueue
         'MANPOWER_REQUEST'=>'Manpower Request is processed one by one. Open it.',
         'NETSUITE_CONCERN'=>'NetSuite Concern uses its own Pending/Complete flow. Open it.',
         'OIC_AUTHORIZATION'=>'OIC Authorization is processed one by one. Open it.',
+        'COE_REQUEST'=>'A Certificate of Employment needs the preview before it is served. Open it.',
         'INCIDENT_REPORT'=>'Incident Reports are handled in the Incident Feed.',
     ];
-    private const ICONS=['ATM_REQUEST'=>'wallet','ID_REQUEST'=>'user','UNIFORM_REQUEST'=>'boxes','PAYROLL_CONCERN'=>'receipt','MANPOWER_REQUEST'=>'users','NETSUITE_CONCERN'=>'monitor','BRANCH_TRANSFER'=>'map-pin','OIC_AUTHORIZATION'=>'key','INCIDENT_REPORT'=>'alert'];
+    private const ICONS=['ATM_REQUEST'=>'wallet','ID_REQUEST'=>'user','UNIFORM_REQUEST'=>'boxes','PAYROLL_CONCERN'=>'receipt','MANPOWER_REQUEST'=>'users','NETSUITE_CONCERN'=>'monitor','BRANCH_TRANSFER'=>'map-pin','OIC_AUTHORIZATION'=>'key','COE_REQUEST'=>'file','INCIDENT_REPORT'=>'alert'];
     public const PER_PAGE=25;
     public const MAX_BULK=100;
     public const EXPORT_CAP=5000;

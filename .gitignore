@@ -8,3 +8,5 @@
 /storage/ticket_attachments/*
 !/storage/ticket_attachments/.htaccess
 /.work/
+/storage/coe_documents/*
+/storage/coe_templates/*
