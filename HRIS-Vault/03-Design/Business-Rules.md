@@ -237,6 +237,16 @@ These are not numbered rules but every rule above must preserve them.
 4. **Hours before pesos**: only [[Attendance-and-DTR]] derives hours; [[Payroll]] only prices them.
 5. **Server-side truth**: no rule exists only in JavaScript.
 
+## As built: HR queue bulk and quick actions (2026-10-25)
+
+| ID | Rule |
+|---|---|
+| BR-740 | Bulk processing from the HR Request Queue covers only ATM, ID and Uniform requests that are Pending or In Progress, and only Served or Cancel. Payroll Concern, Branch Transfer, Manpower, NetSuite, OIC Authorization and Incident Reports are skipped with a stated reason. |
+| BR-741 | Bulk and quick actions run one ticket at a time through `TicketService::act()` (never a raw UPDATE), so HR permission, version check, self-request block, events and notifications are identical to the detail page. The list sends the version it showed; a changed ticket is skipped. |
+| BR-742 | Up to 100 tickets per bulk request; shared remarks up to 500 characters; each run writes one summary audit row (BULK_/QUICK_ plus the action). Non-HR requests are refused server-side before anything runs. |
+| BR-743 | Age = days since filed, shown only for open requests: green up to 2 days, amber 3 to 5, red over 5. |
+| BR-744 | Incident Reports never appear in the queue, tab counts, dashboard breakdowns or CSV. Their count and latest title show on the dashboard only for HR or `ticket.sensitive.view`. |
+
 ## Open Questions
 
 - [ ] Rules touching Q6-Q12 in [[Open-Questions]] (leave types, OT exemption, pay basis, correction model) are provisional until John answers.

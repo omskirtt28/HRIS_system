@@ -60,3 +60,5 @@ Smaller, reversible decisions John made during implementation. Not ADRs because 
 > Write one if reversing the choice later would mean a data migration, a rewrite of more than one module, or a conversation with the client. Otherwise just decide it in the module note.
 
 Related: [[Start-Here]] · [[Conventions]] · [[Architecture]] · [[Open-Questions]]
+
+- 2026-10-25 Decided (John's brief): HR queue quick actions and bulk reuse the existing ticket service; bulk limited to ATM, ID, Uniform. Assumed: Pending tab = PENDING_HR; Cancelled tab = CANCELLED only; All tab uniform summary counts open requests only; the Setup block ignores the Company filter.

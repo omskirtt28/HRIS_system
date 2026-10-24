@@ -31,11 +31,14 @@ final class TicketRepository
         if(count($ids)!==1)throw new RuntimeException('Please ask HR to link your active Employee 201 record to your account.');
         return EmployeeApproverAssignmentService::employee((int)$ids[0]);
     }
-    private static function selectSql():string
+    public static function selectSql():string
     {
         return 'SELECT t.*,ty.code type_code,ty.name type_name,c.concern_date,c.is_late,c.late_reason,c.outcome,c.outcome_note,
-            pc.period_start,pc.period_end,e.employee_no,e.first_name,e.last_name,e.user_id subject_user_id,b.name branch_name
-            FROM tickets t JOIN ticket_types ty ON ty.id=t.ticket_type_id
+            pc.period_start,pc.period_end,e.employee_no,e.first_name,e.last_name,e.user_id subject_user_id,b.name branch_name'.self::fromSql();
+    }
+    public static function fromSql():string
+    {
+        return ' FROM tickets t JOIN ticket_types ty ON ty.id=t.ticket_type_id
             LEFT JOIN payroll_concerns c ON c.ticket_id=t.id
             JOIN employees e ON e.id=t.subject_employee_id JOIN branches b ON b.id=t.branch_id
             LEFT JOIN payroll_cutoffs pc ON pc.id=t.payroll_period_id';
@@ -78,16 +81,23 @@ final class TicketRepository
     {
         self::uid();return array_values(array_filter(db()->query('SELECT id,code,name FROM ticket_types WHERE active=1 ORDER BY name')->fetchAll(),fn($type)=>($type['code']==='PAYROLL_CONCERN'||isset(TicketTypes::definitions()[$type['code']]))&&TicketTypes::canFile($type['code'])));
     }
+    /** WHERE parts shared by the Payroll Concern queue ('hr') and the HR Request Queue ('services'). @return array{0:string[],1:array} */
+    public static function hrFilters(string $mode,array $filters):array
+    {
+        $where=[];$params=[];
+        $where[]=$mode==='hr'?'ty.code="PAYROLL_CONCERN" AND t.status<>"DRAFT"':'ty.code<>"INCIDENT_REPORT" AND t.status<>"DRAFT"';
+        if(!empty($filters['type_code'])){$where[]='ty.code=?';$params[]=$filters['type_code'];}
+        if(!empty($filters['company_label'])){$where[]='JSON_UNQUOTE(JSON_EXTRACT(t.payload_json,"$.company"))=?';$params[]=$filters['company_label'];}
+        if($mode==='services'&&!empty($filters['branch_id'])){$where[]='CASE WHEN ty.code="UNIFORM_REQUEST" THEN CAST(JSON_UNQUOTE(JSON_EXTRACT(t.payload_json,"$.branch")) AS UNSIGNED) ELSE t.branch_id END=?';$params[]=(int)$filters['branch_id'];unset($filters['branch_id']);}
+        foreach(['status'=>'t.status','branch_id'=>'t.branch_id','company_id'=>'t.company_id','business_unit_id'=>'t.business_unit_id_snapshot','payroll_period_id'=>'t.payroll_period_id','company_group'=>'t.company_group_snapshot'] as $key=>$column){if(isset($filters[$key]) && (string)$filters[$key]!=='' && (string)$filters[$key]!=='0'){$where[]=$column.'=?';$params[]=$filters[$key];}}
+        return [$where,$params];
+    }
     public static function listing(string $mode,array $filters=[],int $limit=50):array
     {
         $uid=self::uid();$params=[];$where=[];
         if(in_array($mode,['hr','services'],true)){
             if(!self::isHr())throw new RuntimeException('HR ticket review access is required.');
-            $where[]=$mode==='hr'?'ty.code="PAYROLL_CONCERN" AND t.status<>"DRAFT"':'ty.code<>"INCIDENT_REPORT" AND t.status<>"DRAFT"';
-            if(!empty($filters['type_code'])){$where[]='ty.code=?';$params[]=$filters['type_code'];}
-            if(!empty($filters['company_label'])){$where[]='JSON_UNQUOTE(JSON_EXTRACT(t.payload_json,"$.company"))=?';$params[]=$filters['company_label'];}
-            if($mode==='services'&&!empty($filters['branch_id'])){$where[]='CASE WHEN ty.code="UNIFORM_REQUEST" THEN CAST(JSON_UNQUOTE(JSON_EXTRACT(t.payload_json,"$.branch")) AS UNSIGNED) ELSE t.branch_id END=?';$params[]=(int)$filters['branch_id'];unset($filters['branch_id']);}
-            foreach(['status'=>'t.status','branch_id'=>'t.branch_id','company_id'=>'t.company_id','business_unit_id'=>'t.business_unit_id_snapshot','payroll_period_id'=>'t.payroll_period_id','company_group'=>'t.company_group_snapshot'] as $key=>$column){if(isset($filters[$key]) && (string)$filters[$key]!=='' && (string)$filters[$key]!=='0'){$where[]=$column.'=?';$params[]=$filters[$key];}}
+            [$where,$params]=self::hrFilters($mode,$filters);
         }elseif($mode==='feed'){
             $where[]='ty.code="INCIDENT_REPORT" AND (t.requester_user_id=? OR ?=1 OR ?=1 OR EXISTS(SELECT 1 FROM ticket_steps s WHERE s.ticket_id=t.id AND s.approver_user_id=?))';
             $params=[$uid,self::isHr()?1:0,Auth::can('ticket.sensitive.view')?1:0,$uid];

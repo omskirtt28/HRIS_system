@@ -1115,22 +1115,8 @@ if (str_starts_with($page,'hr-')) {
 }
 
 if ($page === 'hr-dashboard') {
-    $d=RecruitmentRepository::dashboard(); $counts=RecruitmentRepository::stageCounts();
-    $today=db()->query('SELECT i.*, CONCAT(ap.first_name," ",ap.last_name) applicant_name,j.title job_title FROM interviews i JOIN applications a ON a.id=i.application_id JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id WHERE DATE(i.scheduled_at)=CURDATE() ORDER BY i.scheduled_at LIMIT 6')->fetchAll();
-    $first=explode(' ',trim((string)(Auth::user()['name']??'HR Team')))[0];
-    $maxStage=max(1,...array_map(fn($x)=>(int)$x['total'],$counts));
-    render_portal_header('hr',$page,'HR Dashboard');
-    dashboard_hero('Human Resources','Good morning, '.$first.'.','Here is the workforce and recruitment activity that needs your attention today.','<a href="'.url('hr-employees').'" class="btn">'.icon_svg('users').' Employee directory</a><a href="'.url('hr-pipeline').'" class="btn primary">Open recruitment pipeline '.icon_svg('arrow').'</a>'); ?>
-    <div class="metric-grid"><?php metric_card('Active applicants',$d['active'],'Live recruitment pool','users','up'); metric_card('Interviews',$d['interviews'],count($today).' scheduled today','calendar'); metric_card('Client review',$d['endorsed'],'Candidates awaiting decision','check-square'); metric_card('Open headcount',$d['openReq'],'Across active manpower requests','briefcase','warn'); ?></div>
-    <div class="dashboard-grid">
-      <section class="panel"><div class="panel-head"><div><h2>Recruitment pulse</h2><p>Applicant distribution across your current pipeline</p></div><a class="panel-link" href="<?=url('hr-pipeline')?>">View pipeline</a></div><div class="panel-body"><div class="pulse-bars"><?php foreach($counts as $c): $h=max(8,round(((int)$c['total']/$maxStage)*145)); ?><div class="col" title="<?=e($c['name'].' · '.$c['total'])?>"><div class="bar" style="height:<?=$h?>px"></div><div class="label"><?=e(mb_substr($c['name'],0,8))?></div></div><?php endforeach;?></div><div class="legend-row"><span><i class="legend-dot" style="background:var(--hris-brand)"></i>Applicant volume by stage</span><span>Updated from live recruitment records</span></div></div></section>
-      <section class="panel"><div class="panel-head"><div><h2>Requires attention</h2><p>Priority recruitment work</p></div></div><div class="panel-body"><div class="attention-list"><?php attention_item('Open manpower requirements','Unfilled approved headcount',$d['openReq'],'warn','briefcase'); attention_item('Client review','Candidates waiting for a decision',$d['endorsed'],'info','check-square'); attention_item('Interviews today','Scheduled candidate interviews',count($today),'success','calendar'); attention_item('Active applicants','Profiles currently moving through recruitment',$d['active'],'info','users'); ?></div></div></section>
-    </div>
-    <div class="dashboard-grid equal">
-      <section class="panel"><div class="panel-head"><div><h2>Today’s interviews</h2><p>Scheduled candidate conversations</p></div><a class="panel-link" href="<?=url('hr-applicants')?>">All applicants</a></div><div class="panel-body"><?php if(!$today):?><div class="empty">No interviews are scheduled today.</div><?php else:?><div class="timeline-list"><?php foreach($today as $i):?><div class="timeline-row"><div class="time"><?=e(date('g:i A',strtotime($i['scheduled_at'])))?></div><span class="timeline-dot"></span><div class="detail"><strong><?=e($i['applicant_name'])?></strong><span><?=e($i['job_title'])?> · <?=e(stage_label($i['interview_type']))?></span></div><span class="badge amber"><?=e(stage_label($i['interview_type']))?></span></div><?php endforeach;?></div><?php endif;?></div></section>
-      <section class="panel"><div class="panel-head"><div><h2>Quick actions</h2><p>Start common HR workflows</p></div></div><div class="panel-body"><div class="quick-actions"><a class="quick-action" href="<?=url('hr-employees')?>"><span class="qa-icon"><?=icon_svg('users')?></span><span><strong>Employee directory</strong><span>Open employee master records</span></span></a><a class="quick-action" href="<?=url('hr-manpower')?>"><span class="qa-icon"><?=icon_svg('briefcase')?></span><span><strong>Manpower request</strong><span>Create or review hiring demand</span></span></a><a class="quick-action" href="<?=url('hr-applicants')?>"><span class="qa-icon"><?=icon_svg('user-plus')?></span><span><strong>Applicant database</strong><span>Search candidate profiles</span></span></a><a class="quick-action" href="<?=url('hr-reports')?>"><span class="qa-icon"><?=icon_svg('chart')?></span><span><strong>Reports</strong><span>Review HR and recruitment activity</span></span></a></div></div></section>
-    </div>
-    <?php render_portal_footer(); exit;
+    require_once __DIR__.'/app/HrDashboardViews.php';
+    hr_dashboard_page(); exit;
 }
 
 if ($page === 'hr-timekeeping') {

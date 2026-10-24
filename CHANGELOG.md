@@ -4,6 +4,11 @@
 - A Manager's own requests go straight to HR, with no viewer above; Employee 201 shows "Not applicable" for them and a red warning when a Head Office employee's Manager has no account or cannot view team requests.
 - No database change. Incident Reports stay hidden; viewers still cannot comment, attach, approve or get notifications.
 
+## 2026-10-25 · HR dashboard and HR Request Queue polish (no database change)
+- HR dashboard: "Needs your action today" strip, Company and Period filters, six KPI cards that open the filtered queue, requests-by-type bars, a pending-age chart, a Requires attention panel (oldest pending, Incident count and latest title for HR only, setup warnings) and a smaller recruitment pulse.
+- HR Request Queue: status tabs with counts, one search box, collapsible filters shown as chips, colour-coded age, preview drawer, quick In Progress / Served / Cancel, bulk Served or Cancel for ATM, ID and Uniform only (confirmation with optional shared remarks and a result summary), uniform size summary per branch, CSV export, mobile cards.
+- Every action still goes through the existing ticket service one ticket at a time, so permissions, audit and events are unchanged.
+
 ## 2026-10-24 · Automatic ticket viewers and OIC Authorization
 - Who may read an employee's HR requests is now worked out automatically: the covering ADL, the Sales Captain and the OIC of the employee's branch (same-branch employees by position, with an active account), or the Manager for Head Office. Nothing is assigned by hand; the old branch-lead and extra-viewer entries are retired and no longer give access.
 - Employee 201 Employment tab shows "Who can view this employee's tickets" with each person's account status and red PROBLEM lines (no Sales Captain, Sales Captain without an account, no covering ADL, more than one Sales Captain). Ticket Viewers is now a read-only problem report.

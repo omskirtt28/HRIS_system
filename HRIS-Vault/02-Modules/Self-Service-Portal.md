@@ -221,6 +221,10 @@ Viewers are no longer assigned. `TicketViewerService` derives them when a ticket
 - **OIC Authorization** (`OIC_AUTHORIZATION`, HR_ONLY): the subject of the ticket is the nominee, the requester is the filer. `TicketOicAuthorization` validates scope and escalation, `save()` writes `oic_authorizations` (REQUESTED), HR "Served" calls `complete()` (APPROVED, previous role recorded, `ticket_effects` row, audit). HR then creates or links the user in Users (a Super Admin or PMBSI Administrator account, per `users.manage`) and gives the OIC role by hand.
 - **Expiry:** `TicketOicAuthorization::runDue()` runs from `render_portal_header()` (one indexed lookup when nothing is due) and from `scripts/run_notifications.php` (the existing scheduled task). Date-bound viewer access ends the day after the end date regardless of when the role is reverted.
 
+## As built: HR dashboard and request queue polish (2026-10-25)
+
+HR dashboard (`hr-dashboard`): action strip, Company (All, Ocampo's, SW) and Period (this week default, last week, this month, last 30 days) filters, six KPIs whose change compares with an equal stretch before; Pending and In progress history is rebuilt from `ticket_events`. HR Request Queue (`hr-service-requests`): tabs, search, chips, drawer, quick and bulk actions, uniform summary, CSV. See [[Business-Rules]] BR-740 to BR-744. Code: `TicketQueue`, `TicketQueueViews`, `HrDashboard`, `HrDashboardViews`, `public/assets/hr-ops.css`, `hr-queue.js`.
+
 ## Open Questions
 
 - [ ] Do all employees get portal accounts? → Q15 in [[Open-Questions]]

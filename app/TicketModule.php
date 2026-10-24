@@ -4,10 +4,11 @@ require_once __DIR__.'/TicketService.php';
 require_once __DIR__.'/TicketViews.php';
 require_once __DIR__.'/TicketAccountingViews.php';
 require_once __DIR__.'/TicketPrintForms.php';
+require_once __DIR__.'/TicketQueueViews.php';
 
 function ticket_handle(string $page):void
 {
-    $pages=['hr-requests-my','hr-request-new','hr-request','hr-request-inbox','hr-payroll-concerns','hr-request-attachment','hr-service-requests','hr-accounting-requests','hr-ticket-accounting-members','hr-incidents','hr-print-forms','hr-request-team'];
+    $pages=['hr-requests-my','hr-request-new','hr-request','hr-request-inbox','hr-payroll-concerns','hr-request-attachment','hr-service-requests','hr-accounting-requests','hr-ticket-accounting-members','hr-incidents','hr-print-forms','hr-request-team','hr-request-preview','hr-service-requests-export'];
     $action=(string)($_POST['action']??'');
     if(!in_array($page,$pages,true) && !str_starts_with($action,'core_ticket_'))return;
     need_db();if(!Auth::check())redirect('login');
@@ -34,6 +35,15 @@ function ticket_handle(string $page):void
             }elseif($action==='core_ticket_act'){
                 $_SESSION['core_ticket_action'][$id]=$_POST;
                 TicketService::act($id,(int)($_POST['version']??0),(string)($_POST['decision']??''),(string)($_POST['remarks']??''),(string)($_POST['outcome']??''),(int)($_POST['target_period_id']??0),['new_approver_user_id'=>(int)($_POST['new_approver_user_id']??0)]);unset($_SESSION['core_ticket_action'][$id]);flash('success','Ticket action recorded.');
+            }elseif($action==='core_ticket_quick'||$action==='core_ticket_bulk'){
+                // HR list actions. Server-side HR check first; every ticket then goes through TicketService::act() on its own.
+                $bulk=$action==='core_ticket_bulk';parse_str((string)($_POST['back']??''),$backQuery);$back=TicketQueue::linkParams(TicketQueue::filters(is_array($backQuery)?$backQuery:[]));
+                try{
+                    $items=$bulk?(is_array($_POST['items']??null)?$_POST['items']:[]):[(int)($_POST['ticket_id']??0)=>(int)($_POST['version']??0)];
+                    $result=TicketQueue::apply($items,(string)($bulk?($_POST['bulk_action']??''):($_POST['do']??'')),(string)($_POST['remarks']??''),$bulk);
+                    $_SESSION['hq_result']=$result;
+                }catch(RuntimeException $error){flash('error',$error->getMessage());}
+                redirect('hr-service-requests',$back);
             }elseif($action==='core_ticket_comment'){
                 $_SESSION['core_ticket_comment'][$id]=(string)($_POST['body']??'');
                 TicketService::comment($id,(string)($_POST['body']??''),(string)($_POST['visibility']??'ALL'));unset($_SESSION['core_ticket_comment'][$id]);flash('success','Comment added.');
@@ -54,6 +64,13 @@ function ticket_handle(string $page):void
             header('Content-Length: '.filesize($file['path']));readfile($file['path']);exit;
         }
         if($page==='hr-print-forms'){ticket_print_forms();}
+        elseif($page==='hr-request-preview'){
+            $t=TicketQueue::preview($id);header('Content-Type: text/html; charset=utf-8');ticket_queue_preview($t,TicketQueue::filters($_GET));
+        }elseif($page==='hr-service-requests-export'){
+            $f=TicketQueue::filters($_GET);$rows=TicketQueue::exportRows($f);audit('Tickets','EXPORT_QUEUE','ticket',null,['rows'=>count($rows),'filters'=>TicketQueue::linkParams($f)]);
+            header('Content-Type: text/csv; charset=utf-8');header('Content-Disposition: attachment; filename="hr-request-queue-'.date('Ymd').'.csv"');header('X-Content-Type-Options: nosniff');
+            $out=fopen('php://output','w');fwrite($out,"﻿");fputcsv($out,TicketQueue::EXPORT_HEADER);foreach($rows as $r)fputcsv($out,array_map([TicketQueue::class,'csvCell'],$r));fclose($out);exit;
+        }
         elseif($page==='hr-ticket-accounting-members'){ticket_accounting_members_page();}
         elseif($page==='hr-request-new'){
             if(!Auth::can('tickets.request_self')&&!Auth::can('ticket.file_for_others'))throw new RuntimeException('Filing permission is required.');
@@ -67,7 +84,10 @@ function ticket_handle(string $page):void
         else{
             $mode=match($page){'hr-request-inbox'=>'inbox','hr-payroll-concerns'=>'hr','hr-service-requests'=>'services','hr-accounting-requests'=>'accounting','hr-incidents'=>'feed','hr-request-team'=>'team',default=>'my'};
             if($mode==='my'&&!Auth::can('tickets.request_self')&&!Auth::can('ticket.file_for_others'))throw new RuntimeException('Filing permission is required.');
-            ticket_list_page($mode,TicketRepository::listing($mode,$_GET),$_GET);
+            if($mode==='services'){
+                $f=TicketQueue::filters($_GET);$result=$_SESSION['hq_result']??null;unset($_SESSION['hq_result']);
+                ticket_queue_page($f,TicketQueue::page($f),TicketQueue::counts($f),TicketQueue::uniformSummary($f),$result);
+            }else ticket_list_page($mode,TicketRepository::listing($mode,$_GET),$_GET);
         }
     }catch(RuntimeException $error){http_response_code(403);ticket_error_page($error->getMessage());}
     exit;
