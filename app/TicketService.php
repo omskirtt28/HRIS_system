@@ -71,8 +71,8 @@ final class TicketService
         $remarks=self::text($data['explanation']??null,5000,'Remarks / Explanation');
         $type=(int)($data['ticket_type_id']??0);$q=db()->prepare('SELECT * FROM ticket_types WHERE id=? AND active=1 AND code="PAYROLL_CONCERN"');$q->execute([$type]);$row=$q->fetch();
         if(!$row)throw new RuntimeException('Choose an available request type.');
-        $period=TicketRepository::periodForDate($date,true);
-        if(!in_array($period['status'],['OPEN','CLOSED'],true) && TicketRepository::lateReason($period)===null)throw new RuntimeException('This cutoff is not open for filing. Please ask HR to check the cutoff calendar.');
+        // A Payroll Concern is always fileable: a closed, locked or missing cutoff only changes the route (HR-only, flagged late).
+        $period=TicketRepository::periodForDateOrNull($date,true);
         return ['date'=>$date,'explanation'=>$remarks,'type'=>$row,'period'=>$period];
     }
     private static function snapshot(array $e):array
@@ -115,7 +115,7 @@ final class TicketService
             $fields=self::fields($data);
             if(in_array($t['type_code'],['BRANCH_TRANSFER','OIC_AUTHORIZATION'],true)&&(int)$fields['payload']['employee']!==(int)$t['subject_employee_id'])throw new RuntimeException('The subject employee cannot change.');
             if((int)$fields['type']['id']!==(int)$t['ticket_type_id'])throw new RuntimeException('Keep this ticket type. File a separate request for another type.');
-            if($t['type_code']==='PAYROLL_CONCERN' && $t['filed_at']!==null && ($fields['date']!==$t['concern_date'] || (int)$fields['period']['id']!==(int)$t['payroll_period_id']))throw new RuntimeException('Keep the original concern date and cutoff. File a separate ticket for another cutoff.');
+            if($t['type_code']==='PAYROLL_CONCERN' && $t['filed_at']!==null && ($fields['date']!==$t['concern_date'] || (int)($fields['period']['id']??0)!==(int)$t['payroll_period_id']))throw new RuntimeException('Keep the original concern date and cutoff. File a separate ticket for another cutoff.');
             $payload=$t['payload'];$oldHash=hash('sha256',json_encode($payload));$payload=array_replace($payload,$fields['payload']??['explanation'=>$fields['explanation']]);
             if($t['filed_at']===null)$payload=array_replace($payload,self::snapshot($e));
             db()->prepare('UPDATE tickets SET payroll_period_id=?,payload_json=?,version=version+1 WHERE id=?')->execute([$fields['period']['id']??null,json_encode($payload,JSON_THROW_ON_ERROR),$id]);
@@ -133,7 +133,7 @@ final class TicketService
             db()->prepare('UPDATE tickets SET filed_at=COALESCE(filed_at,NOW()),current_step_no=0 WHERE id=?')->execute([$t['id']]);
             self::transition($t,'SUBMITTED','','PUBLISHED');return;
         }
-        $late=null;if($t['type_code']==='PAYROLL_CONCERN'){$period=TicketRepository::period((int)$t['payroll_period_id'],true);$late=TicketRepository::lateReason($period);}
+        $late=null;if($t['type_code']==='PAYROLL_CONCERN'){$period=$t['payroll_period_id']?TicketRepository::period((int)$t['payroll_period_id'],true):null;$late=TicketRepository::lateReason($period);}
         if($t['is_late'])$late=$late?:$t['late_reason'];
         $config=json_decode($type['routing_config_json']?:'{}',true,512,JSON_THROW_ON_ERROR);
         $kind=EmployeeApproverAssignmentService::kind($employee);$key=$late?'LATE':($kind==='MANAGER'?'HEAD_OFFICE':'BRANCH');
@@ -229,7 +229,7 @@ final class TicketService
             if($outcome==='MANUAL_ADJUSTMENT'){
                 // Re-read and lock the target at completion; never call attendance rebuild/finalization.
                 $period=TicketRepository::period($target,true);
-                if($period['status']!=='OPEN' || TicketRepository::lateReason($period)!==null || $period['period_start']<=$t['period_end'])throw new RuntimeException('Choose a later open cutoff with an open filing deadline.');
+                if($period['status']!=='OPEN' || TicketRepository::lateReason($period)!==null || $period['period_start']<=($t['period_end']??$t['concern_date']))throw new RuntimeException('Choose a later open cutoff with an open filing deadline.');
                 $choices=TicketRepository::targetPeriods($t);
                 if(!$choices || (int)$choices[0]['id']!==$target)throw new RuntimeException('Choose the next available open cutoff. Refresh the ticket.');
                 $instruction=['source_cutoff_id'=>(int)$t['payroll_period_id'],'target_cutoff_id'=>$target,'target_period_label'=>$period['period_start'].' to '.$period['period_end'],'employee_id'=>(int)$t['subject_employee_id'],'instruction'=>$remarks,'manual_processing'=>true,'company_group'=>$t['company_group_snapshot'],'company_name'=>$t['company_name_snapshot']];

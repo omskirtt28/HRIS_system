@@ -67,7 +67,7 @@ check('rejected chain leaves no pending steps',!row('SELECT id FROM ticket_steps
 act($f['employee']);check('future date blocked',rejects(fn()=>TicketService::create(formConcern('2099-01-10'),true)));
 check('invalid date blocked',rejects(fn()=>TicketService::create(formConcern('2020-02-30'),true)));
 check('missing explanation blocked',rejects(fn()=>TicketService::create(formConcern('2020-01-10',''),true)));
-check('missing cutoff blocked',rejects(fn()=>TicketService::create(formConcern('1999-01-10'),true)));
+check('missing cutoff is no longer blocked (files, NO_CUTOFF, HR only)',row('SELECT late_reason FROM payroll_concerns WHERE ticket_id=?',[TicketService::create(formConcern('1999-01-10'),true)])['late_reason']==='NO_CUTOFF');
 // Branch routing exercises the validated legacy fallback, not directory-name guesses.
 db()->prepare('UPDATE payroll_site_settings SET approver_user_id=? WHERE branch_id=?')->execute([$f['adl']['id'],$f['branch']]);
 act($f['outsider']);$branch=TicketService::create(formConcern(),true);check('branch chain routes to ADL',TicketRepository::detail($branch)['steps'][0]['approver_type']==='ADL');
@@ -89,6 +89,30 @@ foreach(['FINALIZED','DEADLINE_EXPIRED','CALENDAR_CLOSED'] as $reason){
     check($reason.' source cutoff/attendance/snapshots untouched',$lockedBefore===lockedHash($source));
     check($reason.' manual instruction has no computed pay',json_decode(row('SELECT instruction_json FROM ticket_effects WHERE ticket_id=?',[$late])['instruction_json'],true)['manual_processing']===true);
 }
+// A Payroll Concern is always fileable: upcoming/unopened cutoff and a date with no cutoff both go straight to HR, flagged.
+$lockedBefore=lockedHash($source);
+$upcoming=cutoff('2020-03-01','2020-03-15','UPCOMING');
+act($f['employee']);$up=TicketService::create(formConcern('2020-03-05'),true);$t=ticket($up);
+check('UPCOMING cutoff files and goes to HR only, flagged',$t['status']==='PENDING_HR' && (int)$t['payroll_period_id']===$upcoming && $t['is_late'] && $t['late_reason']==='CALENDAR_NOT_OPEN' && array_column(TicketRepository::detail($up)['steps'],'approver_type')===['HR']);
+check('no cutoff found for the date',row('SELECT COUNT(*) n FROM payroll_cutoffs WHERE period_start<="2019-06-10" AND period_end>="2019-06-10"')['n']==0);
+$ncBefore=(int)db()->query('SELECT COUNT(*) FROM tickets')->fetchColumn();
+$nc=TicketService::create(formConcern('2019-06-10'),true);$t=ticket($nc);
+check('no-cutoff date files successfully',(int)db()->query('SELECT COUNT(*) FROM tickets')->fetchColumn()===$ncBefore+1);
+check('no-cutoff ticket saves NULL period, goes to HR only, flagged NO_CUTOFF',$t['payroll_period_id']===null && $t['status']==='PENDING_HR' && $t['is_late'] && $t['late_reason']==='NO_CUTOFF' && array_column(TicketRepository::detail($nc)['steps'],'approver_type')===['HR']);
+check('no-cutoff ticket keeps one request / one date',$t['concern_date']==='2019-06-10');
+$draft=TicketService::create(formConcern('2019-06-11'),false);TicketService::edit($draft,(int)ticket($draft)['version'],formConcern('2019-06-11'),true);
+check('no-cutoff draft submits to HR only',ticket($draft)['status']==='PENDING_HR' && ticket($draft)['late_reason']==='NO_CUTOFF');
+act($f['hr']);
+check('no-cutoff ticket cannot target the missing cutoff',rejects(fn()=>action($nc,'COMPLETE','Manual instruction','MANUAL_ADJUSTMENT',0)));
+action($nc,'COMPLETE','Review manual next-period adjustment','MANUAL_ADJUSTMENT',$target);
+$eventCount=count(TicketRepository::detail($nc)['events']);$version=(int)ticket($nc)['version'];
+TicketService::act($nc,$version-1,'COMPLETE','Review manual next-period adjustment','MANUAL_ADJUSTMENT',$target);
+check('no-cutoff effect is idempotent',(int)row('SELECT COUNT(*) n FROM ticket_effects WHERE ticket_id=?',[$nc])['n']===1 && count(TicketRepository::detail($nc)['events'])===$eventCount);
+check('no-cutoff effect is manual with null source cutoff',json_decode(row('SELECT instruction_json FROM ticket_effects WHERE ticket_id=?',[$nc])['instruction_json'],true)['manual_processing']===true);
+action($draft,'COMPLETE','Reviewed, no change','NO_CHANGE');check('no-cutoff NO_CHANGE completes',ticket($draft)['status']==='COMPLETED');
+check('locked payroll and attendance data unchanged',$lockedBefore===lockedHash($source));
+ob_start();
+$smoke=TicketRepository::find($nc);check('HR queue/detail rows load for a no-cutoff ticket',$smoke['period_start']===null && $smoke['is_late']);ob_end_clean();
 // Revalidate the target after the UI selected it.
 act($f['employee']);$late=TicketService::create(formConcern(),true);act($f['hr']);db()->prepare('UPDATE payroll_cutoff_runs SET state="FINALIZED" WHERE cutoff_id=?')->execute([$target]);
 check('target locked after selection rejects completion',rejects(fn()=>action($late,'COMPLETE','Manual instruction','MANUAL_ADJUSTMENT',$target)));

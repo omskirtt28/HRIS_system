@@ -268,6 +268,7 @@ These are not numbered rules but every rule above must preserve them.
 | BR-763 | Throughput is team totals per day (per week beyond 62 days); no per-person figures. |
 | BR-764 | Uniform pieces per size per branch use the branch the uniform is for and leave out Cancelled/Rejected; the branch filter follows that same target for Uniform requests. |
 | BR-765 | CSV: name and branch only, no free text, formula-leading cells neutralised, capped at 5000 rows, each export audited. |
+| BR-766 | A Payroll Concern is always fileable. The cutoff for the concern date decides only the route: open cutoff = normal chain (Manager/ADL then HR); finalized, deadline passed, calendar CLOSED or not OPEN (e.g. UPCOMING), or no single cutoff for the date = HR-only, flagged late (`FINALIZED`, `DEADLINE_EXPIRED`, `CALENDAR_CLOSED`, `CALENDAR_NOT_OPEN`, `NO_CUTOFF`). No cutoff = `payroll_period_id` NULL. Finalized/locked payroll and attendance are never touched; HR still records a manual instruction for a later open cutoff. |
 
 ## Open Questions
 

@@ -291,3 +291,8 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 - ADL coverage uses "Assigned areas for ADL" in Employee 201; changing it is now written to the audit log.
 - New permission "View team HR requests (read-only)", given to ADL, SC, OIC, TC and Manager only.
 - Migration: `database/migrations/20261024_012_ticket_viewers.sql` (rollback `.down.sql` refuses once leads exist). Not applied to the live database yet.
+
+## 2026-10-25 · Payroll Concern can always be filed
+- Fixed: filing a Payroll Concern for a date in a cutoff that was not yet marked Open (e.g. 10/14/2026, cutoff 10/04–10/18 still "Upcoming") showed "This cutoff is not open for filing". It no longer blocks.
+- Open cutoff: unchanged (Manager/ADL, then HR). Closed, locked, past-deadline, not-yet-open, or no cutoff for the date: the request goes straight to HR, flagged late, with the cutoff shown as "No cutoff found" when none exists.
+- No database change. Locked payroll and attendance are never touched; HR still records a manual instruction for a later open cutoff.

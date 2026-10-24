@@ -134,11 +134,20 @@ final class TicketRepository
         if(count($ids)!==1)throw new RuntimeException('This date needs one matching cutoff. Please ask HR to configure the cutoff calendar.');
         return self::period((int)$ids[0],$lock);
     }
-    public static function lateReason(array $p):?string
+    /** Payroll Concern filing: the single cutoff for a date, or null when none (or an ambiguous overlap) exists. Never throws. */
+    public static function periodForDateOrNull(string $date,bool $lock=false):?array
     {
+        $q=db()->prepare('SELECT id FROM payroll_cutoffs WHERE period_start<=? AND period_end>=? ORDER BY period_start');$q->execute([$date,$date]);$ids=$q->fetchAll(PDO::FETCH_COLUMN);
+        return count($ids)===1?self::period((int)$ids[0],$lock):null;
+    }
+    /** Why a Payroll Concern goes straight to HR; null means the cutoff is open and the normal chain applies. A null period means no cutoff exists for the date. */
+    public static function lateReason(?array $p):?string
+    {
+        if($p===null)return 'NO_CUTOFF';
         if($p['state']==='FINALIZED')return 'FINALIZED';
         if(!empty($p['ticket_deadline']) && $p['ticket_deadline']<date('Y-m-d H:i:s'))return 'DEADLINE_EXPIRED';
         if($p['status']==='CLOSED')return 'CALENDAR_CLOSED';
+        if($p['status']!=='OPEN')return 'CALENDAR_NOT_OPEN';
         return null;
     }
     public static function targetPeriods(array $ticket):array
@@ -146,6 +155,6 @@ final class TicketRepository
         if(!self::isHr())return [];
         $q=db()->prepare('SELECT pc.id,pc.code,pc.period_start,pc.period_end FROM payroll_cutoffs pc LEFT JOIN payroll_cutoff_runs r ON r.cutoff_id=pc.id
             WHERE pc.period_start>? AND pc.status="OPEN" AND COALESCE(r.state,"OPEN")<>"FINALIZED" AND (r.ticket_deadline IS NULL OR r.ticket_deadline>=?) ORDER BY pc.period_start LIMIT 100');
-        $q->execute([$ticket['period_end'],date('Y-m-d H:i:s')]);return $q->fetchAll();
+        $q->execute([$ticket['period_end']??$ticket['concern_date'],date('Y-m-d H:i:s')]);return $q->fetchAll();
     }
 }
