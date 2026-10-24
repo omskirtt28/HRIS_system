@@ -3,7 +3,20 @@ declare(strict_types=1);
 require_once __DIR__.'/TicketBranchTransfer.php';
 final class TicketTypes
 {
+    public const FILE_PERMISSIONS=['ATM_REQUEST'=>'ticket.file.atm','ID_REQUEST'=>'ticket.file.id','INCIDENT_REPORT'=>'ticket.file.incident','UNIFORM_REQUEST'=>'ticket.file.uniform','PAYROLL_CONCERN'=>'ticket.file.payroll_concern','MANPOWER_REQUEST'=>'ticket.file.manpower','NETSUITE_CONCERN'=>'ticket.file.netsuite','BRANCH_TRANSFER'=>'ticket.file_for_others'];
+    private static ?bool $perTypeReady=null;
     public static function definitions():array { return require dirname(__DIR__).'/config/ticket_types.php'; }
+    // Server-side gate for every filing path. Before migration 010, any filer keeps the old all-types access.
+    public static function canFile(string $code):bool {
+        $permission=self::FILE_PERMISSIONS[$code]??null;if($permission===null)return false;
+        if($code==='BRANCH_TRANSFER')return Auth::can($permission);
+        if(!Auth::can('tickets.request_self')&&!Auth::can('ticket.file_for_others'))return false;
+        if(self::$perTypeReady===null)self::$perTypeReady=(bool)db()->query('SELECT COUNT(*) FROM permissions WHERE code="ticket.file.atm"')->fetchColumn();
+        return self::$perTypeReady?Auth::can($permission):true;
+    }
+    public static function assertCanFile(string $code):void {
+        if(!self::canFile($code))throw new RuntimeException('Your role cannot file this request type. Please ask HR.');
+    }
     public static function definition(string $code):array {
         return self::definitions()[$code]??throw new RuntimeException('Choose an available request type.');
     }

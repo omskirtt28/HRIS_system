@@ -67,7 +67,7 @@ final class TicketRepository
     }
     public static function types():array
     {
-        self::uid();return array_values(array_filter(db()->query('SELECT id,code,name FROM ticket_types WHERE active=1 ORDER BY name')->fetchAll(),fn($type)=>$type['code']==='PAYROLL_CONCERN'||isset(TicketTypes::definitions()[$type['code']])));
+        self::uid();return array_values(array_filter(db()->query('SELECT id,code,name FROM ticket_types WHERE active=1 ORDER BY name')->fetchAll(),fn($type)=>($type['code']==='PAYROLL_CONCERN'||isset(TicketTypes::definitions()[$type['code']]))&&TicketTypes::canFile($type['code'])));
     }
     public static function listing(string $mode,array $filters=[],int $limit=50):array
     {

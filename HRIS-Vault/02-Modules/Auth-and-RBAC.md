@@ -3,7 +3,7 @@ title: Auth and RBAC
 type: module
 status: draft
 tags: [module, hris, mvp, security]
-updated: 2026-10-17
+updated: 2026-10-24
 ---
 
 # Auth and RBAC
@@ -235,6 +235,37 @@ Called on every protected action, server-side.
 | Audit log grows very large | Partition or archive by date, but never delete within the retention period. See [[Security-and-Compliance]]. |
 | Session hijacking concern | Bind the session to a hash of the user agent, rotate on privilege change, and keep the absolute timeout short for payroll and admin roles. |
 | Permission check forgotten on a new endpoint | Mitigate structurally: deny-by-default routing where an endpoint without a declared permission is unreachable, rather than relying on reviewer memory. |
+
+## As built: role and user administration (2026-10-24)
+
+The existing PHP app keeps one role per user (`users.role_id`), not the `user_roles` table above. Permission codes in the app use the app's own names (`users.manage`, `roles.manage`, `ticket.file.*`), not the `module.action` names in the target matrix.
+
+Screens: **Roles & Permissions** (`admin-roles`) and **Users & Access** (`admin-users`). HR/Admin can now, with no code or manual DB work:
+
+- create a role (code `A-Z0-9_`, unique, portal) and tick its permissions;
+- create a user, change an existing user's role, and link or unlink a user to an employee (`employees.user_id`, one-to-one);
+- see a warning listing active non-client accounts with no employee link (they cannot file HR requests).
+
+Roles ADL, SC, OIC and TC are **not** seeded; HR creates them on the screen. An approver-capable role (ADL, TC, OIC → `payroll.approve_adl`; Manager → `payroll.approve_manager`) appears automatically in **Ticket Approvers**. SC is a filer only.
+
+Escalation guards (server-side, in `FoundationRepository`):
+
+- **BR-122** — The Super Admin role cannot be assigned, edited, or have its users changed from the UI, by anyone.
+- **BR-123** — Only a Super Admin may create, assign or change accounts whose role uses the HR or Admin portal.
+- **BR-124** — A non-Super-Admin may assign a role only if they hold every permission that role has.
+- **BR-125** — Nobody may edit the permissions of their own role. A non-Super-Admin can neither grant nor remove a permission they do not hold; such permissions are preserved on save.
+- **BR-126** — A user cannot change their own role or employee link from this screen. A role change signs the account out everywhere (role is held in the session).
+- **BR-127** — Role creation, role permission changes (added/removed codes), user role changes and employee link/unlink are written to `audit_logs`.
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-143 | The system shall let HR/Admin create roles and set their permissions from the UI, subject to BR-122–BR-125. | Must |
+| FR-144 | The system shall let HR/Admin change an existing user's role from the UI, subject to BR-122–BR-126. | Must |
+| FR-145 | The system shall let HR/Admin link or unlink a user and an employee from the user screen, rejecting archived employees and employees linked to another account. | Must |
+| FR-146 | The system shall warn about active non-client accounts without an employee link. | Should |
+| FR-147 | The system shall audit role creation, role permission changes, user role changes and employee links. (BR-127) | Must |
+
+Roles are still never deleted (no delete action exists), so a role in use cannot be removed.
 
 ## Open Questions
 

@@ -109,7 +109,7 @@ try{
     check('failed notification remains queued',(bool)row('SELECT o.id FROM ticket_notification_outbox o JOIN ticket_events e ON e.id=o.event_id WHERE e.ticket_id=? AND o.delivered_at IS NULL AND o.attempts>0',[$id]));
 }finally{db()->exec('DROP TRIGGER `'.$trigger.'`');}
 $retry=TicketNotifications::flush(500,$id);check('notification worker retries pending delivery',$retry['delivered']>0);
-db()->prepare('INSERT IGNORE INTO role_permissions(role_id,permission_id) SELECT ?,id FROM permissions WHERE code="tickets.request_self"')->execute([$f['hr']['role_id']]);
+db()->prepare('INSERT IGNORE INTO role_permissions(role_id,permission_id) SELECT ?,id FROM permissions WHERE code IN ("tickets.request_self","ticket.file.payroll_concern")')->execute([$f['hr']['role_id']]);
 insert('INSERT INTO employees(employee_no,first_name,last_name,user_id,branch_id,legal_entity_id,business_unit_id,status) VALUES(?,"Slice15","HR Self",?,?,?,?,"ACTIVE")',[$f['tag'].'_hr',$f['hr']['id'],$f['ho'],$f['legal'],$f['company']]);
 act($f['hr']);$hrOwn=TicketService::create(formConcern(),true);
 check('HR cannot complete own concern',rejects(fn()=>action($hrOwn,'COMPLETE','Self approval','NO_CHANGE')));

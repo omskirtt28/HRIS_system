@@ -1,13 +1,18 @@
 <?php
+$filerRole=insert('INSERT INTO roles(code,name,portal) VALUES(?,?,"hr")',[$f['tag'].'_filer','Slice15 transfer filer']);db()->prepare('INSERT INTO role_permissions(role_id,permission_id) SELECT ?,id FROM permissions WHERE code="ticket.file_for_others"')->execute([$filerRole]);
+$filerId=insert('INSERT INTO users(role_id,full_name,email,password_hash,status) VALUES(?,?,?,?,"ACTIVE")',[$filerRole,'Slice15 Test filer',strtolower($f['tag']).'_filer@example.test',password_hash('Slice15-Test-Only!9',PASSWORD_DEFAULT)]);
+$filer=['id'=>$filerId,'role_id'=>$filerRole,'role_code'=>$f['tag'].'_filer','role_portal'=>'hr','name'=>'Slice15 Test filer','role_name'=>'Test filer','email'=>'filer@example.test','client_id'=>null];
 act($f['employee']);$today=date('Y-m-d');$tomorrow=(new DateTimeImmutable('tomorrow'))->format('Y-m-d');
 $transfer=['employee'=>(string)$f['requester'],'from_branch'=>(string)$f['ho'],'to_branch'=>(string)$f['branch'],'effective_date'=>$today,'company'=>'OFJI'];
 $before=row('SELECT legal_entity_id,business_unit_id,directory_company_group FROM employees WHERE id=?',[$f['requester']]);
 check('Transfer denies filing for others',rejects(fn()=>TicketService::create(service_form('BRANCH_TRANSFER',array_replace($transfer,['employee'=>(string)$f['branch_requester']])),true)));
+check('Staff cannot file Branch Transfer even for self',rejects(fn()=>TicketService::create(service_form('BRANCH_TRANSFER',$transfer),true))&&!TicketTypes::canFile('BRANCH_TRANSFER'));
+act($filer);
 check('Transfer rejects stale from branch',rejects(fn()=>TicketService::create(service_form('BRANCH_TRANSFER',array_replace($transfer,['from_branch'=>(string)$f['branch']])),true)));
 check('Transfer rejects same destination',rejects(fn()=>TicketService::create(service_form('BRANCH_TRANSFER',array_replace($transfer,['to_branch'=>(string)$f['ho']])),true)));
 $future=TicketService::create(service_form('BRANCH_TRANSFER',array_replace($transfer,['effective_date'=>$tomorrow])),true);
 act($f['hr']);service_action($future,'COMPLETE');check('Future transfer stays In Progress',TicketRepository::find($future)['status']==='IN_PROGRESS'&&!row('SELECT id FROM ticket_effects WHERE ticket_id=?',[$future]));
-act($f['employee']);$id=TicketService::create(service_form('BRANCH_TRANSFER',$transfer),true);
+act($filer);$id=TicketService::create(service_form('BRANCH_TRANSFER',$transfer),true);
 act($f['hr']);check('Transfer completion requires manual approver',rejects(fn()=>service_action($id,'COMPLETE')));
 check('Failed transfer is atomic',(int)row('SELECT branch_id FROM employees WHERE id=?',[$f['requester']])['branch_id']===$f['ho']&&!row('SELECT id FROM ticket_effects WHERE ticket_id=?',[$id]));
 TicketService::act($id,(int)TicketRepository::find($id)['version'],'COMPLETE','','',0,['new_approver_user_id'=>$f['adl']['id']]);service_action($id,'COMPLETE');
@@ -18,7 +23,7 @@ check('Transfer updates branch only',(int)row('SELECT branch_id FROM employees W
 check('Transfer saves explicit destination ADL',(int)row('SELECT approver_user_id FROM employee_approver_assignments WHERE employee_id=? AND approver_type="ADL" AND superseded_at IS NULL',[$f['requester']])['approver_user_id']===$f['adl']['id']);
 check('Second stale transfer cannot complete',rejects(fn()=>TicketService::act($future,(int)TicketRepository::find($future)['version'],'COMPLETE','','',0,['new_approver_user_id'=>$f['adl']['id']])));
 // Locked cutoff must block even after an earlier valid filing.
-act($f['outsider']);$data=['employee'=>(string)$f['branch_requester'],'from_branch'=>(string)$f['branch'],'to_branch'=>(string)$f['ho'],'effective_date'=>'2098-01-10','company'=>'SW'];
+act($filer);$data=['employee'=>(string)$f['branch_requester'],'from_branch'=>(string)$f['branch'],'to_branch'=>(string)$f['ho'],'effective_date'=>'2098-01-10','company'=>'SW'];
 $cutoff=row('SELECT id FROM payroll_cutoffs WHERE period_start="2098-01-01" AND period_end="2098-01-15"');$cid=$cutoff?(int)$cutoff['id']:insert('INSERT INTO payroll_cutoffs(code,period_start,period_end,status) VALUES(?,"2098-01-01","2098-01-15","OPEN")',[$f['tag'].'_transfer']);
 db()->prepare('INSERT INTO payroll_cutoff_runs(cutoff_id,state) VALUES(?,"FINALIZED") ON DUPLICATE KEY UPDATE state="FINALIZED"')->execute([$cid]);
 check('Transfer rejects effective date in locked cutoff',rejects(fn()=>TicketService::create(service_form('BRANCH_TRANSFER',$data),true)));

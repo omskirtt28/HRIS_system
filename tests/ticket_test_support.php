@@ -26,7 +26,7 @@ function fixtures(): array{
     $out['legal']=(int)db()->query('SELECT id FROM legal_entities ORDER BY id LIMIT 1')->fetchColumn();
     foreach(['hr'=>'hr','manager'=>'employee','adl'=>'employee','employee'=>'employee','outsider'=>'employee'] as $key=>$portal){
         $role=insert('INSERT INTO roles(code,name,portal) VALUES(?,?,?)',[$tag.'_'.$key,'Slice15 '.$key,$portal]);
-        $permissions=match($key){'hr'=>['tickets.approvers.manage','tickets.review_hr','employees.manage','payroll.approve_hr'],'manager'=>['payroll.approve_manager'],'adl'=>['payroll.approve_adl'],default=>['payroll.request_self','tickets.request_self']};
+        $permissions=match($key){'hr'=>['tickets.approvers.manage','tickets.review_hr','employees.manage','payroll.approve_hr'],'manager'=>['payroll.approve_manager'],'adl'=>['payroll.approve_adl'],default=>['payroll.request_self','tickets.request_self','ticket.file.atm','ticket.file.id','ticket.file.incident','ticket.file.uniform','ticket.file.payroll_concern','ticket.file.manpower','ticket.file.netsuite']};
         foreach($permissions as $code){$p=row('SELECT id FROM permissions WHERE code=?',[$code]);if($p)db()->prepare('INSERT INTO role_permissions(role_id,permission_id) VALUES(?,?)')->execute([$role,$p['id']]);}
         $email=strtolower($tag.'_'.$key).'@example.test';
         $id=insert('INSERT INTO users(role_id,full_name,email,password_hash,status) VALUES(?,?,?,?,"ACTIVE")',[$role,'Slice15 Test '.$key,$email,password_hash('Slice15-Test-Only!9',PASSWORD_DEFAULT)]);

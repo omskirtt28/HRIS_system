@@ -3,7 +3,7 @@ title: Decision Log
 type: moc
 status: draft
 tags: [meta, decision]
-updated: 2026-10-17
+updated: 2026-10-24
 ---
 
 # Decision Log
@@ -17,6 +17,17 @@ Index of Architecture Decision Records. One ADR per decision that is expensive t
 | ADR-001 | [[ADR-001-Tech-Stack]] — language, framework, database | proposed | 2026-10-17 | — |
 | ADR-002 | [[ADR-002-Multi-Tenancy]] — single company vs multi-company | proposed | 2026-10-17 | — |
 | ADR-003 | [[ADR-003-Payroll-Engine-Approach]] — rules as config vs hardcoded | proposed | 2026-10-17 | — |
+
+## Decisions recorded without an ADR
+
+Smaller, reversible decisions John made during implementation. Not ADRs because migration 010 has a guarded down script.
+
+| Date | Decision | Why | Where |
+|---|---|---|---|
+| 2026-10-24 | Ticket type access is per-type permissions (`ticket.file.<type>`) in `role_permissions`; no new table. | Reuses the existing role screen; HR changes access with no code. | [[Self-Service-Portal]], migration 010 |
+| 2026-10-24 | Manpower Request routes HR_ONLY (was Manager/ADL then HR). Payroll Concern keeps its SLICE-15 chain. All other ticket types HR_ONLY. | Leads file Manpower, HR decides; Payroll Concern still needs the line approver. | BR-723 |
+| 2026-10-24 | ADL, SC, OIC, TC are created by HR on the screen, not seeded. ADL/TC/OIC/Manager are approver-capable (`payroll.approve_adl` / `payroll.approve_manager`); SC is a filer only. TC assumed to have the same access as ADL. | Keeps roles data, not code. | [[Auth-and-RBAC]] |
+| 2026-10-24 | Only Super Admin creates or assigns HR/Admin-portal accounts; HRIS Admin manages the other roles' accounts. Super Admin cannot be assigned from the UI at all. | Closes privilege escalation through the user screen. | BR-122–BR-126 |
 
 ## Status meanings
 

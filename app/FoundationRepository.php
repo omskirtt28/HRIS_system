@@ -70,7 +70,7 @@ final class FoundationRepository
 
     public static function users(): array
     {
-        return db()->query('SELECT u.id,u.full_name,u.email,u.status,u.last_login_at,u.created_at,r.id role_id,r.code role_code,r.name role_name,r.portal FROM users u JOIN roles r ON r.id=u.role_id ORDER BY u.full_name')->fetchAll();
+        return db()->query('SELECT u.id,u.full_name,u.email,u.status,u.last_login_at,u.created_at,r.id role_id,r.code role_code,r.name role_name,r.portal,e.id employee_id,e.employee_no,TRIM(CONCAT(e.first_name," ",e.last_name)) employee_name FROM users u JOIN roles r ON r.id=u.role_id LEFT JOIN employees e ON e.user_id=u.id ORDER BY u.full_name')->fetchAll();
     }
 
     public static function departments(): array
@@ -278,24 +278,71 @@ final class FoundationRepository
     {
         $code=strtoupper(trim($code)); $name=trim($name); $portal=strtolower(trim($portal));
         if($code===''||$name==='') throw new RuntimeException('Role code and name are required.');
+        if(!preg_match('/^[A-Z][A-Z0-9_]{1,49}$/',$code)) throw new RuntimeException('Role code must use capital letters, numbers or underscores (e.g. ADL).');
+        if(mb_strlen($name)>120) throw new RuntimeException('Role name must be 120 characters or fewer.');
         if(!in_array($portal,['employee','hr','admin','client'],true)) throw new RuntimeException('Invalid portal type.');
+        $exists=db()->prepare('SELECT 1 FROM roles WHERE code=?'); $exists->execute([$code]);
+        if($exists->fetchColumn()) throw new RuntimeException('A role with this code already exists.');
         $st=db()->prepare('INSERT INTO roles(code,name,portal,is_system) VALUES(?,?,?,0)'); $st->execute([$code,$name,$portal]);
         audit('Access Control','CREATE_ROLE','role',(int)db()->lastInsertId(),['code'=>$code,'portal'=>$portal]);
+    }
+
+    private static function role(int $roleId): array
+    {
+        $st=db()->prepare('SELECT id,code,name,portal FROM roles WHERE id=?'); $st->execute([$roleId]);
+        return $st->fetch() ?: throw new RuntimeException('Role not found.');
+    }
+
+    // Escalation guards: nobody assigns Super Admin from the UI; HR/Admin-portal roles need Super Admin;
+    // everyone else may only hand out a role whose permissions they hold themselves.
+    public static function roleAssignmentError(array $role): ?string
+    {
+        if($role['code']==='SUPER_ADMIN') return 'The Super Admin role cannot be assigned from this screen.';
+        if(Auth::is('SUPER_ADMIN')) return null;
+        if(in_array($role['portal'],['hr','admin'],true)) return 'Only a Super Admin can assign HR or Admin portal roles.';
+        $missing=array_diff(self::permissionsForRole((int)$role['id']),Auth::permissionCodes());
+        return $missing ? 'You cannot assign a role with permissions you do not hold: '.implode(', ',$missing).'.' : null;
+    }
+
+    public static function assignableRoles(): array
+    {
+        return array_values(array_filter(self::roles(),fn($r)=>self::roleAssignmentError($r)===null));
+    }
+
+    public static function roleEditError(array $role): ?string
+    {
+        if($role['code']==='SUPER_ADMIN') return 'The Super Admin role cannot be edited.';
+        if((int)$role['id']===(int)(Auth::user()['role_id']??0)) return 'You cannot edit the permissions of your own role.';
+        return null;
     }
 
     public static function saveRolePermissions(int $roleId,array $permissionIds): void
     {
         if(!self::tableExists('role_permissions')) throw new RuntimeException('Run the Phase 1 foundation migration first.');
-        $role=db()->prepare('SELECT id,code FROM roles WHERE id=?'); $role->execute([$roleId]); $r=$role->fetch();
-        if(!$r) throw new RuntimeException('Role not found.');
+        $r=self::role($roleId);
+        if($error=self::roleEditError($r)) throw new RuntimeException($error);
+        $codes=db()->query('SELECT id,code FROM permissions')->fetchAll(PDO::FETCH_KEY_PAIR);
+        $requested=array_values(array_filter(array_unique(array_map('intval',$permissionIds)),fn($pid)=>isset($codes[$pid])));
+        $current=db()->prepare('SELECT permission_id FROM role_permissions WHERE role_id=?'); $current->execute([$roleId]);
+        $before=array_map('intval',$current->fetchAll(PDO::FETCH_COLUMN));
+        $final=$requested;
+        if(!Auth::is('SUPER_ADMIN')){
+            // Permissions you do not hold can be neither granted nor removed by you.
+            $mine=Auth::permissionCodes();
+            $foreign=fn($pid)=>!in_array($codes[$pid],$mine,true);
+            $granted=array_filter(array_diff($requested,$before),$foreign);
+            if($granted) throw new RuntimeException('You cannot grant permissions you do not hold: '.implode(', ',array_map(fn($pid)=>$codes[$pid],$granted)).'.');
+            $final=array_values(array_unique(array_merge(array_filter($requested,fn($pid)=>!$foreign($pid)),array_filter($before,$foreign))));
+        }
         db()->beginTransaction();
         try {
             db()->prepare('DELETE FROM role_permissions WHERE role_id=?')->execute([$roleId]);
-            $ins=db()->prepare('INSERT INTO role_permissions(role_id,permission_id) SELECT ?,id FROM permissions WHERE id=?');
-            foreach(array_unique(array_map('intval',$permissionIds)) as $pid) if($pid>0) $ins->execute([$roleId,$pid]);
+            $ins=db()->prepare('INSERT INTO role_permissions(role_id,permission_id) VALUES(?,?)');
+            foreach($final as $pid) $ins->execute([$roleId,$pid]);
             db()->commit();
         } catch(Throwable $e) { db()->rollBack(); throw $e; }
-        audit('Access Control','UPDATE_ROLE_PERMISSIONS','role',$roleId,['permission_ids'=>array_values(array_unique(array_map('intval',$permissionIds)))]);
+        $names=fn(array $ids)=>array_values(array_map(fn($pid)=>$codes[$pid]??(string)$pid,$ids));
+        audit('Access Control','UPDATE_ROLE_PERMISSIONS','role',$roleId,['role_code'=>$r['code'],'added'=>$names(array_diff($final,$before)),'removed'=>$names(array_diff($before,$final)),'permission_ids'=>$final]);
         Auth::clearPermissionCache();
     }
 
@@ -304,9 +351,58 @@ final class FoundationRepository
         $name=trim($name); $email=strtolower(trim($email));
         if($name===''||!filter_var($email,FILTER_VALIDATE_EMAIL)) throw new RuntimeException('Enter a valid name and email address.');
         if(strlen($password)<10) throw new RuntimeException('Temporary password must be at least 10 characters.');
+        if($error=self::roleAssignmentError(self::role($roleId))) throw new RuntimeException($error);
+        $exists=db()->prepare('SELECT 1 FROM users WHERE email=?'); $exists->execute([$email]);
+        if($exists->fetchColumn()) throw new RuntimeException('A user with this email already exists.');
         $st=db()->prepare('INSERT INTO users(role_id,client_id,full_name,email,password_hash,status) VALUES(?,NULL,?,?,?,"ACTIVE")');
         $st->execute([$roleId,$name,$email,password_hash($password,PASSWORD_DEFAULT)]);
         audit('Access Control','CREATE_USER','user',(int)db()->lastInsertId(),['email'=>$email,'role_id'=>$roleId]);
+    }
+
+    private static function managedUser(int $userId): array
+    {
+        if($userId===(int)(Auth::user()['id']??0)) throw new RuntimeException('You cannot change your own account here.');
+        $st=db()->prepare('SELECT u.id,u.role_id,r.code role_code,r.portal FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=?'); $st->execute([$userId]);
+        $user=$st->fetch() ?: throw new RuntimeException('User account not found.');
+        if(!Auth::is('SUPER_ADMIN') && ($user['role_code']==='SUPER_ADMIN' || in_array($user['portal'],['hr','admin'],true))) throw new RuntimeException('Only a Super Admin can change HR or Admin portal accounts.');
+        return $user;
+    }
+
+    public static function changeUserRole(int $userId,int $roleId): void
+    {
+        $user=self::managedUser($userId); $role=self::role($roleId);
+        if($user['role_code']==='SUPER_ADMIN') throw new RuntimeException('Super Admin accounts cannot be changed from this screen.');
+        if($error=self::roleAssignmentError($role)) throw new RuntimeException($error);
+        if((int)$user['role_id']===$roleId) return;
+        db()->prepare('UPDATE users SET role_id=? WHERE id=?')->execute([$roleId,$userId]);
+        // The role lives in the session, so sign the account out everywhere.
+        if(self::tableExists('user_sessions')) db()->prepare('UPDATE user_sessions SET revoked_at=NOW() WHERE user_id=? AND revoked_at IS NULL')->execute([$userId]);
+        audit('Access Control','CHANGE_USER_ROLE','user',$userId,['from_role_id'=>(int)$user['role_id'],'from_role'=>$user['role_code'],'to_role_id'=>$roleId,'to_role'=>$role['code']]);
+    }
+
+    public static function linkUserEmployee(int $userId,int $employeeId): void
+    {
+        self::managedUser($userId);
+        db()->beginTransaction();
+        try {
+            $old=db()->prepare('SELECT id FROM employees WHERE user_id=? FOR UPDATE'); $old->execute([$userId]); $from=(int)$old->fetchColumn();
+            if($employeeId>0){
+                $st=db()->prepare('SELECT id,user_id,status FROM employees WHERE id=? FOR UPDATE'); $st->execute([$employeeId]);
+                $employee=$st->fetch() ?: throw new RuntimeException('Employee not found.');
+                if(!in_array($employee['status'],['ACTIVE','PROBATIONARY','ON_LEAVE'],true)) throw new RuntimeException('Choose an active employee.');
+                if($employee['user_id']!==null && (int)$employee['user_id']!==$userId) throw new RuntimeException('This employee is already linked to another user account.');
+            }
+            if($from===$employeeId){ db()->commit(); return; }
+            if($from) db()->prepare('UPDATE employees SET user_id=NULL WHERE id=?')->execute([$from]);
+            if($employeeId>0) db()->prepare('UPDATE employees SET user_id=? WHERE id=?')->execute([$userId,$employeeId]);
+            audit('Access Control',$employeeId>0?'LINK_USER_EMPLOYEE':'UNLINK_USER_EMPLOYEE','user',$userId,['from_employee_id'=>$from?:null,'to_employee_id'=>$employeeId?:null]);
+            db()->commit();
+        } catch(Throwable $e) { if(db()->inTransaction()) db()->rollBack(); throw $e; }
+    }
+
+    public static function linkableEmployees(): array
+    {
+        return db()->query('SELECT id,employee_no,first_name,last_name,user_id FROM employees WHERE status IN ("ACTIVE","PROBATIONARY","ON_LEAVE") ORDER BY last_name,first_name')->fetchAll();
     }
 
     public static function toggleUserStatus(int $id): void

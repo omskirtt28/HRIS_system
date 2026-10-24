@@ -19,7 +19,7 @@ function stage_backup(string $source,string $label):array {
     return ['backup'=>$file,'sha256'=>hash_file('sha256',$file),'test_database'=>$test,'baseline'=>$before];
 }
 function stage_migrate(string $name,int $number,bool $down=false):void {
-    $files=glob('database/migrations/20261020_'.sprintf('%03d',$number).'_*.'.($down?'down.sql':'sql'));
+    $files=glob('database/migrations/2026????_'.sprintf('%03d',$number).'_*.'.($down?'down.sql':'sql'));
     $files=array_values(array_filter($files,fn($f)=>$down||!str_ends_with($f,'.down.sql')));
     if(count($files)!==1)throw new RuntimeException('Expected one migration.');
     slice15_cli('mysql',$name,$files[0]);echo 'PASS '.basename($files[0]).PHP_EOL;

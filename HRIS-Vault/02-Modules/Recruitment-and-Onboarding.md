@@ -3,7 +3,7 @@ title: Recruitment and Onboarding
 type: module
 status: draft
 tags: [module, hris, v1]
-updated: 2026-10-17
+updated: 2026-10-24
 ---
 
 # Recruitment and Onboarding
@@ -163,6 +163,11 @@ The feature that pays for the module.
 | Government IDs not yet available on day one | Expected. Blocking task stays open; employee is not payroll-ready until it closes. |
 | Conversion attempted twice | Idempotency guard on `source_application_id`. |
 | Interviewer separates mid-process | Reassign the round; the submitted evaluation stays attributed to them. |
+
+## As built: two separate "Manpower" requests (2026-10-24)
+
+- **Recruitment manpower request** (`manpower_requests`, Recruitment module): unchanged.
+- **HR ticket "Manpower Request"** (`ticket_manpower_requests`, Slice-15 ticket engine): since migration 010 it is filed by roles holding `ticket.file.manpower` (ADL, SC, OIC, TC, Manager, HR) and routed **HR_ONLY** — no Manager/ADL approval step; HR sets the status and Served records the date. Open tickets filed under the old chain keep their frozen steps. The two are not linked; see [[Self-Service-Portal]] for the filing matrix.
 
 ## Open Questions
 

@@ -265,6 +265,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             FoundationRepository::createUser((string)($_POST['full_name']??''),(string)($_POST['email']??''),(string)($_POST['password']??''),(int)($_POST['role_id']??0));
             flash('success','User account created.'); redirect('admin-users');
         }
+        if ($action === 'change_user_role') {
+            Auth::requirePermission('users.manage');
+            FoundationRepository::changeUserRole((int)($_POST['user_id']??0),(int)($_POST['role_id']??0));
+            flash('success','User role changed. The account was signed out so the new access applies.'); redirect('admin-users');
+        }
+        if ($action === 'link_user_employee') {
+            Auth::requirePermission('users.manage');
+            FoundationRepository::linkUserEmployee((int)($_POST['user_id']??0),(int)($_POST['employee_id']??0));
+            flash('success','Employee link updated.'); redirect('admin-users');
+        }
         if ($action === 'toggle_user_status') {
             Auth::requirePermission('users.manage');
             FoundationRepository::toggleUserStatus((int)($_POST['user_id']??0));
@@ -399,7 +409,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $defaultBack = match($action) {
             'create_business_unit','create_legal_entity','create_department','create_position','create_area','create_branch','create_employment_type','toggle_master' => 'admin-organization',
             'create_role','save_role_permissions' => 'admin-roles',
-            'create_user','toggle_user_status','reset_user_password' => 'admin-users',
+            'create_user','toggle_user_status','reset_user_password','change_user_role','link_user_employee' => 'admin-users',
             'create_employee' => 'hr-employee-new',
             'create_payroll_request' => 'employee-request-new',
             'payroll_request_decision' => 'manager-approvals',
@@ -1603,7 +1613,10 @@ if ($page === 'admin-users') {
     Auth::requirePermission('users.view');
     $users=FoundationRepository::users();
     $roles=FoundationRepository::roles();
+    $assignableRoles=FoundationRepository::assignableRoles();
     $isSuperAdmin=Auth::is('SUPER_ADMIN');
+    // Client accounts never file HR requests, so only non-client accounts need an employee link.
+    $unlinkedUsers=array_values(array_filter($users,fn($u)=>$u['status']==='ACTIVE' && $u['portal']!=='client' && $u['employee_id']===null));
     $passwordResetReveal=$_SESSION['password_reset_reveal'] ?? null;
     unset($_SESSION['password_reset_reveal']);
     $passwordResetRevealUserId=is_array($passwordResetReveal)?(int)($passwordResetReveal['user_id']??0):0;
@@ -1627,7 +1640,7 @@ if ($page === 'admin-users') {
         <div class="users-create-body">
           <div class="field"><label for="create_full_name">Full name</label><input id="create_full_name" name="full_name" required placeholder="Enter full name" autocomplete="name"></div>
           <div class="field"><label for="create_email">Email address</label><input id="create_email" name="email" type="email" required placeholder="name@pmbsi.com" autocomplete="email"></div>
-          <div class="field"><label for="create_role">Role</label><select id="create_role" name="role_id" required><option value="">Select role</option><?php foreach($roles as $r):?><option value="<?=$r['id']?>"><?=e($r['name'])?></option><?php endforeach;?></select></div>
+          <div class="field"><label for="create_role">Role</label><select id="create_role" name="role_id" required><option value="">Select role</option><?php foreach($assignableRoles as $r):?><option value="<?=$r['id']?>"><?=e($r['name'])?></option><?php endforeach;?></select></div>
           <div class="field"><label for="create_password">Temporary password</label><div class="users-password-input"><input id="create_password" name="password" type="password" minlength="10" required autocomplete="new-password" placeholder="Minimum 10 characters"><button class="users-eye-btn" type="button" aria-label="Show temporary password" title="Show / hide password" data-password-toggle="#create_password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></div><small>Minimum 10 characters. Include at least one letter and one number.</small></div>
           <button class="btn primary block users-create-btn" type="submit"><?=icon_svg('user-plus')?> <span>Create account</span></button>
         </div>
@@ -1669,7 +1682,7 @@ if ($page === 'admin-users') {
               $isCurrent=(int)$u['id']===(int)(Auth::user()['id']??0);
             ?>
               <tr data-user-row data-search="<?=e($searchFilter)?>" data-role="<?=e($roleFilter)?>" data-department="<?=e($portalFilter)?>" data-status="<?=e($statusFilter)?>">
-                <td data-label="Name / Email"><div class="users-person"><div><strong><?=e($u['full_name'])?></strong><span><?=e($u['email'])?></span></div></div></td>
+                <td data-label="Name / Email"><div class="users-person"><div><strong><?=e($u['full_name'])?></strong><span><?=e($u['email'])?></span><?php if($u['employee_id']!==null):?><span>Employee: <?=e($u['employee_no'].' · '.$u['employee_name'])?></span><?php elseif($u['portal']!=='client'):?><span class="badge amber">Not linked to an employee</span><?php endif;?></div></div></td>
                 <td data-label="Role"><span class="users-role-badge"><?=e($u['role_name'])?></span></td>
                 <td data-label="Department"><span class="users-department"><?=e(strtoupper($u['portal']))?></span></td>
                 <td data-label="Status"><span class="users-status users-status-<?=e(strtolower($u['status']))?>"><?=e(strtoupper($u['status']))?></span></td>
@@ -1701,6 +1714,26 @@ if ($page === 'admin-users') {
         </div>
       </section>
     </div>
+
+    <?php if($unlinkedUsers):?><div class="alert"><?=count($unlinkedUsers)?> active account(s) are not linked to an employee and cannot file HR requests: <?=e(implode(', ',array_column($unlinkedUsers,'full_name')))?>. Link them below.</div><?php endif;?>
+    <?php if(Auth::can('users.manage')):
+      $managedUsers=array_values(array_filter($users,fn($u)=>(int)$u['id']!==(int)(Auth::user()['id']??0) && ($isSuperAdmin || ($u['role_code']!=='SUPER_ADMIN' && !in_array($u['portal'],['hr','admin'],true)))));
+      $linkEmployees=FoundationRepository::linkableEmployees(); ?>
+    <section class="panel"><div class="panel-head"><div><h2>Role and employee link</h2><p>Changing a role signs that account out. HR and Admin portal accounts can be changed by a Super Admin only.</p></div></div>
+      <div class="panel-body foundation-layout">
+        <form method="post"><?=csrf_field()?><input type="hidden" name="action" value="change_user_role">
+          <div class="field"><label for="role_user">User</label><select id="role_user" name="user_id" required><option value="">Select user</option><?php foreach($managedUsers as $u): if($u['role_code']==='SUPER_ADMIN')continue;?><option value="<?=(int)$u['id']?>"><?=e($u['full_name'].' · '.$u['role_name'])?></option><?php endforeach;?></select></div>
+          <div class="field"><label for="role_new">New role</label><select id="role_new" name="role_id" required><option value="">Select role</option><?php foreach($assignableRoles as $r):?><option value="<?=(int)$r['id']?>"><?=e($r['name'].' · '.strtoupper($r['portal']))?></option><?php endforeach;?></select></div>
+          <button class="btn primary">Change role</button>
+        </form>
+        <form method="post"><?=csrf_field()?><input type="hidden" name="action" value="link_user_employee">
+          <div class="field"><label for="link_user">User</label><select id="link_user" name="user_id" required><option value="">Select user</option><?php foreach($managedUsers as $u):?><option value="<?=(int)$u['id']?>"><?=e($u['full_name'].($u['employee_id']===null?' · not linked':' · '.$u['employee_no']))?></option><?php endforeach;?></select></div>
+          <div class="field"><label for="link_employee">Employee</label><select id="link_employee" name="employee_id"><option value="0">Remove the link</option><?php foreach($linkEmployees as $emp):?><option value="<?=(int)$emp['id']?>" <?=$emp['user_id']!==null?'disabled':''?>><?=e($emp['employee_no'].' · '.$emp['first_name'].' '.$emp['last_name'].($emp['user_id']!==null?' (already linked)':''))?></option><?php endforeach;?></select></div>
+          <button class="btn">Save employee link</button>
+        </form>
+      </div>
+    </section>
+    <?php endif;?>
 
     <?php if($isSuperAdmin):?>
     <div class="users-modal-backdrop" id="passwordAccessModal" hidden>
@@ -1843,12 +1876,15 @@ if ($page === 'admin-roles') {
     $selected=null; foreach($roles as $r) if((int)$r['id']===$selectedId){$selected=$r;break;}
     if(!$selected && $roles){$selected=$roles[0];$selectedId=(int)$selected['id'];}
     $selectedCodes=$selectedId?FoundationRepository::permissionsForRole($selectedId):[];
+    $editError=$selected?FoundationRepository::roleEditError($selected):null;
+    $canEditRole=Auth::can('roles.manage') && $editError===null;
+    $myCodes=Auth::is('SUPER_ADMIN')?null:Auth::permissionCodes();
     render_portal_header('admin',$page,'Roles & Permissions'); page_head('HR Admin / Access Control','Roles & Permissions'); ?>
     <?php if(!FoundationRepository::tableExists('permissions')):?><div class="alert error">Run <code>database/migrations/20260924_phase1_foundation.sql</code> first to enable permission management.</div><?php endif;?>
     <div class="foundation-layout">
       <div><section class="panel"><div class="panel-head"><div><h2>Roles</h2><p>Choose a role to review access.</p></div></div><div class="role-list"><?php foreach($roles as $r):?><a class="role-row <?=$selectedId===(int)$r['id']?'active':''?>" href="<?=url('admin-roles',['role'=>$r['id']])?>"><div><strong><?=e($r['name'])?></strong><span><?=e($r['code'])?> · <?=e(strtoupper($r['portal']))?></span></div><span class="badge gray"><?=e((string)$r['permission_count'])?></span></a><?php endforeach;?></div></section>
       <?php if(Auth::can('roles.manage')):?><form method="post" class="panel foundation-form compact"><?=csrf_field()?><input type="hidden" name="action" value="create_role"><div class="panel-head"><div><h2>New role</h2><p>Create a custom access role.</p></div></div><div class="panel-body"><div class="field"><label>Role code</label><input name="code" required placeholder="HR_COORDINATOR"></div><div class="field"><label>Role name</label><input name="name" required placeholder="HR Coordinator"></div><div class="field"><label>Portal</label><select name="portal"><option value="employee">Employee</option><option value="hr">HR</option><option value="admin">HR Admin</option><option value="client">Client</option></select></div><button class="btn primary block" style="justify-content:center">Create role</button></div></form><?php endif;?></div>
-      <section class="panel foundation-main"><?php if($selected):?><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="save_role_permissions"><input type="hidden" name="role_id" value="<?=$selectedId?>"><div class="panel-head"><div><h2><?=e($selected['name'])?></h2><p><?=e($selected['code'])?> · <?=e(strtoupper($selected['portal']))?> portal · <?=$selected['user_count']?> user(s)</p></div><?php if(Auth::can('roles.manage')):?><button class="btn primary">Save permissions</button><?php endif;?></div><div class="permission-groups"><?php foreach($groups as $module=>$perms):?><div class="permission-group"><div class="permission-module"><?=e($module)?></div><?php foreach($perms as $perm): $checked=in_array($perm['code'],$selectedCodes,true); ?><label class="permission-row"><input type="checkbox" name="permission_ids[]" value="<?=$perm['id']?>" <?=$checked?'checked':''?> <?=Auth::can('roles.manage')?'':'disabled'?>><span><strong><?=e($perm['name'])?></strong><small><?=e($perm['description']??$perm['code'])?></small><code><?=e($perm['code'])?></code></span></label><?php endforeach;?></div><?php endforeach;?></div></form><?php else:?><div class="empty">No roles configured.</div><?php endif;?></section>
+      <section class="panel foundation-main"><?php if($selected):?><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="save_role_permissions"><input type="hidden" name="role_id" value="<?=$selectedId?>"><div class="panel-head"><div><h2><?=e($selected['name'])?></h2><p><?=e($selected['code'])?> · <?=e(strtoupper($selected['portal']))?> portal · <?=$selected['user_count']?> user(s)</p></div><?php if($canEditRole):?><button class="btn primary">Save permissions</button><?php endif;?></div><?php if(Auth::can('roles.manage')&&$editError!==null):?><div class="alert"><?=e($editError)?></div><?php elseif($canEditRole&&$myCodes!==null):?><div class="alert">Greyed-out permissions are ones you do not hold; you cannot grant or remove them.</div><?php endif;?><div class="permission-groups"><?php foreach($groups as $module=>$perms):?><div class="permission-group"><div class="permission-module"><?=e($module)?></div><?php foreach($perms as $perm): $checked=in_array($perm['code'],$selectedCodes,true); ?><label class="permission-row"><input type="checkbox" name="permission_ids[]" value="<?=$perm['id']?>" <?=$checked?'checked':''?> <?=($canEditRole&&($myCodes===null||in_array($perm['code'],$myCodes,true)))?'':'disabled'?>><span><strong><?=e($perm['name'])?></strong><small><?=e($perm['description']??$perm['code'])?></small><code><?=e($perm['code'])?></code></span></label><?php endforeach;?></div><?php endforeach;?></div></form><?php else:?><div class="empty">No roles configured.</div><?php endif;?></section>
     </div>
     <?php render_portal_footer(); exit;
 }

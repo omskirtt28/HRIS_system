@@ -3,7 +3,7 @@ title: Self Service Portal
 type: module
 status: draft
 tags: [module, hris, v1]
-updated: 2026-10-17
+updated: 2026-10-24
 ---
 
 # Self Service Portal
@@ -167,6 +167,35 @@ Scope discipline: the portal owns **no data**. Every screen is a scoped read of 
 | Two devices, same account | Allowed; both sessions tracked and individually revocable. |
 | Employee changes their own email | It is the login identifier, so it is a sensitive field requiring HR approval, not a direct edit. |
 | Deep link clicked while logged out | Authenticate, then land on the target item — not on a generic dashboard. |
+
+## As built: who may file which HR request (2026-10-24)
+
+"File an HR Request" (Slice-15 ticket engine) lists only the types the user's role may file. Each type has a permission in `role_permissions`; no new table or column. Branch Transfer keeps using `ticket.file_for_others`.
+
+| Type | Permission | Staff | ADL / SC / OIC / TC / Manager | HR / Admin |
+|---|---|---|---|---|
+| ATM Request | `ticket.file.atm` | ✓ | ✓ | ✓ |
+| ID Request | `ticket.file.id` | ✓ | ✓ | ✓ |
+| Incident Report | `ticket.file.incident` | ✓ | ✓ | ✓ |
+| Uniform Request | `ticket.file.uniform` | ✓ | ✓ | ✓ |
+| Payroll Concern | `ticket.file.payroll_concern` | ✓ | ✓ | ✓ |
+| Manpower Request | `ticket.file.manpower` | — | ✓ | ✓ |
+| NetSuite Concern | `ticket.file.netsuite` | — | ✓ | ✓ |
+| Branch Transfer | `ticket.file_for_others` | — | — | ✓ |
+
+Routing: everything is HR_ONLY except **Payroll Concern**, which keeps Manager (Head Office) or ADL (Branch) then HR, and late filings straight to HR (SLICE-15 unchanged). **Manpower** moved from Manager/ADL-then-HR to HR_ONLY: leads file it, HR sets the status. Manpower tickets already open keep their frozen steps. The Recruitment `manpower_requests` table is untouched.
+
+Migration 010 kept today's access for existing roles: `EMPLOYEE` got the five staff types; `MANAGER`, `HR_USER` and `HRIS_ADMIN` got all seven. Super Admin passes every check implicitly. New roles get whatever HR ticks.
+
+- **BR-720** — A user may file a ticket type only if their role holds that type's permission and a filing permission (`tickets.request_self` or `ticket.file_for_others`). Branch Transfer requires `ticket.file_for_others`.
+- **BR-721** — Type access is enforced on the server at every filing path: the type list, create, edit/resubmit, and the new-request page's `?type=` selection. Hiding a type in the dropdown is not the control.
+- **BR-722** — If a role loses a type's permission, the user's draft or returned ticket of that type can no longer be edited or resubmitted; it can still be cancelled.
+- **BR-723** — Manpower Request routes HR_ONLY. Payroll Concern routing is unchanged.
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-726 | The system shall show in "File an HR Request" only the types the user's role may file, and reject any other type server-side. (BR-720, BR-721) | Must |
+| FR-727 | The system shall let HR grant or remove a type for a role from Roles & Permissions, with no code change. | Must |
 
 ## Open Questions
 

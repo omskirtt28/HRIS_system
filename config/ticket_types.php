@@ -12,7 +12,7 @@ return [
         'effective_date'=>['label'=>'Effective date','kind'=>'date'],
         'company'=>['label'=>'Company label','options'=>['SW','OFJI']],
     ]],
-    'MANPOWER_REQUEST'=>['name'=>'Manpower Request','profile'=>'BRANCH_ADL_THEN_HR','fields'=>[
+    'MANPOWER_REQUEST'=>['name'=>'Manpower Request','profile'=>'HR_ONLY','fields'=>[
         'section_branch'=>['label'=>'Section / Branch','kind'=>'text','max'=>160],
         'position_code'=>['label'=>'Position code','options'=>['BS','SC','VS']],
         'employment_type'=>['label'=>'Employment type','options'=>['Seasonal','Probationary']],

@@ -3,7 +3,7 @@ title: Business Rules
 type: design
 status: draft
 tags: [design, business-rules, ph-statutory, needs-verification]
-updated: 2026-10-17
+updated: 2026-10-24
 ---
 
 # Business Rules
@@ -59,6 +59,12 @@ One index of every `BR-###` in the vault. Rules are **defined in the module note
 | BR-119 | A user cannot approve, review or release anything concerning their own employee record. | [[Auth-and-RBAC]] |
 | BR-120 | Separation of an employee disables their account and revokes their sessions on the effective separation date. | [[Auth-and-RBAC]] |
 | BR-121 | Permission denials are logged with the attempted action, and the response reveals nothing about what exists. | [[Auth-and-RBAC]] |
+| BR-122 | The Super Admin role cannot be assigned, edited, or have its users changed from the UI, by anyone. (2026-10-24) | [[Auth-and-RBAC]] |
+| BR-123 | Only a Super Admin may create, assign or change accounts whose role uses the HR or Admin portal. (2026-10-24) | [[Auth-and-RBAC]] |
+| BR-124 | A non-Super-Admin may assign a role only if they hold every permission that role has. (2026-10-24) | [[Auth-and-RBAC]] |
+| BR-125 | Nobody edits their own role's permissions; a non-Super-Admin can neither grant nor remove a permission they do not hold. (2026-10-24) | [[Auth-and-RBAC]] |
+| BR-126 | A user cannot change their own role or employee link; a role change signs the account out everywhere. (2026-10-24) | [[Auth-and-RBAC]] |
+| BR-127 | Role creation, role permission changes, user role changes and employee link/unlink are audited. (2026-10-24) | [[Auth-and-RBAC]] |
 
 ## 200s - Employee records
 
@@ -162,6 +168,10 @@ One index of every `BR-###` in the vault. Rules are **defined in the module note
 | BR-717 | Escalation never auto-approves and is capped at a configured level. | [[Notifications]] |
 | BR-718 | Every delivery attempt is logged with its outcome; terminal failures are visible to an administrator. | [[Notifications]] |
 | BR-719 | Recipients are resolved at send time from current reporting lines and delegations, so a stale cached recipient is never used. | [[Notifications]] |
+| BR-720 | An HR request type may be filed only if the role holds that type's `ticket.file.<type>` permission plus a filing permission; Branch Transfer needs `ticket.file_for_others`. Access matrix in [[Self-Service-Portal]]. (2026-10-24) | [[Self-Service-Portal]] |
+| BR-721 | Type access is enforced server-side at the type list, create, edit/resubmit and the new-request page, not only by hiding dropdown options. (2026-10-24) | [[Self-Service-Portal]] |
+| BR-722 | A draft or returned ticket of a type the role can no longer file cannot be edited or resubmitted; it can still be cancelled. (2026-10-24) | [[Self-Service-Portal]] |
+| BR-723 | Manpower Request routes HR_ONLY; Payroll Concern keeps Manager/ADL then HR. Other ticket types are HR_ONLY. (2026-10-24) | [[Self-Service-Portal]] |
 
 ## 800s - Lifecycle: recruitment, offboarding, performance
 

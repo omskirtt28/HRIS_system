@@ -226,3 +226,12 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 - The employee must give HR her **actual medical certificate** before returning: HR records it (date + optional scan, kept as a MEDICAL document), then uses **Return to work**, which restores the previous Employee Status. Return is blocked until the certificate is recorded. A mistaken entry can be cancelled.
 - Reminders: 14 days before the leave ends, HR, the employee and her ADL / Manager are told to expect the medical certificate; on the return date HR is reminded if it is still missing. **Probation & Seasonal** also lists everyone on maternity leave.
 - Maternity Leave can no longer be set or cleared from the plain Employee Status dropdown, and is hidden when adding an employee. Migration: `database/migrations/20261012_maternity_leave.sql`.
+
+## 2026-10-24 — Role-based HR request types and role/user administration
+- **File an HR Request** now shows only the request types your role may file. Staff: ATM, ID, Incident Report, Uniform, Payroll Concern. ADL / SC / OIC / TC / Manager: those plus Manpower and NetSuite Concern. Branch Transfer: HR/Admin only. The server re-checks the type on every save, not just the dropdown.
+- Each type is a permission (`ticket.file.atm`, `.id`, `.incident`, `.uniform`, `.payroll_concern`, `.manpower`, `.netsuite`) that HR ticks per role in **Roles & Permissions** — no code change needed. Existing roles kept their current access.
+- **Manpower Request** now goes straight to HR (no Manager/ADL approval step); HR sets the status. Tickets already open keep their original approvers. Payroll Concern still goes Manager/ADL then HR. TA/OB/OT/leave, Payroll Ticket Review and Recruitment are unchanged.
+- **Users & Access**: change an existing user's role, link or unlink a user to an employee, and see which active accounts are not linked (they cannot file HR requests). A role change signs the account out.
+- Safety rules: the Super Admin role cannot be assigned or edited from the screen; only a Super Admin can create or change HR/Admin portal accounts; you cannot edit your own role or grant permissions you do not hold. Role creation, permission changes, role changes and employee links are audit-logged.
+- New roles such as ADL, SC, OIC and TC are created by HR on the Roles screen. A role given the ADL or Manager approval permission appears automatically in Ticket Approvers.
+- Migration: `database/migrations/20261024_010_role_ticket_access.sql` (rollback: `.down.sql`, refuses once the new permissions are in use).

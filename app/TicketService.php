@@ -51,6 +51,7 @@ final class TicketService
     {
         $q=db()->prepare('SELECT * FROM ticket_types WHERE id=? AND active=1');$q->execute([(int)($data['ticket_type_id']??0)]);$type=$q->fetch();
         if(!$type)throw new RuntimeException('Choose an available request type.');
+        TicketTypes::assertCanFile($type['code']);
         if($type['code']!=='PAYROLL_CONCERN'){
             $e=self::requireFiler($data);
             return ['type'=>$type,'period'=>null,'date'=>null,'explanation'=>'','payload'=>TicketTypes::validate($type['code'],$data,$e)];
@@ -165,7 +166,7 @@ final class TicketService
         $q=db()->prepare('SELECT * FROM ticket_steps WHERE ticket_id=? AND step_no=? AND status="PENDING"');$q->execute([$t['id'],$t['current_step_no']]);$step=$q->fetch();
         $named=$step && (int)$step['approver_user_id']===$uid && Auth::can($step['approver_type']==='ADL'?'payroll.approve_adl':'payroll.approve_manager');
         $hr=TicketRepository::isHr();$hrStep=$hr && $step && $step['approver_type']==='HR' && in_array($t['status'],['PENDING_HR','IN_PROGRESS'],true);$pending=in_array($t['status'],['PENDING_APPROVAL','PENDING_HR','IN_PROGRESS'],true);
-        return ['edit'=>$own && (Auth::can('tickets.request_self')||Auth::can('ticket.file_for_others')) && in_array($t['status'],['DRAFT','RETURNED'],true),
+        return ['edit'=>$own && TicketTypes::canFile($t['type_code']) && in_array($t['status'],['DRAFT','RETURNED'],true),
             'cancel'=>!(($t['type_code']==='NETSUITE_CONCERN')&&$t['filed_at']!==null) && (($own&&in_array($t['status'],['DRAFT','RETURNED','PENDING_APPROVAL'],true))||(!$self&&($hrStep||($hr&&$t['type_code']==='INCIDENT_REPORT'&&$t['status']==='SUBMITTED')))),
             'approve'=>!$self && $named && $t['status']==='PENDING_APPROVAL',
             'hr'=>!$self && $hr && $step && $step['approver_type']==='HR' && in_array($t['status'],['PENDING_HR','IN_PROGRESS'],true),

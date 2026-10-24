@@ -25,6 +25,12 @@ function ticket_new_page(array $employee,array $types,string $key,array $old):vo
     foreach($types as $type)if((int)$type['id']===$selected && $type['code']!=='PAYROLL_CONCERN'){ticket_service_new($employee,$types,$type,$key,$old);return;}
     ticket_header('hr-requests-my','File an HR Request');
     page_head('Employee Self-Service / HR Concerns','File an HR Request','<a class="btn" href="'.url('hr-requests-my').'">My HR requests</a>');
+    // $types is already limited to the role's ticket.file.<type> permissions; the server re-checks on save.
+    if(!in_array('PAYROLL_CONCERN',array_column($types,'code'),true)){
+        echo '<section class="panel ticket-panel"><div class="panel-body">';
+        if($types){ticket_service_select($types,0);}else echo '<p>Your role has no HR request types assigned. Please ask HR.</p>';
+        echo '</div></section>';render_portal_footer();return;
+    }
     $q=db()->prepare('SELECT COALESCE(ds.name,d.name,b.name) FROM employees e LEFT JOIN directory_sections ds ON ds.id=e.directory_section_id LEFT JOIN departments d ON d.id=e.department_id LEFT JOIN branches b ON b.id=e.branch_id WHERE e.id=?');$q->execute([$employee['id']]);$section=$q->fetchColumn(); ?>
     <form method="post" enctype="multipart/form-data" class="panel ticket-panel"><?=csrf_field()?><input type="hidden" name="action" value="core_ticket_create"><input type="hidden" name="submission_key" value="<?=e($key)?>">
       <div class="panel-body"><div class="field"><label for="ticket-type">Request type</label><select id="ticket-type" name="ticket_type_id" onchange="location.href='index.php?page=hr-request-new&type='+this.value" required><option value="">Choose a type</option><?php foreach($types as $type):?><option value="<?=(int)$type['id']?>" <?=($selected===(int)$type['id'])?'selected':''?>><?=e($type['name'])?></option><?php endforeach;?></select></div>
