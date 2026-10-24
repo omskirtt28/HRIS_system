@@ -50,6 +50,10 @@ Use only assets in `public/assets/branding/`: full wordmark `pmbsi-logo-transpar
 
 Directory: compact metric cards, one filter rail, identity-first rows, profile view; Add Employee is a two-column form with a sticky action card. Profile tab rail: Overview, Personal Info, Employment, Government IDs, Emergency Contact, Documents, History, Audit Trail; employment changes need an effective date and optional remarks. Recruitment-to-employee conversion is review-first (source summary, identity, assignment, portal-access option, document transfer, final confirmation); converted applications become read-only and link to the employee.
 
+## Ticket components (P1, 2026-10-25)
+
+Shared in `public/assets/tickets.css` (prefix `tk-`, tokens only, light and dark): `tk-card` (22px padding, 16px radius, soft shadow), `tk-chip` / `tk-pill` tones green, red, amber, blue, gray; stepper `tk-step` states `is-done`, `is-current`, `is-skipped` (dashed, dash mark), `is-stop`, `is-warn`, `is-todo`; `tk-kv` key-value grid; `tk-timeline` with `tk-avatar` initials; `tk-empty`; `tk-composer`. PHP helpers in `app/TicketServiceViews.php` return escaped HTML: `ticket_time` (readable date, relative time as tooltip), `ticket_status_chip`, `ticket_timeline`, `ticket_avatar`, `ticket_empty`, `ticket_kv`. Rules: never print a raw status code or timestamp; a step a request never went through is "skipped", never a number; timeline remarks and acting-HR names stay off unless the screen already shows them (view-only users must not see the HR response).
+
 ## Delivery rule for every feature patch
 
 Ship the user-facing UI with the function, in simple English, clear next actions, readable spacing, narrow-screen layouts; keep employment status separate from missing-detail notices; badges stay on one line. Report honestly when visual testing was not done. The repo-root `UI_UX_PATCH_GUIDELINES.md` named in the old RULES.md does not exist (unverified whether it was ever committed).

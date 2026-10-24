@@ -155,3 +155,6 @@ graph TD
 [[Self-Service-Portal]] · [[Auth-and-RBAC]] · [[User-Stories]] · [[Personas]] · [[API-Surface]] · [[Build-Plan]] · [[Architecture]]
 
 Hub for HR requests: [[Employee-Tickets]] · UI rules: [[Design-System]]
+
+### Ticket detail components (P1, 2026-10-25)
+Request detail (`hr-request`) uses shared pieces from `tickets.css`: stepper states done, current, skipped (dash), stop, warn, todo; status chip and pill with a gray tone; Approval chain as a vertical timeline (avatar initials, role, name, status chip, date); empty state for no comments; comment composer; every date through `ticket_time()`. Layout (two columns, Payroll Concern on the same page) is P2 of [[2026-10-25-ticketing-ui-ux-redesign]]. No new screen or route.

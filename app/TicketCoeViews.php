@@ -20,8 +20,8 @@ function ticket_coe_preview_page(array $d): void
 {
     $t=$d['ticket'];$v=$d['values'];$labels=['employee_name'=>'Employee name','position'=>'Position','hire_date'=>'Hire date','company'=>'Company','purpose'=>'Purpose','date_issued'=>'Date issued (today, the Served date)','salary'=>'Salary','signatory_name'=>'Signatory name','signatory_title'=>'Signatory title'];
     render_portal_header((Auth::user()['role_portal']??'')==='admin'?'admin':'hr','hr-service-requests','Preview Certificate of Employment');
-    echo '<link rel="stylesheet" href="public/assets/tickets.css?v=20261020-15">';
-    page_head('HR Requests / Certificate of Employment','Preview · '.$t['ticket_no'],'<a class="btn" href="'.e(url('hr-request',['id'=>$t['id']])).'">Back to request</a>'); ?>
+    echo '<link rel="stylesheet" href="public/assets/tickets.css?v=20261025-17">';
+page_head('HR Requests / Certificate of Employment','Preview · '.$t['ticket_no'],'<a class="btn" href="'.e(url('hr-request',['id'=>$t['id']])).'">Back to request</a>'); ?>
     <section class="panel ticket-panel"><div class="panel-body">
       <p>These are the exact values that will be written into the certificate (<?=$d['template']?'template version '.(int)$d['template']['version_no'].' · '.e($d['template']['original_name']):'built-in default layout, no template uploaded yet'?>). Purpose requested: <strong><?=e($d['request']['purpose'])?></strong>, needed by <?=e($d['request']['needed_by'])?>, delivery: <?=e($d['request']['delivery'])?>.</p>
       <?php foreach($d['problems'] as $problem):?><div class="alert error"><?=e($problem)?></div><?php endforeach;?>
@@ -41,8 +41,8 @@ function ticket_coe_preview_page(array $d): void
 function ticket_coe_template_page(array $templates,array $settings,?array $active): void
 {
     render_portal_header((Auth::user()['role_portal']??'')==='admin'?'admin':'hr','hr-coe-template','COE Template');
-    echo '<link rel="stylesheet" href="public/assets/tickets.css?v=20261020-15">';
-    page_head('HR Request Setup','COE Template'); ?>
+    echo '<link rel="stylesheet" href="public/assets/tickets.css?v=20261025-17">';
+page_head('HR Request Setup','COE Template'); ?>
     <section class="panel ticket-panel"><div class="panel-head"><div><h2>Current template</h2></div></div><div class="panel-body">
       <?php if($active):?><p>Version <?=(int)$active['version_no']?> · <?=e($active['original_name'])?> · uploaded <?=e($active['uploaded_at'])?></p>
       <?php else:?><p>No template uploaded. Certificates use a simple built-in layout until you upload one.</p><?php endif;?>

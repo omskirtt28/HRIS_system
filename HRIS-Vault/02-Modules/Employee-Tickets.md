@@ -46,6 +46,10 @@ An employee (or a lead filing for someone) opens File an HR Request and sees onl
 
 10 ticket types active, 3 routing profiles, 116 tables, migrations 001-016 applied on localhost. Tests live under `tests/` (core, services, Payroll Concern, assignments, viewers, OIC, COE, queue/bulk, dashboard, report, HR response, file access, lead roles, portal gate, legacy regression) and run only against an isolated database copy; `ticket_migration_roundtrips` and the older browser suites were not re-run in the last patches. The COE suite has one known order-dependent check (seed equals ATM grants).
 
+## UI redesign (plan [[2026-10-25-ticketing-ui-ux-redesign]])
+
+P1 Foundation done 2026-10-25: shared components and date/label helpers ([[Design-System]]), stepper shows "skipped" when a Served request skipped In Progress. P2-P5 pending. Lesson: the approval timeline must not show step remarks or the acting HR name to view-only users (caught by `ticket_hr_response_test`).
+
 ## Open Questions
 
 - [ ] ADL holds `tickets.approvers.manage` and `ticket.accounting.view` live; neither is in migration 011. Intended? See [[Open-Questions]].

@@ -35,3 +35,25 @@
 .tk-msg-by{margin:0 0 4px;font-size:13px}.tk-bubble .ticket-text{margin:0}
 .tk-collapse summary:focus-visible,.tk-earlier summary:focus-visible{outline:3px solid var(--hris-info);outline-offset:2px}
 @media(max-width:650px){.tk-head{padding:16px}.tk-steps{grid-template-columns:1fr}.tk-pill{font-size:15px}.tk-response,.tk-internal{padding:14px 16px}.tk-bubble{max-width:100%}}
+
+/* P1 foundation (2026-10-25): shared components for every ticket screen. Tokens only; light and dark follow hris-modern.css. */
+.ticket-panel .panel-body{padding:22px}.ticket-panel h2{line-height:1.3}
+.tk-card{background:var(--hris-surface);border:1px solid var(--hris-line);border-radius:var(--hris-radius);box-shadow:var(--hris-shadow);padding:22px;margin:16px 0}
+.tk-card>h2:first-child{margin:0 0 14px;font-size:17px}
+.tk-chip.is-gray,.tk-pill.is-gray{background:var(--hris-bg);color:var(--hris-muted);border-color:var(--hris-line)}
+.tk-chip{white-space:nowrap;line-height:1.5}
+.tk-step.is-skipped{color:var(--hris-muted);border-style:dashed;background:transparent}.tk-step.is-skipped .tk-dot{background:transparent;border-style:dashed;color:var(--hris-muted)}
+.tk-step.is-todo .tk-dot{color:var(--hris-muted)}
+.tk-kv{margin:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px 24px}.tk-kv>div{min-width:0}.tk-kv dt{color:var(--hris-muted);font-size:12px;margin-bottom:4px}.tk-kv dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+.tk-avatar{flex:0 0 36px;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--hris-brand-soft);color:var(--hris-text);border:1px solid var(--hris-line);font-size:13px;font-weight:700;letter-spacing:.02em}
+.tk-timeline{list-style:none;margin:0;padding:0}
+.tk-tl-item{position:relative;display:flex;gap:14px;padding:0 0 22px}.tk-tl-item:last-child{padding-bottom:0}
+.tk-tl-item:not(:last-child)::before{content:"";position:absolute;left:17px;top:40px;bottom:4px;width:2px;background:var(--hris-line)}
+.tk-tl-item.is-green .tk-avatar{background:var(--hris-success-soft);border-color:var(--hris-success)}.tk-tl-item.is-red .tk-avatar{background:var(--hris-danger-soft);border-color:var(--hris-danger)}.tk-tl-item.is-amber .tk-avatar{background:var(--hris-warning-soft);border-color:var(--hris-warning)}.tk-tl-item.is-blue .tk-avatar{background:var(--hris-info-soft);border-color:var(--hris-info)}
+.tk-tl-body{min-width:0;flex:1}.tk-tl-body p{margin:0}
+.tk-tl-role{color:var(--hris-muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em}.tk-tl-name{font-weight:600;margin-top:2px!important}.tk-tl-when{color:var(--hris-muted);font-size:13px;margin-top:2px!important}.tk-tl-remarks{margin-top:8px!important;padding:10px 12px;border-radius:12px;background:var(--hris-bg);border:1px solid var(--hris-line)}
+.tk-empty{padding:22px 16px;text-align:center;border:1px dashed var(--hris-line);border-radius:12px;color:var(--hris-muted)}.tk-empty p{margin:0;font-weight:600}.tk-empty small{display:block;margin-top:4px}
+.tk-composer{margin-top:16px;padding-top:16px;border-top:1px solid var(--hris-line)}.tk-composer .field{margin:0 0 12px}.tk-composer textarea{width:100%;min-height:84px;resize:vertical}
+.tk-bubble time{white-space:nowrap}
+.tk-steps time,.tk-dates time{white-space:nowrap}
+@media(max-width:650px){.ticket-panel .panel-body{padding:18px}.tk-card{padding:18px}.tk-kv{grid-template-columns:1fr}}

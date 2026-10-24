@@ -308,3 +308,8 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 - SCHEMA.md, ARCHITECTURE.md, RULES.md and DESIGN.md are no longer maintained and point to the vault; their unique facts were moved into it.
 - Every future patch must update the vault before its final report; the rule is in CLAUDE.md and in the new `hris-patch` skill, and CLAUDE.md maps the installed skills to task types.
 - No code, database or setting changed.
+
+## 2026-10-25 · Ticket screens: shared look and a stepper fix (no database change)
+- Fixed: a request served straight from Pending showed a "3" on the In Progress step as if it was still to do. It now shows a dash and is read as "skipped, not needed".
+- Dates in History and Comments now read "Oct 25, 2026 2:04 AM" (hover shows how long ago) instead of raw timestamps; history shows the readable status, and the Approval chain on service requests is a timeline with initials, role, name and status.
+- New shared pieces for the next screens (header card, key-value grid, empty state, comment box) and equal 22px card padding. Looks and wording only: permissions, routing and privacy are unchanged.
