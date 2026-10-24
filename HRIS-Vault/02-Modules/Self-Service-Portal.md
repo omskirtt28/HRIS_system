@@ -233,6 +233,10 @@ Request type `COE_REQUEST` in File an HR Request for every role holding `ticket.
 - **Template:** HR Request Setup → COE Template (`ticket.coe.template.manage`). Placeholders: `{{employee_name}} {{position}} {{hire_date}} {{company}} {{purpose}} {{date_issued}}` required; `{{salary}}` (only when HR ticks it), `{{signatory_name}}`, `{{signatory_title}}` optional. Signatory and an optional company display name are HR-admin settings; blank prints blank.
 - Code: `app/TicketCoe.php` (rules, template, fill), `TicketCoeViews.php`, `TicketCoeModule.php`; tables `coe_requests`, `coe_templates`, `coe_documents`, `coe_settings`, `coe_seed`.
 
+## As built: Ticketing Report (2026-10-25, migration 015)
+
+HR Requests → Ticketing Report (`ticket.report.view`, HR roles only). Read-only over live tickets; Incident Reports are a count with no titles or details; throughput is per day for the whole team, never per person. CSV (`hr-ticket-report-export`) has one row per request with employee name and branch only; the print summary (`hr-ticket-report-print`) is one A4 page for management. Aging and setup health ignore the period; everything else follows the filters.
+
 ## Open Questions
 
 - [ ] Do all employees get portal accounts? → Q15 in [[Open-Questions]]

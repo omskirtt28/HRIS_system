@@ -128,6 +128,7 @@ function nav_config(string $kind): array {
         if(Auth::can('ticket.view_team') && TicketViewerService::ready())$items[]=['Team Requests','hr-request-team','users',false,null];
         if($portal!=='employee')$items[]=['HR Request Queue','hr-service-requests','clipboard',false,'tickets.review_hr'];
         if($portal!=='employee')$items[]=['Payroll Concerns','hr-payroll-concerns','clipboard',false,'tickets.review_hr'];
+        if($portal!=='employee')$items[]=['Ticketing Report','hr-ticket-report','chart',false,'ticket.report.view'];
         if(TicketRepository::ready() && TicketAccounting::canView())$items[]=['Accounting Follow-up','hr-accounting-requests','clipboard',false,null];
         $items[]=['Incident Feed','hr-incidents','clipboard',false,null];
         $base[$portal]['groups'][]=['Requests',$items];

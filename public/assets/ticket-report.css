@@ -1,0 +1,41 @@
+/* Ticketing Report (tr-). Tokens come from hris-modern.css; the print sheet carries its own light fallbacks. */
+.tr-scope{margin:0 0 14px;color:var(--hris-muted);font-size:12.5px}
+.tr-filters .field{min-width:130px}
+.tr-kpis .metric-value{font-size:26px}
+.tr-kpis .hd-kpi.is-hot{border-color:var(--hris-danger);background:var(--hris-danger-soft)}
+.tr-panel{margin-bottom:18px}
+.tr-scroll{overflow-x:auto;max-width:100%}
+.tr-table{min-width:520px}
+.tr-empty{padding:18px 4px;color:var(--hris-muted);font-size:13px}
+.tr-note{margin:6px 0;color:var(--hris-muted);font-size:12.5px}.tr-note strong{color:var(--hris-text)}
+.tr-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+.tr-more{margin:10px 0}.tr-more summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--hris-info)}
+.tr-list{margin:8px 0;padding-left:18px;columns:2;column-gap:28px;font-size:12.5px}.tr-list li{margin:3px 0;break-inside:avoid}.tr-list small{color:var(--hris-muted)}
+.tr-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.tr-stats div{padding:12px 14px;border:1px solid var(--hris-line);border-radius:12px;background:var(--hris-surface-2)}
+.tr-stats strong{display:block;font-size:22px;line-height:1.1}.tr-stats span{display:block;font-size:12px;color:var(--hris-muted);margin-top:4px}
+.tr-spark{display:flex;align-items:flex-end;gap:3px;height:150px;padding:6px 0 0;overflow-x:auto}
+.tr-col{flex:1 0 14px;min-width:14px;max-width:46px;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px}
+.tr-bars{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center;gap:2px}
+.tr-bars i{display:block;flex:1;max-width:14px;min-height:0;border-radius:3px 3px 0 0}
+.tr-col span{font-size:9.5px;color:var(--hris-muted);white-space:nowrap}
+.tr-bars .seg-pending,.hd-legend .seg-pending{background:var(--hris-brand)}.tr-bars .seg-served,.hd-legend .seg-served{background:var(--hris-success)}
+@media(max-width:900px){.tr-cols{grid-template-columns:1fr}.tr-stats{grid-template-columns:1fr}.tr-list{columns:1}}
+@media(max-width:620px){.tr-filters .field,.tr-filters select,.tr-filters input{width:100%}.tr-filters .btn{width:100%}.tr-kpis .metric-value{font-size:22px}}
+
+/* One-page printable summary (standalone page, no app shell) */
+body.tr-print{margin:0;background:#f4f4f5;color:#1c1d1f;font:13px/1.45 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+.tr-sheet{max-width:780px;margin:18px auto;padding:28px 32px;background:#fff;border:1px solid #e4e4e5;border-radius:6px}
+.tr-sheet header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:3px solid #fdae04;padding-bottom:10px;margin-bottom:14px}
+.tr-sheet h1{margin:0;font-size:22px}.tr-sheet header p{margin:3px 0 0;color:#676b6e;font-size:12px}
+.tr-sheet h2{margin:14px 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.03em;color:#676b6e}.tr-sheet h3{margin:8px 0 4px;font-size:12px}
+.tr-actions button{height:34px;padding:0 16px;border:0;border-radius:8px;background:#fdae04;color:#1c1d1f;font-weight:700;cursor:pointer}
+.tr-kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.tr-kpi-row div{border:1px solid #e4e4e5;border-radius:8px;padding:8px 10px;background:#fafafa}.tr-kpi-row strong{display:block;font-size:20px}.tr-kpi-row span{font-size:11px;color:#676b6e}
+.tr-sheet table{width:100%;border-collapse:collapse;font-size:12px}.tr-sheet th,.tr-sheet td{padding:5px 8px;border-bottom:1px solid #e4e4e5;text-align:left}.tr-sheet th{font-size:10.5px;text-transform:uppercase;color:#676b6e}
+.tr-sheet .hq-num{text-align:right}.tr-sheet .tr-scroll{overflow:visible}.tr-sheet .tr-table{min-width:0}
+.tr-two{display:grid;grid-template-columns:1fr 1fr;gap:22px}.tr-sheet .tr-list{columns:1;margin:4px 0;padding-left:16px;font-size:12px}
+.tr-none{color:#676b6e;margin:4px 0}.tr-sheet footer{margin-top:16px;padding-top:8px;border-top:1px solid #e4e4e5;font-size:10.5px;color:#676b6e}
+@media(max-width:620px){.tr-sheet{margin:0;padding:16px;border:0;border-radius:0}.tr-kpi-row{grid-template-columns:repeat(2,1fr)}.tr-two{grid-template-columns:1fr}.tr-sheet table{display:block;overflow-x:auto}}
+@page{size:A4 portrait;margin:12mm}
+@media print{body.tr-print{background:#fff}.tr-sheet{margin:0;padding:0;border:0;max-width:none}.tr-actions{display:none}.tr-sheet{break-inside:avoid;page-break-inside:avoid}.tr-sheet h2,.tr-sheet table{break-inside:avoid}}

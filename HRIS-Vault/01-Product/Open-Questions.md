@@ -77,6 +77,8 @@ Decisions John needs to make. Each is blocking something concrete. When one is d
 - [ ] **Q46.** No salary rate exists in `payroll_employee_rates` (0 rows), so Include salary cannot be used until HR enters rates (Payroll).
 - [ ] **Q47.** COE signatory name/title and any letterhead image are not set; they print blank until HR fills COE Template (images are not supported yet; put the letterhead in the .docx itself).
 - [ ] **Q48.** Merge later: the dead employee-dashboard tile "Request COE" (index.php) and the Offboarding COE document list (`separation_documents_issued`, planned) overlap with this request type.
+- [ ] **Q49.** Report access: granted to HR_USER, HRIS_ADMIN, HR_TIMEKEEPING. Add HR Leave or Payroll roles in Roles if they should see it.
+- [ ] **Q50.** Setup health in the report needs `tickets.approvers.manage`; HR users without it see a notice instead of those numbers.
 
 > [!warning] NEEDS VERIFICATION
 > Q22–Q27 are all deliberately unanswered in this vault. No figure for any of them appears anywhere as fact. Each must be confirmed against the issuing agency's current circular, recorded with its effectivity date in [[PH-Labor-and-Payroll-Notes]], and entered as a config row — never as a constant in code.

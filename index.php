@@ -23,6 +23,8 @@ require_once __DIR__.'/app/TicketViewerModule.php';
 ticket_viewers_handle($page);
 require_once __DIR__.'/app/TicketCoeModule.php';
 ticket_coe_handle($page);
+require_once __DIR__.'/app/TicketReportModule.php';
+ticket_report_handle($page);
 require_once __DIR__.'/app/AdminDataResetModule.php';
 admin_data_reset_handle($page);
 require_once __DIR__.'/app/EmployeeRosterImportModule.php';

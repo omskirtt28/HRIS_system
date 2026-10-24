@@ -9,6 +9,11 @@
 - HR Request Queue: status tabs with counts, one search box, collapsible filters shown as chips, colour-coded age, preview drawer, quick In Progress / Served / Cancel, bulk Served or Cancel for ATM, ID and Uniform only (confirmation with optional shared remarks and a result summary), uniform size summary per branch, CSV export, mobile cards.
 - Every action still goes through the existing ticket service one ticket at a time, so permissions, audit and events are unchanged.
 
+## 2026-10-25 · Ticketing Report
+- New HR page (Requests, Ticketing Report): requests by type and status, new this week, average time to Served, what has waited over 5 days and the oldest, where requests come from (company, area, branch, branches that filed nothing), per-type detail (uniform pieces per size per branch, payroll concerns by cutoff, manpower, transfers, COE purposes, OIC), team throughput per day, an Incident Report count (no details) and setup health.
+- Filters: period, company, branch, request type. Export CSV (name and branch only) and a one-page printable summary for management.
+- Migration `20261025_015_ticket_report.sql` adds only the permission; applied to the localhost database after a verified backup and clean up/re-run/down/up tests.
+
 ## 2026-10-25 · Certificate of Employment request and template
 - New request type in File an HR Request: Certificate of Employment (purpose, needed-by date, delivery). It goes straight to HR; Served is never done in bulk.
 - HR uploads a Word .docx template (HR Request Setup, COE Template) with placeholders for name, position, hire date, company, purpose and date issued; versions are kept. Until then a simple built-in layout is used. Signatory and company name are HR settings.

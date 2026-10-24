@@ -258,6 +258,17 @@ These are not numbered rules but every rule above must preserve them.
 | BR-754 | Only the requester and HR can see the COE ticket or download the file, through the ticket access check; viewers, ADL, Sales Captain, OIC, Manager and Accounting cannot. Every generation and download is audited (no values in the audit row). |
 | BR-755 | Template upload: .docx only, real ZIP/Word structure, no macros or DOCTYPE/entities, up to 2 MB, all required placeholders and no unknown ones; versions are kept and audited. Values are written as XML text (escaped); placeholders typed into data are not substituted again. |
 
+## As built: Ticketing Report (2026-10-25)
+
+| ID | Rule |
+|---|---|
+| BR-760 | The Ticketing Report is open only to HR-portal roles with `ticket.report.view` (seeded to the roles that review HR requests). Non-HR roles are refused even if granted the permission. |
+| BR-761 | Drafts and Incident Reports never enter request counts, lists or the CSV; Incident Reports appear only as a count. |
+| BR-762 | Average time to Served = filed date to closed date, calendar days, over requests Served in the period. Pending-over-5-days uses the same age as the queue (PENDING_HR only). |
+| BR-763 | Throughput is team totals per day (per week beyond 62 days); no per-person figures. |
+| BR-764 | Uniform pieces per size per branch use the branch the uniform is for and leave out Cancelled/Rejected; the branch filter follows that same target for Uniform requests. |
+| BR-765 | CSV: name and branch only, no free text, formula-leading cells neutralised, capped at 5000 rows, each export audited. |
+
 ## Open Questions
 
 - [ ] Rules touching Q6-Q12 in [[Open-Questions]] (leave types, OT exemption, pay basis, correction model) are provisional until John answers.
