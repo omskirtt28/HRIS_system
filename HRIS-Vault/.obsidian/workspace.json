@@ -79,7 +79,8 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 200,
+    "collapsed": true
   },
   "right": {
     "id": "59388aba94fc5ba7",
@@ -182,5 +183,13 @@
     }
   },
   "active": "8cefdab65689b6fc",
-  "lastOpenFiles": []
+  "lastOpenFiles": [
+    "00-Meta/Start-Here.md",
+    "01-Product/sedThwlSl",
+    "03-Design/Business-Rules.md.tmp.19416.31fd155745a1",
+    "05-Implementation/Slice-15-Stage-B-Results.md",
+    "05-Implementation/Slice-15-Step-2-Results.md",
+    "05-Implementation/Slice-15-Step-1-Results.md",
+    "01-Product/Roadmap.md"
+  ]
 }
