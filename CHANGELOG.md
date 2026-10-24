@@ -233,5 +233,12 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 - **Manpower Request** now goes straight to HR (no Manager/ADL approval step); HR sets the status. Tickets already open keep their original approvers. Payroll Concern still goes Manager/ADL then HR. TA/OB/OT/leave, Payroll Ticket Review and Recruitment are unchanged.
 - **Users & Access**: change an existing user's role, link or unlink a user to an employee, and see which active accounts are not linked (they cannot file HR requests). A role change signs the account out.
 - Safety rules: the Super Admin role cannot be assigned or edited from the screen; only a Super Admin can create or change HR/Admin portal accounts; you cannot edit your own role or grant permissions you do not hold. Role creation, permission changes, role changes and employee links are audit-logged.
-- New roles such as ADL, SC, OIC and TC are created by HR on the Roles screen. A role given the ADL or Manager approval permission appears automatically in Ticket Approvers.
+- HR can create further roles on the Roles screen (ADL, SC, OIC and TC are now seeded; see the next entry). A role given the ADL or Manager approval permission appears automatically in Ticket Approvers.
 - Migration: `database/migrations/20261024_010_role_ticket_access.sql` (rollback: `.down.sql`, refuses once the new permissions are in use).
+
+## 2026-10-24 — Lead roles ADL, SC, OIC and TC
+- New roles on the employee portal: **Area Development Leader (ADL)**, **Sales Captain (SC)**, **OIC** and **Team Coordinator (TC)**. They appear in the Users role dropdown. A role code that already exists is left as HR set it.
+- Each can file the five staff request types plus Manpower and NetSuite, and has the same self-service access as Manager (no HR or admin access).
+- Approvals: ADL and TC are ADL approvers, OIC is a Manager approver, SC approves nothing. Their users show up in **Ticket Approvers** accordingly.
+- The existing **Coordinator** role (HR portal, Recruitment) is unchanged; it is not TC.
+- Migration: `database/migrations/20261024_011_lead_roles.sql` (rollback: `.down.sql`, refuses once a new role has users or edited permissions).

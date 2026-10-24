@@ -246,7 +246,9 @@ Screens: **Roles & Permissions** (`admin-roles`) and **Users & Access** (`admin-
 - create a user, change an existing user's role, and link or unlink a user to an employee (`employees.user_id`, one-to-one);
 - see a warning listing active non-client accounts with no employee link (they cannot file HR requests).
 
-Roles ADL, SC, OIC and TC are **not** seeded; HR creates them on the screen. An approver-capable role (ADL, TC, OIC → `payroll.approve_adl`; Manager → `payroll.approve_manager`) appears automatically in **Ticket Approvers**. SC is a filer only.
+Roles ADL, SC, OIC and TC are seeded by migration `20261024_011_lead_roles.sql` (employee portal, skipped for any code that already exists). Each gets MANAGER's base portal access without HR/admin permissions — `dashboard.employee.view`, `employees.view_self`, `attendance.view_self`, `leave.view_self`, `leave.request_self`, `payroll.request_self`, `requests.request_self`, `team.view`, `tickets.request_self` — plus the five staff `ticket.file.*` types, `ticket.file.manpower` and `ticket.file.netsuite`. Approver permission: ADL and TC → `payroll.approve_adl`, OIC → `payroll.approve_manager`, SC → none (filer only). A user on an approver-capable role appears automatically in **Ticket Approvers** (ADL/TC in the ADL list, OIC and Manager in the Manager list). HR can still change these roles on the Roles screen; the down script refuses once a seeded role has users or edited permissions.
+
+The existing `COORDINATOR` role (HR portal: HR dashboard, Recruitment view/manage, Reports) is a recruitment coordinator, not TC, and is unchanged.
 
 Escalation guards (server-side, in `FoundationRepository`):
 

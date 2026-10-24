@@ -40,7 +40,7 @@ Decisions John needs to make. Each is blocking something concrete. When one is d
 - [ ] **Q17. Data migration.** What historical data must come in — current employees only, or past payroll history too? Partial-year history matters for 13th month and tax annualisation. → [[Employee-Records]], [[Payroll]]
 - [ ] **Q18. Document storage.** Scanned 201 documents: filesystem, database, or object storage? With what retention and access logging? → needs ADR-006, [[Security-and-Compliance]]
 
-- [ ] **Q28. TC access.** Team Coordinator is assumed to have the same access as ADL (files Manpower/NetSuite, approver-capable). Confirm. → [[Self-Service-Portal]]
+- [x] **Q28. TC access.** Team Coordinator is assumed to have the same access as ADL (files Manpower/NetSuite, approver-capable). Confirm. → [[Self-Service-Portal]] — **Answered 2026-10-24 (John):** yes; migration 011 gives TC `payroll.approve_adl`, same grants as ADL. COORDINATOR is a different (recruitment) role.
 - [ ] **Q29. Staff lost Manpower and NetSuite.** Migration 010 gave the `EMPLOYEE` role only the five staff types, so plain employees can no longer file Manpower or NetSuite Concern (by design). Confirm no staff member needs them before ADL/SC/OIC/TC roles exist. → [[Self-Service-Portal]]
 - [ ] **Q30. Approvers for unassigned employees.** 363 active employees still have no Manager/ADL approver for Payroll Concern. Once HR creates the ADL/TC/OIC/Manager accounts and links them to employees, assign them in Ticket Approvers. Who does this, and by when? → [[Auth-and-RBAC]]
 - [ ] **Q31. Super Admin from the UI.** Super Admin cannot be assigned from the user screen by anyone (BR-122). Is a DB-level procedure acceptable for the rare new Super Admin, or is a guarded UI path wanted? → [[Auth-and-RBAC]]

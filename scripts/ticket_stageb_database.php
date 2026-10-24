@@ -68,7 +68,7 @@ try {
             stage_migrate($live,$number);
             $p=slice15_connect($live);
             // No existing business records may change. Migration seed/config additions are explicit.
-            $excluded=['ticket_types','permissions','role_permissions','ticket_permission_seeds','ticket_accounting_memberships','ticket_accounting_seed_results'];
+            $excluded=['ticket_types','roles','permissions','role_permissions','ticket_permission_seeds','ticket_accounting_memberships','ticket_accounting_seed_results'];
             foreach($fresh['baseline'] as $table=>$before){if(in_array($table,$excluded,true))continue;
                 if($number===9&&$table==='ticket_comments'){
                     if($originalComments!==$p->query('SELECT id,ticket_id,author_user_id,body,created_at FROM ticket_comments ORDER BY id')->fetchAll()||(int)$p->query('SELECT COUNT(*) FROM ticket_comments WHERE visibility<>"ALL"')->fetchColumn())throw new RuntimeException('Original comments changed during visibility migration.');
