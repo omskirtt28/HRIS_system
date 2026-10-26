@@ -3,7 +3,7 @@ title: Open Questions
 type: plan
 status: review
 tags: [product, decisions, needs-verification]
-updated: 2026-10-24
+updated: 2026-10-26
 ---
 
 # Open Questions
@@ -96,3 +96,4 @@ Decisions John needs to make. Each is blocking something concrete. When one is d
 Related: [[Decision-Log]] · [[Roadmap]] · [[Business-Rules]] · [[PH-Labor-and-Payroll-Notes]] · [[Start-Here]]
 - [x] **Q61. HR cancelling a case and HR names.** Assumed: HR dismisses (with a reason) instead of cancelling a Submitted case, and the handling HR reviewer is named on updates and messages that every reader sees. Confirm, or ask for HR to appear only as "HR". → [[Business-Rules]] BR-780, BR-781
 - [x] **Q62. Darker light-theme hue tokens.** Light chips, badges and alerts measure 4.1-4.4:1 (AA needs 4.5:1). The fix is darker `--hris-success/info/danger/warning` (suggested #137a50, #2560d6, #c2364a, plus an amber), which also drive buttons, alerts and charts. Confirm, then a separate patch. → [[Design-System]]
+- [ ] **Q63. Head Office Creatives/MIS biometric file.** Cutoff 2026-09-19 to 2026-10-03: the uploaded biometric PDFs have no punches for Creatives (9) and MIS (5). Does the HO file still need uploading, or are they exempt from biometric? Code is fixed; only the data question remains. → [[Business-Rules]] BR-783, [[Attendance-and-DTR]]

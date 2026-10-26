@@ -3,7 +3,7 @@ title: Attendance and DTR
 type: module
 status: draft
 tags: [module, hris, mvp, attendance]
-updated: 2026-10-17
+updated: 2026-10-26
 ---
 
 # Attendance and DTR
@@ -215,6 +215,9 @@ Full definitions in [[Business-Rules]].
 
 ## As built: File TA form existing logs (2026-10-25, BR-768)
 Check Attendance and the File TA form share `EmployeeAttendanceService::placeAmbiguousForDisplay()`. `requestTimes()` (also behind `employee-ta-context` and the submit guard in `PayrollRepository::createPayrollRequest`) shows the same existing times, the form hides inputs that have a log and asks only for the missing slots. Display only; no write to `attendance_daily`, no change to `PayrollCalculator::assign()`. Tests: `tests/ta_existing_logs_test.php`, browser `tests/ta_form_browser.cjs`. Open: Q55 (is the last punch a Time Out?).
+
+## As built: Payroll attendance export review (2026-10-12, BR-783)
+The export review rebuilds `attendance_daily` first, re-matches imported rows by exact Employee Code, labels employees with no biometric logs, and adds a Source Summary. Original cause of the Creatives/MIS gap: their biometric files had no punches. Open: Q63 (does the HO file still need uploading?). Untested corners: the "today" label and the covered_through "Check work calendar" label.
 
 ## Related
 

@@ -10,6 +10,10 @@ updated: 2026-10-26
 
 Isang entry kada session, pinakabago sa taas. Mga plano ay nasa `Plans/` (template: [[_Template]]). Slice status ay nasa [[Progress]].
 
+## 2026-10-26 - Vault audit (executed)
+- **Ginawa:** in-audit ang vault laban sa I1-I4, Q62 at attendance export. Kulang lang ang attendance export: idinagdag ang BR-783 (Business-Rules), "As built" sa Attendance-and-DTR, at Q63 (HO Creatives/MIS biometric file) sa Open-Questions. Docs lang; walang code, migration o DB.
+- **Susunod:** sagutin ang Q63; ATM row sa hr_dashboard test (dati nang bagsak).
+
 ## 2026-10-26 - I4 queue, Q62, attendance tests (executed)
 - **Napagdesisyunan (John):** Q61 kumpirmado (HR dismiss lang, pangalan ng HR nakikita); Q62 gagawin (darker light tokens, hiwalay na commit). Tapos na ang attendance export fix (`2fc3e71`), tests na lang ang kulang.
 - **Plano:** [[2026-10-26-i4-hr-incident-cases]]: 4 patches, local commits, walang push.
