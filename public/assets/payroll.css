@@ -214,6 +214,10 @@
 .payroll-ticket-flow{display:flex;flex-wrap:wrap;align-items:center;gap:9px 12px;font-size:13px;color:var(--hris-muted);padding:14px 16px;margin-bottom:18px;border:1px solid var(--hris-line);border-radius:10px;background:var(--hris-surface)}
 .payroll-ticket-flow>span{display:inline-flex;gap:7px;align-items:center;line-height:1.6}
 .payroll-ticket-flow .is-current{color:var(--hris-warning);font-weight:600}
+/* Dark theme: hue tokens as text on dark fills/surface are 3.1-3.9:1. Lighter tints (same as badges in app.css), 6.2-7.9:1. */
+:root[data-theme="dark"] .hr-review-flow-note,:root[data-theme="dark"] .attendance-clock-value .attendance-time-source{color:#7aa2f7}
+:root[data-theme="dark"] .cutoff-work-steps .is-done b,:root[data-theme="dark"] .attendance-clock-value .attendance-time-source.is-ob{color:#3fc78a}
+:root[data-theme="dark"] .cutoff-friendly-note,:root[data-theme="dark"] .cutoff-friendly-group>span,:root[data-theme="dark"] .employee-attendance-cutoff-table .attendance-missing,:root[data-theme="dark"] .payroll-ticket-flow .is-current{color:#e0a43a}
 .payroll-ticket-flow svg{width:16px;height:16px;flex-shrink:0}
 .payroll-ticket-attendance-summary{margin:0 0 20px}
 .payroll-ticket-attendance-summary .panel-body>p{margin-top:12px}

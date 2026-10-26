@@ -43,6 +43,10 @@ h1,h2,h3,h4{margin:0;font-weight:600;line-height:1.25}
 .badge.green{background:var(--green-soft);color:var(--green)}
 .badge.red{background:var(--red-soft);color:var(--red)}
 .badge.gray{background:var(--panel-2);color:var(--slate)}
+:root[data-theme="dark"] .badge.amber{color:#e0a43a}
+:root[data-theme="dark"] .badge.blue{color:#7aa2f7}
+:root[data-theme="dark"] .badge.green{color:#3fc78a}
+:root[data-theme="dark"] .badge.red{color:#ff8590}
 .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
 
 /* ---- cards ---- */

@@ -73,3 +73,6 @@ Ship the user-facing UI with the function, in simple English, clear next actions
 ## Related
 
 [[Screens]] · [[Employee-Tickets]] · [[Conventions]] · [[Recruitment-and-Onboarding]] · [[Employee-Records]] · [[Auth-and-RBAC]]
+
+## Dark-mode status text (2026-10-26)
+In dark mode the solid hue tokens (`--hris-success/info/danger/warning`) stay as fills; text on chips, pills, badges, alerts and HR queue notes uses lighter tints (green #3fc78a, red #ff8590, amber #e0a43a, blue #7aa2f7), at least 4.5:1 on the dark soft fills and surfaces, scoped under `:root[data-theme="dark"]`. Light-theme hue text is 4.1-4.4:1 on soft fills; darker light tokens are an open decision (Q62 in [[Open-Questions]]).

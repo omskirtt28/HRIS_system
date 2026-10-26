@@ -165,9 +165,11 @@ final class TicketIncident
     /** Reporter and everyone who already reads the case: left out of HR's search for people to add. @return int[] */
     public static function peopleOnCase(int $ticketId):array
     {
-        $q=db()->prepare('SELECT requester_user_id FROM tickets WHERE id=?');$q->execute([$ticketId]);$ids=[(int)$q->fetchColumn()];
-        if(self::ready()){$q=db()->prepare('SELECT user_id FROM incident_participants WHERE ticket_id=? AND has_access=1');$q->execute([$ticketId]);foreach($q->fetchAll(PDO::FETCH_COLUMN) as $id)$ids[]=(int)$id;}
-        return $ids;
+        // One round trip: the reporter and everyone with access. The result is an unordered, de-duplicated exclude list.
+        $sql='SELECT requester_user_id FROM tickets WHERE id=?';$args=[$ticketId];
+        if(self::ready()){$sql.=' UNION ALL SELECT user_id FROM incident_participants WHERE ticket_id=? AND has_access=1';$args[]=$ticketId;}
+        $q=db()->prepare($sql);$q->execute($args);
+        return array_values(array_unique(array_map('intval',$q->fetchAll(PDO::FETCH_COLUMN))));
     }
     /** Category and when, for a page of cases the caller has already been allowed to list. @return array<int,array> keyed by ticket id */
     public static function summaries(array $ticketIds):array

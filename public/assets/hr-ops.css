@@ -45,6 +45,10 @@
 .hq-dialog::backdrop,.hq-drawer::backdrop{background:rgba(23,31,42,.42)}
 .hq-dialog h2{margin:0 0 8px;font-size:17px}.hq-dialog textarea{width:100%}.hq-dialog-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:14px}
 .hq-note{padding:10px 12px;border-radius:10px;background:var(--hris-warning-soft);color:var(--hris-warning);font-size:12.5px}
+/* Dark theme: hue tokens as text on the dark -soft fills are only ~3.2-3.4:1. Same lighter tints as the badges (app.css); 6.6-7.1:1 on their fills. Fills and light theme untouched. */
+:root[data-theme="dark"] .hq-age.ok{color:#3fc78a}
+:root[data-theme="dark"] .hq-age.late{color:#ff8590}
+:root[data-theme="dark"] .hq-age.warn,:root[data-theme="dark"] .hq-chip:not(.hq-chip-clear),:root[data-theme="dark"] .hq-ticon,:root[data-theme="dark"] .hq-note,:root[data-theme="dark"] .hq-tab.is-active .hq-count{color:#e0a43a}
 .hq-drawer{margin:0 0 0 auto;height:100dvh;max-height:100dvh;width:min(460px,100vw);border:0;border-left:1px solid var(--hris-line);padding:0;background:var(--hris-surface);color:var(--hris-text);box-shadow:var(--hris-shadow-lg)}
 .hq-drawer>div{display:flex;flex-direction:column;height:100%}
 .hq-drawer-head{display:flex;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid var(--hris-line)}.hq-drawer-head h2{margin:2px 0 0;font-size:17px}

@@ -3,12 +3,26 @@ title: Session Log
 type: log
 status: active
 tags: [log, sessions]
-updated: 2026-10-25
+updated: 2026-10-26
 ---
 
 # Session Log
 
 Isang entry kada session, pinakabago sa taas. Mga plano ay nasa `Plans/` (template: [[_Template]]). Slice status ay nasa [[Progress]].
+
+## 2026-10-26 - I3 leftovers patch (executed)
+- **Ginawa:** dark-mode contrast ng chips, pills, badges, alerts at HR queue notes (CSS lang, dark-only tints); `peopleOnCase` 1 query na at de-duplicated; light gray chip, crumb at eyebrow mas readable.
+- **Tests:** ticket_core 97, services 94, incident_case 111, incident_ui 38, incident_case_ui 40, incident_browser 44, hr_ops_browser 13 (isolated DB). Dark contrast sinukat sa browser: >= 6.2:1.
+- **Hindi ginawa:** darker light-theme tokens (4.1-4.4:1 pa) - desisyon ni John (Q62); Q61 bukas pa.
+- **Susunod:** I4 HR Incident Cases at polish.
+
+## 2026-10-26 - Agent pipeline (docs/agents only)
+- **Ginawa:** CLAUDE.md "Agent pipeline" (planner -> backend-engineer + ux-designer -> patch-tester, max 2 fix rounds). Bagong `planner` agent. Muling isinulat ang 4 na agents (dati mga kopya ng ORDESK na tumuturo sa ORDESK-Vault) para tumuro sa HRIS-Vault. Conventions at Decision-Log updated. Walang code, migration, o database na ginalaw.
+- **Susunod:** subukan ang isang maliit na UI fix at tingnan kung dumaan sa planner at tester. Kapag "plan" ang sinabi, dapat isulat sa Plans/ at huminto.
+
+## 2026-10-26 - Fix sweep rule (docs only)
+- **Ginawa:** CLAUDE.md "Fix sweep", Conventions, Decision-Log, at sweep section sa agents (ux-designer, backend-engineer, patch-tester). Walang code, migration, o database na ginalaw.
+- **Susunod:** subukan: magturo ng isang UI issue at tingnan kung nag-sweep ang agent.
 
 ## 2026-10-25 - Incident Report module I3 (executed)
 - **Ginawa:** Case page ng Incident Report: header na may 5-hakbang na stepper, thread (HR update at HR-only internal note), participants rail, summary, attachments, timeline, sticky composer, HR panel (status na may remarks, magdagdag/magtanggal ng tao, internal note, reopen) at withdraw ng reporter. Bagong `incident-act` POST at `incident-people?case=` para sa handler lang. Walang migration; walang ginalaw sa `pmbsi_hris`.

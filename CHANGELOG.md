@@ -1,3 +1,7 @@
+## 2026-10-26 · Dark-mode status text is readable (no database change)
+- Chips, pills, badges, flash banners and HR queue ages and notes were hard to read in dark mode (about 3:1); they now measure 6:1 or better. Light theme: gray chip, page crumb and eyebrow are easier to read.
+- The people search on an incident case runs one query less per keystroke; results are the same.
+
 ## 2026-10-24 · Head Office Manager can now see their team's requests
 - Fixed: a Head Office employee's Manager (Reporting To) saw "No HR requests" in Team Requests. Head Office has an empty branch code, which made the system think the employee had no Manager. Routing now needs only the branch, so this also lets a Head Office Payroll Concern reach the Manager's HR Request Inbox.
 - The only viewer of a Head Office employee's request is their direct Manager (Reporting To), checked live; a Manager change moves access, old requests included. It no longer needs the Manager to hold the approve permission.
