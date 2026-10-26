@@ -14,6 +14,7 @@ Isang entry kada session, pinakabago sa taas. Mga plano ay nasa `Plans/` (templa
 - **Napagdesisyunan (John):** Q61 kumpirmado (HR dismiss lang, pangalan ng HR nakikita); Q62 gagawin (darker light tokens, hiwalay na commit). Tapos na ang attendance export fix (`2fc3e71`), tests na lang ang kulang.
 - **Plano:** [[2026-10-26-i4-hr-incident-cases]]: 4 patches, local commits, walang push.
 - **Patch 1 (I4 queue) done:** tabs, filters, aging, count parity sa dashboard (BR-782). Tests pasado; ATM row sa hr_dashboard ay dati nang bagsak. Light contrast bukas pa para sa Patch 2.
+- **Patch 2 (Q62) done:** darker light tokens + `--hris-muted`; dark hindi nagbago (0 diffs sa 5,443 elements). Sinukat sa browser: lahat ng Q62-token text >= 4.84; muted/sidebar kinompyut ang ratio (hindi na-rebrowse).
 
 ## 2026-10-26 - I3 leftovers patch (executed)
 - **Ginawa:** dark-mode contrast ng chips, pills, badges, alerts at HR queue notes (CSS lang, dark-only tints); `peopleOnCase` 1 query na at de-duplicated; light gray chip, crumb at eyebrow mas readable.

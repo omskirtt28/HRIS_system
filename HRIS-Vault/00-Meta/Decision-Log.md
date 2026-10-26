@@ -77,3 +77,5 @@ Related: [[Start-Here]] · [[Conventions]] · [[Architecture]] · [[Open-Questio
 - 2026-10-26 Decided (John): Q61 confirmed (HR dismisses, never cancels; HR name visible to readers). Q62 approved: darker light-theme hue tokens go in a separate patch.
 - 2026-10-26 Decided (patch I4): "open" incident = Submitted + Under review + In progress, one constant shared by the Incident Cases queue and the HR dashboard; queue tabs are plain links (`aria-current`), not ARIA tabs; Case-page back link is rebuilt from whitelisted filters, never a raw URL.
 - 2026-10-26 Decided (patch): dark-mode contrast is fixed with scoped dark-only text tints per component, not by changing the global hue tokens (they are also solid fills under white text). Light-theme token change left to John (Q62).
+
+- 2026-10-26 Decided (John, patch): Q62 applied. Light hue tokens and `--hris-muted` darkened for AA; dark re-declares the original solid hues.

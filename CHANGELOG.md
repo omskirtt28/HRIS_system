@@ -1,3 +1,6 @@
+## 2026-10-26 · Light theme text meets AA contrast (no database change)
+- Green, blue, red and amber chips, badges, alerts and links, plus grey secondary text (tabs, counts, table headers, breadcrumbs), are now 4.5:1 or better on the light theme. Dark mode is unchanged.
+
 ## 2026-10-26 · Incident Cases queue for HR (no database change)
 - HR's Incident Cases page now has status tabs with counts, search, category, branch and date filters, a case age column and phone-friendly cards. Dismissed and cancelled cases no longer crowd the default Open view.
 - The HR dashboard's Open incident number now equals the Open tab (Submitted, Under review, In progress) and only counts cases that HR user may read; its links open the matching tab.

@@ -95,4 +95,4 @@ Decisions John needs to make. Each is blocking something concrete. When one is d
 
 Related: [[Decision-Log]] · [[Roadmap]] · [[Business-Rules]] · [[PH-Labor-and-Payroll-Notes]] · [[Start-Here]]
 - [x] **Q61. HR cancelling a case and HR names.** Assumed: HR dismisses (with a reason) instead of cancelling a Submitted case, and the handling HR reviewer is named on updates and messages that every reader sees. Confirm, or ask for HR to appear only as "HR". → [[Business-Rules]] BR-780, BR-781
-- [ ] **Q62. Darker light-theme hue tokens.** Light chips, badges and alerts measure 4.1-4.4:1 (AA needs 4.5:1). The fix is darker `--hris-success/info/danger/warning` (suggested #137a50, #2560d6, #c2364a, plus an amber), which also drive buttons, alerts and charts. Confirm, then a separate patch. → [[Design-System]]
+- [x] **Q62. Darker light-theme hue tokens.** Light chips, badges and alerts measure 4.1-4.4:1 (AA needs 4.5:1). The fix is darker `--hris-success/info/danger/warning` (suggested #137a50, #2560d6, #c2364a, plus an amber), which also drive buttons, alerts and charts. Confirm, then a separate patch. → [[Design-System]]

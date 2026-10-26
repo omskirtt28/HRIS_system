@@ -4,19 +4,19 @@
   --hris-surface:#ffffff;
   --hris-surface-2:#fbfbfc;
   --hris-text:#17191c;
-  --hris-muted:#70757d;
+  --hris-muted:#676c74;
   --hris-muted-2:#9ba1a9;
   --hris-line:#e7e9ed;
   --hris-brand:#f7a600;
   --hris-brand-strong:#e89500;
   --hris-brand-soft:#fff4dc;
-  --hris-success:#18875b;
+  --hris-success:#137a50;/* Q62: darker light-theme hues, 4.8:1 or better on their soft fills and white text */
   --hris-success-soft:#e9f7f0;
-  --hris-info:#2f6fed;
+  --hris-info:#2560d6;
   --hris-info-soft:#edf3ff;
-  --hris-danger:#cf3d4f;
+  --hris-danger:#c2364a;
   --hris-danger-soft:#fff0f2;
-  --hris-warning:#a46700;
+  --hris-warning:#8f5a00;
   --hris-warning-soft:#fff7e7;
   --hris-sidebar:#17191d;
   --hris-sidebar-soft:#21242a;
@@ -33,6 +33,10 @@
   --hris-muted-2:#7f8792;
   --hris-line:#2a3038;
   --hris-brand-soft:#34270b;
+  --hris-success:#18875b;/* dark keeps the original solid hues (fills under white text); dark text tints are scoped per component */
+  --hris-info:#2f6fed;
+  --hris-danger:#cf3d4f;
+  --hris-warning:#a46700;
   --hris-success-soft:#0d2b1f;
   --hris-info-soft:#14233f;
   --hris-danger-soft:#35171d;
@@ -49,14 +53,14 @@ body,.main{background:var(--hris-bg)}
 .side .brand .sub{color:#8f96a3;font-size:10px;letter-spacing:.035em}
 .side .brand>span:last-child{line-height:1.15}
 .nav-group{margin-top:17px}
-.nav-group .gl{color:#6f7682;font-size:10px;letter-spacing:.1em;padding:5px 11px 6px}
+.nav-group .gl{color:#7b8290;font-size:10px;letter-spacing:.1em;padding:5px 11px 6px}
 .nav-item{color:#aeb4be;border-radius:10px;padding:10px 11px;margin:2px 0;font-size:13px;gap:10px;transition:.16s ease}
 .nav-item .ni{width:18px;height:18px;display:grid;place-items:center;opacity:.92}
 .nav-item .ni svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .nav-item:hover{background:var(--hris-sidebar-soft);color:#fff}
 .nav-item.active{background:linear-gradient(135deg,#2c2f36,#24272e);color:#fff;box-shadow:inset 3px 0 0 var(--hris-brand),0 6px 18px rgba(0,0,0,.16);font-weight:600}
 .nav-item.disabled{opacity:.46;cursor:default;pointer-events:none}
-.nav-item .soon{margin-left:auto;font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#858b95;background:#272a30;border:1px solid #30343b;padding:2px 6px;border-radius:999px}
+.nav-item .soon{margin-left:auto;font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#8f96a0;background:#272a30;border:1px solid #30343b;padding:2px 6px;border-radius:999px}
 .side .prof{border-top:1px solid rgba(255,255,255,.07);padding:14px 7px 0;gap:10px}
 .side .prof .avatar{background:#2c3037;color:#fff;border:1px solid rgba(255,255,255,.08)}
 .side .prof .muted{color:#7e8590}
