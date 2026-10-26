@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/TicketViews.php';
+require_once __DIR__.'/TicketQueueViews.php';// hq_age(): the queue's aging chip
 
 /**
  * Incident Reports, the case page (plan 2026-10-25-incident-report-module, I3). Built from the shared tk- components and tokens only.
@@ -203,13 +204,97 @@ function incident_withdraw_card(array $t):void
         '<button class="btn" type="submit" onclick="return confirm(\'Withdraw this report? This cannot be undone.\')">Withdraw report</button></form></section>';
 }
 
+/**
+ * Query-string parameters that describe a queue view, defaults left out (Open tab, page 1, no filter), so links stay short and equal views give equal links.
+ * $f is TicketIncident::queueFilters() output; $override replaces single keys (a tab link passes ['status'=>..,'p'=>1]).
+ * @return array<string,string|int>
+ */
+function incident_queue_params(array $f,array $override=[]):array
+{
+    $f=array_replace($f,$override);$out=[];
+    if(($f['status']??'open')!=='open'&&isset(TicketIncident::QUEUE_TABS[$f['status']]))$out['status']=(string)$f['status'];
+    foreach(['category','from','to','q'] as $k)if((string)($f[$k]??'')!=='')$out[$k]=(string)$f[$k];
+    if((int)($f['branch_id']??0)>0)$out['branch_id']=(int)$f['branch_id'];
+    if((int)($f['p']??1)>1)$out['p']=(int)$f['p'];
+    return $out;
+}
+
+/** The queue view the reader came from, read from the "back" query string. Never a URL: it is parsed and rebuilt through the same whitelist the queue itself uses, so nothing outside the queue can be reached. */
+function incident_queue_back():array
+{
+    $raw=$_GET['back']??'';if(!is_string($raw)||$raw===''||strlen($raw)>500)return [];
+    parse_str($raw,$in);return incident_queue_params(TicketIncident::queueFilters(is_array($in)?$in:[]));
+}
+
+/**
+ * HR Incident Cases queue (I4): status tabs with counts, search and filters, one row per case. Reuses the HR Request Queue look (hq- classes in hr-ops.css) so both queues read the same.
+ * $result is TicketRepository::listing('feed'), $counts is TicketRepository::incidentQueueCounts() (tab counts follow the filters, not the tab).
+ */
+function incident_queue_page(array $result,array $counts):void
+{
+    $f=$result['filters'];$tab=(string)$f['status'];
+    $tabLabel=static fn(string $k):string=>match($k){'open'=>'Open','all'=>'All',default=>TicketTypes::label(strtoupper($k),'INCIDENT_REPORT')};
+    $self=static fn(array $o=[])=>url(TicketIncident::QUEUE_PAGE,incident_queue_params($f,$o));
+    $filtered=$f['category']!==''||$f['branch_id']>0||$f['from']!==''||$f['to']!==''||$f['q']!=='';
+    ticket_header('hr-incidents','Incident Cases');
+    echo '<link rel="stylesheet" href="public/assets/hr-ops.css?v=20261025-1">';
+    page_head('Incident Reports','Incident Cases');
+    echo '<p class="tk-confidential" role="note"><strong>Confidential.</strong> Every case here is private to the people on it and to HR.</p>';
+    echo '<nav class="hq-tabs" aria-label="Case status">';
+    foreach(TicketIncident::QUEUE_TABS as $key=>$_){$on=$tab===$key;echo '<a class="hq-tab'.($on?' is-active':'').'" href="'.e($self(['status'=>$key,'p'=>1])).'"'.($on?' aria-current="page"':'').'>'.e($tabLabel($key)).' <span class="hq-count">'.(int)($counts[$key]??0).'</span></a>';}
+    echo '</nav>';
+    $branches=FoundationRepository::branches();
+    echo '<form method="get" class="hq-toolbar tk-iq-bar" role="search" action="index.php"><input type="hidden" name="page" value="'.e(TicketIncident::QUEUE_PAGE).'">'.($tab!=='open'?'<input type="hidden" name="status" value="'.e($tab).'">':''),
+        '<div class="hq-search"><label class="hq-sr" for="iq-q">Search by case number, title or reporter</label>'.icon_svg('search').'<input id="iq-q" type="search" name="q" value="'.e($f['q']).'" placeholder="Search case no., title or reporter" maxlength="80"></div>',
+        '<div class="field"><label for="iq-category">Category</label><select id="iq-category" name="category"><option value="">All categories</option>';
+    foreach(TicketIncident::CATEGORIES as $code=>$label)echo '<option value="'.e($code).'"'.($f['category']===$code?' selected':'').'>'.e($label).'</option>';
+    echo '</select></div><div class="field"><label for="iq-branch">Where it happened</label><select id="iq-branch" name="branch_id"><option value="0">All branches</option>';
+    foreach($branches as $b)echo '<option value="'.(int)$b['id'].'"'.($f['branch_id']===(int)$b['id']?' selected':'').'>'.e($b['name']).'</option>';
+    echo '</select></div>',
+        '<div class="field"><label for="iq-from">Filed from</label><input id="iq-from" type="date" name="from" value="'.e($f['from']).'"></div>',
+        '<div class="field"><label for="iq-to">Filed to</label><input id="iq-to" type="date" name="to" value="'.e($f['to']).'"></div>',
+        '<button class="btn primary" type="submit">Apply</button>'.($filtered?'<a class="btn" href="'.e(url(TicketIncident::QUEUE_PAGE,$tab==='open'?[]:['status'=>$tab])).'">Clear filters</a>':''),
+        '</form>';
+    $back=http_build_query(incident_queue_params($f));
+    echo '<section class="panel hq-card"><table class="tbl hq-table tk-iq-table"><caption class="hq-sr">Incident cases, '.e(strtolower($tabLabel($tab))).'</caption>',
+        '<thead><tr><th>Case</th><th>Category</th><th>Reporter</th><th>Where</th><th>Filed · Age</th><th>Status</th><th><span class="hq-sr">Open</span></th></tr></thead><tbody>';
+    foreach($result['rows'] as $r){
+        $link=e(url('hr-request',['id'=>(int)$r['id']]+($back!==''?['back'=>$back]:[])));
+        $title=(string)$r['title']!==''?(string)$r['title']:'Untitled report';
+        echo '<tr><td data-label="Case"><div><a class="tk-iq-title" href="'.$link.'">'.e($title).'</a><span class="hq-mono tk-iq-no">'.e($r['ticket_no']).'</span></div></td>',
+            '<td data-label="Category">'.($r['category_label']!==null?e($r['category_label']):'<span class="hq-muted">Not recorded</span>').'</td>',
+            '<td data-label="Reporter">'.e((string)($r['reporter_name']??'')!==''?(string)$r['reporter_name']:trim($r['first_name'].' '.$r['last_name'])).'</td>',
+            '<td data-label="Where">'.e((string)($r['case_branch_name']??'')).'</td>',
+            '<td data-label="Filed · Age">'.e(substr((string)$r['filed'],0,10)).' '.hq_age($r['age_days'],(string)$r['age_tone']).'</td>',
+            '<td data-label="Status">'.ticket_status_chip((string)$r['status'],'INCIDENT_REPORT').'</td>',
+            '<td data-label="Open" class="hq-actions"><a class="btn sm" href="'.$link.'" aria-label="Open case '.e($r['ticket_no']).'">Open</a></td></tr>';
+    }
+    if(!$result['rows']){
+        $all=(int)($counts['all']??0);
+        if($filtered)[$head,$hint]=['No cases match these filters.','Try removing a filter or searching for something else.'];
+        elseif($tab==='all'||$all===0)[$head,$hint]=['No incident reports have been filed yet.','Reports appear here as soon as an employee files one.'];
+        else[$head,$hint]=['No cases in '.strtolower($tabLabel($tab)).'.','Cases show here when they reach this status.'];
+        echo '<tr class="hq-empty-row"><td colspan="7"><div class="hq-empty">'.icon_svg('clipboard').'<strong>'.e($head).'</strong><span>'.e($hint).'</span>';
+        if($filtered)echo '<a class="btn" href="'.e(url(TicketIncident::QUEUE_PAGE,$tab==='open'?[]:['status'=>$tab])).'">Clear filters</a>';
+        elseif($tab!=='all'&&$all>0)echo '<a class="btn" href="'.e($self(['status'=>'all','p'=>1])).'">Show all cases</a>';
+        echo '</div></td></tr>';
+    }
+    echo '</tbody></table></section>';
+    echo '<nav class="hq-pager" aria-label="Incident case pages"><span>Page '.(int)$result['page'].'</span>';
+    if($result['page']>1)echo '<a class="btn sm" href="'.e($self(['p'=>$result['page']-1])).'">Previous</a>';
+    if($result['has_next'])echo '<a class="btn sm" href="'.e($self(['p'=>$result['page']+1])).'">Next</a>';
+    echo '</nav>';
+    render_portal_footer();
+}
+
 /** The page: header card, stepper, then conversation + composer beside the people rail, summary, files, timeline and (handler) HR actions. */
 function incident_case_page(array $t):void
 {
     $uid=TicketRepository::uid();$handler=TicketIncident::isHandler($t);$p=TicketIncident::permissions($t);$own=(int)$t['requester_user_id']===$uid;
     $title=(string)($t['payload']['title']??$t['ticket_no']);
+    $backTo=$handler?url(TicketIncident::QUEUE_PAGE,incident_queue_back()):url('incident-mine');// the queue view the handler came from (same tab, filters, page), else the plain queue
     ticket_header($handler?'hr-incidents':'incident-mine',$t['ticket_no']);
-    page_head('Incident Reports',$title,'<a class="btn" href="'.e(url($handler?'hr-incidents':'incident-mine')).'">'.($handler?'Incident Cases':'My Incidents').'</a>');
+    page_head('Incident Reports',$title,'<a class="btn" href="'.e($backTo).'">'.($handler?'Back to Incident Cases':'My Incidents').'</a>');
     echo '<p class="tk-confidential" role="note"><strong>Confidential.</strong> Only the people listed on this page can read this case.</p>';
     echo '<section class="tk-head" aria-label="Case summary"><div class="tk-head-main"><span class="tk-eyebrow">Incident report</span><p class="tk-no">'.e($t['ticket_no']).'</p>',
         '<dl class="tk-dates"><div><dt>Filed</dt><dd>'.($t['filed_at']?ticket_time((string)$t['filed_at']):'Not filed yet').'</dd></div><div><dt>Last update</dt><dd>'.ticket_time((string)($t['updated_at']??$t['created_at'])).'</dd></div></dl></div>',

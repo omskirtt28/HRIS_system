@@ -10,6 +10,11 @@ updated: 2026-10-26
 
 Isang entry kada session, pinakabago sa taas. Mga plano ay nasa `Plans/` (template: [[_Template]]). Slice status ay nasa [[Progress]].
 
+## 2026-10-26 - I4 queue, Q62, attendance tests (plan, executing)
+- **Napagdesisyunan (John):** Q61 kumpirmado (HR dismiss lang, pangalan ng HR nakikita); Q62 gagawin (darker light tokens, hiwalay na commit). Tapos na ang attendance export fix (`2fc3e71`), tests na lang ang kulang.
+- **Plano:** [[2026-10-26-i4-hr-incident-cases]]: 4 patches, local commits, walang push.
+- **Patch 1 (I4 queue) done:** tabs, filters, aging, count parity sa dashboard (BR-782). Tests pasado; ATM row sa hr_dashboard ay dati nang bagsak. Light contrast bukas pa para sa Patch 2.
+
 ## 2026-10-26 - I3 leftovers patch (executed)
 - **Ginawa:** dark-mode contrast ng chips, pills, badges, alerts at HR queue notes (CSS lang, dark-only tints); `peopleOnCase` 1 query na at de-duplicated; light gray chip, crumb at eyebrow mas readable.
 - **Tests:** ticket_core 97, services 94, incident_case 111, incident_ui 38, incident_case_ui 40, incident_browser 44, hr_ops_browser 13 (isolated DB). Dark contrast sinukat sa browser: >= 6.2:1.

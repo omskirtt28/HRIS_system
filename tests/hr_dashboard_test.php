@@ -50,7 +50,7 @@ check('Requests by type: eight configured types, no Incident Report',!isset($t['
 $filed=$sql(' AND COALESCE(t.filed_at,t.created_at)>=? AND COALESCE(t.filed_at,t.created_at)<?',[$w['start'].' 00:00:00',$w['end'].' 00:00:00']);
 check('type totals equal tickets filed in the window; status buckets add up per type',array_sum(array_column($t['types'],'total'))===$filed&&$t['filed']===$filed&&!array_filter($t['types'],fn($x)=>$x['total']!==$x['pending']+$x['progress']+$x['served']+$x['cancelled']+$x['other']));
 check('ATM row shows the in-progress one and the pending ones',$t['types']['ATM_REQUEST']['progress']>=1&&$t['types']['ATM_REQUEST']['pending']>=2);
-check('Incident KPI counts open Incident Reports; breakdowns never include them',$d['incident']['open']===(int)row('SELECT COUNT(*) n FROM tickets t JOIN ticket_types ty ON ty.id=t.ticket_type_id WHERE ty.code="INCIDENT_REPORT" AND t.status="SUBMITTED"')['n']&&$d['incident']['open']>=1&&!str_contains(json_encode($t),'SECRET'));
+check('Incident KPI counts open Incident Reports; breakdowns never include them',$d['incident']['open']===(int)row('SELECT COUNT(*) n FROM tickets t JOIN ticket_types ty ON ty.id=t.ticket_type_id WHERE ty.code="INCIDENT_REPORT" AND t.status IN ("SUBMITTED","UNDER_REVIEW","IN_PROGRESS")')['n']&&$d['incident']['open']>=1&&!str_contains(json_encode($t),'SECRET'));
 check('latest Incident title is available to HR only through the incident block',$d['incident']['latest'][0]['title']==='SECRET dashboard incident');
 
 // status as it was a period ago comes from the event history
@@ -63,7 +63,21 @@ $t=HrDashboard::data($p)['tickets'];// the new ticket changed the live counts
 $all=HrDashboard::data(['company'=>'ALL','period'=>'this_week']);$sw=HrDashboard::data(['company'=>'SW','period'=>'this_week']);$oc=HrDashboard::data(['company'=>'OC','period'=>'this_week']);
 $byGroup=fn(string $g)=>$sql(' AND t.status="PENDING_HR" AND t.company_group_snapshot=?',[$g]);
 check('company filter: SW and OC pending equal their own rows; both within All',$sw['tickets']['pending']===$byGroup('SW')&&$oc['tickets']['pending']===$byGroup('OC')&&$sw['tickets']['pending']+$oc['tickets']['pending']<=$all['tickets']['pending']);
-check('company filter reaches employees and incidents',$sw['employees']['active']+$oc['employees']['active']<=$all['employees']['active']&&$oc['incident']['open']===(int)row('SELECT COUNT(*) n FROM tickets t JOIN ticket_types ty ON ty.id=t.ticket_type_id WHERE ty.code="INCIDENT_REPORT" AND t.status="SUBMITTED" AND t.company_group_snapshot="OC"')['n']);
+check('company filter reaches employees and incidents',$sw['employees']['active']+$oc['employees']['active']<=$all['employees']['active']&&$oc['incident']['open']===(int)row('SELECT COUNT(*) n FROM tickets t JOIN ticket_types ty ON ty.id=t.ticket_type_id WHERE ty.code="INCIDENT_REPORT" AND t.status IN ("SUBMITTED","UNDER_REVIEW","IN_PROGRESS") AND t.company_group_snapshot="OC"')['n']);
+// I4: dashboard "open" = Incident Cases Open tab (shared OPEN_QUEUE definition and readClause)
+$i2=file_as($f['employee'],'INCIDENT_REPORT',['title'=>'Dash open 2','explanation'=>'Synthetic narrative']);$i3=file_as($f['employee'],'INCIDENT_REPORT',['title'=>'Dash hidden from this HR','explanation'=>'Synthetic narrative']);$i4=file_as($f['employee'],'INCIDENT_REPORT',['title'=>'Dash dismissed','explanation'=>'Synthetic narrative']);
+act($hr);
+$ver=fn(int $id)=>(int)row('SELECT version FROM tickets WHERE id=?',[$id])['version'];
+TicketService::incidentStatus($i2,$ver($i2),'UNDER_REVIEW','r');TicketService::incidentStatus($i2,$ver($i2),'IN_PROGRESS','r');TicketService::incidentStatus($i4,$ver($i4),'DISMISSED','dup');
+insert('INSERT INTO incident_participants(ticket_id,user_id,role,has_access,added_by,added_by_hr) VALUES(?,?,"INVOLVED",0,?,0)',[$i3,$hr['id'],$f['employee']['id']]);// HR named on the case: BR-775, no blanket read
+$dd=HrDashboard::data($p);$counts=TicketRepository::incidentQueueCounts([]);$openRows=TicketRepository::listing('feed',['status'=>'open'])['rows'];
+check('I4 dashboard incident.open counts SUBMITTED + UNDER_REVIEW + IN_PROGRESS (shared OPEN_QUEUE)',TicketIncident::OPEN_QUEUE===['SUBMITTED','UNDER_REVIEW','IN_PROGRESS']&&$dd['incident']['open']>=3);
+check('I4 dashboard open == queue Open tab count == Open tab rows for the same HR user',$dd['incident']['open']===$counts['open']&&$counts['open']===count($openRows));
+check('I4 dashboard open applies readClause: a case naming this HR reviewer is not counted or listed',!in_array($i3,array_map('intval',array_column($openRows,'id')),true)&&$dd['incident']['open']===(int)row('SELECT COUNT(*) n FROM tickets t JOIN ticket_types ty ON ty.id=t.ticket_type_id WHERE ty.code="INCIDENT_REPORT" AND t.status IN ("SUBMITTED","UNDER_REVIEW","IN_PROGRESS") AND t.id<>?',[$i3])['n']);
+check('I4 dismissed case is not open on the dashboard',!in_array($i4,array_map('intval',array_column($openRows,'id')),true));
+check('I4 dashboard exposes the queue link as page + params',$dd['incident']['open_link']===['page'=>'hr-incidents','params'=>['status'=>'open']]);
+$sw2=HrDashboard::data(['company'=>'SW','period'=>'this_week']);
+check('I4 company filter still narrows the dashboard open count (never above the queue Open count)',$sw2['incident']['open']<=$counts['open']);
 $active=(int)row('SELECT COUNT(*) n FROM employees WHERE status IN ("ACTIVE","PROBATIONARY","ON_LEAVE")')['n'];
 check('Active employees equals the directory count; probation due uses the 30-day window',$all['employees']['active']===$active&&$all['employees']['probation_due']>=0&&$all['employees']['due_days']===30);
 check('recruitment KPI reuses the existing recruitment numbers',$all['recruitment']['active']===RecruitmentRepository::dashboard()['active']&&$all['recruitment']['openReq']===RecruitmentRepository::dashboard()['openReq']);

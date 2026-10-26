@@ -66,7 +66,7 @@ function ticket_handle(string $page):void
             header('Content-Disposition: attachment; filename="attachment.'.pathinfo($file['stored_name'],PATHINFO_EXTENSION).'"; filename*=UTF-8\'\''.rawurlencode($file['original_name']));
             header('Content-Length: '.filesize($file['path']));readfile($file['path']);exit;
         }
-        if($page==='hr-incidents'&&!TicketRepository::isHr())redirect('incident-mine');// the feed stays for HR until phase I4
+        if($page==='hr-incidents'&&!TicketRepository::isHr())redirect('incident-mine');// HR Incident Cases queue (I4: listing('feed') + incidentQueueCounts); everyone else lands on My Incidents
         if($page==='hr-request-new'){
             $q=db()->prepare('SELECT 1 FROM ticket_types WHERE id=? AND code="INCIDENT_REPORT"');$q->execute([(int)($_GET['type']??0)]);
             if($q->fetchColumn())redirect('incident-new');// old link to the Incident Report form
@@ -95,7 +95,8 @@ function ticket_handle(string $page):void
             if($mode==='services'){
                 $f=TicketQueue::filters($_GET);$result=$_SESSION['hq_result']??null;unset($_SESSION['hq_result']);
                 ticket_queue_page($f,TicketQueue::page($f),TicketQueue::counts($f),TicketQueue::uniformSummary($f),$result);
-            }else ticket_list_page($mode,TicketRepository::listing($mode,$_GET),$_GET);
+            }elseif($mode==='feed')incident_queue_page(TicketRepository::listing('feed',$_GET,50),TicketRepository::incidentQueueCounts($_GET));
+            else ticket_list_page($mode,TicketRepository::listing($mode,$_GET),$_GET);
         }
     }catch(RuntimeException $error){http_response_code(403);ticket_error_page($error->getMessage());}
     exit;

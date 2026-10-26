@@ -83,7 +83,9 @@ final class HrDashboard
         if($canIncident){
             $readable=TicketIncident::readClause(TicketRepository::uid(),true);// titles only for cases this reviewer may open; the counts stay counts (BR-744)
             $inc=' FROM tickets t JOIN ticket_types ty ON ty.id=t.ticket_type_id WHERE ty.code="INCIDENT_REPORT" AND t.status<>"DRAFT"'.$cw;
-            $d['incident']=['open'=>self::one('SELECT COUNT(*)'.$inc.' AND t.status="SUBMITTED"',$cp),
+            // "Open" is TicketIncident::OPEN_QUEUE and the same readClause as the queue, so this number equals the Incident Cases Open tab (all companies).
+            $d['incident']=['open'=>self::one('SELECT COUNT(*)'.$inc.' AND t.status '.TicketIncident::openSql().' AND '.$readable[0],array_merge($cp,$readable[1])),
+                'open_link'=>['page'=>TicketIncident::QUEUE_PAGE,'params'=>['status'=>TicketIncident::QUEUE_DEFAULT_TAB]],// views: url($l['page'],$l['params'])
                 'new'=>self::one('SELECT COUNT(*)'.$inc.' AND '.self::FILED.'>=? AND '.self::FILED.'<?',array_merge($cp,[$w['start'].' 00:00:00',$w['end'].' 00:00:00'])),
                 'new_before'=>self::one('SELECT COUNT(*)'.$inc.' AND '.self::FILED.'>=? AND '.self::FILED.'<?',array_merge($cp,[$w['prev_start'].' 00:00:00',$w['prev_end'].' 00:00:00'])),
                 'latest'=>self::rows('SELECT t.id,t.ticket_no,t.status,'.self::FILED.' filed,JSON_UNQUOTE(JSON_EXTRACT(t.payload_json,"$.title")) title'.$inc.' AND '.$readable[0].' ORDER BY '.self::FILED.' DESC,t.id DESC LIMIT 5',array_merge($cp,$readable[1]))];

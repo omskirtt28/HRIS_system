@@ -107,3 +107,11 @@
 @media(max-width:900px){.tk-case-grid{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:650px){.tk-sticky{padding:12px}.tk-post{gap:8px}}
 @media(max-width:650px){.tk-sticky small{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}.tk-sticky textarea{min-height:52px}.tk-sticky .field{margin:0 0 8px}}
+/* Incident Cases queue (I4). Tabs, table, age chip, empty state and pager come from the hq- classes in hr-ops.css; only the filter bar and the title cell are new here. Tokens only. */
+.tk-iq-bar .field{margin:0;flex:0 1 160px;min-width:0}
+.tk-iq-bar select,.tk-iq-bar input[type=date]{height:40px;width:100%;box-sizing:border-box}
+.tk-iq-bar .btn{min-height:40px}
+.tk-iq-bar :focus-visible{outline:2px solid var(--hris-info);outline-offset:2px}
+.tk-iq-title{display:block;max-width:360px;font-weight:600;color:var(--hris-text);overflow-wrap:anywhere}
+.tk-iq-no{display:block;margin-top:2px;color:var(--hris-muted)}
+@media(max-width:760px){.tk-iq-bar .field{flex:1 1 100%}.tk-iq-bar .btn{flex:1 1 auto;min-height:44px}.tk-iq-title{max-width:none}.tk-iq-table td>div{min-width:0;text-align:right}.tk-iq-table .hq-actions .btn{min-height:44px;display:inline-flex;align-items:center}}

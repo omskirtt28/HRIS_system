@@ -21,7 +21,39 @@ final class TicketIncident
     public const MAX_PARTICIPANTS=20;
     /** Statuses in which readers may still post messages. */
     public const OPEN=['SUBMITTED','UNDER_REVIEW','IN_PROGRESS','RESOLVED'];
+    /** The one meaning of "open" for HR: cases still being handled. The Incident Cases queue (Open tab) and the HR dashboard KPI both use this list (I4). */
+    public const OPEN_QUEUE=['SUBMITTED','UNDER_REVIEW','IN_PROGRESS'];
+    /** HR Incident Cases queue (I4): tab key => statuses; null means every non-draft case. */
+    public const QUEUE_TABS=['open'=>self::OPEN_QUEUE,'submitted'=>['SUBMITTED'],'under_review'=>['UNDER_REVIEW'],'in_progress'=>['IN_PROGRESS'],'resolved'=>['RESOLVED'],'closed'=>['CLOSED'],'dismissed'=>['DISMISSED'],'cancelled'=>['CANCELLED'],'all'=>null];
+    public const QUEUE_PAGE='hr-incidents';
+    public const QUEUE_DEFAULT_TAB='open';
     private static ?bool $ready=null;
+
+    /** SQL "IN (...)" list for OPEN_QUEUE (constants only, never user input). */
+    public static function openSql():string { return 'IN ("'.implode('","',self::OPEN_QUEUE).'")'; }
+    /**
+     * Queue inputs from a query string, whitelisted. Unknown tab falls back to Open; bad category, branch or dates are dropped.
+     * @return array{status:string,category:string,branch_id:int,from:string,to:string,q:string,p:int}
+     */
+    public static function queueFilters(array $in):array
+    {
+        $s=fn(string $k)=>is_string($in[$k]??null)?trim($in[$k]):'';
+        $tab=strtolower($s('status'));if(!array_key_exists($tab,self::QUEUE_TABS))$tab=self::QUEUE_DEFAULT_TAB;
+        $category=$s('category');if(!isset(self::CATEGORIES[$category]))$category='';
+        $branch=ctype_digit($s('branch_id'))&&strlen($s('branch_id'))<=9?(int)$s('branch_id'):0;
+        $date=function(string $v):string{$d=DateTimeImmutable::createFromFormat('!Y-m-d',$v);return $d&&$d->format('Y-m-d')===$v?$v:'';};
+        $from=$date($s('from'));$to=$date($s('to'));if($from!==''&&$to!==''&&$from>$to)[$from,$to]=[$to,$from];
+        $p=ctype_digit($s('p'))?max(1,min(10000,(int)$s('p'))):1;
+        return ['status'=>$tab,'category'=>$category,'branch_id'=>$branch,'from'=>$from,'to'=>$to,'q'=>mb_substr($s('q'),0,80),'p'=>$p];
+    }
+    /** Days since filed for a case still being handled (OPEN_QUEUE), else null. Same 2/5 day tones as the HR Request Queue. */
+    public static function ageDays(array $t):?int
+    {
+        if(!in_array($t['status']??'',self::OPEN_QUEUE,true))return null;
+        $from=substr((string)($t['filed_at']??$t['created_at']),0,10);
+        return max(0,(int)(new DateTimeImmutable($from))->diff(new DateTimeImmutable(date('Y-m-d')))->days);
+    }
+    public static function ageTone(?int $days):string { return $days===null?'':($days<=2?'ok':($days<=5?'warn':'late')); }
 
     public static function ready():bool
     {

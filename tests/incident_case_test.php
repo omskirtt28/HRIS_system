@@ -176,4 +176,53 @@ check('test_BR_774 a removed participant gets nothing after removal and the adde
 act($hr1);check('test_BR_744 incidents stay out of the HR queue and the Payroll Concern list',!in_array($id,$ids('services'),true)&&!in_array($id,$ids('hr'),true));
 act($viewer);check('test_BR_726 viewers never read an incident case even with ticket.view_team',!$canRead($viewer,$id)&&!in_array($id,$ids('team'),true));
 check('test_BR_769 ticket.sensitive.view no longer opens a case',!$canRead($sens,$id));
+
+// ---------------------------------------------------------------- I4 HR Incident Cases queue: filters, counts, scope
+$qids=fn(array $flt,int $limit=100)=>array_map('intval',array_column(TicketRepository::listing('feed',$flt,$limit)['rows'],'id'));
+$cnt=fn(array $flt=[])=>TicketRepository::incidentQueueCounts($flt);
+act($rep);
+$zebra=TicketService::create($inc(['participants'=>[],'title'=>'Zebra Needle 100%_done','category'=>'Safety and health','branch_id'=>(string)$f['branch'],'location'=>'Dock']),true);
+$plain=TicketService::create($inc(['participants'=>[],'title'=>'Plain ordinary title']),true);
+db()->prepare('UPDATE tickets SET filed_at=DATE_SUB(NOW(),INTERVAL 7 DAY) WHERE id=?')->execute([$plain]);
+act($hr1);
+$open=$qids(['status'=>'open']);
+check('I4 default tab is Open and equals the status=open tab',$qids([])===$open&&TicketRepository::listing('feed')['filters']['status']==='open');
+check('I4 Open tab = SUBMITTED, UNDER_REVIEW, IN_PROGRESS only; no draft, dismissed or cancelled',in_array($id,$open,true)&&in_array($d3,$open,true)&&in_array($zebra,$open,true)&&!array_intersect($open,[$d1,$d2,$dr])
+    &&!array_filter($open,fn($x)=>!in_array($status($x),TicketIncident::OPEN_QUEUE,true)));
+foreach(['bogus','OPEN; DROP TABLE tickets','','  ','0','%'] as $bad)check('I4 invalid status "'.$bad.'" falls back to Open',$qids(['status'=>$bad])===$open);
+check('I4 array-valued inputs are ignored, not an error',$qids(['status'=>['x'],'q'=>['y'],'category'=>['z'],'branch_id'=>['1'],'from'=>['a'],'p'=>['9']])===$open);
+check('I4 status tabs list the right cases',in_array($d1,$qids(['status'=>'dismissed']),true)&&in_array($d2,$qids(['status'=>'cancelled']),true)&&!in_array($d1,$qids(['status'=>'cancelled']),true)&&in_array($d3,$qids(['status'=>'under_review']),true)&&in_array($id,$qids(['status'=>'in_progress']),true)&&in_array($zebra,$qids(['status'=>'submitted']),true));
+$all=$qids(['status'=>'all']);
+check('I4 All tab lists every readable non-draft case and never a draft',in_array($d1,$all,true)&&in_array($zebra,$all,true)&&!in_array($dr,$all,true));
+$c=$cnt();
+check('I4 counts: open = sum of its three statuses; all = sum of every tab except open',$c['open']===$c['submitted']+$c['under_review']+$c['in_progress']&&$c['all']===array_sum(array_diff_key($c,['open'=>1,'all'=>1]))&&$c['dismissed']>=1&&$c['cancelled']>=1);
+$combos=[[],['category'=>'SAFETY'],['branch_id'=>(string)$f['branch']],['from'=>date('Y-m-d'),'to'=>date('Y-m-d')],['q'=>'zebra'],['q'=>'Slice15'],['category'=>'SAFETY','q'=>'needle','from'=>date('Y-m-d',strtotime('-1 day'))],['q'=>"' OR 1=1 --"],['branch_id'=>'999999']];
+$parity=true;foreach($combos as $flt){$cn=$cnt($flt);foreach(TicketIncident::QUEUE_TABS as $tab=>$_s){if($cn[$tab]!==count($qids($flt+['status'=>$tab])))$parity=false;}}
+check('I4 every tab count equals the rows of that tab, for every filter combination',$parity);
+check('I4 category filter',in_array($zebra,$qids(['status'=>'all','category'=>'SAFETY']),true)&&!in_array($plain,$qids(['status'=>'all','category'=>'SAFETY']),true)&&!in_array($zebra,$qids(['status'=>'all','category'=>'WORKPLACE_CONDUCT']),true)&&$qids(['status'=>'all','category'=>'NOT_A_CATEGORY'])===$all);
+check('I4 branch filter uses where it happened, else the reporter branch',in_array($zebra,$qids(['status'=>'all','branch_id'=>(string)$f['branch']]),true)&&in_array($plain,$qids(['status'=>'all','branch_id'=>(string)$f['ho']]),true)&&!in_array($zebra,$qids(['status'=>'all','branch_id'=>(string)$f['ho']]),true)&&$qids(['status'=>'all','branch_id'=>'999999999'])===[]&&$qids(['status'=>'all','branch_id'=>'-1'])===$all);
+$today=date('Y-m-d');
+check('I4 date filter is on the filed date, inclusive both ends, swapped bounds are fixed, junk dates are ignored',in_array($zebra,$qids(['status'=>'all','from'=>$today,'to'=>$today]),true)&&!in_array($plain,$qids(['status'=>'all','from'=>$today,'to'=>$today]),true)
+    &&in_array($plain,$qids(['status'=>'all','from'=>date('Y-m-d',strtotime('-7 days')),'to'=>date('Y-m-d',strtotime('-7 days'))]),true)&&$qids(['status'=>'all','from'=>$today,'to'=>date('Y-m-d',strtotime('-3 days'))])===$qids(['status'=>'all','from'=>date('Y-m-d',strtotime('-3 days')),'to'=>$today])
+    &&$qids(['status'=>'all','from'=>date('Y-m-d',strtotime('+1 day'))])===[]&&$qids(['status'=>'all','from'=>'2026-02-30','to'=>'nope'])===$all);
+$tno=(string)row('SELECT ticket_no FROM tickets WHERE id=?',[$zebra])['ticket_no'];
+check('I4 search by ticket number, title (any case) and reporter name',$qids(['status'=>'all','q'=>$tno])===[$zebra]&&$qids(['status'=>'all','q'=>'ZEBRA needle'])===[$zebra]&&in_array($zebra,$qids(['status'=>'all','q'=>'Test employee']),true)&&in_array($plain,$qids(['status'=>'all','q'=>'Slice15 Test']),true));
+check('I4 search escapes LIKE wildcards: % and _ match only literal text',$qids(['status'=>'all','q'=>'%'])===[$zebra]&&$qids(['status'=>'all','q'=>'100%_'])===[$zebra]&&$qids(['status'=>'all','q'=>'\\'])===[]);
+$before=(int)row('SELECT COUNT(*) n FROM tickets')['n'];
+check('I4 injection-style search is parameterised: no rows, no error, nothing changed',$qids(['status'=>'all','q'=>"' OR 1=1 --"])===[]&&$qids(['status'=>'all','q'=>'x"); DROP TABLE tickets; --'])===[]&&(int)row('SELECT COUNT(*) n FROM tickets')['n']===$before&&$cnt(['q'=>"' OR '1'='1"])['all']===0);
+$rowsAll=TicketRepository::listing('feed',['status'=>'all'])['rows'];$byId=array_column($rowsAll,null,'id');
+check('I4 rows carry title, category, reporter, case branch, filed date and ticket number',$byId[$zebra]['title']==='Zebra Needle 100%_done'&&$byId[$zebra]['category']==='SAFETY'&&$byId[$zebra]['category_label']==='Safety and health'&&$byId[$zebra]['reporter_name']===$rep['name']&&(int)$byId[$zebra]['case_branch_id']===$f['branch']&&$byId[$zebra]['ticket_no']===$tno&&!empty($byId[$zebra]['filed'])&&$byId[$zebra]['status']==='SUBMITTED');
+check('I4 aging: days since filed for open cases (tone late over 5), none for finished cases',$byId[$plain]['age_days']===7&&$byId[$plain]['age_tone']==='late'&&$byId[$zebra]['age_days']===0&&$byId[$zebra]['age_tone']==='ok'&&$byId[$d1]['age_days']===null&&$byId[$d2]['age_days']===null&&$byId[$d1]['age_tone']==='');
+$p1=TicketRepository::listing('feed',['status'=>'all'],2);$p2=TicketRepository::listing('feed',['status'=>'all','p'=>'2'],2);$pn=TicketRepository::listing('feed',['status'=>'all','p'=>'99999'],2);
+check('I4 paging: limit, has_next, offset pages do not overlap, newest first; default page size is 50',count($p1['rows'])===2&&$p1['has_next']&&$p1['page']===1&&$p2['page']===2&&!array_intersect(array_column($p1['rows'],'id'),array_column($p2['rows'],'id'))&&(int)$p1['rows'][0]['id']>(int)$p2['rows'][0]['id']&&$pn['rows']===[]&&!$pn['has_next']&&count(TicketRepository::listing('feed',['status'=>'all'])['rows'])<=50);
+// scope: the same readClause on rows and counts for every kind of user
+act($out);check('I4 an outsider sees no rows and every count is 0',$qids(['status'=>'all'])===[]&&array_sum($cnt())===0&&array_sum($cnt(['q'=>'Zebra']))===0);
+act($viewer);check('I4 viewer and sensitive-view holder see nothing in the queue',$qids(['status'=>'all'])===[]&&(act($sens)||true)&&$qids(['status'=>'all'])===[]&&array_sum($cnt())===0);
+act($cc);check('I4 a CC whose access was removed sees nothing, and counts match',$qids(['status'=>'all'])===[]&&array_sum($cnt())===0);
+act($late);$lm=$qids(['status'=>'all']);check('I4 a person HR included sees only that case, and counts match',$lm===[$id]&&$cnt()['all']===1);
+act($rep);$rm=$qids(['status'=>'all']);check('I4 the reporter sees only their own cases through the queue (no blanket HR read)',count($rm)>0&&!array_filter($rm,fn($x)=>(int)row('SELECT requester_user_id u FROM tickets WHERE id=?',[$x])['u']!==(int)$rep['id'])&&$cnt()['all']===count($rm));
+act($hrInv);$hm=$qids(['status'=>'all']);check('I4 an HR reviewer included on a case (added by HR above) sees it in the queue, plus others, and counts match',in_array($id,$hm,true)&&in_array($zebra,$hm,true)&&$cnt()['all']===count($hm));
+act($rep);$myDraft=TicketService::create($inc(['participants'=>[]]),false);act($hr1);
+check('I4 a draft never reaches the queue, even HR\'s own draft rows are excluded from counts',!in_array($myDraft,$qids(['status'=>'all']),true)&&$cnt()['all']===count($qids(['status'=>'all'])));
+check('I4 queue is read-only: listing and counts changed no case',$status($zebra)==='SUBMITTED'&&$status($d1)==='DISMISSED');
 finish();

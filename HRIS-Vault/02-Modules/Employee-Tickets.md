@@ -63,3 +63,5 @@ Phase I1 (data, rules, access, status and people services, notifications, tests)
 ## Related
 
 [[Self-Service-Portal]] · [[Auth-and-RBAC]] · [[Org-Structure]] · [[Employee-Records]] · [[Notifications]] · [[Payroll]] · [[Recruitment-and-Onboarding]] · [[Reports-and-Analytics]] · [[Data-Model]] · [[Architecture]] · [[Business-Rules]] · [[Screens]] · [[API-Surface]] · [[Design-System]] · [[Progress]]
+
+**I4 (2026-10-26):** `hr-incidents` is the Incident Cases queue (tabs, filters, aging; BR-782). `TicketIncident::OPEN_QUEUE`, `queueFilters`, `TicketRepository::incidentQueueCounts`; view `incident_queue_page` in `IncidentCaseViews.php`.

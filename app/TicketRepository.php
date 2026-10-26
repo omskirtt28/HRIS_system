@@ -128,11 +128,10 @@ final class TicketRepository
     public static function listing(string $mode,array $filters=[],int $limit=50):array
     {
         $uid=self::uid();$params=[];$where=[];
+        if($mode==='feed')return self::incidentQueue($filters,$limit);
         if(in_array($mode,['hr','services'],true)){
             if(!self::isHr())throw new RuntimeException('HR ticket review access is required.');
             [$where,$params]=self::hrFilters($mode,$filters);
-        }elseif($mode==='feed'){
-            [$clause,$params]=TicketIncident::readClause($uid,self::isHr());$where[]='ty.code="INCIDENT_REPORT" AND '.$clause;
         }elseif($mode==='incidents_mine'){
             [$clause,$params]=TicketIncident::mineClause($uid);$where[]='ty.code="INCIDENT_REPORT" AND '.$clause;
         }elseif($mode==='team'){
@@ -153,6 +152,59 @@ final class TicketRepository
         $page=max(1,min(10000,(int)($filters['p']??1)));$limit=max(1,min(100,$limit));$offset=($page-1)*$limit;
         $q=db()->prepare(self::selectSql().' WHERE '.implode(' AND ',$where).' ORDER BY t.created_at DESC,t.id DESC LIMIT '.($limit+1).' OFFSET '.$offset);$q->execute($params);$rows=$q->fetchAll();
         return ['rows'=>array_slice($rows,0,$limit),'has_next'=>count($rows)>$limit,'page'=>$page];
+    }
+    /**
+     * FROM/WHERE/params shared by the HR Incident Cases queue rows and its tab counts, so they always agree (I4).
+     * Every query keeps TicketIncident::readClause and never lists drafts. $withStatus=false drops only the tab filter.
+     * @return array{0:string,1:string,2:array,3:bool,4:array} from, where, params, incident tables ready, normalised filters
+     */
+    private static function incidentWhere(array $filters,bool $withStatus):array
+    {
+        $f=TicketIncident::queueFilters($filters);$ready=TicketIncident::ready();
+        [$clause,$params]=TicketIncident::readClause(self::uid(),self::isHr());
+        $from=' FROM tickets t JOIN ticket_types ty ON ty.id=t.ticket_type_id JOIN employees e ON e.id=t.subject_employee_id JOIN branches b ON b.id=t.branch_id'
+            .($ready?' LEFT JOIN incident_details idt ON idt.ticket_id=t.id LEFT JOIN branches ib ON ib.id=idt.branch_id':'');
+        $where=['ty.code="INCIDENT_REPORT"','t.status<>"DRAFT"',$clause];
+        $statuses=TicketIncident::QUEUE_TABS[$f['status']];
+        if($withStatus&&$statuses!==null){$where[]='t.status IN ('.implode(',',array_fill(0,count($statuses),'?')).')';$params=array_merge($params,$statuses);}
+        if($ready&&$f['category']!==''){$where[]='idt.category=?';$params[]=$f['category'];}
+        if($f['branch_id']>0){$where[]=($ready?'COALESCE(idt.branch_id,t.branch_id)':'t.branch_id').'=?';$params[]=$f['branch_id'];}// where it happened, else the reporter's branch
+        if($f['from']!==''){$where[]='COALESCE(t.filed_at,t.created_at)>=?';$params[]=$f['from'].' 00:00:00';}
+        if($f['to']!==''){$where[]='COALESCE(t.filed_at,t.created_at)<?';$params[]=date('Y-m-d',strtotime($f['to'].' +1 day')).' 00:00:00';}
+        if($f['q']!==''){
+            $like='%'.addcslashes($f['q'],'%_\\').'%';
+            $where[]='(t.ticket_no LIKE ? OR LOWER(JSON_UNQUOTE(JSON_EXTRACT(t.payload_json,"$.title"))) LIKE LOWER(?) OR CONCAT_WS(" ",e.first_name,e.last_name) LIKE ? OR EXISTS(SELECT 1 FROM users ru WHERE ru.id=t.requester_user_id AND ru.full_name LIKE ?))';
+            array_push($params,$like,$like,$like,$like);
+        }
+        return [$from,implode(' AND ',$where),$params,$ready,$f];
+    }
+    /** HR Incident Cases queue rows. Same readClause as find(); paging is 50 per page by default. */
+    private static function incidentQueue(array $filters,int $limit):array
+    {
+        [$from,$where,$params,$ready,$f]=self::incidentWhere($filters,true);
+        $limit=max(1,min(100,$limit));$offset=($f['p']-1)*$limit;
+        $extra=$ready?'idt.category,idt.incident_at,COALESCE(idt.branch_id,t.branch_id) case_branch_id,COALESCE(ib.name,b.name) case_branch_name':'NULL category,NULL incident_at,t.branch_id case_branch_id,b.name case_branch_name';
+        $q=db()->prepare('SELECT t.*,ty.code type_code,ty.name type_name,e.employee_no,e.first_name,e.last_name,b.name branch_name,(SELECT ru.full_name FROM users ru WHERE ru.id=t.requester_user_id) reporter_name,'.$extra.$from
+            .' WHERE '.$where.' ORDER BY t.created_at DESC,t.id DESC LIMIT '.($limit+1).' OFFSET '.$offset);$q->execute($params);$rows=$q->fetchAll();
+        $hasNext=count($rows)>$limit;$rows=array_slice($rows,0,$limit);
+        foreach($rows as &$r){
+            $payload=json_decode((string)$r['payload_json'],true);$r['title']=is_array($payload)&&is_string($payload['title']??null)?$payload['title']:'';
+            $r['category_label']=TicketIncident::CATEGORIES[$r['category']??'']??null;
+            $r['filed']=$r['filed_at']??$r['created_at'];$r['age_days']=TicketIncident::ageDays($r);$r['age_tone']=TicketIncident::ageTone($r['age_days']);
+        }unset($r);
+        return ['rows'=>$rows,'has_next'=>$hasNext,'page'=>$f['p'],'filters'=>$f];
+    }
+    /**
+     * Tab counts for the Incident Cases queue: one number per tab key (open, submitted, under_review, in_progress, resolved, closed, dismissed, cancelled, all).
+     * Same readClause and same category/branch/date/search filters as the rows, the tab itself ignored, so a tab badge equals the rows that tab lists.
+     * @return array<string,int>
+     */
+    public static function incidentQueueCounts(array $filters=[]):array
+    {
+        [$from,$where,$params]=self::incidentWhere($filters,false);
+        $q=db()->prepare('SELECT t.status,COUNT(*) n'.$from.' WHERE '.$where.' GROUP BY t.status');$q->execute($params);$by=$q->fetchAll(PDO::FETCH_KEY_PAIR);
+        $out=[];foreach(TicketIncident::QUEUE_TABS as $tab=>$statuses)$out[$tab]=$statuses===null?(int)array_sum($by):(int)array_sum(array_intersect_key($by,array_flip($statuses)));
+        return $out;
     }
     public static function period(int $id,bool $lock=false):array
     {

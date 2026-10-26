@@ -1,3 +1,8 @@
+## 2026-10-26 · Incident Cases queue for HR (no database change)
+- HR's Incident Cases page now has status tabs with counts, search, category, branch and date filters, a case age column and phone-friendly cards. Dismissed and cancelled cases no longer crowd the default Open view.
+- The HR dashboard's Open incident number now equals the Open tab (Submitted, Under review, In progress) and only counts cases that HR user may read; its links open the matching tab.
+- The Case page's Back button returns to the same tab and filters.
+
 ## 2026-10-26 · Dark-mode status text is readable (no database change)
 - Chips, pills, badges, flash banners and HR queue ages and notes were hard to read in dark mode (about 3:1); they now measure 6:1 or better. Light theme: gray chip, page crumb and eyebrow are easier to read.
 - The people search on an incident case runs one query less per keystroke; results are the same.

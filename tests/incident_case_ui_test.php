@@ -114,4 +114,25 @@ check('test_BR_776 title, narrative and place are escaped',!str_contains($r,'<sc
 // ---------------------------------------------------------------- the generic ticket page now hands incident cases to the Case page
 act($rep);ob_start();ticket_detail_page(TicketRepository::detail($id));$g=ob_get_clean();
 check('test_BR_772 ticket_detail_page renders the Case page for an incident',str_contains($g,'tk-case-grid')&&!str_contains($g,'Request details'));
+
+// ---------------------------------------------------------------- I4 HR Incident Cases queue view and the case page back link
+function qhtml(array $user,array $get):string{act($user);$_GET=$get;ob_start();try{incident_queue_page(TicketRepository::listing('feed',$get,50),TicketRepository::incidentQueueCounts($get));}finally{$h=ob_get_clean();$_GET=[];}return (string)$h;}
+$q=qhtml($hr,[]);
+check('I4 queue: Open tab is current, every tab has a count, case row links to the Case page',str_contains($q,'class="hq-tab is-active" href="index.php?page=hr-incidents" aria-current="page"')&&substr_count($q,'class="hq-count"')===9&&str_contains($q,'Case page title')&&str_contains($q,'page=hr-request&amp;id='.$id));
+check('I4 queue: still-open case shows an aging chip, status chip and no raw status code',str_contains($q,'class="hq-age ')&&str_contains($q,'tk-chip')&&!str_contains($q,'IN_PROGRESS'));
+check('I4 queue: filter inputs all have labels, search is a role=search form',str_contains($q,'role="search"')&&str_contains($q,'for="iq-q"')&&str_contains($q,'for="iq-category"')&&str_contains($q,'for="iq-branch"')&&str_contains($q,'for="iq-from"')&&str_contains($q,'for="iq-to"'));
+$q=qhtml($hr,['status'=>'dismissed']);
+check('test_BR_780 queue: Dismissed tab lists only dismissed cases and its links carry the view back',str_contains($q,'Dismiss me')&&!str_contains($q,'Case page title')&&str_contains($q,'back=status%3Ddismissed')&&!str_contains($q,'class="hq-age '));
+$q=qhtml($hr,['status'=>'all']);
+check('I4 queue: titles are escaped',!str_contains($q,'<script>alert(1)')&&str_contains($q,'&lt;script&gt;alert(1)&lt;/script&gt;'));
+$q=qhtml($hr,['q'=>'zzz-no-such-case-zzz']);
+check('I4 queue: a search with no result says so and offers Clear filters; never-empty wording is not used',str_contains($q,'No cases match these filters.')&&str_contains($q,'Clear filters')&&!str_contains($q,'have been filed yet'));
+$q=qhtml($hr,['status'=>'bogus','branch_id'=>'x','from'=>'nope']);
+check('I4 queue: unknown tab, branch and date fall back to Open with no error',str_contains($q,'aria-current="page"')&&str_contains($q,'Open <span class="hq-count">'));
+$_GET=['back'=>'status=dismissed&category=SAFETY&evil=1&q=<b>x</b>'];$h=html($hr,$id);$_GET=[];
+check('I4 case page: the handler back link returns to the same queue view, whitelisted keys only',str_contains($h,'href="index.php?page=hr-incidents&amp;status=dismissed&amp;category=SAFETY&amp;q=%3Cb%3Ex%3C%2Fb%3E"')&&!str_contains($h,'evil'));
+$_GET=['back'=>'https://evil.example/x'];$h=html($hr,$id);$_GET=[];
+check('I4 case page: a back value that is not queue parameters cannot send the reader elsewhere',str_contains($h,'href="index.php?page=hr-incidents">Back to Incident Cases')&&!str_contains($h,'evil.example'));
+$_GET=['back'=>'status=dismissed'];$r=html($rep,$id);$_GET=[];
+check('I4 case page: the reporter still goes back to My Incidents, back param ignored',str_contains($r,'page=incident-mine')&&!str_contains($r,'status=dismissed'));
 finish();
