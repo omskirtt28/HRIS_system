@@ -8,6 +8,12 @@ updated: 2026-10-25
 
 # Employee Tickets
 
+## 2026-10-27 approved dashboard and official IR patch
+
+Follow-up submit fix (John): Others nature specification optional, blank/short allowed, max5000; no200-character requirement/cap. Supporting Others specification max5000 with its conditional requirement retained. Backend/UI match; both PHP lint pass, runtime acceptance by John. BR-785 amended.
+
+[[2026-10-27-dashboard-incident-template]] implements BR-784..788: dashboard action strip removal, focused setup-warning links, handler status affordance and exact-template official Incident Report. Form answers/filer/master hash/version are frozen in existing payload; required DOCX generation is transactional, PDF conversion optional with handler retry. Only reporter/eligible handler receive official-document access; participant conversation access and generic attachment limits/types stay as before. Free-text document names grant no access; no historical document backfill or category rewrite. Case shows document before conversation, rail unchanged. No new table/migration. Syntax/static review only; converter/rendered fidelity and runtime acceptance unverified. Period picker/Download Report are a separate patch.
+
 ## Purpose
 
 Hub note for the HR ticket engine ("HR Concerns" / "HR Requests" in the app): one generic, audited way for an employee or a branch lead to file a request, have it routed, and have HR handle it. Everything else about tickets hangs off this note. Built in Slice 15 and its follow-ups (migrations 001-016, 2026-10-20 to 2026-10-25), live on localhost `pmbsi_hris`; not pushed or deployed.

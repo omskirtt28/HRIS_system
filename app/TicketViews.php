@@ -5,7 +5,7 @@ require_once __DIR__.'/TicketServiceViews.php';
 function ticket_header(string $active,string $title):void
 {
     $portal=Auth::user()['role_portal']??'employee';render_portal_header(in_array($portal,['hr','admin'],true)?$portal:'employee',$active,$title);
-    echo '<link rel="stylesheet" href="public/assets/tickets.css?v=20261026-1">';
+    echo '<link rel="stylesheet" href="public/assets/tickets.css?v=20261027-1">';
 }
 function ticket_error_page(string $message):void
 {

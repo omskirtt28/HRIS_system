@@ -1,5 +1,9 @@
 # CLAUDE.md
 
+## Codex project setup (John, 2026-10-27)
+Codex project roles live in `.codex/agents/` and patch/debug/UI/review skills in `.agents/skills/`. Routing: AGENTS.md and `HRIS-Vault/00-Meta/Codex-Agent-Workflow.md`. Shared Claude role bodies and Obsidian stay the knowledge source. This requested setup authorizes skill creation for this task; routine patches do not install skills. For Codex, planner first includes docs/config and small fixes; main owns vault sync. Current syntax/static-only, no-browser, no-runtime/DB-test/write, no-commit/push/deploy rules in AGENTS override older shared actions. Historical Codex-First withdrawal stays recorded; Claude session mode is unchanged.
+
+
 ## HRIS spec vault
 
 The product and design specs for this HRIS live in the Obsidian vault at `HRIS-Vault/` (plain markdown). Note: `Claude-Code-Brief.md` refers to the vault as `./docs/vault`; in this repo it is `./HRIS-Vault`.
@@ -62,3 +66,10 @@ Every prompt that asks to build, fix, change or patch something goes through thi
 5. **Finish**: vault sync is mandatory (Progress.md, the module note, Data-Model.md for migrations, Business-Rules.md, Decision-Log.md, Open-Questions.md, CHANGELOG.md, Session-Log.md) and the report lists the vault files changed. The final report follows the Fix sweep format.
 
 Skip the pipeline for pure questions, docs-only work, and one-line fixes. Existing project rules above take priority over this section.
+
+## Session start and auto-update (mandatory)
+- At the start of every session read `HRIS-Vault/05-Implementation/Session-Log.md` (latest entries) and `Progress.md`, so John does not have to re-explain. Read HRIS-Vault/05-Implementation/Claude-Code-Brief.md first. Use grep + partial reads; do not scan the repo.
+- After every patch AND after any agreed topic/decision in chat, update the vault on your own (module note, changelog/session log, status), without waiting for a reminder.
+- When John says a feature should be "the same as" an existing module, copy it AS IS and decide on your own; do not ask for details. Ask only when there is risk to permission, data or schema.
+- Optional `simplify-gatekeeper` (review only): PROPOSALS para kay John; huwag i-apply nang walang utos niya.
+- If John says it is for `/plan`: plan only, no edits, no delivery folders (the plan goes in the vault).

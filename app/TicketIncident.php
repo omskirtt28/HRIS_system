@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/IncidentDocument.php';
 
 /**
  * Incident cases (plan 2026-10-25-incident-report-module, phase I1). An Incident Report is still a ticket; this class owns
@@ -130,7 +131,7 @@ final class TicketIncident
             $q=db()->prepare('SELECT id FROM branches WHERE id=? AND active=1');$q->execute([(int)$rawBranch]);
             if(!ctype_digit(trim((string)$rawBranch))||!$q->fetchColumn())throw new RuntimeException('Choose an active branch.');$branch=(int)$rawBranch;
         }
-        if($category==='OTHER'&&mb_strlen(trim((string)($out['explanation']??'')))<self::OTHER_MIN_CHARS)throw new RuntimeException('Please explain what happened in at least '.self::OTHER_MIN_CHARS.' characters when the category is Other.');
+        if($category==='OTHER'&&!isset($data['nature'])&&mb_strlen(trim((string)($out['explanation']??'')))<self::OTHER_MIN_CHARS)throw new RuntimeException('Please explain what happened in at least '.self::OTHER_MIN_CHARS.' characters when the category is Other.');
         $out=array_diff_key($out,['incident_at'=>1,'location'=>1,'category'=>1]);
         $out['_incident']=['incident_at'=>$at->format('Y-m-d H:i:s'),'location_text'=>$location,'branch_id'=>$branch,'category'=>$category,'participants'=>self::pickedParticipants($data['participants']??[])];
         return $out;

@@ -9,17 +9,21 @@ require_once __DIR__.'/IncidentViews.php';
  * The case page and HR handling arrive in I3 and I4. Filing always goes through TicketService::create(); the type is set here on the server.
  */
 /** POST actions owned by this module. Case actions (I3) are posted to the pseudo-page incident-act and always return to the case. */
-const INCIDENT_ACTIONS=['core_incident_create','core_incident_status','core_incident_participant_add','core_incident_participant_remove','core_incident_note','core_incident_message'];
+const INCIDENT_ACTIONS=['core_incident_create','core_incident_status','core_incident_participant_add','core_incident_participant_remove','core_incident_note','core_incident_message','core_incident_pdf_retry'];
 
 function incident_handle(string $page):void
 {
     $action=(string)($_POST['action']??'');
-    if(!in_array($page,['incident-mine','incident-new','incident-people','incident-act'],true)&&!in_array($action,INCIDENT_ACTIONS,true))return;
+    if(!in_array($page,['incident-mine','incident-new','incident-people','incident-act','incident-document'],true)&&!in_array($action,INCIDENT_ACTIONS,true))return;
     need_db();if(!Auth::check())redirect('login');
     // Client-portal accounts have no incident screens.
     if(!in_array(Auth::user()['role_portal']??'',['employee','hr','admin'],true)){http_response_code(403);exit('Incident Reports are not available for this account.');}
     if(!TicketRepository::ready()||!TicketIncident::ready()){http_response_code(503);exit('Incident Reports need the latest database update.');}
     header('Cache-Control: no-store');
+    if($page==='incident-document'){
+        if($_SERVER['REQUEST_METHOD']!=='GET'){header('Allow: GET');http_response_code(405);exit('Document access requires GET.');}
+        incident_document_response();
+    }
     if($_SERVER['REQUEST_METHOD']==='POST'){
         verify_csrf();
         if(!in_array($action,INCIDENT_ACTIONS,true)){http_response_code(405);exit('That action is not available.');}
@@ -46,15 +50,16 @@ function incident_handle(string $page):void
         // incident-new
         TicketTypes::assertCanFile('INCIDENT_REPORT');
         $employee=null;
-        try{$employee=TicketRepository::ownEmployee();}catch(RuntimeException){$employee=null;}// the view explains it
+        try{$employee=TicketRepository::ownEmployee();}catch(PDOException $error){throw $error;}catch(RuntimeException){$employee=null;}// the view explains a missing link; database errors use the outer safe handler
+        if($employee!==null)$employee['incident_filer']=IncidentDocument::filerContext($employee);
         $old=$_SESSION['core_incident_old']??[];unset($_SESSION['core_incident_old']);
         $key=bin2hex(random_bytes(32));
         $_SESSION['core_ticket_keys']=array_filter($_SESSION['core_ticket_keys']??[],fn($expires)=>$expires>=time());
         $_SESSION['core_ticket_keys']=array_slice($_SESSION['core_ticket_keys'],-19,null,true);$_SESSION['core_ticket_keys'][$key]=time()+1800;
         $ids=[];foreach((array)($old['participants']??[]) as $p)if(is_array($p))$ids[]=$p['user_id']??0;
         incident_new_page($employee,$key,is_array($old)?$old:[],TicketIncident::namesFor($ids));
-    }catch(RuntimeException $error){http_response_code(403);ticket_error_page($error->getMessage());
-    }catch(PDOException){error_log('Incident page database error.');http_response_code(500);ticket_error_page('This page could not be loaded. Please try again.');}
+    }catch(PDOException){error_log('Incident page database error.');http_response_code(500);ticket_error_page('This page could not be loaded. Please try again.');
+    }catch(RuntimeException $error){http_response_code(403);ticket_error_page($error->getMessage());}
     exit;
 }
 
@@ -69,15 +74,21 @@ function incident_create():never
         $str=fn(string $k)=>is_string($_POST[$k]??null)?$_POST[$k]:'';
         $people=[];
         foreach(is_array($_POST['participants']??null)?$_POST['participants']:[] as $p)$people[]=is_array($p)?['user_id'=>$p['user_id']??'','role'=>$p['role']??'']:['user_id'=>'','role'=>''];
-        $old=['title'=>$str('title'),'category'=>$str('category'),'explanation'=>$str('explanation'),'incident_at'=>$str('incident_at'),'location'=>$str('location'),'branch_id'=>$str('branch_id'),'participants'=>$people];
+        $old=['title'=>$str('title'),'explanation'=>$str('explanation'),'incident_at'=>$str('incident_at'),'location'=>$str('location'),'branch_id'=>$str('branch_id'),'participants'=>$people];
+        foreach(['nature','nature_other','location_type','incident_end_time','immediate_head','contact_no','involved_names','witness_names','initial_action','customer_name','customer_contact','supporting_other'] as $field)$old[$field]=$str($field);
+        $old['supporting']=is_array($_POST['supporting']??null)?array_values(array_filter($_POST['supporting'],'is_string')):[];
         $typeId=(int)db()->query('SELECT id FROM ticket_types WHERE code="INCIDENT_REPORT" AND active=1')->fetchColumn();
         if(!$typeId)throw new RuntimeException('Incident Reports are not available.');
         $_SESSION['core_incident_old']=$old;
-        $id=TicketService::create($old+['ticket_type_id'=>$typeId,'submission_key'=>$key],true,$_FILES['attachments']??[]);
+        $data=$old;$data['supporting']=$_POST['supporting']??[];// validate the original shape, not the safe values retained for redraw
+        $id=TicketService::create($data+['ticket_type_id'=>$typeId,'submission_key'=>$key],true,$_FILES['attachments']??[]);
         unset($_SESSION['core_incident_old']);
         $q=db()->prepare('SELECT ticket_no FROM tickets WHERE id=?');$q->execute([$id]);$no=(string)$q->fetchColumn();
         flash('success','Incident report '.$no.' submitted. HR has been notified.');
-        redirect('incident-mine');
+        redirect('hr-request',['id'=>$id]);
+    }catch(PDOException){
+        error_log('Incident filing failed: PDOException');
+        flash('error','The report could not be saved. Please try again.');redirect('incident-new');
     }catch(RuntimeException $error){
         // Rule and validation messages are written for the reporter. Anything else is logged and replaced by a generic line.
         flash('error',$error->getMessage());redirect('incident-new');
@@ -100,6 +111,9 @@ function incident_case_action(string $action):never
     try{
         if($id<=0)throw new RuntimeException('Ticket not found or access denied.');
         switch($action){
+            case 'core_incident_pdf_retry':
+                $ready=TicketService::incidentRetryPdf($id,$int('version'));
+                flash($ready?'success':'error',$ready?'PDF preview is ready.':'The PDF preview is still unavailable. Your report and DOCX are saved. Ask your administrator to check the converter.');break;
             case 'core_incident_status':
                 $_SESSION['core_incident_status'][$id]=['to'=>$str('to'),'remarks'=>$str('remarks'),'internal_note'=>$str('internal_note')];
                 $to=$str('to');TicketService::incidentStatus($id,$int('version'),$to,$str('remarks'),$str('internal_note'));
@@ -124,4 +138,24 @@ function incident_case_action(string $action):never
         flash('error','That could not be saved. Refresh the case and try again.');
     }
     redirect('hr-request',['id'=>$id]);
+}
+
+/** Authenticated, renewed per-case authorization on every private document response. */
+function incident_document_response():never
+{
+    try{
+        $id=is_string($_GET['id']??null)&&ctype_digit($_GET['id'])&&strlen($_GET['id'])<=10?(int)$_GET['id']:0;
+        $format=is_string($_GET['format']??null)?$_GET['format']:'';
+        if($id<1)throw new RuntimeException('Ticket not found or access denied.');
+        $file=IncidentDocument::download($id,$format);$stream=@fopen($file['path'],'rb');
+        if($stream===false)throw new RuntimeException('The incident document is unavailable. Please try again.');
+        header('Cache-Control: private, no-store, max-age=0');header('Pragma: no-cache');
+        header('Content-Type: '.($format==='pdf'?'application/pdf':'application/vnd.openxmlformats-officedocument.wordprocessingml.document'));
+        header('X-Content-Type-Options: nosniff');
+        header('Content-Disposition: '.($format==='pdf'?'inline':'attachment').'; filename="'.$file['name'].'"');
+        header('Content-Length: '.filesize($file['path']));fpassthru($stream);fclose($stream);exit;
+    }catch(PDOException){error_log('Incident document access failed: PDOException');http_response_code(500);ticket_error_page('The document could not be opened. Please try again.');
+    }catch(RuntimeException $error){http_response_code(403);ticket_error_page($error->getMessage());
+    }catch(Throwable){error_log('Incident document access failed.');http_response_code(500);ticket_error_page('The document could not be opened. Please try again.');}
+    exit;
 }

@@ -42,20 +42,50 @@ function incident_new_page(?array $employee,string $key,array $old,array $people
         echo '<section class="tk-card" role="alert"><h2>We cannot file this for you yet</h2><p>An incident report is filed under your employee record, and we could not find exactly one active Employee 201 record linked to your account. Please ask HR to link your account, then try again.</p><a class="btn" href="'.e(url('incident-mine')).'">Back to My Incidents</a></section>';
         render_portal_footer();return;
     }
-    $cats=TicketIncident::CATEGORIES;$val=fn(string $k)=>(string)($old[$k]??'');
+    $filer=$employee['incident_filer'];$val=fn(string $k)=>(string)($old[$k]??'');$supporting=(array)($old['supporting']??[]);
     ?>
     <p class="tk-confidential" role="note"><strong>Confidential.</strong> Only you, the HR reviewers handling this report, any CC you choose and anyone HR adds can read it. Please keep the details to the report.</p>
     <form method="post" enctype="multipart/form-data" class="tk-card tk-form" id="incident-form"><?=csrf_field()?><input type="hidden" name="action" value="core_incident_create"><input type="hidden" name="submission_key" value="<?=e($key)?>">
-      <h2>What happened</h2>
+      <section class="tk-report-section" aria-labelledby="inc-employee-h"><h2 id="inc-employee-h">Employee Information</h2>
+      <p class="tk-hint">Your verified employee details identify you as the filer. The report date is set when you submit.</p>
+      <div class="tk-report-fields">
+        <div class="field"><label for="inc-employee">Employee name</label><input id="inc-employee" type="text" readonly value="<?=e($filer['employee_name'])?>"></div>
+        <div class="field"><label for="inc-code">Employee code</label><input id="inc-code" type="text" readonly value="<?=e($filer['employee_code'])?>"></div>
+        <div class="field"><label for="inc-company">Company / Branch</label><input id="inc-company" type="text" readonly value="<?=e($filer['company_branch'])?>"></div>
+        <div class="field"><label for="inc-position">Position</label><input id="inc-position" type="text" readonly value="<?=e($filer['position'])?>"></div>
+        <div class="field"><label for="inc-head">Immediate head</label><input id="inc-head" name="immediate_head" type="text" maxlength="200" required <?=$filer['immediate_head']!==''?'readonly':''?> value="<?=e($filer['immediate_head']!==''?$filer['immediate_head']:$val('immediate_head'))?>"></div>
+        <div class="field"><label for="inc-contact">Contact number</label><input id="inc-contact" name="contact_no" type="text" maxlength="100" required <?=$filer['contact_no']!==''?'readonly':''?> value="<?=e($filer['contact_no']!==''?$filer['contact_no']:$val('contact_no'))?>"></div>
+      </div><p class="tk-hint">Any missing immediate-head or contact details you enter apply to this report only.</p></section>
+
+      <section class="tk-report-section" aria-labelledby="inc-details-h"><h2 id="inc-details-h">Incident Details</h2>
       <div class="field"><label for="inc-title">Short title</label><input id="inc-title" name="title" type="text" maxlength="200" required value="<?=e($val('title'))?>"></div>
-      <div class="field"><label for="inc-category">Category</label><select id="inc-category" name="category" required aria-describedby="inc-category-help"><option value="">Choose a category</option><?php foreach($cats as $label):?><option <?=$val('category')===$label?'selected':''?>><?=e($label)?></option><?php endforeach;?></select><small id="inc-category-help">Helps HR sort the report. If you choose Other, please explain in at least <?=TicketIncident::OTHER_MIN_CHARS?> characters in the next box.</small></div>
-      <div class="field"><label for="inc-explanation">Describe what happened</label><textarea id="inc-explanation" name="explanation" rows="6" maxlength="5000" required><?=e($val('explanation'))?></textarea></div>
-      <div class="field"><label for="inc-at">When did it happen</label><input id="inc-at" name="incident_at" type="datetime-local" max="<?=e(date('Y-m-d\TH:i'))?>" required value="<?=e($val('incident_at'))?>"></div>
-      <div class="field"><label for="inc-location">Where did it happen</label><input id="inc-location" name="location" type="text" maxlength="200" required value="<?=e($val('location'))?>"></div>
+      <div class="field"><label for="inc-nature">Nature of incident</label><select id="inc-nature" name="nature" required><option value="">Choose one</option><?php foreach(IncidentDocument::NATURES as $code=>$label):?><option value="<?=e($code)?>" <?=$val('nature')===$code?'selected':''?>><?=e($label)?></option><?php endforeach;?></select></div>
+      <div class="field"><label for="inc-nature-other">Specify the nature (optional)</label><input id="inc-nature-other" name="nature_other" type="text" maxlength="5000" aria-describedby="inc-nature-other-help" value="<?=e($val('nature_other'))?>"><small id="inc-nature-other-help">Optional, including when Others is selected.</small></div>
+      <div class="tk-report-fields"><div class="field"><label for="inc-at">Incident date and start time</label><input id="inc-at" name="incident_at" type="datetime-local" max="<?=e(date('Y-m-d\TH:i'))?>" required value="<?=e($val('incident_at'))?>"></div>
+      <div class="field"><label for="inc-end">End time (optional, same day)</label><input id="inc-end" name="incident_end_time" type="time" value="<?=e($val('incident_end_time'))?>"></div></div>
+      <div class="field"><label for="inc-location-type">Location type</label><select id="inc-location-type" name="location_type" required><?php foreach(IncidentDocument::LOCATIONS as $code=>$label):?><option value="<?=e($code)?>" <?=($val('location_type')?:'BRANCH_SITE')===$code?'selected':''?>><?=e($label)?></option><?php endforeach;?></select></div>
+      <div class="field"><label for="inc-location">Location of incident</label><input id="inc-location" name="location" type="text" maxlength="200" required value="<?=e($val('location'))?>"><small>Enter the branch/site name or specify the other location.</small></div>
       <div class="field"><label for="inc-branch">Branch (optional)</label><select id="inc-branch" name="branch_id"><option value="">Not a specific branch</option><?php foreach(FoundationRepository::branches() as $b):?><option value="<?=(int)$b['id']?>" <?=$val('branch_id')===(string)$b['id']?'selected':''?>><?=e($b['name'])?></option><?php endforeach;?></select></div>
+      <div class="field"><label for="inc-involved">Person(s) involved (optional)</label><textarea id="inc-involved" name="involved_names" rows="2" maxlength="2000"><?=e($val('involved_names'))?></textarea></div>
+      <div class="field"><label for="inc-witnesses">Witness/es (optional)</label><textarea id="inc-witnesses" name="witness_names" rows="2" maxlength="2000"><?=e($val('witness_names'))?></textarea></div>
+      <p class="tk-hint">Names here do not need a system account and do not give access to the case. Leave blank if not applicable.</p></section>
+
+      <section class="tk-report-section" aria-labelledby="inc-description-h"><h2 id="inc-description-h">Incident Description</h2>
+      <div class="field"><label for="inc-explanation">Describe what happened</label><textarea id="inc-explanation" name="explanation" rows="8" maxlength="5000" required aria-describedby="inc-description-help"><?=e($val('explanation'))?></textarea><small id="inc-description-help">Provide a clear, factual, detailed account. Avoid assumptions and include only verified information.</small></div></section>
+      <section class="tk-report-section" aria-labelledby="inc-initial-h"><h2 id="inc-initial-h">Initial Action Taken</h2>
+      <div class="field"><label for="inc-initial">Immediate action taken (optional)</label><textarea id="inc-initial" name="initial_action" rows="4" maxlength="5000"><?=e($val('initial_action'))?></textarea><small>For example, a verbal reminder or incident escalation. Leave blank if not applicable.</small></div></section>
+      <section class="tk-report-section" aria-labelledby="inc-customer-h"><h2 id="inc-customer-h">Customer Involved</h2>
+      <p class="tk-hint">Complete only if a customer was involved.</p><div class="tk-report-fields">
+      <div class="field"><label for="inc-customer">Customer name (optional)</label><input id="inc-customer" name="customer_name" type="text" maxlength="200" value="<?=e($val('customer_name'))?>"></div>
+      <div class="field"><label for="inc-customer-contact">Contact information (optional)</label><input id="inc-customer-contact" name="customer_contact" type="text" maxlength="200" value="<?=e($val('customer_contact'))?>"></div></div></section>
+
+      <section class="tk-report-section" aria-labelledby="inc-support-h"><h2 id="inc-support-h">Supporting Documents</h2>
+      <fieldset class="tk-supporting"><legend>Supporting documents attached (select all that apply)</legend><div class="tk-supporting-options"><?php foreach(IncidentDocument::SUPPORTING as $code=>$label):?><label><input type="checkbox" name="supporting[]" value="<?=e($code)?>" <?=in_array($code,$supporting,true)?'checked':''?>> <?=e($label)?></label><?php endforeach;?></div></fieldset>
+      <div class="field"><label for="inc-support-other">Specify supporting documents (if Others)</label><input id="inc-support-other" name="supporting_other" type="text" maxlength="5000" aria-describedby="inc-support-other-help" value="<?=e($val('supporting_other'))?>"><small id="inc-support-other-help">Required only if you selected Others above.</small></div>
+      <?php ticket_upload_input('incident-attachments');?></section>
 
       <fieldset class="tk-picker" data-incident-picker data-endpoint="<?=e(url('incident-people'))?>">
-        <legend>People on this report (optional)</legend>
+        <legend>Case participants / CC (optional)</legend>
         <p class="tk-hint" id="people-help">A <strong>CC</strong> can read this report and its updates. Someone you mark <strong>Involved</strong> or <strong>Witness</strong> is recorded for HR, but cannot read the report unless HR adds them. Up to <?=TicketIncident::MAX_PARTICIPANTS?> people.</p>
         <div class="field"><label for="people-q">Find a person by name</label><input id="people-q" type="search" autocomplete="off" aria-describedby="people-help people-status"></div>
         <p id="people-status" class="tk-hint" role="status" aria-live="polite"></p>
@@ -68,7 +98,7 @@ function incident_new_page(?array $employee,string $key,array $old,array $people
         <noscript><p class="tk-hint">Adding people needs JavaScript. You can file the report without it.</p></noscript>
       </fieldset>
 
-      <?php ticket_upload_input('incident-attachments');?>
+      <p class="tk-hint">Prepared by <?=e($filer['employee_name'])?>, <?=e($filer['position'])?>. No signature is added. The reviewer name and position stay blank.</p>
       <div class="ticket-actions"><button class="btn primary" type="submit" name="intent" value="SUBMIT">Submit incident report</button><a class="btn" href="<?=e(url('incident-mine'))?>">Cancel</a></div>
     </form>
     <script>

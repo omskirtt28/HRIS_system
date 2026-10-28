@@ -8,6 +8,16 @@ updated: 2026-10-17
 
 # Conventions
 
+## Dashboard and official Incident Report decision (2026-10-27)
+Follow-up John amendment: optional nature specification even for Others, no minimum, max5000 instead of200. Supporting Others specification also max5000 with existing conditional requirement retained. See BR-785 and Session-Log; no broader validation/auth change.
+Task-specific verification override: after round 1 fixes John stopped further review/rechecks and took ownership of acceptance. Tester interrupted and simplify skipped; record initial checks separately from unverified final fixes. This does not change the standing review rule for other tasks.
+John approved [[2026-10-27-dashboard-incident-template]]: dashboard strip removal and precise viewer-warning destinations; period picker/Download Report remain a separate patch. Preserve the exact immutable IR DOCX master; report-only missing contact/head answers never update Employee 201. Reporter and eligible handling HR alone receive official-document access, separate from conversation participants. New reports freeze answers/master version/hash; historical reports are never backfilled. DOCX failure aborts filing; PDF failure keeps the DOCX/report and offers eligible HR retry. Self-hosted conversion only. Static-only verification leaves converter operation and rendered fidelity for separately authorized acceptance.
+
+## Codex workflow (2026-10-27)
+John also authorized Claude Code handoff if Codex usage is exhausted (2026-10-27). Record exact changed files, checks, completed/remaining work and active restrictions in the session checkpoint; this does not authorize DB execution, commit or deployment and does not claim an automatic model switch when tools cannot do it.
+John requested project-scoped Codex subagents and patch/debug/UI/review skills. [[Codex-Agent-Workflow]] routes planner -> needed 10-year backend/UI engineer -> static tester -> read-only simplify proposals -> mandatory Obsidian sync by main. Includes docs/config and small fixes; pure questions stay in main. AGENTS overrides old auto-commit/DB/browser actions for Codex. Shared Claude role bodies remain the role source; global assistant/session mode is unchanged. Update affected specs only, every patch/decision, without reminders.
+
+
 Rules for this vault and for the specs it produces. Consistency here is what makes the vault machine-readable enough to hand to Claude Code.
 
 ## Note naming

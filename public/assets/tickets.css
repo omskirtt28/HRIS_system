@@ -72,7 +72,10 @@
 .tk-case-meta{color:var(--hris-muted);font-size:13px}
 .tk-case-side{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .tk-form{max-width:760px}.tk-form h2{margin:0 0 14px;font-size:17px}
-.tk-form .field input[type=text],.tk-form .field input[type=search],.tk-form .field input[type=datetime-local],.tk-form .field select,.tk-form .field textarea{width:100%;box-sizing:border-box}
+.tk-form .field input[type=text],.tk-form .field input[type=search],.tk-form .field input[type=datetime-local],.tk-form .field input[type=time],.tk-form .field select,.tk-form .field textarea{width:100%;box-sizing:border-box}
+.tk-report-section+.tk-report-section{border-top:1px solid var(--hris-line);padding-top:22px;margin-top:22px}.tk-report-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px}.tk-report-fields .field{min-width:0}.tk-form input[readonly]{color:var(--hris-muted);background:var(--hris-surface-2)}
+.tk-supporting{min-width:0;padding:0;border:0;margin:0 0 16px}.tk-supporting legend{font-weight:600;margin-bottom:8px}.tk-supporting-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 16px}.tk-supporting-options label{display:flex;align-items:center;gap:8px;min-height:44px;cursor:pointer}.tk-supporting-options input{width:18px;height:18px;flex:0 0 auto}
+@media(max-width:650px){.tk-report-fields,.tk-supporting-options{grid-template-columns:minmax(0,1fr)}}
 .tk-picker{border:1px solid var(--hris-line);border-radius:12px;padding:16px;margin:18px 0;min-width:0}.tk-picker legend{padding:0 8px;font-weight:600}
 .tk-hint{color:var(--hris-muted);font-size:13px;margin:0 0 12px}
 .tk-results,.tk-people{list-style:none;margin:0;padding:0;display:grid;gap:8px}.tk-people{margin-top:12px}
@@ -85,6 +88,8 @@
 /* Incident Reports, case page (I3). Tokens only; no new colours. */
 .tk-case-grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start}
 .tk-case-col,.tk-case-rail{min-width:0}.tk-case-rail>.tk-card:first-child,.tk-case-col>.tk-card:first-child{margin-top:0}
+.tk-document-preview{display:block;width:100%;height:75vh;min-height:420px;max-height:900px;border:1px solid var(--hris-line);border-radius:10px;margin-top:16px;background:var(--hris-surface-2)}.tk-document .ticket-actions{flex-wrap:wrap;margin-bottom:14px}.tk-document .btn{min-height:44px}.tk-document .tk-hint{margin-top:12px}
+@media(max-width:650px){.tk-document-preview{height:65vh;min-height:320px}.tk-document .ticket-actions .btn{flex:1 1 100%;white-space:normal;text-align:center}}
 .tk-thread{list-style:none;margin:0;padding:0;display:grid;gap:14px}
 .tk-post{display:flex;gap:12px;align-items:flex-start}
 .tk-post-body{flex:1;min-width:0;padding:10px 14px;border:1px solid var(--hris-line);border-radius:14px;background:var(--hris-bg)}
@@ -98,6 +103,7 @@
 .tk-rail-person{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.tk-rail-name{flex:1 1 140px;min-width:0;display:flex;flex-wrap:wrap;gap:2px 8px;align-items:center}.tk-rail-name .tk-hint{flex:1 0 100%;margin:0}
 .tk-inline{margin:0}.tk-inline .btn{min-height:44px}
 .tk-sub{margin:18px 0 8px;font-size:14px;color:var(--hris-muted);text-transform:uppercase;letter-spacing:.04em}.tk-hr-block>.tk-sub:first-child{margin-top:0}
+.tk-status-action{margin:0 0 18px}.tk-hr-panel details{scroll-margin-top:90px}.tk-hr-panel summary{cursor:pointer}.tk-hr-panel summary:focus-visible{outline:2px solid var(--hris-info);outline-offset:3px}
 .tk-hr-panel{border-color:var(--hris-warning)}.tk-hr-block{padding:14px 0;border-top:1px solid var(--hris-line)}.tk-hr-block:first-of-type{border-top:0;padding-top:0}
 .tk-hr-panel .field select,.tk-hr-panel .field textarea,.tk-hr-panel .field input[type=search],.tk-attach input[type=file]{width:100%;box-sizing:border-box}
 .tk-hr-panel .btn,.tk-attach .btn,.tk-sticky .btn{min-height:44px}

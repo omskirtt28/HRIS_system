@@ -10,6 +10,8 @@ updated: 2026-10-17
 
 ## Purpose
 
+2026-10-27 dashboard scope: [[2026-10-27-dashboard-incident-template]] / BR-788 removes the duplicate action strip while keeping the existing filters, six KPIs and lower panels. Three setup warnings target focused/expanded Ticket Viewers sections. Period picker and Download Report parity are explicitly deferred to their own patch; do not treat this cleanup as that implementation.
+
 Generate, rather than re-key, every report the company owes to a government agency or needs for management. Two distinct families with different quality bars:
 
 - **Statutory reports** — SSS, PhilHealth, Pag-IBIG, BIR. The bar is *exactness*: a figure that does not tie to the payroll register is a filing error with penalties attached. These must be generated from released payroll runs only.

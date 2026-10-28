@@ -243,7 +243,7 @@ final class TicketViewerService
      * Unresolved-viewers report. An employee is resolvable when any account that holds ticket.view_team has them in
      * scope(); this reuses scope() so the report cannot disagree with the access rule.
      */
-    public static function report(int $page=1): array
+    public static function report(int $page=1,string $focus=''): array
     {
         EmployeeApproverAssignmentService::requireHr();
         $branchCovered=[];$areaCovered=[];$employeeCovered=[];
@@ -270,11 +270,13 @@ final class TicketViewerService
         $adlInHo=array_values(array_filter($adls,static fn($a)=>($a['site_type']??'')==='HEAD_OFFICE' || !$a['branch_name']));
         $noArea=db()->query('SELECT b.id,b.code,b.name,(SELECT COUNT(*) FROM employees e WHERE e.branch_id=b.id AND e.status IN '.self::ACTIVE.') emps FROM branches b
             WHERE b.active=1 AND b.site_type<>"HEAD_OFFICE" AND COALESCE(b.code,"")<>"HEAD_OFFICE" AND b.area_id IS NULL ORDER BY b.name')->fetchAll();
-        $page=max(1,$page);
+        // Focus affects the employee destination before pagination; dashboard counts stay global.
+        if(in_array($focus,['retail_missing','ho_missing'],true))$missing=array_values(array_filter($missing,static fn($e)=>(bool)$e['is_ho']===($focus==='ho_missing')));
+        $pages=max(1,(int)ceil(count($missing)/50));$page=max(1,min($page,$pages));
         $withoutSc=array_values(array_filter($problemBranches,static fn($b)=>in_array('NO_SC',array_column($b['problems'],0),true)));
         $scNoAccount=array_values(array_filter($problemBranches,static fn($b)=>in_array('SC_NO_ACCOUNT',array_column($b['problems'],0),true)));
         $multiSc=array_values(array_filter($problemBranches,static fn($b)=>in_array('MULTI_SC',array_column($b['problems'],0),true)));
-        return ['counts'=>$count,'missing'=>array_slice($missing,($page-1)*50,50),'missing_total'=>count($missing),'page'=>$page,'pages'=>max(1,(int)ceil(count($missing)/50)),
+        return ['counts'=>$count,'missing'=>array_slice($missing,($page-1)*50,50),'missing_total'=>count($missing),'page'=>$page,'pages'=>$pages,
             'branches_with_problems'=>$problemBranches,'branches_without_sc'=>$withoutSc,'branches_sc_no_account'=>$scNoAccount,'branches_multi_sc'=>$multiSc,
             'adls'=>$adls,'adls_unready'=>$noSetup,'adls_in_head_office'=>$adlInHo,'branches_without_area'=>$noArea];
     }

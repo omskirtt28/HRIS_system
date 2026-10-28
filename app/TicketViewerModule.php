@@ -16,7 +16,8 @@ function ticket_viewers_handle(string $page): void
         // The old assign-lead / extra-viewer actions are gone on purpose; refuse them rather than ignore them.
         verify_csrf();http_response_code(405);exit('Ticket viewers are set automatically from branch, position and area. They cannot be assigned here.');
     }
-    $filter=['area_id'=>(int)($_GET['area_id']??0),'branch_id'=>max(0,(int)($_GET['branch_id']??0)),'problems'=>($_GET['all']??'')!=='1','p'=>max(1,(int)($_GET['p']??1))];
-    ticket_viewers_page($filter,TicketViewerService::branchRows($filter['area_id'],$filter['branch_id'],$filter['problems']),TicketViewerService::report($filter['p']));
+    $focus=is_string($_GET['focus']??null)&&in_array($_GET['focus'],['branches_without_sc','retail_missing','ho_missing'],true)?$_GET['focus']:'';
+    $filter=['area_id'=>(int)($_GET['area_id']??0),'branch_id'=>max(0,(int)($_GET['branch_id']??0)),'problems'=>($_GET['all']??'')!=='1','p'=>max(1,(int)($_GET['p']??1)),'focus'=>$focus];
+    ticket_viewers_page($filter,TicketViewerService::branchRows($filter['area_id'],$filter['branch_id'],$filter['problems']),TicketViewerService::report($filter['p'],$focus));
     exit;
 }

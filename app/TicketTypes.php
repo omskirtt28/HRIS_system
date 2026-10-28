@@ -26,6 +26,8 @@ final class TicketTypes
         return self::definitions()[$code]??throw new RuntimeException('Choose an available request type.');
     }
     public static function validate(string $code,array $data,array $employee):array {
+        // Filing classifies the eight official-template choices on the server; historic category labels remain unchanged.
+        if($code==='INCIDENT_REPORT')$data['category']=IncidentDocument::category($data['nature']??null);
         $out=[];
         foreach(self::definition($code)['fields'] as $key=>$field){
             $value=$data[$key]??'';
@@ -55,7 +57,7 @@ final class TicketTypes
         if($code==='BRANCH_TRANSFER')$out=TicketBranchTransfer::validate($out,$employee);
         if($code==='OIC_AUTHORIZATION')$out=TicketOicAuthorization::validate($out,$employee);
         if($code==='COE_REQUEST')$out=TicketCoe::validate($out);
-        if($code==='INCIDENT_REPORT')$out=TicketIncident::validate($out,$data);
+        if($code==='INCIDENT_REPORT'){$out=TicketIncident::validate($out,$data);$out['official_incident']=IncidentDocument::answers($data,$employee);}
         return $out;
     }
     public static function save(int $id,string $code,array $payload):void {

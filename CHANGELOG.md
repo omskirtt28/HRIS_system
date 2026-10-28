@@ -1,3 +1,16 @@
+## 2026-10-27 - Incident Others submission correction
+- Nature specification now optional, including Others, with max5000 instead of200. UI/backend agree; supporting Others specification max5000 with existing conditional requirement retained. Both changed PHP files pass php -l; runtime acceptance by John, no further review/deployment.
+
+## 2026-10-27 - Dashboard cleanup and official Incident Report (source patched; acceptance by John)
+- Dashboard action strip removed, three setup warnings link to focused/expanded viewer reports, existing handler-only status form is reachable beside the pipeline.
+- Six-section form uses verified filer details and separate free-text names/access picker; exact immutable master, frozen answers, transactional DOCX, optional local PDF and reporter/eligible-handler document GET/retry implemented. New documents use validated external private storage, default `C:/xampp/hris-private/incident_documents`. Existing case conversation/participants/history retained.
+- Initial lint: PHP 12/13 passed, dashboard transition failed then corrected; three extracted inline JS checks passed. QA round 1 also corrected external storage and PDO handling. John stopped further review/recheck and owns acceptance; tester interrupted, simplify skipped. Final fix lint, runtime/browser/DB/converter/rendered fidelity unverified. No commit/push/deploy; period picker/Download Report deferred. Vault and usage-limit handoff decision synced.
+
+## 2026-10-27 - Codex HRIS agents and coding skills
+- Six project Codex roles share existing Claude role bodies; four skills cover patching, debugging, UI and review.
+- Planner-first changes, static tester, simplify proposals, exact file ownership and automatic Obsidian sync after patches/decisions.
+- Configuration/docs only; no application, database, permission or payroll change, commit or deployment.
+
 ## 2026-10-26 · Light theme text meets AA contrast (no database change)
 - Green, blue, red and amber chips, badges, alerts and links, plus grey secondary text (tabs, counts, table headers, breadcrumbs), are now 4.5:1 or better on the light theme. Dark mode is unchanged.
 

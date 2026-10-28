@@ -79,8 +79,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 200,
-    "collapsed": true
+    "width": 200
   },
   "right": {
     "id": "59388aba94fc5ba7",
@@ -184,6 +183,7 @@
   },
   "active": "8cefdab65689b6fc",
   "lastOpenFiles": [
+    "05-Implementation/Plans/2026-10-27-dashboard-incident-template.md",
     "05-Implementation/Plans/2026-10-25-incident-report-module.md",
     "05-Implementation/Cutoff-Checklist.md",
     "05-Implementation/Plans/2026-10-25-ta-form-existing-logs.md",

@@ -322,6 +322,10 @@ Facts moved from the retired repo-root `SCHEMA.md` (2026-10-25). Executable sour
 
 **Platform fact:** the live database is **MariaDB 10.4.32** on XAMPP. The old docs said MySQL 8.x; migrations are written to run on both, but 10.4 has no MySQL-8-only features. Re-check before choosing the production host (Q13 in [[Open-Questions]]).
 
+## Official Incident snapshot (2026-10-27, no migration)
+
+New Incident submissions add `official_incident` to existing `tickets.payload_json`: frozen filer Employee Information, server submission/report date, eight-choice nature, incident date/start/optional end/location, free-text involved/witness names, narration, initial action, customer and supporting-document answers, immutable master version/SHA-256, and nested `document.docx` plus optional `document.pdf` metadata (generated stored name, SHA-256, size). The mapped existing category remains in `incident_details.category`. Files use server-generated private names, not a public attachment record. PDF retry updates document metadata under the existing ticket version/transaction gate; frozen report answers and DOCX stay unchanged. No new table, no Employee 201 writes, no historical backfill or recategorization. Official-document read permission is narrower than case conversation access (BR-787). Exact contract: [[2026-10-27-dashboard-incident-template]], [[API-Surface]].
+
 ## Open Questions
 
 - [ ] Does every table need a `company_id`? → [[ADR-002-Multi-Tenancy]], Q1 in [[Open-Questions]]

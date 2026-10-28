@@ -8,6 +8,19 @@ updated: 2026-10-24
 
 # Progress
 
+## 2026-10-27 - Incident Others submit correction
+- Nature specification is optional, including Others; removed the200-character cap (max5000, no minimum). Supporting Others specification also max5000, required only if selected. Backend/UI aligned in IncidentDocument/IncidentViews; php -l both passed. Runtime submission not run; John checks. Further review skipped as requested.
+
+## 2026-10-27 - Dashboard cleanup and official Incident Report
+- **Source patched; John owns acceptance:** [[2026-10-27-dashboard-incident-template]], BR-784..788. Dashboard strip removed, focused viewer links, handler status affordance, six-section form, immutable master/frozen answers, transactional DOCX, optional PDF/retry and authorized private downloads. New documents use validated external storage (default `C:/xampp/hris-private/incident_documents`). No migration/Employee 201 writes; historical cases/categories untouched.
+- **Actual checks:** initial PHP lint 12/13 passed (dashboard transition failed); three source-extracted JS syntax checks passed; template hash/160 anchors, CRLF and scoped whitespace checked. Round 1 corrected dashboard transition, externalized IR storage and fixed PDO subclass handling. John explicitly stopped further review/rechecks and will check correctness himself; tester interrupted, simplify review skipped. Final fix lint/runtime/browser/DB/converter/rendered fidelity not verified. No commit/push/deployment; vault synced.
+
+## 2026-10-27 - Codex agents and coding skills
+- Six HRIS Codex roles share existing Claude role bodies; four local skills cover patching, debugging, UI and review. Planner first, main-owned Obsidian sync, static tester before any separately authorized deployment.
+- Configuration/rules/vault only. No runtime, schema, permission, payroll or data change; unrelated work preserved.
+- Verification: 6 TOMLs parsed; 4 skill headers/names/references checked without dependencies; new CRLF normalized. Bundled skill validator could not run (PyYAML unavailable). Runtime/browser/DB checks and fresh-session discovery not verified. See [[Codex-Agent-Workflow]].
+
+
 Tick as work lands. Add the commit hash or PR next to a ticked item. Slice definitions live in [[Build-Plan]]. Session history: [[Session-Log]]. Plans: `05-Implementation/Plans/` (template [[_Template]]).
 
 ## Decisions gate

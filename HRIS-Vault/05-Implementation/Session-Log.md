@@ -8,7 +8,30 @@ updated: 2026-10-26
 
 # Session Log
 
+## 2026-10-27 - Incident Others submit blocker fixed
+- **John:** screenshot showed "Nature other is missing or invalid (maximum 200 characters)"; report needs to send without that blocker. Planner traced a required Others field with an optional-looking UI, not a 200-character minimum.
+- **Patched:** IncidentDocument nature_other optional, blank/short allowed, max5000; IncidentViews labels/help/maxlength match. Same-class supporting_other limit raised to5000; still required only when Supporting Documents Others selected. Category/auth/storage/transactions unchanged.
+- **Checks:** php -l passed both changed PHP files. No JS changes. Further review/tester/simplify skipped per John's instruction; no runtime/browser/DB verification, commit or deployment. User performs submit acceptance. Specs/decision/plan synced.
+
+## 2026-10-27 - Dashboard cleanup and template-based IR (source patched; John checks)
+- **Approved:** [[2026-10-27-dashboard-incident-template]], BR-784..788. Exact master found in Downloads; unchanged source copy/hash owned by backend. Period picker/Download Report remain separate.
+- **Implemented:** dashboard/status/viewer UI, six-section form and document card; viewer focus before pagination; frozen filer answers/exact-master generation, rollback cleanup/idempotence, case redirect, renewed document GET gates and versioned/CSRF-protected handler PDF retry. Generated documents use validated storage outside served roots, default `C:/xampp/hris-private/incident_documents`. Configure `incident_documents.libreoffice_path` in local config for optional PDF conversion; example file only changed, actual local config untouched.
+- **Actual checks:** first QA PHP lint 12/13 passed, dashboard missing `?>` failed; all three source-extracted scripts passed `node --check`. Master SHA-256/160 anchors and changed-text CRLF/scoped whitespace checked. Round 1 restored dashboard tag, externalized storage after finding PHP built-in server ignores `.htaccess`, and rethrew PDO from ownEmployee to safe outer handler. **John then instructed "wag na mag review ... ako na mag check" and "need ko ma tapos na yan": active tester interrupted; further review/recheck and simplify skipped.** Final fixes not lint-reverified; authenticated/runtime/browser/DB/converter/rendered fidelity unverified. No commit/push/deployment.
+- **Found left alone:** existing COE/generic attachment storage uses the older project-storage/Apache-deny pattern; separate authorization needed to address all supported servers. Current patch fixes only new IR document storage. John performs acceptance; no additional code review pending in this session.
+- **Ownership:** backend = IncidentDocument, IncidentModule, TicketIncident, TicketService, TicketTypes, TicketViewerModule/Service, example config, immutable resources template; UX = HrDashboardViews, TicketViewerViews, IncidentViews, IncidentCaseViews, TicketViews cache bump, hr-ops.css/tickets.css. Preserve pre-existing agent/config/vault/.obsidian edits.
+- **Usage fallback:** John authorized Claude Code handoff when Codex usage is exhausted. No takeover yet; global `.codex/AGENTS.md` and `.claude/CLAUDE.md` plus Conventions/Decision-Log/Start-Here updated. Continue from this checkpoint/current diff; original static-only restrictions persist.
+
+## 2026-10-27 - Codex subagents + skills (John)
+- **Desisyon:** HRIS planner -> senior backend/UI -> patch-tester -> simplify proposals; main coordinates and updates Obsidian kada patch/desisyon. Researcher as needed.
+- **Setup:** `.codex/agents/hris-*.toml`, four `.agents/skills/` skills, AGENTS/CLAUDE routing and [[Codex-Agent-Workflow]]. Existing Claude pipeline and historical Codex-First withdrawal preserved.
+- **Checks:** 6 TOMLs parsed; 4 skill headers/names/references checked; normalized new-file CRLF. Bundled validator unavailable (no PyYAML); independent source review used general subagents, not newly loaded roles. No runtime/browser/DB tests, commit or deployment; fresh-session discovery unverified.
+
+
 Isang entry kada session, pinakabago sa taas. Mga plano ay nasa `Plans/` (template: [[_Template]]). Slice status ay nasa [[Progress]].
+
+## 2026-10-26 - Codex-first sa bawat prompt (John)
+- **Rule:** bawat prompt Codex muna via `codex exec`, kasama ang tanong, research, plano, build, config/docs/vault; Claude guides, nagre-review (`git diff --stat`, `patch-tester`), nagtutuwid at nag-uulat. Trivial chat lang ang direct answer; takeover kailangan ng `AskUserQuestion` at oo ni John.
+- **Setup:** naitala ang AGENTS.md, `simplify-gatekeeper` (proposals lang), at session-start rule (Claude-Code-Brief muna, latest Session-Log at Progress). Rule/docs update lang sa apat na pinangalanang files; walang agent/config edit o commit. Hub: [[Codex-First]].
 
 ## 2026-10-26 - Vault audit (executed)
 - **Ginawa:** in-audit ang vault laban sa I1-I4, Q62 at attendance export. Kulang lang ang attendance export: idinagdag ang BR-783 (Business-Rules), "As built" sa Attendance-and-DTR, at Q63 (HO Creatives/MIS biometric file) sa Open-Questions. Docs lang; walang code, migration o DB.
@@ -96,3 +119,6 @@ Isang entry kada session, pinakabago sa taas. Mga plano ay nasa `Plans/` (templa
 - **Napagdesisyunan:** ang vault ang memorya ng mga plano at session; kapag nag-"plan" si John, isusulat ang plano sa `Plans/` at ililista dito.
 - **Ginawa:** `Plans/_Template.md`, ang note na ito, at bagong rule sa CLAUDE.md ("Plan and session log").
 - **Susunod:** gamitin ang rule sa susunod na "plan".
+
+## 2026-10-27 - BINAWI ang Codex muna (John)
+- BINAWI 2026-10-27: Claude Code + sariling subagents + advisor na ulit; walang codex exec maliban kung hilingin ni John.

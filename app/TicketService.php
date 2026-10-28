@@ -134,6 +134,11 @@ final class TicketService
     private static function submitLocked(array &$t,array $employee,array $type):void
     {
         if($t['type_code']==='INCIDENT_REPORT'){
+            // Historic cases without a snapshot stay without a generated document; never invent or backfill answers.
+            if(isset($t['payload']['official_incident'])&&!isset($t['payload']['official_incident']['document'])){
+                $t['payload']['official_incident']['document']=IncidentDocument::generate($t['payload']['official_incident']);
+                db()->prepare('UPDATE tickets SET payload_json=? WHERE id=?')->execute([json_encode($t['payload'],JSON_THROW_ON_ERROR),$t['id']]);
+            }
             db()->prepare('UPDATE tickets SET filed_at=COALESCE(filed_at,NOW()),current_step_no=0 WHERE id=?')->execute([$t['id']]);
             self::transition($t,'SUBMITTED','','PUBLISHED');return;
         }
@@ -275,6 +280,20 @@ final class TicketService
             }
             self::transition($t,$to,$remarks);return $id;
         });}finally{self::$internalNote='';}
+    }
+    /** Retry only the optional preview, under the existing ticket/version lock. The frozen report answers never change. */
+    public static function incidentRetryPdf(int $id,int $version):bool
+    {
+        return self::transaction(function()use($id,$version){
+            $t=TicketRepository::find($id,true);
+            if(!TicketIncident::isIncident($t)||!TicketIncident::isHandler($t))throw new RuntimeException('Only eligible handling HR may retry this preview.');
+            self::assertVersion($t,$version);
+            if(isset($t['payload']['official_incident']['document']['pdf']))return true;
+            $pdf=IncidentDocument::retry($t);
+            if($pdf!==null){$t['payload']['official_incident']['document']['pdf']=$pdf;db()->prepare('UPDATE tickets SET payload_json=?,version=version+1 WHERE id=?')->execute([json_encode($t['payload'],JSON_THROW_ON_ERROR),$id]);}
+            self::event($id,'INCIDENT_PDF_RETRY',null,null,['ready'=>$pdf!==null]);
+            audit('Tickets','INCIDENT_PDF_RETRY','ticket',$id,['ready'=>$pdf!==null]);return $pdf!==null;
+        });
     }
     /** HR includes someone in the case; that always lets them read it. Only the handling HR reviewer may do this. */
     public static function incidentAddParticipant(int $id,int $userId,string $role):int

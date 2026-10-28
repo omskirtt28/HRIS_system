@@ -8,6 +8,17 @@ updated: 2026-10-24
 
 # Decision Log
 
+- 2026-10-27 John reported the nature_other submit blocker and removed the200-character requirement/cap: nature specification optional even for Others, blank/short accepted, max5000. Supporting Others limit5000 with conditional required rule retained. Supersedes original required nature specification in BR-785 / [[2026-10-27-dashboard-incident-template]]. Backend/UI PHP lint passed; user owns runtime acceptance.
+
+- 2026-10-27 Decided (John, current IR/dashboard patch only): stop further review/rechecks; John will check correctness. Tester interrupted after round 1 fixes, simplify skipped, remaining verification disclosed in [[Session-Log]] / [[2026-10-27-dashboard-incident-template]]. No change to standing review defaults or deployment authorization.
+
+- 2026-10-27 Decided (John): if Codex usage is exhausted, Claude Code handoff is already authorized. Preserve the task checkpoint/current diff/checks and current static-only/no-DB/no-commit/no-deploy boundaries; no immediate takeover while Codex remains available.
+
+- 2026-10-27 Decided (John, supplied implementation plan): [[2026-10-27-dashboard-incident-template]]. Remove dashboard action strip, deep-link setup warnings with pre-pagination filters, reveal existing handler status form beside progress. Use the exact supplied DOCX as immutable master and generate a filled copy at submission; freeze filer answers and master hash/version in existing payload, without a new table. Eight nature choices map to existing categories; historical categories stay intact. Free-text names confer no access. Prepared by uses filer/actual position without signature; reviewed by blank, printed captions retained. Official PDF/DOCX reporter/eligible-handler only; DOCX-required transactional filing, PDF-optional fallback/handler retry, self-hosted LibreOffice. No historical backfill. Period picker/Download Report deferred; no browser/app/DB tests, commit or deployment.
+
+- 2026-10-27 Decided (John): install HRIS Codex planner, senior backend/UI, tester, researcher and simplify roles, plus local patch/debug/UI/review skills. Main coordinates and syncs Obsidian on every patch/decision. Codex follows syntax/static-only checks; no automatic DB writes, commit or deployment. Historical Codex-First withdrawal remains; Claude mode unchanged. See [[Codex-Agent-Workflow]].
+
+
 Index of Architecture Decision Records. One ADR per decision that is expensive to reverse. Use [[ADR-000-Template]] for new ones.
 
 ## Index

@@ -8,6 +8,15 @@ updated: 2026-10-25
 
 # Start Here
 
+- Incident submit correction (2026-10-27): Others nature specification optional, no200-character requirement/cap; BR-785 updated. Both PHP lint passed; John checks submission. See [[Session-Log]].
+
+- Usage fallback (John, 2026-10-27): Claude Code handoff authorized when Codex usage is exhausted; use current [[Session-Log]] checkpoint and retain current execution restrictions. See [[Conventions]].
+
+- Current approved implementation: [[2026-10-27-dashboard-incident-template]] (dashboard cleanup, handler status affordance, exact-template confidential Incident documents; period/report picker deferred).
+
+- [[Codex-Agent-Workflow]] - HRIS Codex subagents, coding/debug skills, static QA and automatic Obsidian sync (John, 2026-10-27).
+
+
 The dashboard for the HRIS planning vault. Everything is reachable from this note.
 
 > [!important] The vault is the ONLY source of truth. Every patch must sync it before its final report (see [[Conventions]], CLAUDE.md, `.claude/skills/hris-patch`). Ticket engine hub: [[Employee-Tickets]].
@@ -74,6 +83,7 @@ These block real work. See [[Open-Questions]] for the full checklist.
 
 ## Reference & meta
 
+- [[Codex-First]] - SUPERSEDED: BINAWI 2026-10-27: Claude Code + sariling subagents + advisor na ulit; walang codex exec maliban kung hilingin ni John.
 - [[PH-Labor-and-Payroll-Notes]] · [[Glossary]] · [[Conventions]] · [[README]]
 
 ```mermaid

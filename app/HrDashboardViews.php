@@ -12,9 +12,6 @@ function hd_kpi(string $label,int $value,string $href,string $icon,string $foot,
       <?php if($delta):?><div class="hd-delta"><?=$delta['value']>0?'▲':($delta['value']<0?'▼':'●')?> <?=e($delta['text'])?></div><?php endif;?></a>
 <?php }
 
-function hd_strip_card(string $label,string $value,string $sub,string $href,string $icon,string $tone=''):void
-{ ?><a class="hd-card <?=e($tone)?>" href="<?=e($href)?>"><span class="attention-icon <?=$tone==='is-hot'?'danger':($tone==='is-warm'?'warn':'info')?>"><?=icon_svg($icon)?></span><span><strong><?=e($value)?></strong><span class="t"><?=e($label)?><?=$sub!==''?' · '.e($sub):''?></span></span></a><?php }
-
 function hr_dashboard_page():void
 {
     $p=HrDashboard::params($_GET);$d=HrDashboard::data($p);$t=$d['tickets'];$w=$d['window'];$group=$p['company']==='ALL'?'':$p['company'];
@@ -26,18 +23,10 @@ function hr_dashboard_page():void
     $interviews=db()->query('SELECT i.*, CONCAT(ap.first_name," ",ap.last_name) applicant_name,j.title job_title FROM interviews i JOIN applications a ON a.id=i.application_id JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id WHERE DATE(i.scheduled_at)=CURDATE() ORDER BY i.scheduled_at LIMIT 6')->fetchAll();
     $first=explode(' ',trim((string)(Auth::user()['name']??'HR Team')))[0];
     render_portal_header('hr','hr-dashboard','HR Dashboard');
-    echo '<link rel="stylesheet" href="public/assets/hr-ops.css?v=20261025-1">';
+    echo '<link rel="stylesheet" href="public/assets/hr-ops.css?v=20261027-ir">';
     dashboard_hero('Human Resources',hd_greeting().', '.$first.'.','Here is the workforce, request and recruitment activity that needs your attention.','<a href="'.url('hr-employees').'" class="btn">'.icon_svg('users').' Employee directory</a>'.($d['is_hr']?'<a href="'.e($queue(['tab'=>'pending'])).'" class="btn primary">Open HR Request Queue '.icon_svg('arrow').'</a>':'<a href="'.url('hr-pipeline').'" class="btn primary">Open recruitment pipeline '.icon_svg('arrow').'</a>'));
 
-    if($d['is_hr']):?>
-    <section class="hd-strip" aria-labelledby="hd-strip-title"><h2 id="hd-strip-title">Needs your action today</h2><div class="hd-strip-grid">
-      <?php hd_strip_card('Pending HR requests',(string)$t['pending'],'',$queue(['tab'=>'pending']),'clipboard',$t['pending']>0?'is-warm':'');
-      if($d['incident'])hd_strip_card('Open Incident Cases',(string)$d['incident']['open'],'',$incOpen,'alert',$d['incident']['open']>0?'is-hot':'');
-      hd_strip_card('Oldest pending',$t['pending']?$t['oldest_days'].($t['oldest_days']===1?' day':' days'):'—',$t['pending']?'':'none waiting',$queue(['tab'=>'pending','sort'=>'oldest']),'clock',$t['oldest_days']>5?'is-hot':($t['oldest_days']>2?'is-warm':''));
-      if($d['setup'])hd_strip_card('Setup problems',(string)$d['setup']['total'],$d['setup']['branches_without_sc'].' branches without SC',url('hr-ticket-viewers'),'settings',$d['setup']['total']>0?'is-warm':'');?>
-    </div></section>
-    <?php endif;?>
-
+    ?>
     <form method="get" class="hd-filterbar" action="index.php"><input type="hidden" name="page" value="hr-dashboard">
       <div class="field"><label for="hd-company">Company</label><select id="hd-company" name="company" onchange="this.form.submit()"><?php foreach(HrDashboard::COMPANIES as $k=>$l):?><option value="<?=e($k)?>" <?=$p['company']===$k?'selected':''?>><?=e($l)?></option><?php endforeach;?></select></div>
       <div class="field"><label for="hd-period">Period</label><select id="hd-period" name="period" onchange="this.form.submit()"><?php foreach(HrDashboard::PERIODS as $k=>$l):?><option value="<?=e($k)?>" <?=$p['period']===$k?'selected':''?>><?=e($l)?></option><?php endforeach;?></select></div>
@@ -79,9 +68,9 @@ function hr_dashboard_page():void
         <?php if($d['incident']):$latest=$d['incident']['latest'][0]??null;?><div class="hd-sub">Incident Reports</div>
           <a class="hd-item" href="<?=e($incOpen)?>"><span><strong><?=$d['incident']['new']?> new · <?=$d['incident']['open']?> open</strong><small><?=$latest?'Latest: '.e($latest['title']):'No Incident Reports yet'?></small></span><span class="badge <?=$d['incident']['open']?'red':'gray'?>"><?=$d['incident']['open']?'Open':'None'?></span></a><?php endif;?>
         <?php if($d['setup']):$s=$d['setup'];?><div class="hd-sub">Setup warnings</div><div class="attention-list">
-          <?php attention_item('Branches without a Sales Captain','Only the ADL can see their requests',$s['branches_without_sc'],$s['branches_without_sc']?'warn':'success','store');
-          attention_item('Retail employees without a viewer','No ADL, Sales Captain or OIC can view their requests',$s['retail_missing'],$s['retail_missing']?'warn':'success','users');
-          attention_item('Head Office employees without a Manager viewer','Reporting To missing or no usable account',$s['ho_missing'],$s['ho_missing']?'warn':'success','user');?></div>
+          <a class="hd-warning" href="<?=e(url('hr-ticket-viewers',['focus'=>'branches_without_sc']).'#tv-branches-without-sc')?>"><?php attention_item('Branches without a Sales Captain','Review branches without a Sales Captain',$s['branches_without_sc'],$s['branches_without_sc']?'warn':'success','store');?></a>
+          <a class="hd-warning" href="<?=e(url('hr-ticket-viewers',['focus'=>'retail_missing']).'#tv-missing')?>"><?php attention_item('Retail employees without a viewer','No ADL, Sales Captain or OIC can view their requests',$s['retail_missing'],$s['retail_missing']?'warn':'success','users');?></a>
+          <a class="hd-warning" href="<?=e(url('hr-ticket-viewers',['focus'=>'ho_missing']).'#tv-missing')?>"><?php attention_item('Head Office employees without a Manager viewer','Reporting To missing or no usable account',$s['ho_missing'],$s['ho_missing']?'warn':'success','user');?></a></div>
           <p style="margin:10px 0 0"><a class="panel-link" href="<?=e(url('hr-ticket-viewers'))?>">Review in Ticket Viewers</a></p><?php endif;?>
       </div></section>
     </div>
