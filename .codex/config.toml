@@ -1,0 +1,25 @@
+plan_mode_reasoning_effort = "medium"
+
+[agents.hris-backend-engineer]
+description = "Senior HRIS PHP/MySQL backend engineer role with 10 years of experience; implements the assigned plan."
+config_file = "agents/hris-backend-engineer.toml"
+
+[agents.hris-patch-tester]
+description = "Read-only HRIS QA and patch critic; reviews the plan and diff before any authorized localhost release."
+config_file = "agents/hris-patch-tester.toml"
+
+[agents.hris-planner]
+description = "Read-only HRIS planner for work delegated when needed."
+config_file = "agents/hris-planner.toml"
+
+[agents.hris-researcher]
+description = "Read-only HRIS code and vault lookup specialist; finds files and traces flows for the planner."
+config_file = "agents/hris-researcher.toml"
+
+[agents.hris-simplify-gatekeeper]
+description = "Read-only final HRIS simplicity reviewer; returns proposals without editing or applying them."
+config_file = "agents/hris-simplify-gatekeeper.toml"
+
+[agents.hris-ux-designer]
+description = "Senior HRIS UI/UX designer and frontend engineer role with 10 years of experience."
+config_file = "agents/hris-ux-designer.toml"

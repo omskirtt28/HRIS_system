@@ -14,8 +14,8 @@ Task-specific verification override: after round 1 fixes John stopped further re
 John approved [[2026-10-27-dashboard-incident-template]]: dashboard strip removal and precise viewer-warning destinations; period picker/Download Report remain a separate patch. Preserve the exact immutable IR DOCX master; report-only missing contact/head answers never update Employee 201. Reporter and eligible handling HR alone receive official-document access, separate from conversation participants. New reports freeze answers/master version/hash; historical reports are never backfilled. DOCX failure aborts filing; PDF failure keeps the DOCX/report and offers eligible HR retry. Self-hosted conversion only. Static-only verification leaves converter operation and rendered fidelity for separately authorized acceptance.
 
 ## Codex workflow (2026-10-27)
-John also authorized Claude Code handoff if Codex usage is exhausted (2026-10-27). Record exact changed files, checks, completed/remaining work and active restrictions in the session checkpoint; this does not authorize DB execution, commit or deployment and does not claim an automatic model switch when tools cannot do it.
-John requested project-scoped Codex subagents and patch/debug/UI/review skills. [[Codex-Agent-Workflow]] routes planner -> needed 10-year backend/UI engineer -> static tester -> read-only simplify proposals -> mandatory Obsidian sync by main. Includes docs/config and small fixes; pure questions stay in main. AGENTS overrides old auto-commit/DB/browser actions for Codex. Shared Claude role bodies remain the role source; global assistant/session mode is unchanged. Update affected specs only, every patch/decision, without reminders.
+> 2026-10-29: The mandatory relay, shared Claude role bodies and automatic fallback described below are superseded for Codex; see [[Codex-Agent-Workflow]].
+Historical 2026-10-27 Codex relay and fallback decisions are superseded. Current Codex rules and low-usage routing: [[Codex-Agent-Workflow]].
 
 
 Rules for this vault and for the specs it produces. Consistency here is what makes the vault machine-readable enough to hand to Claude Code.
@@ -139,3 +139,15 @@ When John points at one UI/UX or backend issue: fix it, then sweep the same patt
 
 ## Agent pipeline (2026-10-26)
 Agent pipeline (26 Okt 2026): bawat prompt na build/fix/patch ay dumadaan sa planner -> backend-engineer + ux-designer (10 taon) -> patch-tester (test at kritika), hanggang 2 fix rounds. Ang main session ang nag-o-orchestrate; hindi nakakatawag ng subagent ang subagent. Laktaw ang pipeline sa tanong, docs-only, at one-line fix. Nasa CLAUDE.md ng project ang buong rule. Sa HRIS: kapag "plan" ang sinabi ni John, isulat sa Plans/ + Session-Log at huminto bago mag-execute. Ang mga agent ay inayos para tumuro sa HRIS-Vault (dating mga kopya ng ORDESK).
+
+## PMBSI positions pending company confirmation (2026-10-28)
+John: PMBSI Employee Add/Edit permits only Human Resource for now (existing exact HR / Human Resource / Human Resources master aliases). Other existing positions belong to 2LOG. Keep optional Unassigned and real master IDs; no invented positions. See [[Employee-Records]].
+
+## 2026-10-28 - Obsidian-only and minimal agent context (historical; Codex access updated 2026-10-29)
+John: Obsidian-only muna, pati lahat ng agents. Main passes only the exact task, constraints and relevant vault note paths; no inherited full conversation (fork_turns=none). Read only the relevant note/section, reuse what was already read in the session, and do not read the whole vault/repo or repeat context reads. No source/code/tests/config reads or edits until John explicitly authorizes leaving Obsidian. This newer instruction takes precedence over the earlier automatic agent pipeline for this scope.
+
+- 2026-10-28: John clarified: skills follow the same Obsidian-only scope as main and agents. Use only the relevant vault note/section and reuse session context. Do not open external SKILL.md files, auto-run skill workflows, spawn agents or expand reads beyond Obsidian unless John authorizes that scope. See [[Codex-Agent-Workflow]].
+
+
+## 2026-10-29 - Codex task authorization
+A request to investigate, plan or fix authorizes relevant source and configuration reads; a request to edit or fix authorizes scoped edits. No repeated permission prompt for routine access. Explicit Obsidian-only or plan-only instructions still apply. See [[Codex-Agent-Workflow]].

@@ -169,3 +169,18 @@ Employee Directory groups (SW Retail, Ocampo's Retail, Head Office SW/Ocampo's, 
 [[Employee-Records]] · [[Attendance-and-DTR]] · [[Payroll]] · [[Auth-and-RBAC]] · [[Reports-and-Analytics]] · [[Data-Model]] · [[Business-Rules]] · [[Screens]] · [[ADR-002-Multi-Tenancy]] · [[PH-Labor-and-Payroll-Notes]]
 
 Hub for HR requests: [[Employee-Tickets]] · UI rules: [[Design-System]]
+
+## 2026-10-29 - PMBSI departments (prepared)
+- Organization Setup includes PMBSI Departments with name-first creation, global duplicate-name check, retire and reactivate. Existing departments classify as 2LOG after the prepared migration. No migration applied or runtime verified.
+
+- 2026-10-29: John authorized and applied department work-company migration to localhost pmbsi_hris. Fresh private backup department_preapply_20261029_150231.sql restored to hris_department_verify_20261029_150231: 118 base-table checksums and schema dumps (excluding comments) matched. Post-apply: VARCHAR(10) NOT NULL DEFAULT 2LOG; 29 existing departments 2LOG; original department field mismatches 0; employee assignment mismatches 0 across 370 employees, employee checksum 1552809314 unchanged. PMBSI insert and guarded down were tested on the earlier isolated database only. Browser/application flow not tested; no commit or deployment.
+
+- 2026-10-29: Organization Setup positions split by existing Employee Add/Edit eligibility into 2LOG, PMBSI and Needs classification. Company add validates name and optional active company department; shared records and eligibility unchanged, no schema or data migration. PHP lint passed; browser, application and DB behavior unverified.
+
+- 2026-10-29: Organization Setup hides Needs classification and adds position default-department editing with company eligibility, active department validation, permission, CSRF and audit. Existing assignment and history data are unchanged; changing a default can affect later employee/recruitment validation. Human Resources Assistant removal remains blocked pending database reference verification; no DB access or write performed. PHP syntax checked; runtime and browser unverified.
+
+- 2026-10-29: Organization Setup UI: compact actions and responsive rows, position department editor, Deactivate/Reactivate and Inactive labels. Existing actions and data unchanged; PHP lint passed, rendered and runtime behavior unverified.
+
+## 2026-10-29 - Organization Setup side-by-side UI/UX
+
+- Organization Setup UI/UX implemented: desktop cards stay paired (Branches & Sites keeps its wide card), records show name/status then metadata and a dedicated action row. All Add controls have visible labels, Position name spans its form, and the native department editor opens below the actions. Deactivate/Reactivate use distinct treatments; existing POST payloads, CSRF, manage gates and company eligibility are preserved.

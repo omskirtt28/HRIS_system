@@ -8,6 +8,13 @@ updated: 2026-10-17
 
 # Notifications
 
+## 2026-10-29 - Shared shell search, sidebar scroll and unread badges
+- Implemented in NotificationService/NotificationModule/View.php/hris-app.js/notifications.css. GET and successful read responses include sidebar_counts; header and bell share the same all-unread summary, independent of the latest 10 items.
+- Existing ticket-event:<event_id>:<recipient_user_id> dedupe keys resolve event/ticket/type metadata. Each row maps once: own request -> HR Concerns; own incident -> My Incidents; other readable incident -> Incident Cases for an HR reviewer, otherwise My Incidents for an accessible participant; completed NetSuite follow-up -> Accounting Follow-up for members; assigned Manager/ADL approval -> HR Request Inbox; remaining HR review -> Payroll Concerns for PAYROLL_CONCERN, otherwise HR Request Queue. Ownership wins. Assigned-step history includes older unread updates: these are unread-record badges, not pending-ticket totals.
+- Existing probation, seasonal and maternity kinds -> Probation & Seasonal when that menu is accessible. Unavailable/unmapped destinations remain in the bell total. Existing incident read/mine clauses, accounting membership and permissions are reused; no title guessing, new recipients, event types or schema.
+- Zero hidden, >99 displays 99+, full accessible count label. Opening a sidebar menu never marks read. Confirmed individual/all reads synchronize both badges; failures retain displayed counts with a retry message. Stale GET responses cannot overwrite newer read counts. Malformed IDs are rejected rather than cast to mark-all.
+- PHP/JS syntax, three source-only scenarios, sweep and diff checks passed. tests/notification_sidebar_test.php adds three mapping regression scenarios (syntax checked only, not executed). Browser/app/DB behavior, query performance, actual scroll and rendered accessibility remain unverified. No migration, commit or deployment.
+
 ## Purpose
 
 Tell the right person the one thing they need to act on, with a link straight to it. Nothing else.

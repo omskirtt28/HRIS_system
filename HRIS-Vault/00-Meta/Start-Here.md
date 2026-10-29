@@ -10,11 +10,12 @@ updated: 2026-10-25
 
 - Incident submit correction (2026-10-27): Others nature specification optional, no200-character requirement/cap; BR-785 updated. Both PHP lint passed; John checks submission. See [[Session-Log]].
 
-- Usage fallback (John, 2026-10-27): Claude Code handoff authorized when Codex usage is exhausted; use current [[Session-Log]] checkpoint and retain current execution restrictions. See [[Conventions]].
+- Assistant handoff (John, 2026-10-29): Claude and Codex work independently; cross-assistant handoff requires John's explicit request. Share project status through [[Session-Log]]. See [[Codex-Agent-Workflow]].
 
 - Current approved implementation: [[2026-10-27-dashboard-incident-template]] (dashboard cleanup, handler status affordance, exact-template confidential Incident documents; period/report picker deferred).
 
-- [[Codex-Agent-Workflow]] - HRIS Codex subagents, coding/debug skills, static QA and automatic Obsidian sync (John, 2026-10-27).
+- [[Claude-Agents-and-Skills]] - Claude agents, READ BUDGET and token rules (John, 2026-10-28).
+- [[Codex-Agent-Workflow]] - current Codex-only, low-usage workflow and Obsidian scope.
 
 
 The dashboard for the HRIS planning vault. Everything is reachable from this note.
@@ -100,3 +101,15 @@ graph TD
   I[Notifications] --> D
   I --> E
 ```
+
+- 2026-10-28 PMBSI positions: Human Resource only for now, pending company confirmation. See [[Employee-Records]] and [[Decision-Log]].
+
+## Codex low-usage routing
+See [[Codex-Agent-Workflow]] for current rules and [[Decision-Log]] for history.
+
+- 2026-10-29: Aligned Codex agent and skill instructions with the current bounded-context workflow; static checks only, actual usage savings unmeasured.
+
+- 2026-10-29: Registered six HRIS Codex roles; local discovery verified four skills and six role entries. See [[Codex-Agent-Workflow]].
+
+
+- 2026-10-29: Task requests authorize relevant source reads and scoped edits without repeated permission prompts; see [[Codex-Agent-Workflow]].

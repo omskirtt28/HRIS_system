@@ -90,3 +90,24 @@ Related: [[Start-Here]] · [[Conventions]] · [[Architecture]] · [[Open-Questio
 - 2026-10-26 Decided (patch): dark-mode contrast is fixed with scoped dark-only text tints per component, not by changing the global hue tokens (they are also solid fills under white text). Light-theme token change left to John (Q62).
 
 - 2026-10-26 Decided (John, patch): Q62 applied. Light hue tokens and `--hris-muted` darkened for AA; dark re-declares the original solid hues.
+
+## 2026-10-28 - PMBSI Human Resource only for now
+John confirmed other configured positions are for 2LOG. PMBSI Add/Edit must offer only Human Resource until the company confirms other positions; enforce on save too. No master-data creation or existing-assignment rewrite. See [[Employee-Records]].
+
+## 2026-10-28 - Obsidian-only and minimal agent context (historical; Codex access updated 2026-10-29)
+John: Obsidian-only muna, pati lahat ng agents. Main passes only the exact task, constraints and relevant vault note paths; no inherited full conversation (fork_turns=none). Read only the relevant note/section, reuse what was already read in the session, and do not read the whole vault/repo or repeat context reads. No source/code/tests/config reads or edits until John explicitly authorizes leaving Obsidian. This newer instruction takes precedence over the earlier automatic agent pipeline for this scope.
+
+- 2026-10-29: John chose independent Codex and Claude assistants and Codex Ponytail for lean work. Shared vault records project facts and patch status, not private assistant configuration. No automatic Claude handoff or mandatory agent relay; see [[Codex-Agent-Workflow]]. Obsidian-only scope remains in force. This decision supersedes conflicting older Codex workflow and handoff entries.
+
+- 2026-10-28: John clarified: skills follow the same Obsidian-only scope as main and agents. Use only the relevant vault note/section and reuse session context. Do not open external SKILL.md files, auto-run skill workflows, spawn agents or expand reads beyond Obsidian unless John authorizes that scope. See [[Codex-Agent-Workflow]].
+
+- 2026-10-28: John asked for a friendlier Organization Setup: Code is auto-generated (not typed), duplicate names rejected, Retire/Reactivate labels, HR empty-state links to Positions. No migration. HR position is added by John from the UI, not seeded. Claude edits allowed via .claude/allow-claude-edit; John asked to remove the codex-first hook (blocked by auto-mode classifier, pending).
+
+- 2026-10-29: John approved: an HR reviewer named only as CC on an Incident Report may handle its status. Reporter and HR named Involved/Witness stay excluded (BR-775).
+
+## 2026-10-29 - IR case page: no HR "Include someone", report shown inline
+- John: remove Include someone (everyone involved is already CC'd at filing), remove the duplicate status button, show the original report immediately instead of download-only (download stays). Remove buttons in People on this case are unchanged; with no add UI a removed person can no longer be re-added from the page (flagged to John).
+
+
+## 2026-10-29 - Codex task authorization
+John requested a fix for repeated permission prompts. Relevant source/config reads and scoped edits are authorized by the task request; explicit Obsidian-only or plan-only requests still apply. See [[Codex-Agent-Workflow]].

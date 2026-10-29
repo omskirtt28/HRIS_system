@@ -8,6 +8,13 @@ updated: 2026-10-24
 
 # Progress
 
+## 2026-10-29 - Shared shell search, sidebar scroll and unread badges
+- Implemented shared top-search removal, per-user/per-portal sidebar scroll storage/fallback, all-unread single-menu badges for existing HR request/incident/probation/seasonal/maternity notifications, paired bell/sidebar read updates and failure handling.
+- PHP lint (3 application files + new mapping test), JS syntax, three source-only scenarios, sweep and scoped diff passed. Mapping regressions added but not executed. Browser/app/DB/live counts/query performance unverified. No schema/recipient change, new transaction events, commit or deployment.
+
+## 2026-10-29 - Incident case compact panel
+- UI source updated: visible status action, separate collapsible HR notes and compact people, summary, attachment and timeline sections. PHP syntax and static review only; rendered layout and live behavior remain unverified.
+
 ## 2026-10-27 - Incident Others submit correction
 - Nature specification is optional, including Others; removed the200-character cap (max5000, no minimum). Supporting Others specification also max5000, required only if selected. Backend/UI aligned in IncidentDocument/IncidentViews; php -l both passed. Runtime submission not run; John checks. Further review skipped as requested.
 
@@ -16,6 +23,7 @@ updated: 2026-10-24
 - **Actual checks:** initial PHP lint 12/13 passed (dashboard transition failed); three source-extracted JS syntax checks passed; template hash/160 anchors, CRLF and scoped whitespace checked. Round 1 corrected dashboard transition, externalized IR storage and fixed PDO subclass handling. John explicitly stopped further review/rechecks and will check correctness himself; tester interrupted, simplify review skipped. Final fix lint/runtime/browser/DB/converter/rendered fidelity not verified. No commit/push/deployment; vault synced.
 
 ## 2026-10-27 - Codex agents and coding skills
+> Superseded for current Codex workflow by [[Codex-Agent-Workflow]] (2026-10-29). Vault rules updated; agent/config changes and fresh-session discovery remain unverified.
 - Six HRIS Codex roles share existing Claude role bodies; four local skills cover patching, debugging, UI and review. Planner first, main-owned Obsidian sync, static tester before any separately authorized deployment.
 - Configuration/rules/vault only. No runtime, schema, permission, payroll or data change; unrelated work preserved.
 - Verification: 6 TOMLs parsed; 4 skill headers/names/references checked without dependencies; new CRLF normalized. Bundled skill validator could not run (PyYAML unavailable). Runtime/browser/DB checks and fresh-session discovery not verified. See [[Codex-Agent-Workflow]].
@@ -146,3 +154,56 @@ Step 1 validation: core 97/97; assignments 40/40; legacy Payroll Ticket Review/T
 - 2026-10-26 Light-theme contrast (Q62) done (CSS only, no migration; localhost `pmbsi_hris` untouched; not pushed). `public/assets/hris-modern.css`: light success/info/danger/warning darkened, `--hris-muted` #676c74, sidebar group label and Soon chip lightened; dark block keeps the original solid hues. Browser audit (2,261 samples): every Q62-token text >= 4.84:1; dark identical (0 differences on 13 pages). Not re-measured in browser after the muted tweak (ratios computed: 4.78 to 5.28). Not run: hover/focus/disabled states, widths other than 1440.
 - 2026-10-26 Attendance export review tests added (tests only, no app change, no migration; localhost `pmbsi_hris` untouched; not pushed). `tests/attendance_export_review_test.php` 49 checks on an isolated copy: `rematchImportedRows` (exact match, case/space variants stay unmapped, idempotent, finalized refuses, audit), `currentReport` (rebuilds open cutoff, never finalizes, frozen when FINALIZED), `export_day_label`, `sourceGaps` and the Source Summary sheet. attendance_slots 23/23 and payroll_concern 83/83 still pass. Not covered: the "today" label and the covered_through "Check work calendar" label; case-variant of an already-mapped id; no mutation check.
 - 2026-10-26 Incident Report module I1 to I4 recorded here: I1 (017, 2026-10-25), I2, I3, I3 leftovers and I4 (queue, BR-782) are done; see the entries above. Q61 and Q62 closed by John. Agent pipeline and Fix sweep docs committed.
+
+## 2026-10-28 - Employee work company
+- Source patch: 2LOG / PMBSI work assignment in Add and Edit, conditional fields and 2LOG HR position filtering; legacy records remain unassigned until HR selects. PMBSI remains legal employer.
+- Additive migration and guarded rollback prepared; not applied. PHP/JS syntax checked; runtime, database and browser acceptance not verified. No deployment or commit.
+
+
+## 2026-10-28 - PMBSI HR-only positions
+- Source correction in EmployeeRepository and both Add/Edit forms: PMBSI exact HR aliases only; matching save validation, real IDs, missing-master message and explicit correction of incompatible existing positions. See [[Employee-Records]]. Runtime/browser/DB acceptance remains unverified.
+- Verification: PHP lint passed EmployeeRepository.php and index.php; both affected inline scripts passed node --check. Static QA PASS WITH NOTES, three source scenarios reviewed. Runtime/browser/DB and active HR master availability not verified.
+
+## 2026-10-28 - Obsidian-only and minimal agent context
+Recorded Obsidian-only scope for main and all agents; exact task notes only, no full-context inheritance. See [[Codex-Agent-Workflow]].
+
+- 2026-10-28: John clarified: skills follow the same Obsidian-only scope as main and agents. Use only the relevant vault note/section and reuse session context. Do not open external SKILL.md files, auto-run skill workflows, spawn agents or expand reads beyond Obsidian unless John authorizes that scope. See [[Codex-Agent-Workflow]].
+
+## 2026-10-28 - Work company: handoff verification
+- Migration cycle (up, re-run, down, up, guarded down) verified on isolated DB; not applied to `pmbsi_hris`. Server validation checked. Browser/runtime UI still unverified. Open: "Human Resources Assistant" matches neither PMBSI nor 2LOG alias rule. See [[Employee-Records]].
+
+- Applied to localhost pmbsi_hris (John: "patch mo na"): `employees.work_company VARCHAR(10) NULL`. Basis: verified dump before_stageb_118 (restore verified), isolated-DB migration cycle + repository update test OK. After: 370 employees, department/position counts unchanged (370/370), work_company all NULL (legacy unassigned). Browser check not done. No commit/push.
+
+- 2026-10-28: Organization Setup add forms friendly (auto Code, duplicate-name check, Retire/Reactivate, HR link). Source patched on localhost, lint only; browser unverified. See [[Employee-Records]].
+
+- 2026-10-29: IR case page cleanup (UI only, no migration): removed HR "Include someone" and the duplicate Update status button, composer no longer sticky, original report shown inline (PDF or read-only sheet) with download kept. Lint + render check by patch-tester OK; suites `incident_case_test.php`/`incident_case_ui_test.php` crash on stale fixtures (pre-existing); browser unverified. See [[Employee-Tickets]], [[Screens]] SCR-770.
+
+- 2026-10-29: Employee account linking and Human Resource PMBSI filter patched; PHP lint and diff check passed. No DB/browser/runtime verification, deploy or commit. HR Assistant classification remains open. See [[Employee-Records]] and [[2026-10-29-employee-account-linking]].
+
+## 2026-10-29 - PMBSI departments (prepared)
+- PMBSI departments: source patch and additive migration prepared; syntax/static review passed with notes. Migration and actual UI/runtime remain unverified; no DB application.
+
+- 2026-10-29: Codex low-usage configuration aligned; see [[Codex-Agent-Workflow]]. Fresh-session discovery and measured usage savings remain unverified.
+
+- 2026-10-29: Department migration isolated workflow and rollback guard tested; restored 118 table checksums matched. Not applied to pmbsi_hris; see [[Data-Model]] for evidence and pre-apply steps.
+
+- 2026-10-29: John authorized and applied department work-company migration to localhost pmbsi_hris. Fresh private backup department_preapply_20261029_150231.sql restored to hris_department_verify_20261029_150231: 118 base-table checksums and schema dumps (excluding comments) matched. Post-apply: VARCHAR(10) NOT NULL DEFAULT 2LOG; 29 existing departments 2LOG; original department field mismatches 0; employee assignment mismatches 0 across 370 employees, employee checksum 1552809314 unchanged. PMBSI insert and guarded down were tested on the earlier isolated database only. Browser/application flow not tested; no commit or deployment.
+
+- 2026-10-29: Organization Setup positions split by existing Employee Add/Edit eligibility into 2LOG, PMBSI and Needs classification. Company add validates name and optional active company department; shared records and eligibility unchanged, no schema or data migration. PHP lint passed; browser, application and DB behavior unverified.
+
+- 2026-10-29: Organization Setup hides Needs classification and adds position default-department editing with company eligibility, active department validation, permission, CSRF and audit. Existing assignment and history data are unchanged; changing a default can affect later employee/recruitment validation. Human Resources Assistant removal remains blocked pending database reference verification; no DB access or write performed. PHP syntax checked; runtime and browser unverified.
+
+- 2026-10-29: Organization Setup UI cleanup: responsive rows, department editor and inactive wording; PHP lint passed. Browser and runtime unverified.
+
+## 2026-10-29 - Organization Setup side-by-side UI/UX
+
+- Organization Setup UI/UX plan implemented in index.php, public/assets/hris-modern.css and app/View.php (CSS version 20261029-org-cards-v2). Static markup/form-contract and responsive/focus reviews passed; php -l passed for both PHP files. Existing source edits preserved; no browser, application or DB verification, commit or deployment. Visual acceptance pending.
+
+- 2026-10-29: CEO report for Oct20-29 compiled from current documented patch evidence; Canva generation requested. See [[2026-10-29-CEO-Patch-Report]]. Historical test results retained as historical; deployment and latest acceptance unverified.
+
+## 2026-10-29 - Hosting/domain recommendation for 1,000+ employees (proposal)
+- Recommendation only; no purchase, deployment or provider decision approved. Starting estimate: Hostinger KVM 4, 4 vCPU / 16 GB RAM / 200 GB NVMe; employee count does not establish simultaneous-user capacity. Workload/load validation and production PHP/database compatibility remain pending.
+- Official PH listing checked: PHP 749/month equivalent, PHP 17,976 upfront for 24 months; renewal PHP 1,629/month for same term. Self-managed VPS requires a server administrator and daily off-server database backups plus restore verification; listed weekly VPS backup is insufficient as the only HRIS recovery plan.
+- Domain option: Cloudflare Registrar standard .com USD 10.46/year registration/renewal; use hris.<company-domain> if a company domain already exists. Name availability and checkout taxes not verified.
+- Prior 2 TB document target is conditional, not reconfirmed: private Backblaze B2 at published starting USD 6.95/TB/month, approximately USD 13.90/month for 2 TB primary storage; backup/version storage and excess usage extra. HRIS storage integration remains unverified.
+- Sources: https://www.hostinger.com/ph/vps-hosting ; https://www.hostinger.com/support/8311982-what-is-managed-hosting-in-hostinger/ ; https://pricing.registrar.cloudflare.com/ ; https://www.backblaze.com/cloud-storage/pricing . No application/source/schema change or browser/DB/runtime testing.

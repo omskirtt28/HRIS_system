@@ -73,3 +73,9 @@ Skip the pipeline for pure questions, docs-only work, and one-line fixes. Existi
 - When John says a feature should be "the same as" an existing module, copy it AS IS and decide on your own; do not ask for details. Ask only when there is risk to permission, data or schema.
 - Optional `simplify-gatekeeper` (review only): PROPOSALS para kay John; huwag i-apply nang walang utos niya.
 - If John says it is for `/plan`: plan only, no edits, no delivery folders (the plan goes in the vault).
+
+## Token budget (John, 2026-10-28; overrides the pipeline and session-start rules above)
+- Only the main session reads Brief / Build-Plan / Session-Log (last ~3 entries via `tail`/offset) once per session. NEVER read Progress.md whole (59KB): Grep the slice, or read the last entries only.
+- Subagents get a task prompt with exact file paths, line ranges and vault note paths, and must not re-read Brief/Build-Plan/Progress/Session-Log (see `READ BUDGET` in `.claude/agents/`). Paste the few lines they need instead of making them reopen files.
+- Spawn agents only for migrations, permissions, payroll rules, deletes or multi-file work. Small fixes, UI tweaks and docs: main does it directly; one `patch-tester` at the end at most. No simplify-gatekeeper unless John asks.
+- Never read whole code files: Grep, then Read with offset/limit. Do not re-read a file already read this session. Note: `Obsidian-only` scope in `HRIS-Vault/00-Meta/Conventions.md` still wins when John invokes it.

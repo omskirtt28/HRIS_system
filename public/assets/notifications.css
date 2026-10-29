@@ -3,6 +3,9 @@
 .notify-btn::after{display:none}
 .notify-badge{position:absolute;top:2px;right:2px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--hris-danger,#c0262d);color:#fff;font-size:10px;font-weight:700;line-height:17px;text-align:center}
 .notify-badge[hidden]{display:none}
+.sidebar-notify-badge{margin-left:auto;flex:0 0 auto;min-width:22px;padding:1px 6px;border-radius:99px;background:var(--hris-danger,#c0262d);color:#fff;font-size:11px;font-weight:700;text-align:center}
+.sidebar-notify-badge[hidden],.notify-error[hidden]{display:none}
+.notify-error{padding:10px 14px;color:var(--hris-danger,#c0262d);font-size:12px}
 .notify-panel{position:absolute;right:0;top:calc(100% + 8px);width:min(380px,92vw);max-height:70vh;overflow:auto;background:var(--hris-surface,#fff);border:1px solid var(--border,#e5e7eb);border-radius:14px;box-shadow:0 12px 32px rgba(15,23,42,.18);z-index:60}
 .notify-panel[hidden]{display:none}
 .notify-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border,#e5e7eb)}

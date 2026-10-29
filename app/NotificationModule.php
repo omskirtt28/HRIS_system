@@ -12,14 +12,20 @@ function notification_handle(string $page): void
         header('Content-Type: application/json; charset=utf-8');
         if(!Auth::check()) { http_response_code(401); echo '{"ok":false}'; exit; }
         verify_csrf();
-        NotificationService::markRead((int)Auth::user()['id'],(int)($_POST['id'] ?? 0));
-        echo json_encode(['ok'=>true,'unread'=>NotificationService::unreadCount((int)Auth::user()['id'])]); exit;
+        $id=filter_var($_POST['id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>0]]);
+        if($id===false || $id===null){http_response_code(422);echo '{"ok":false}';exit;}
+        try {
+            $uid=(int)Auth::user()['id'];
+            NotificationService::markRead($uid,$id);
+            echo json_encode(['ok'=>true]+NotificationService::unreadSummary($uid));
+        }catch(Throwable $e){error_log('Notification read failed: '.$e->getMessage());http_response_code(500);echo '{"ok":false}';}
+        exit;
     }
     if($page==='notifications') {
         header('Content-Type: application/json; charset=utf-8'); header('Cache-Control: no-store');
-        if(!Auth::check() || !NotificationService::ready()) { echo json_encode(['unread'=>0,'items'=>[]]); exit; }
+        if(!Auth::check() || !NotificationService::ready()) { echo json_encode(['unread'=>0,'sidebar_counts'=>(object)[],'items'=>[]]); exit; }
         $uid=(int)Auth::user()['id'];
-        echo json_encode(['unread'=>NotificationService::unreadCount($uid),'items'=>array_map(static fn($n)=>[
+        echo json_encode(NotificationService::unreadSummary($uid)+['items'=>array_map(static fn($n)=>[
             'id'=>(int)$n['id'],'title'=>$n['title'],'body'=>$n['body'],'link'=>$n['link'],'read'=>$n['read_at']!==null,'when'=>date('M j, g:i A',strtotime((string)$n['created_at'])),
         ],NotificationService::recent($uid,10))],JSON_UNESCAPED_UNICODE); exit;
     }

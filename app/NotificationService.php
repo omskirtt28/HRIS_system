@@ -27,6 +27,66 @@ final class NotificationService
         $q=db()->prepare('SELECT COUNT(*) FROM notifications WHERE recipient_user_id=? AND read_at IS NULL'); $q->execute([$userId]); return (int)$q->fetchColumn();
     }
 
+    /** One destination per unread notification; access flags come from existing menu/list rules. */
+    public static function sidebarPage(array $n,array $access,int $userId): ?string
+    {
+        if(in_array($n['kind'],['PROBATION_5M','PROBATION_END','SEASONAL_2M','SEASONAL_END','MATERNITY_14D','MATERNITY_RETURN'],true))
+            return $access['reminders']?'hr-probation':null;
+        if($n['kind']!=='HR_REQUEST' || empty($n['type_code']))return null;
+        $own=(int)$n['requester_user_id']===$userId;
+        if($n['type_code']==='INCIDENT_REPORT'){
+            if(!$access['incidents'] || !$n['incident_readable'])return null;
+            if($own)return 'incident-mine';
+            if($access['hr'])return 'hr-incidents';
+            return $n['incident_mine']?'incident-mine':null;
+        }
+        if($own)return $access['self']?'hr-requests-my':null;
+        if($n['type_code']==='NETSUITE_CONCERN' && $n['ticket_status']==='COMPLETED' && $access['accounting'])return 'hr-accounting-requests';
+        if($access['approve'] && $n['assigned_approval'] && (int)$n['subject_user_id']!==$userId)return 'hr-request-inbox';
+        if($access['hr'])return $n['type_code']==='PAYROLL_CONCERN'?'hr-payroll-concerns':'hr-service-requests';
+        return null;
+    }
+
+    /** Counts all unread rows, independently of the bell's latest-ten limit. */
+    public static function unreadSummary(int $userId): array
+    {
+        $summary=['unread'=>0,'sidebar_counts'=>[]];
+        if(!Auth::check() || (int)Auth::user()['id']!==$userId || !self::ready())return $summary;
+        $tickets=TicketRepository::ready();
+        $portal=(string)(Auth::user()['role_portal']??'');
+        $workspace=in_array($portal,['employee','hr','admin'],true);
+        $access=['incidents'=>$workspace,'self'=>$workspace&&(Auth::can('tickets.request_self')||Auth::can('ticket.file_for_others')),
+            'hr'=>$tickets&&TicketRepository::isHr(),'approve'=>$workspace&&TicketRepository::canApprove(),
+            'accounting'=>$tickets&&$workspace&&TicketAccounting::canView(),
+            'reminders'=>in_array($portal,['hr','admin'],true)&&Auth::can('employees.view_all')];
+        $sql='SELECT n.kind';$params=[];
+        if($tickets){
+            [$read,$readArgs]=TicketIncident::readClause($userId,$access['hr']);
+            [$mine,$mineArgs]=TicketIncident::mineClause($userId);
+            $sql.=',ty.code type_code,t.requester_user_id,t.status ticket_status,employee.user_id subject_user_id,
+                ('.$read.') incident_readable,('.$mine.') incident_mine,
+                EXISTS(SELECT 1 FROM ticket_steps s WHERE s.ticket_id=t.id AND s.approver_user_id=? AND
+                    ((s.approver_type="MANAGER" AND ?=1) OR (s.approver_type="ADL" AND ?=1))) assigned_approval';
+            $params=array_merge($readArgs,$mineArgs,[$userId,Auth::can('payroll.approve_manager')?1:0,Auth::can('payroll.approve_adl')?1:0]);
+        }
+        $sql.=' FROM notifications n';
+        if($tickets){
+            // Existing ticket-event dedupe keys link to metadata without parsing notification titles or URLs.
+            $sql.=' LEFT JOIN ticket_events ev ON n.kind="HR_REQUEST" AND ev.id=CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(n.dedupe_key,":",2),":",-1) AS UNSIGNED)
+                AND n.dedupe_key=CONCAT("ticket-event:",ev.id,":",n.recipient_user_id)
+                LEFT JOIN tickets t ON t.id=ev.ticket_id LEFT JOIN ticket_types ty ON ty.id=t.ticket_type_id
+                LEFT JOIN employees employee ON employee.id=t.subject_employee_id';
+        }
+        $sql.=' WHERE n.recipient_user_id=? AND n.read_at IS NULL';$params[]=$userId;
+        $q=db()->prepare($sql);$q->execute($params);
+        while($n=$q->fetch()){
+            $summary['unread']++;
+            $page=self::sidebarPage($n,$access,$userId);
+            if($page!==null)$summary['sidebar_counts'][$page]=($summary['sidebar_counts'][$page]??0)+1;
+        }
+        return $summary;
+    }
+
     /** Marks one (or all, when $id is 0) of the user's own notifications as read. */
     public static function markRead(int $userId,int $id=0): void
     {

@@ -8,6 +8,12 @@ updated: 2026-10-25
 
 # Design System
 
+## 2026-10-29 - Shared shell search, sidebar scroll and unread badges
+- Shared portal top search removed from View.php; page-local search retained. Existing topbar actions keep right alignment.
+- Sidebar sessionStorage key includes user ID and rendered portal. Restore runs before other shared controls and on pageshow; scroll/click/pagehide save it. Blocked storage does not interrupt navigation.
+- Sidebar unread badges use existing access and notification metadata: zero hidden, >99 shown as 99+, full count in an accessible label. Bell/sidebar update after confirmed reads only; menu navigation does not mark read. CSS/JS asset versions bumped.
+- PHP/JS syntax and source/static checks passed. Actual scroll, mobile layout, screen-reader output and live counts unverified; no browser/app/DB tests.
+
 ## Purpose
 
 UI and branding rules for every HRIS screen. Moved here from the retired repo-root `DESIGN.md` on 2026-10-25 (that file now only points here). Screen inventory and layout rules: [[Screens]]. Ticket screens: [[Employee-Tickets]].
@@ -67,7 +73,7 @@ Built on the shared components with tokens only, in `public/assets/tickets.css` 
 Tokens only, in `public/assets/tickets.css` (v=20261025-20): `tk-case-grid` (conversation column plus a 340px rail, one column under 900px), `tk-thread` / `tk-post` (avatar, bordered body, own messages in the info tone, a Reporter, CC or HR chip), `tk-post-update` wrapping the shared `tk-response` (HR update) and `tk-internal` (HR-only note), `tk-sticky` composer (sticky at the bottom; under 650px the help text becomes screen-reader-only and the box shrinks), `tk-rail-person`, `tk-hr-panel` with `tk-hr-block` sections, `tk-sub`. Rules: every control labelled, 44px targets, the conversation is a `role=log` list, the stepper keeps `aria-current` and a screen-reader status per step, the HR search results are DOM text nodes (no innerHTML), removing a person asks for confirmation. Full-page screenshots must switch the sticky composer to static or it paints over the thread.
 
 ## Official Incident document and status affordance (2026-10-27)
-Approved in [[2026-10-27-dashboard-incident-template]]: keep pipeline informational. Eligible handler Update status reveals the existing form in the right HR rail; HR reporter/participants receive a short explanation. Main column order is official PDF preview/DOCX action, conversation, composer; document remains first on mobile. PDF-unavailable state keeps DOCX download and eligible-handler Retry PDF preview; old cases show no generated document. Private document markup is absent for other participants. Filing follows the exact master's six sections and eight nature choices; verified filer values are read-only, missing head/contact are report-only inputs. Reuse existing tokens, cards, form controls and focus states; dashboard setup warnings are full keyboard-reachable links to expanded focused sections. Rendered layout is not verified by static checks.
+Approved in [[2026-10-27-dashboard-incident-template]]: keep pipeline informational. Eligible handler Update status reveals the existing form in the right HR rail; HR reporter/participants receive a short explanation. Main column order is official PDF preview/DOCX action, conversation, composer; document remains first on mobile. PDF-unavailable state keeps DOCX download and eligible-handler Retry PDF preview; old cases show no generated document. Private document markup is absent for other participants. Filing follows the exact master's six sections and eight nature choices; verified filer values are read-only, missing head/contact are report-only inputs. Reuse existing tokens, cards, form controls and focus states; dashboard setup warnings are full keyboard-reachable links to expanded focused sections. Rendered layout is not verified by static checks. (2026-10-29: the form is now always visible in HR actions; the separate button was removed.)
 
 ## Delivery rule for every feature patch
 
@@ -79,3 +85,7 @@ Ship the user-facing UI with the function, in simple English, clear next actions
 
 ## Dark-mode status text (2026-10-26)
 In dark mode the solid hue tokens (`--hris-success/info/danger/warning`) stay as fills; text on chips, pills, badges, alerts and HR queue notes uses lighter tints (green #3fc78a, red #ff8590, amber #e0a43a, blue #7aa2f7), at least 4.5:1 on the dark soft fills and surfaces, scoped under `:root[data-theme="dark"]`. Light theme (Q62, 2026-10-26): `--hris-success #137a50`, `--hris-info #2560d6`, `--hris-danger #c2364a`, `--hris-warning #8f5a00` (4.8:1 or better on their soft fills and white text) and `--hris-muted #676c74` (4.7:1 or better on page, surface and soft fills). The dark block re-declares the original solid hues so dark is unchanged (verified: 0 computed-style differences on 13 pages). Sidebar group label `#7b8290`, "Soon" chip `#8f96a0`.
+
+## 2026-10-29 - Organization Setup side-by-side UI/UX
+
+- Organization Setup uses scoped org-field labels, rounded 38px controls/actions, normal button letter spacing, bordered Edit department, subtle danger Deactivate and success Reactivate. Focus-visible styles cover buttons, summaries and fields. Existing organization CSS was revised in place; branch name truncation removed. Static review only; visual acceptance remains pending.

@@ -8,6 +8,10 @@ updated: 2026-10-17
 
 # Data Model
 
+## 2026-10-29 - Shared shell search, sidebar scroll and unread badges
+- No schema/recipient change. Derived sidebar_counts reuse notifications recipient_user_id/read_at/kind and the existing ticket-event dedupe_key, joined to event/ticket/type and existing assignment/access metadata.
+- No stored counter, new notification kind or migration. SQL and live counts source-reviewed only; no DB execution.
+
 ## Purpose
 
 The entity inventory and the relationships between them. Module notes own the field-level detail; this note owns the shape of the whole and the handful of modelling decisions that everything else inherits.
@@ -338,3 +342,40 @@ New Incident submissions add `official_incident` to existing `tickets.payload_js
 ## Related
 
 [[Architecture]] · [[Business-Rules]] · [[API-Surface]] · [[Employee-Records]] · [[Attendance-and-DTR]] · [[Leave-Management]] · [[Payroll]] · [[Org-Structure]] · [[Auth-and-RBAC]] · [[Reports-and-Analytics]] · [[Recruitment-and-Onboarding]] · [[Offboarding-and-Clearance]] · [[Notifications]] · [[Performance-Management]] · [[Conventions]] · [[ADR-002-Multi-Tenancy]] · [[ADR-003-Payroll-Engine-Approach]] · [[Security-and-Compliance]]
+
+## 2026-10-28 - Employee work company
+- Source patch: 2LOG / PMBSI work assignment in Add and Edit, conditional fields and 2LOG HR position filtering; legacy records remain unassigned until HR selects. PMBSI remains legal employer.
+- Additive migration and guarded rollback prepared; not applied. PHP/JS syntax checked; runtime, database and browser acceptance not verified. No deployment or commit.
+
+
+- Applied 2026-10-28: employees.work_company VARCHAR(10) NULL on pmbsi_hris. Down script refuses if any assignment exists.
+
+## 2026-10-29 - PMBSI departments (prepared)
+- Prepared migration 20261029_department_work_company.sql adds departments.work_company VARCHAR(10) NOT NULL DEFAULT 2LOG; guarded down refuses non-2LOG rows. Existing employee assignments are not rewritten. Isolated up/re-run/down/up and compatibility checks remain required before apply.
+
+## 2026-10-29 - Department migration isolated verification
+- Authorized isolated DB tests: `hris_department_test_20261029_184721`, restored from `department_migration_test_backup_20261029.sql` (contains HRIS data; keep private). All 118 base-table checksums matched the source; 980 column definitions matched by name, type, nullability and position. Other schema attributes were not fully compared.
+- Up, re-run, down, up succeeded; column counts 1/1/0/1. All 29 original departments were 2LOG; `VARCHAR(10) NOT NULL DEFAULT 2LOG`. Employee table checksum remained 1552809314 throughout. A PMBSI test department was inserted; guarded down reported SQLSTATE 45000 and retained the column and row. The mysql client returned exit code 0 for the sourced guard error, so inspect output rather than relying on exit code.
+- `pmbsi_hris` migration not applied. Before a separately authorized application: create a fresh private `mysqldump --single-transaction --routines --events` backup, restore it into a new isolated DB and compare all table checksums and schema definitions; record department IDs/count and employee assignment pairs (employee ID, department_id). Select `pmbsi_hris` explicitly, apply the up SQL, then verify `information_schema.columns`, department IDs/count and 2LOG classifications against the snapshot, and employee assignment pairs against the snapshot. Verify PMBSI creation separately with authorization. Stop on any mismatch; retain the backup. No browser or application testing.
+
+Pre-apply snapshot and post-apply comparison, run read-only on each explicitly selected database (`pmbsi_hris` and the fresh verified restore):
+```sql
+SELECT id, code, name FROM departments ORDER BY id;
+SELECT id, department_id FROM employees ORDER BY id;
+SELECT COUNT(*) AS departments FROM departments;
+SELECT COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT FROM information_schema.columns
+ WHERE table_schema = DATABASE() AND table_name = 'departments' AND column_name = 'work_company';
+-- Post-apply only:
+SELECT work_company, COUNT(*) FROM departments GROUP BY work_company;
+```
+Export and compare the ordered snapshots before and after the authorized up migration; every original department and employee assignment must match and every existing department must be 2LOG. Compare the pre-apply restore against source before proceeding. `README.md` contains the basic migration verification queries. Do not rely on a `mysql source` process exit code alone: inspect errors and independently verify results.
+
+- 2026-10-29: John authorized and applied department work-company migration to localhost pmbsi_hris. Fresh private backup department_preapply_20261029_150231.sql restored to hris_department_verify_20261029_150231: 118 base-table checksums and schema dumps (excluding comments) matched. Post-apply: VARCHAR(10) NOT NULL DEFAULT 2LOG; 29 existing departments 2LOG; original department field mismatches 0; employee assignment mismatches 0 across 370 employees, employee checksum 1552809314 unchanged. PMBSI insert and guarded down were tested on the earlier isolated database only. Browser/application flow not tested; no commit or deployment.
+
+- 2026-10-29: Organization Setup positions split by existing Employee Add/Edit eligibility into 2LOG, PMBSI and Needs classification. Company add validates name and optional active company department; shared records and eligibility unchanged, no schema or data migration. PHP lint passed; browser, application and DB behavior unverified.
+
+- 2026-10-29: Organization Setup hides Needs classification and adds position default-department editing with company eligibility, active department validation, permission, CSRF and audit. Existing assignment and history data are unchanged; changing a default can affect later employee/recruitment validation. Human Resources Assistant removal remains blocked pending database reference verification; no DB access or write performed. PHP syntax checked; runtime and browser unverified.
+
+## 2026-10-29 - Organization Setup side-by-side UI/UX
+
+- Organization Setup UI/UX patch checkpoint: presentation only; no model, migration, schema, data or eligibility changes. Form field names/required attributes and hidden payloads statically compared with the task-entry source. No DB access or writes.

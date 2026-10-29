@@ -195,3 +195,29 @@ Defined in [[Business-Rules]], referenced here:
 [[Org-Structure]] · [[Attendance-and-DTR]] · [[Leave-Management]] · [[Payroll]] · [[Recruitment-and-Onboarding]] · [[Offboarding-and-Clearance]] · [[Self-Service-Portal]] · [[Auth-and-RBAC]] · [[Data-Model]] · [[Business-Rules]] · [[Security-and-Compliance]] · [[Screens]] · [[API-Surface]] · [[ADR-002-Multi-Tenancy]]
 
 Hub for HR requests: [[Employee-Tickets]] · UI rules: [[Design-System]]
+
+## 2026-10-28 - Employee work company
+- Source patch: 2LOG / PMBSI work assignment in Add and Edit, conditional fields and 2LOG HR position filtering; legacy records remain unassigned until HR selects. PMBSI remains legal employer.
+- Additive migration and guarded rollback prepared; not applied. PHP/JS syntax checked; runtime, database and browser acceptance not verified. No deployment or commit.
+
+
+## 2026-10-28 - PMBSI position correction
+- Add/Edit now filter PMBSI to exact HR / Human Resource / Human Resources existing master aliases using the same eligibility helper as save validation. 2LOG excludes HR variants including singular Human Resource. Unassigned remains optional.
+- Missing active HR master shows a setup message; no invented ID or master-data write. Initial incompatible saved position requires explicit correction; company switching clears incompatible selections.
+- Existing work-company migration and other pending changes retained; no database or browser execution. Runtime and actual HR-master availability remain unverified.
+
+## 2026-10-28 - Work company verification
+- Migration cycle passed on isolated DB (fresh mysqldump restore); live DB untouched. Open question: "Human Resources Assistant" is the only active HR-type position and is excluded from both PMBSI (exact aliases) and 2LOG (HR variants); John to decide.
+
+- Applied to localhost pmbsi_hris (John: "patch mo na"): `employees.work_company VARCHAR(10) NULL`. Basis: verified dump before_stageb_118 (restore verified), isolated-DB migration cycle + repository update test OK. After: 370 employees, department/position counts unchanged (370/370), work_company all NULL (legacy unassigned). Browser check not done. No commit/push.
+
+## Organization Setup add forms (2026-10-28)
+Codes auto-generated from names; HR position for PMBSI is added by HR via Organization Setup > Positions (name "Human Resource"). Employee form shows a link when none is active.
+
+## 2026-10-29 - Account linking and PMBSI position
+- Employee forms include active unlinked employee accounts and, for Super Admin, HR/Admin accounts. Existing links remain visible; changes validate account status and HR/Admin restrictions on the server. Recruitment keeps its employee-portal-only picker.
+- Users requires an explicit employee or unlink choice. The shared company filter accepts Human Resource PMBSI and Human Resources PMBSI. Human Resources Assistant remains outside the exact PMBSI rule and is excluded from 2LOG; business classification remains open.
+- PHP lint and diff check passed. No browser, runtime or database verification; no DB write, deployment or commit. See [[2026-10-29-employee-account-linking]].
+
+## 2026-10-29 - PMBSI departments (prepared)
+- Employee 201 Add/Edit supports PMBSI departments, company-matching validation and existing employment history. Existing unchanged legacy/retired assignments remain editable. Roster import is a separate flow and may produce a company mismatch. Runtime and DB unverified.

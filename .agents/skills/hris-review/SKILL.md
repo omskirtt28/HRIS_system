@@ -13,4 +13,4 @@ Paths are relative to the repository root. Follow AGENTS.md and HRIS-Vault/00-Me
 - Inspect at most 3 planned scenarios once; distinguish source reasoning from executed checks. For config/docs-only changes inspect syntax/references within the main session's authorized validation scope.
 - Return PASS / FAIL / PASS WITH NOTES with command results, file:line findings, MISSED SWEEP items, the engineer responsible for failures, and Not verified. Main controls any fix loop, maximum 2 rounds.
 - Confirm main has recorded the actual changes/checks in Obsidian before final delivery. Missing runtime evidence must remain explicit; passing lint alone does not prove a localhost flow.
-- Optional simplifications go to hris-simplify-gatekeeper as proposals; never apply them during review. QA never authorizes DB writes, commits, pushes, or deployment.
+- Report optional simplifications as proposals; never apply them during review. QA never authorizes DB writes, commits, pushes, or deployment.

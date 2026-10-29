@@ -222,13 +222,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if ($action === 'create_department') {
             Auth::requirePermission('organization.manage');
-            FoundationRepository::createDepartment((string)($_POST['code']??''),(string)($_POST['name']??''));
+            FoundationRepository::createDepartment((string)($_POST['code']??''),(string)($_POST['name']??''),(string)($_POST['work_company']??'2LOG'));
             flash('success','Department created.'); redirect('admin-organization');
         }
         if ($action === 'create_position') {
             Auth::requirePermission('organization.manage');
-            FoundationRepository::createPosition((string)($_POST['code']??''),(string)($_POST['name']??''),(int)($_POST['department_id']??0));
+            FoundationRepository::createPosition((string)($_POST['code']??''),(string)($_POST['name']??''),(int)($_POST['department_id']??0),(string)($_POST['work_company']??''));
             flash('success','Position created.'); redirect('admin-organization');
+        }
+        if ($action === 'update_position_department') {
+            Auth::requirePermission('organization.manage');
+            FoundationRepository::updatePositionDepartment((int)($_POST['id']??0),(int)($_POST['department_id']??0),(string)($_POST['work_company']??''));
+            flash('success','Position department updated.'); redirect('admin-organization');
         }
         if ($action === 'create_area') {
             Auth::requirePermission('organization.manage');
@@ -280,6 +285,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if ($action === 'link_user_employee') {
             Auth::requirePermission('users.manage');
+            if(!isset($_POST['employee_id']) || !preg_match('/^(0|[1-9][0-9]*)$/D',(string)$_POST['employee_id'])) throw new RuntimeException('Select an employee or choose Remove the link.');
             FoundationRepository::linkUserEmployee((int)($_POST['user_id']??0),(int)($_POST['employee_id']??0));
             flash('success','Employee link updated.'); redirect('admin-users');
         }
@@ -316,6 +322,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'gender'=>(string)($_POST['gender']??''),
                 'civil_status'=>(string)($_POST['civil_status']??''),
                 'address_text'=>(string)($_POST['address_text']??''),
+                'work_company'=>(string)($_POST['work_company']??''),'require_work_company'=>true,
                 'department_id'=>(int)($_POST['department_id']??0),
                 'position_id'=>(int)($_POST['position_id']??0),
                 'branch_id'=>(int)($_POST['branch_id']??0),
@@ -348,6 +355,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if(!isset(MaternityService::KINDS[(string)($_POST['maternity_kind']??'')]) || trim((string)($_POST['maternity_start']??''))==='') throw new RuntimeException('Choose the maternity leave type and enter the start date.');
             }
             EmployeeRepository::updateEmployment($id,[
+                'work_company'=>(string)($_POST['work_company']??''),
                 'employee_no'=>(string)($_POST['employee_no']??''),'user_id'=>(int)($_POST['user_id']??0),'department_id'=>(int)($_POST['department_id']??0),
                 'position_id'=>(int)($_POST['position_id']??0),'branch_id'=>(int)($_POST['branch_id']??0),'employment_type_id'=>$postedType,'manager_employee_id'=>(int)($_POST['manager_employee_id']??0),
                 'business_unit_id'=>(int)($_POST['business_unit_id']??0),'legal_entity_id'=>(int)($_POST['legal_entity_id']??0),
@@ -415,7 +423,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if($action==='create_payroll_request') $_SESSION['payroll_request_old']=$_POST;
         flash('error',$e->getMessage());
         $defaultBack = match($action) {
-            'create_business_unit','create_legal_entity','create_department','create_position','create_area','create_branch','create_employment_type','toggle_master' => 'admin-organization',
+            'create_business_unit','create_legal_entity','create_department','create_position','update_position_department','create_area','create_branch','create_employment_type','toggle_master' => 'admin-organization',
             'create_role','save_role_permissions' => 'admin-roles',
             'create_user','toggle_user_status','reset_user_password','change_user_role','link_user_employee' => 'admin-users',
             'create_employee' => 'hr-employee-new',
@@ -1185,7 +1193,7 @@ if ($page === 'hr-employees') {
 
 if ($page === 'hr-employee-new') {
     Auth::requirePermission('employees.manage');
-    $ready=EmployeeRepository::ready(); $masters=EmployeeRepository::masters();
+    $ready=EmployeeRepository::ready(); $masters=EmployeeRepository::masters(null,true);
     render_portal_header('hr','hr-employees','Add Employee');
     page_head('HR Portal / People / Employees','Add Employee','<a href="'.url('hr-employees').'" class="btn">Back to directory</a>'); ?>
     <?php if(!$ready):?><div class="alert error">Import <code>database/migrations/20260924_phase2a_employees.sql</code> before adding employees.</div><?php else:?>
@@ -1207,17 +1215,42 @@ if ($page === 'hr-employee-new') {
           <div class="field full"><label>Current address</label><input name="address_text" placeholder="House / street / city / province"></div>
         </div></section>
         <section class="panel employee-form-card"><div class="panel-head"><div><h2>Employment information</h2><p>Organization assignment and employment details.</p></div></div><div class="panel-body employee-form-grid">
-          <div class="field"><label>Department</label><select name="department_id"><option value="">Unassigned</option><?php foreach($masters['departments'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>"><?=e($x['name'])?></option><?php endforeach;?></select></div>
-          <div class="field"><label>Position</label><select name="position_id"><option value="">Unassigned</option><?php foreach($masters['positions'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>"><?=e($x['name'])?><?=!empty($x['department_name'])?' · '.e($x['department_name']):''?></option><?php endforeach;?></select></div>
+          <div class="field"><label for="work_company_create">Company <span class="req">*</span></label><select id="work_company_create" name="work_company" required><option value="">Select Company</option><option value="2LOG">2LOG</option><option value="PMBSI">PMBSI</option></select></div>
+          <div class="field"><label>Department</label><select name="department_id"><option value="">Unassigned</option><?php foreach($masters['departments'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>" data-company="<?=e($x['work_company']??'2LOG')?>"><?=e($x['name'])?></option><?php endforeach;?></select></div>
+          <div class="field"><label>Position</label><select name="position_id"<?=Auth::can('organization.manage')?' data-org-url="'.e(url('admin-organization')).'"':''?>><option value="">Unassigned</option><?php foreach($masters['positions'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>" data-pmbsi-position="<?=EmployeeRepository::positionAllowedForWorkCompany((string)$x['name'],'PMBSI')?'1':'0'?>" data-2log-position="<?=EmployeeRepository::positionAllowedForWorkCompany((string)$x['name'],'2LOG')?'1':'0'?>" data-active="<?=(int)$x['active']?>"><?=e($x['name'])?><?=!empty($x['department_name'])?' · '.e($x['department_name']):''?></option><?php endforeach;?></select></div>
           <div class="field"><label>Branch / Site</label><select name="branch_id"><option value="">Unassigned</option><?php foreach($masters['branches'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>"><?=e($x['name'])?></option><?php endforeach;?></select></div>
           <div class="field"><label>Employee Status <span class="req">*</span></label><select name="employment_type_id" required><option value="">Select Employee Status</option><?php foreach($masters['employment_types'] as $x): if(!$x['active']||in_array($x['code'],['RESIGN','MATERNITY_LEAVE'],true))continue;?><option value="<?=$x['id']?>" data-code="<?=e($x['code'])?>"><?=e($x['name'])?></option><?php endforeach;?></select></div>
           <div class="field"><label>Hire date <span class="req">*</span></label><input type="date" name="hire_date" required></div>
           <div class="field"><label>Regularization date</label><input type="date" name="regularization_date"><small>Automatic for Probationary: 6 months after the hire date. Seasonal has none.</small></div><?php employee_term_end_field();?>
-          <div class="field"><label>Employee portal account</label><select name="user_id"><option value="">Link later</option><?php foreach($masters['employee_users'] as $x):?><option value="<?=$x['id']?>"><?=e($x['full_name'])?> · <?=e($x['email'])?></option><?php endforeach;?></select><small>Only unlinked active Employee portal accounts are listed.</small></div>
+          <div class="field"><label>User account</label><select name="user_id"><option value="">Link later</option><?php foreach($masters['employee_users'] as $x):?><option value="<?=$x['id']?>"><?=e($x['full_name'].' · '.$x['email'].' · '.$x['role_name'])?></option><?php endforeach;?></select><small>Active, unlinked accounts are shown. HR and Admin accounts can be linked by a Super Admin.</small></div>
         </div></section>
       </div>
       <aside class="employee-form-aside"><section class="panel sticky-card"><div class="panel-head"><div><h2>Create record</h2><p>Phase 2A employee master</p></div></div><div class="panel-body"><div class="employee-save-note"><span class="qa-icon"><?=icon_svg('shield')?></span><div><strong>Audited action</strong><p>Creation is recorded in the HRIS audit log.</p></div></div><button class="btn primary block" type="submit"><?=icon_svg('plus')?> Create employee</button><a href="<?=url('hr-employees')?>" class="btn block" style="margin-top:8px">Cancel</a></div></section></aside>
     </form><?php endif;?>
+    <script>(function(){
+      var c=document.querySelector('select[name="work_company"]');if(!c)return;
+      var f=c.form,d=f.querySelector('select[name="department_id"]'),b=f.querySelector('select[name="branch_id"]'),p=f.querySelector('select[name="position_id"]');if(!d||!b||!p)return;
+      var note=document.createElement('small');note.id=c.id+'_position_note';note.setAttribute('aria-live','polite');p.parentNode.appendChild(note);p.setAttribute('aria-describedby',note.id);
+      function apply(changed){
+        var pm=c.value==='PMBSI',two=c.value==='2LOG',hasHr=false;
+        b.closest('.field').hidden=pm;if(changed&&pm)b.value='';
+        Array.prototype.forEach.call(d.options,function(o){if(!o.value)return;var excluded=o.getAttribute('data-company')!==(c.value||'2LOG');o.hidden=excluded;o.disabled=excluded;});
+        if(changed&&d.selectedOptions.length&&d.selectedOptions[0].disabled){d.value='';d.dispatchEvent(new Event('change'));}
+        Array.prototype.forEach.call(p.options,function(o){
+          var hr=o.getAttribute('data-pmbsi-position')==='1';
+          if(hr&&o.getAttribute('data-active')==='1')hasHr=true;
+          var excluded=!!o.value&&((pm&&!hr)||(two&&o.getAttribute('data-2log-position')!=='1'));
+          o.hidden=excluded;o.disabled=excluded;
+        });
+        var invalid=p.selectedOptions.length&&p.selectedOptions[0].disabled;
+        if(changed&&invalid){p.value='';invalid=false;}
+        var message=invalid?'The saved position is not available for this company. Choose a listed position or Unassigned.':'';
+        p.setCustomValidity(message);
+        note.textContent=message||(pm?(hasHr?'PMBSI currently offers Human Resource only.':'No active Human Resource position yet. Leave Unassigned for now.'):'');if(!message&&pm&&!hasHr&&p.getAttribute('data-org-url')){var a=document.createElement('a');a.href=p.getAttribute('data-org-url');a.textContent=' Add it in Organization Setup > Positions.';note.appendChild(a);}
+        note.hidden=!note.textContent;
+      }
+      c.addEventListener('change',function(){apply(true);});p.addEventListener('change',function(){apply(false);});apply(false);
+    })();</script>
     <?php employee_regularization_script();?>
     <?php render_portal_footer(); exit;
 }
@@ -1228,7 +1261,7 @@ if ($page === 'hr-employee') {
     if(!$e){flash('error','Employee record not found.');redirect('hr-employees');}
     $tabs=['overview','personal','employment','government','emergency','documents','history','audit'];
     $tab=strtolower((string)($_GET['tab']??'overview')); if(!in_array($tab,$tabs,true))$tab='overview';
-    $phase2Ready=EmployeeRepository::phase2Ready(); $canManage=Auth::can('employees.manage'); $masters=EmployeeRepository::masters($id);
+    $phase2Ready=EmployeeRepository::phase2Ready(); $canManage=Auth::can('employees.manage'); $masters=EmployeeRepository::masters($id,true);
     $name=EmployeeRepository::fullName($e); $tone=in_array($e['status'],['ACTIVE','PROBATIONARY'],true)?'green':'gray';
     $govIds=$phase2Ready?EmployeeRepository::governmentIds($id):[]; $contacts=$phase2Ready?EmployeeRepository::emergencyContacts($id):[];
     $documents=$phase2Ready?EmployeeRepository::documents($id):[]; $history=$phase2Ready?EmployeeRepository::history($id):[]; $auditTrail=EmployeeRepository::auditTrail($id);
@@ -1295,8 +1328,9 @@ if ($page === 'hr-employee') {
       <?php employee_archive_profile_panel($e);?>
       <?php employee_maternity_panel($e);?>
       <section class="panel phase2b-form-panel"><div class="panel-head"><div><h2>Employment information</h2><p>Assignment, status, portal linkage and effective-date history.</p></div><span class="badge gray">Changes are audited</span></div><?php if(!$canManage):?><div class="panel-body"><div class="alert">You have view-only access.</div></div><?php else:?><form method="post" class="panel-body employee-form-grid"><?=csrf_field()?><input type="hidden" name="action" value="update_employee_employment"><input type="hidden" name="employee_id" value="<?=$id?>"><input type="hidden" name="return_page" value="hr-employee"><input type="hidden" name="return_id" value="<?=$id?>"><input type="hidden" name="return_tab" value="employment">
-        <div class="field"><label>Employee number</label><input name="employee_no" value="<?=e($e['employee_no'])?>" <?=empty($e['employee_no']) && !empty($e['roster_needs_details'])?'':'required'?>></div><div class="field"><label>Employee portal account</label><select name="user_id"><option value="">Not linked</option><?php foreach($masters['employee_users'] as $x):?><option value="<?=$x['id']?>" <?=((int)($e['user_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['full_name'])?> · <?=e($x['email'])?></option><?php endforeach;?></select></div>
-        <div class="field"><label>Department</label><select name="department_id"><option value="">Unassigned</option><?php foreach($masters['departments'] as $x): $isSelected=((int)($e['department_id']??0)===(int)$x['id']); if(!$x['active']&&!$isSelected)continue;?><option value="<?=$x['id']?>" data-retail="<?=strtoupper((string)($x['code']??''))==='RETAIL'?'1':'0'?>" <?=$isSelected?'selected':''?>><?=e($x['name'])?><?=!$x['active']?' · Retired':''?></option><?php endforeach;?></select></div><div class="field"><label>Position</label><select name="position_id"><option value="">Unassigned</option><?php foreach($masters['positions'] as $x): $isSelected=((int)($e['position_id']??0)===(int)$x['id']); if(!$x['active']&&!$isSelected)continue;?><option value="<?=$x['id']?>" <?=$isSelected?'selected':''?>><?=e($x['name'])?><?=!empty($x['department_name'])?' · '.e($x['department_name']):''?><?=!$x['active']?' · Retired':''?></option><?php endforeach;?></select></div>
+        <div class="field"><label>Employee number</label><input name="employee_no" value="<?=e($e['employee_no'])?>" <?=empty($e['employee_no']) && !empty($e['roster_needs_details'])?'':'required'?>></div><div class="field"><label>User account</label><select name="user_id"><option value="">Not linked</option><?php foreach($masters['employee_users'] as $x):?><option value="<?=$x['id']?>" <?=((int)($e['user_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['full_name'].' · '.$x['email'].' · '.$x['role_name'].($x['status']!=='ACTIVE'?' · Inactive':''))?></option><?php endforeach;?></select><small>Active, unlinked accounts are shown. HR and Admin links require a Super Admin.</small></div>
+        <div class="field"><label for="work_company_edit">Company</label><select id="work_company_edit" name="work_company"><option value="">Not set</option><?php foreach(['2LOG','PMBSI'] as $wc):?><option value="<?=e($wc)?>" <?=($e['work_company']??'')===$wc?'selected':''?>><?=e($wc)?></option><?php endforeach;?></select><small>Choose the work assignment company.</small></div>
+        <div class="field"><label>Department</label><select name="department_id"><option value="">Unassigned</option><?php foreach($masters['departments'] as $x): $isSelected=((int)($e['department_id']??0)===(int)$x['id']); if(!$x['active']&&!$isSelected)continue;?><option value="<?=$x['id']?>" data-company="<?=e($x['work_company']??'2LOG')?>" data-active="<?=(int)$x['active']?>" data-retail="<?=strtoupper((string)($x['code']??''))==='RETAIL'?'1':'0'?>" <?=$isSelected?'selected':''?>><?=e($x['name'])?><?=!$x['active']?' · Retired':''?></option><?php endforeach;?></select></div><div class="field"><label>Position</label><select name="position_id"<?=Auth::can('organization.manage')?' data-org-url="'.e(url('admin-organization')).'"':''?>><option value="">Unassigned</option><?php foreach($masters['positions'] as $x): $isSelected=((int)($e['position_id']??0)===(int)$x['id']); if(!$x['active']&&!$isSelected)continue;?><option value="<?=$x['id']?>" data-pmbsi-position="<?=EmployeeRepository::positionAllowedForWorkCompany((string)$x['name'],'PMBSI')?'1':'0'?>" data-2log-position="<?=EmployeeRepository::positionAllowedForWorkCompany((string)$x['name'],'2LOG')?'1':'0'?>" data-active="<?=(int)$x['active']?>" <?=$isSelected?'selected':''?>><?=e($x['name'])?><?=!empty($x['department_name'])?' · '.e($x['department_name']):''?><?=!$x['active']?' · Retired':''?></option><?php endforeach;?></select></div>
         <div class="field"><label>Branch / Site</label><select name="branch_id"><option value="">Unassigned</option><?php foreach($masters['branches'] as $x): $isSelected=((int)($e['branch_id']??0)===(int)$x['id']); if(!$x['active']&&!$isSelected)continue;?><option value="<?=$x['id']?>" data-companies="<?=e(json_encode(FoundationRepository::branchCompanyMap()[(int)$x['id']]??[],JSON_FORCE_OBJECT))?>" <?=$isSelected?'selected':''?>><?=e($x['name'])?><?=!$x['active']?' · Retired':''?></option><?php endforeach;?></select></div><div class="field"><label>Employee Status</label><?php $onMaternity=MaternityService::ready()&&(bool)MaternityService::active((int)$e['id']); $typeLocked=in_array($e['status'],EmployeeRepository::ARCHIVED_STATUSES,true)||$onMaternity;if($typeLocked):?><input type="hidden" name="employment_type_id" value="<?=e((string)($e['employment_type_id']??''))?>"><?php endif;?><select name="employment_type_id" <?=$typeLocked?'disabled':''?>><option value="">Unassigned</option><?php foreach($masters['employment_types'] as $x): if(!$x['active']&&(int)($e['employment_type_id']??0)!==(int)$x['id'])continue;?><option value="<?=$x['id']?>" data-code="<?=e($x['code'])?>" <?=((int)($e['employment_type_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select><small><?=$typeLocked?($onMaternity?'On maternity leave. Use Return to work in the Maternity leave box.':'In the Employee Archive. Use Restore to change it.'):'Resign moves the employee to the Employee Archive (needs the effective date and remarks below).'?></small></div>
         <?php employee_maternity_fields($e);?>
         <?php if($e['status']==='PROBATIONARY' || !empty($e['probation_end_date']) || EmployeeStatusPolicy::isSeasonal(EmployeeStatusPolicy::code(isset($e['employment_type_id'])?(int)$e['employment_type_id']:null))): ?><?php $termCode=EmployeeStatusPolicy::code(isset($e['employment_type_id'])?(int)$e['employment_type_id']:null); $termLabel=EmployeeStatusPolicy::termLabel($termCode); $termMonths=EmployeeStatusPolicy::termMonths($termCode); ?><div class="field probation-note"><label><?=e($termLabel)?> (automatic)</label><?php if(!empty($e['probation_end_date'])): $pd=(int)(new DateTimeImmutable('today'))->diff(new DateTimeImmutable($e['probation_end_date']))->format('%r%a'); ?><div class="probation-box"><strong><?=e(date('M j, Y',strtotime($e['probation_start_date'])))?> → <?=e(date('M j, Y',strtotime($e['probation_end_date'])))?></strong><span class="badge <?=$pd<0?'red':($pd<=30?'amber':'gray')?>"><?=$pd<0?abs($pd).' days overdue':($pd===0?'Ends today':$pd.' days left')?></span></div><small><?=(int)$termMonths?> months from the hire date, counted automatically. The ADL / Manager is reminded one month before the end; HR and the employee at the end.</small><?php else:?><div class="probation-box"><strong>Not counting yet</strong></div><small>Enter the hire date and save. The <?=(int)$termMonths?> months are counted automatically.</small><?php endif;?></div><?php endif;?>
@@ -1351,6 +1385,30 @@ if ($page === 'hr-employee') {
         <div class="phase2b-form-actions full"><button class="btn primary" type="submit">Save employment changes</button></div>
       </form><?php endif;?><?=TicketViewerEmploymentLine::html((int)$e['id'])?></section>
 
+      <script>(function(){
+      var c=document.querySelector('select[name="work_company"]');if(!c)return;var initialCompany=c.value;
+      var f=c.form,d=f.querySelector('select[name="department_id"]'),b=f.querySelector('select[name="branch_id"]'),p=f.querySelector('select[name="position_id"]');if(!d||!b||!p)return;
+      var note=document.createElement('small');note.id=c.id+'_position_note';note.setAttribute('aria-live','polite');p.parentNode.appendChild(note);p.setAttribute('aria-describedby',note.id);
+      function apply(changed){
+        var pm=c.value==='PMBSI',two=c.value==='2LOG',hasHr=false;
+        b.closest('.field').hidden=pm;if(changed&&pm)b.value='';
+        Array.prototype.forEach.call(d.options,function(o){if(!o.value)return;var keep=o.defaultSelected&&o.selected&&c.value===initialCompany;var excluded=(o.getAttribute('data-company')!==(c.value||'2LOG')||o.getAttribute('data-active')!=='1')&&!keep;o.hidden=excluded;o.disabled=excluded;});
+        if(changed&&d.selectedOptions.length&&d.selectedOptions[0].disabled){d.value='';d.dispatchEvent(new Event('change'));}
+        Array.prototype.forEach.call(p.options,function(o){
+          var hr=o.getAttribute('data-pmbsi-position')==='1';
+          if(hr&&o.getAttribute('data-active')==='1')hasHr=true;
+          var excluded=!!o.value&&((pm&&!hr)||(two&&o.getAttribute('data-2log-position')!=='1'));
+          o.hidden=excluded;o.disabled=excluded;
+        });
+        var invalid=p.selectedOptions.length&&p.selectedOptions[0].disabled;
+        if(changed&&invalid){p.value='';invalid=false;}
+        var message=invalid?'The saved position is not available for this company. Choose a listed position or Unassigned.':'';
+        p.setCustomValidity(message);
+        note.textContent=message||(pm?(hasHr?'PMBSI currently offers Human Resource only.':'No active Human Resource position yet. Leave Unassigned for now.'):'');if(!message&&pm&&!hasHr&&p.getAttribute('data-org-url')){var a=document.createElement('a');a.href=p.getAttribute('data-org-url');a.textContent=' Add it in Organization Setup > Positions.';note.appendChild(a);}
+        note.hidden=!note.textContent;
+      }
+      c.addEventListener('change',function(){apply(true);});d.addEventListener('change',function(){apply(false);});p.addEventListener('change',function(){apply(false);});apply(false);
+    })();</script>
       <?php employee_regularization_script();?>
     <?php elseif($tab==='government'):?>
       <?php if(!$phase2Ready):?><div class="panel pad"><div class="empty">Import the Phase 2B migration to use Government IDs.</div></div><?php else:?><div class="phase2b-two-col"><section class="panel"><div class="panel-head"><div><h2>Government IDs</h2><p>Official employee identifiers.</p></div><span class="badge gray"><?=count($govIds)?> records</span></div><div class="phase2b-list"><?php if(!$govIds):?><div class="empty">No government IDs recorded yet.</div><?php endif;foreach($govIds as $g):?><div class="phase2b-record"><div><span><?=e(stage_label($g['id_type']))?></span><strong><?=e($g['id_number'])?></strong><small><?=!empty($g['expiry_date'])?'Expires '.e(date('M j, Y',strtotime($g['expiry_date']))):'No expiry recorded'?></small></div><?php if($canManage):?><form method="post" onsubmit="return confirm('Remove this government ID?')"><?=csrf_field()?><input type="hidden" name="action" value="delete_government_id"><input type="hidden" name="employee_id" value="<?=$id?>"><input type="hidden" name="government_id_id" value="<?=$g['id']?>"><input type="hidden" name="return_page" value="hr-employee"><input type="hidden" name="return_id" value="<?=$id?>"><input type="hidden" name="return_tab" value="government"><button class="mini-action" title="Remove">×</button></form><?php endif;?></div><?php endforeach;?></div></section>
@@ -1722,7 +1780,7 @@ if ($page === 'admin-users') {
         </form>
         <form method="post"><?=csrf_field()?><input type="hidden" name="action" value="link_user_employee">
           <div class="field"><label for="link_user">User</label><select id="link_user" name="user_id" required><option value="">Select user</option><?php foreach($managedUsers as $u):?><option value="<?=(int)$u['id']?>"><?=e($u['full_name'].($u['employee_id']===null?' · not linked':' · '.$u['employee_no']))?></option><?php endforeach;?></select></div>
-          <div class="field"><label for="link_employee">Employee</label><select id="link_employee" name="employee_id"><option value="0">Remove the link</option><?php foreach($linkEmployees as $emp):?><option value="<?=(int)$emp['id']?>" <?=$emp['user_id']!==null?'disabled':''?>><?=e($emp['employee_no'].' · '.$emp['first_name'].' '.$emp['last_name'].($emp['user_id']!==null?' (already linked)':''))?></option><?php endforeach;?></select></div>
+          <div class="field"><label for="link_employee">Employee</label><select id="link_employee" name="employee_id" required><option value="">Select employee or remove link</option><option value="0">Remove the link</option><?php foreach($linkEmployees as $emp):?><option value="<?=(int)$emp['id']?>" <?=$emp['user_id']!==null?'disabled':''?>><?=e($emp['employee_no'].' · '.$emp['first_name'].' '.$emp['last_name'].($emp['user_id']!==null?' (already linked)':''))?></option><?php endforeach;?></select><small>Select an unlinked employee, or explicitly choose Remove the link.</small></div>
           <button class="btn">Save employee link</button>
         </form>
       </div>
@@ -1907,7 +1965,7 @@ if ($page === 'admin-organization') {
 
     $canManage=Auth::can('organization.manage');
     $orgReady=FoundationRepository::tableExists('business_units') && FoundationRepository::tableExists('legal_entities');
-    $headExtra='<span class="badge amber">Roster-based master data</span> <a class="btn sm" href="'.e(url('admin-organization',$showRetired?[]:['show_retired'=>1])).'">'.($showRetired?'Hide retired':'Show retired').'</a>';
+    $headExtra='<span class="badge amber">Roster-based master data</span> <a class="btn sm" href="'.e(url('admin-organization',$showRetired?[]:['show_retired'=>1])).'">'.($showRetired?'Hide inactive':'Show inactive').'</a>';
     render_portal_header('admin',$page,'Organization Setup');
     page_head('HR Admin / Organization','Organization Setup',$headExtra); ?>
 
@@ -1923,40 +1981,45 @@ if ($page === 'admin-organization') {
     <div class="org-grid">
       <section class="panel org-card">
         <div class="panel-head"><div><h2>Company Names</h2><p><?=count($businessUnits)?> records</p></div></div>
-        <?php if($canManage):?><form method="post" class="master-add"><?=csrf_field()?><input type="hidden" name="action" value="create_business_unit"><input name="code" placeholder="Code" required><select name="company_group" required><option value="">Company Group</option><?php foreach(FoundationRepository::companyGroups() as $groupCode=>$groupLabel):?><option value="<?=e($groupCode)?>"><?=e($groupLabel)?></option><?php endforeach;?></select><input name="name" placeholder="Company Name" required><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?>
-        <div class="master-list"><?php foreach($businessUnits as $x):?><div class="master-row"><div><strong><?=e($x['name'])?></strong><span><?=e($x['code'])?><?=!empty($x['company_group'])?' · '.e(FoundationRepository::companyGroups()[$x['company_group']]??$x['company_group']):''?></span></div><div><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Retired'?></span><?php if($canManage):?><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="business_unit"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action" title="Toggle status">•••</button></form><?php endif;?></div></div><?php endforeach;?></div>
+        <?php if($canManage):?><form method="post" class="master-add org-company-add"><?=csrf_field()?><input type="hidden" name="action" value="create_business_unit"><label class="org-field"><span>Company group *</span><select name="company_group" required><option value="">Company Group</option><?php foreach(FoundationRepository::companyGroups() as $groupCode=>$groupLabel):?><option value="<?=e($groupCode)?>"><?=e($groupLabel)?></option><?php endforeach;?></select></label><label class="org-field"><span>Company name *</span><input name="name" placeholder="Company Name" required></label><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?>
+        <div class="master-list"><?php foreach($businessUnits as $x):?><div class="master-row"><div class="org-record"><div class="org-record-title"><strong><?=e($x['name'])?></strong><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Inactive'?></span></div><span><?=e($x['code'])?><?=!empty($x['company_group'])?' · '.e(FoundationRepository::companyGroups()[$x['company_group']]??$x['company_group']):''?></span></div><?php if($canManage):?><div class="org-actions"><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="business_unit"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action <?=$x['active']?'org-deactivate':'org-reactivate'?>" title="<?=$x['active']?'Deactivate':'Reactivate'?>"><?=$x['active']?'Deactivate':'Reactivate'?></button></form></div><?php endif;?></div><?php endforeach;?></div>
       </section>
 
       <section class="panel org-card">
         <div class="panel-head"><div><h2>Employer</h2><p><?=count($legalEntities)?> records</p></div></div>
-        <?php if($canManage):?><form method="post" class="master-add"><?=csrf_field()?><input type="hidden" name="action" value="create_legal_entity"><input name="code" placeholder="Code" required><input name="name" placeholder="Company / legal entity" required><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?>
-        <div class="master-list"><?php foreach($legalEntities as $x):?><div class="master-row"><div><strong><?=e($x['name'])?></strong><span><?=e($x['code'])?></span></div><div><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Retired'?></span><?php if($canManage):?><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="legal_entity"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action" title="Toggle status">•••</button></form><?php endif;?></div></div><?php endforeach;?></div>
+        <?php if($canManage):?><form method="post" class="master-add"><?=csrf_field()?><input type="hidden" name="action" value="create_legal_entity"><label class="org-field"><span>Employer name *</span><input name="name" placeholder="Company / legal entity" required></label><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?>
+        <div class="master-list"><?php foreach($legalEntities as $x):?><div class="master-row"><div class="org-record"><div class="org-record-title"><strong><?=e($x['name'])?></strong><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Inactive'?></span></div><span><?=e($x['code'])?></span></div><?php if($canManage):?><div class="org-actions"><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="legal_entity"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action <?=$x['active']?'org-deactivate':'org-reactivate'?>" title="<?=$x['active']?'Deactivate':'Reactivate'?>"><?=$x['active']?'Deactivate':'Reactivate'?></button></form></div><?php endif;?></div><?php endforeach;?></div>
       </section>
 
+      <?php foreach(['2LOG','PMBSI'] as $departmentCompany): $companyDepartments=array_values(array_filter($departments,fn($x)=>($x['work_company']??'2LOG')===$departmentCompany));?>
       <section class="panel org-card">
-        <div class="panel-head"><div><h2>Departments</h2><p><?=count($departments)?> records</p></div></div>
-        <?php if($canManage):?><form method="post" class="master-add"><?=csrf_field()?><input type="hidden" name="action" value="create_department"><input name="code" placeholder="Code" required><input name="name" placeholder="Department name" required><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?>
-        <div class="master-list"><?php foreach($departments as $x):?><div class="master-row"><div><strong><?=e($x['name'])?></strong><span><?=e($x['code'])?> · <?=$x['position_count']?> positions</span></div><div><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Retired'?></span><?php if($canManage):?><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="department"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action">•••</button></form><?php endif;?></div></div><?php endforeach;?></div>
+        <div class="panel-head"><div><h2><?=e($departmentCompany)?> Departments</h2><p><?=count($companyDepartments)?> records</p></div></div>
+        <?php if($canManage):?><form method="post" class="master-add"><?=csrf_field()?><input type="hidden" name="action" value="create_department"><input type="hidden" name="work_company" value="<?=e($departmentCompany)?>"><label class="org-field"><span>Department name *</span><input name="name" aria-label="<?=e($departmentCompany)?> department name" placeholder="Department name" required></label><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?>
+        <div class="master-list"><?php if(!$companyDepartments):?><div class="empty">No departments yet.</div><?php endif;foreach($companyDepartments as $x):?><div class="master-row"><div class="org-record"><div class="org-record-title"><strong><?=e($x['name'])?></strong><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Inactive'?></span></div><span><?=e($x['code'])?> · <?=$x['position_count']?> positions</span></div><?php if($canManage):?><div class="org-actions"><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="department"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action <?=$x['active']?'org-deactivate':'org-reactivate'?>" title="<?=$x['active']?'Deactivate':'Reactivate'?>"><?=$x['active']?'Deactivate':'Reactivate'?></button></form></div><?php endif;?></div><?php endforeach;?></div>
       </section>
+      <?php endforeach;?>
 
+      <?php foreach(['2LOG','PMBSI'] as $positionCompany):
+        $companyPositions=array_values(array_filter($positions,fn($x)=>EmployeeRepository::positionAllowedForWorkCompany((string)$x['name'],$positionCompany)));?>
       <section class="panel org-card">
-        <div class="panel-head"><div><h2>Positions</h2><p><?=count($positions)?> records</p></div></div>
-        <?php if($canManage):?><form method="post" class="master-add master-add-4"><?=csrf_field()?><input type="hidden" name="action" value="create_position"><input name="code" placeholder="Code" required><input name="name" placeholder="Position name" required><select name="department_id"><option value="">No default department</option><?php foreach($departments as $d):if(!$d['active'])continue;?><option value="<?=$d['id']?>"><?=e($d['name'])?></option><?php endforeach;?></select><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?>
-        <div class="master-list"><?php foreach($positions as $x):?><div class="master-row"><div><strong><?=e($x['name'])?></strong><span><?=e($x['code'])?> · <?=e($x['department_name']??'No default department')?></span></div><div><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Retired'?></span><?php if($canManage):?><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="position"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action">•••</button></form><?php endif;?></div></div><?php endforeach;?></div>
+        <div class="panel-head"><div><h2><?=e($positionCompany)?> Positions</h2><p><?=count($companyPositions)?> records</p></div></div>
+        <?php if($canManage):?><form method="post" class="master-add org-position-add"><?=csrf_field()?><input type="hidden" name="action" value="create_position"><input type="hidden" name="work_company" value="<?=e($positionCompany)?>"><label class="org-field"><span>Position name *</span><input name="name" aria-label="<?=e($positionCompany)?> position name" placeholder="Position name" required></label><label class="org-field"><span>Default department</span><select name="department_id" aria-label="<?=e($positionCompany)?> default department"><option value="">No default department</option><?php foreach($departments as $d):if(!$d['active'] || ($d['work_company']??'2LOG')!==$positionCompany)continue;?><option value="<?=$d['id']?>"><?=e($d['name'])?></option><?php endforeach;?></select></label><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?>
+        <div class="master-list"><?php if(!$companyPositions):?><div class="empty">No positions yet.</div><?php endif;foreach($companyPositions as $x):?><div class="master-row"><div class="org-record"><div class="org-record-title"><strong><?=e($x['name'])?></strong><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Inactive'?></span></div><span><?=e($x['code'])?> · <?=e($x['department_name']??'No default department')?></span></div><?php if($canManage):?><div class="org-actions org-position-actions"><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="position"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action <?=$x['active']?'org-deactivate':'org-reactivate'?>" title="<?=$x['active']?'Deactivate':'Reactivate'?>"><?=$x['active']?'Deactivate':'Reactivate'?></button></form><details class="org-position-edit"><summary class="mini-action">Edit department</summary><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="update_position_department"><input type="hidden" name="id" value="<?=$x['id']?>"><input type="hidden" name="work_company" value="<?=e($positionCompany)?>"><label class="org-field"><span>Default department</span><select name="department_id" aria-label="Default department for <?=e($x['name'])?>" required><?php if(!empty($x['department_id']) && !array_filter($departments,fn($d)=>$d['active'] && (int)$d['id']===(int)$x['department_id'] && ($d['work_company']??'2LOG')===$positionCompany)):?><option value="" disabled selected>Choose a department</option><?php endif;?><option value="0">No default department</option><?php foreach($departments as $d):if(!$d['active'] || ($d['work_company']??'2LOG')!==$positionCompany)continue;?><option value="<?=$d['id']?>" <?=((int)($x['department_id']??0)===(int)$d['id'])?'selected':''?>><?=e($d['name'])?></option><?php endforeach;?></select></label><button class="btn sm">Save</button></form></details></div><?php endif;?></div><?php endforeach;?></div>
       </section>
+      <?php endforeach;?>
 
       <section class="panel org-card org-card-wide">
         <div class="panel-head"><div><h2>Branches & Sites</h2><p><?=count($branches)?> records · roster operational locations</p></div></div>
         <?php if($canManage):?>
         <form method="post" class="master-add org-branch-add"><?=csrf_field()?>
           <input type="hidden" name="action" value="create_branch">
-          <input name="code" placeholder="Branch code (optional)">
-          <input name="name" placeholder="Branch / site name" required>
-          <select name="business_unit_id"><option value="">No default brand</option><?php foreach($businessUnits as $x):if(!$x['active'])continue;?><option value="<?=$x['id']?>"><?=e($x['name'])?></option><?php endforeach;?></select>
-          <select name="legal_entity_id"><option value="">No default company</option><?php foreach($legalEntities as $x):if(!$x['active'])continue;?><option value="<?=$x['id']?>"><?=e($x['name'])?></option><?php endforeach;?></select>
-          <select name="site_type"><option value="RETAIL_STORE">Retail Store</option><option value="HEAD_OFFICE">Head Office</option><option value="OTHER">Other</option></select>
-          <select name="area_id"><option value="">No area</option><?php foreach($areas as $a):if(!$a['active'])continue;?><option value="<?=$a['id']?>"><?=e($a['name'])?></option><?php endforeach;?></select>
-          <input name="address_text" placeholder="City / address (optional)">
+          <label class="org-field"><span>Branch code (optional)</span><input name="code" placeholder="Branch code (optional)"></label>
+          <label class="org-field"><span>Branch / site name *</span><input name="name" placeholder="Branch / site name" required></label>
+          <label class="org-field"><span>Default brand</span><select name="business_unit_id"><option value="">No default brand</option><?php foreach($businessUnits as $x):if(!$x['active'])continue;?><option value="<?=$x['id']?>"><?=e($x['name'])?></option><?php endforeach;?></select></label>
+          <label class="org-field"><span>Default company</span><select name="legal_entity_id"><option value="">No default company</option><?php foreach($legalEntities as $x):if(!$x['active'])continue;?><option value="<?=$x['id']?>"><?=e($x['name'])?></option><?php endforeach;?></select></label>
+          <label class="org-field"><span>Site type</span><select name="site_type"><option value="RETAIL_STORE">Retail Store</option><option value="HEAD_OFFICE">Head Office</option><option value="OTHER">Other</option></select></label>
+          <label class="org-field"><span>Area</span><select name="area_id"><option value="">No area</option><?php foreach($areas as $a):if(!$a['active'])continue;?><option value="<?=$a['id']?>"><?=e($a['name'])?></option><?php endforeach;?></select></label>
+          <label class="org-field"><span>City / address (optional)</span><input name="address_text" placeholder="City / address (optional)"></label>
           <button class="btn primary sm"><?=icon_svg('plus')?> Add</button>
         </form>
         <?php endif;?>
@@ -1966,15 +2029,15 @@ if ($page === 'admin-organization') {
             $mapClass=$mapStatus==='READY'?'green':($mapStatus==='LEGACY'?'gray':'amber');
           ?>
           <div class="master-row org-branch-row">
-            <div>
-              <strong><?=e($x['name'])?></strong>
+            <div class="org-record">
+              <div class="org-record-title"><strong><?=e($x['name'])?></strong><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Inactive'?></span></div>
               <span><?=e($x['code']?:'Code pending')?> · <?=e($x['business_unit_name']??($x['source_company_text']??'Company Name unassigned'))?> · <?=e($x['area_name']??'Area unassigned')?></span>
             </div>
-            <div>
+            <div class="org-branch-meta">
               <span class="badge gray"><?=e(ucwords(strtolower(str_replace('_',' ',(string)($x['site_type']??'RETAIL_STORE')))))?></span>
               <span class="badge <?=$mapClass?>"><?=e(ucwords(strtolower(str_replace('_',' ',$mapStatus))))?></span>
-              <?php if($canManage):?><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="branch"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action">•••</button></form><?php endif;?>
             </div>
+            <?php if($canManage):?><div class="org-actions"><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="branch"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action <?=$x['active']?'org-deactivate':'org-reactivate'?>" title="<?=$x['active']?'Deactivate':'Reactivate'?>"><?=$x['active']?'Deactivate':'Reactivate'?></button></form></div><?php endif;?>
           </div>
           <?php endforeach;?>
         </div>
@@ -1982,14 +2045,14 @@ if ($page === 'admin-organization') {
 
       <section class="panel org-card">
         <div class="panel-head"><div><h2>Areas</h2><p><?=count($areas)?> records · HR-managed</p></div></div>
-        <?php if($canManage):?><form method="post" class="master-add"><?=csrf_field()?><input type="hidden" name="action" value="create_area"><input name="code" placeholder="Code" required><input name="name" placeholder="Area name" required><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?>
-        <div class="master-list"><?php if(!$areas):?><div class="empty">The Employee Roster has no area column. Add the approved Area structure here when ready.</div><?php endif;foreach($areas as $x):?><div class="master-row"><div><strong><?=e($x['name'])?></strong><span><?=e($x['code'])?></span></div><div><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Retired'?></span><?php if($canManage):?><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="area"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action">•••</button></form><?php endif;?></div></div><?php endforeach;?></div>
+        <?php if($canManage):?><form method="post" class="master-add"><?=csrf_field()?><input type="hidden" name="action" value="create_area"><label class="org-field"><span>Area name *</span><input name="name" placeholder="Area name" required></label><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?>
+        <div class="master-list"><?php if(!$areas):?><div class="empty">The Employee Roster has no area column. Add the approved Area structure here when ready.</div><?php endif;foreach($areas as $x):?><div class="master-row"><div class="org-record"><div class="org-record-title"><strong><?=e($x['name'])?></strong><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Inactive'?></span></div><span><?=e($x['code'])?></span></div><?php if($canManage):?><div class="org-actions"><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="area"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action <?=$x['active']?'org-deactivate':'org-reactivate'?>" title="<?=$x['active']?'Deactivate':'Reactivate'?>"><?=$x['active']?'Deactivate':'Reactivate'?></button></form></div><?php endif;?></div><?php endforeach;?></div>
       </section>
 
       <section class="panel org-card">
         <div class="panel-head"><div><h2>Employee Status</h2><p><?=count($types)?> records</p></div></div>
-        <?php if($canManage):?><form method="post" class="master-add"><?=csrf_field()?><input type="hidden" name="action" value="create_employment_type"><input name="code" placeholder="Code" required><input name="name" placeholder="Employee Status" required><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?>
-        <div class="master-list"><?php foreach($types as $x):?><div class="master-row"><div><strong><?=e($x['name'])?></strong><span><?=e($x['code'])?></span></div><div><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Retired'?></span><?php if($canManage):?><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="employment_type"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action">•••</button></form><?php endif;?></div></div><?php endforeach;?></div>
+        <?php if($canManage):?><form method="post" class="master-add"><?=csrf_field()?><input type="hidden" name="action" value="create_employment_type"><label class="org-field"><span>Employee status *</span><input name="name" placeholder="Employee Status" required></label><button class="btn primary sm"><?=icon_svg('plus')?> Add</button></form><?php endif;?>
+        <div class="master-list"><?php foreach($types as $x):?><div class="master-row"><div class="org-record"><div class="org-record-title"><strong><?=e($x['name'])?></strong><span class="badge <?=$x['active']?'green':'gray'?>"><?=$x['active']?'Active':'Inactive'?></span></div><span><?=e($x['code'])?></span></div><?php if($canManage):?><div class="org-actions"><form method="post" class="inline"><?=csrf_field()?><input type="hidden" name="action" value="toggle_master"><input type="hidden" name="entity" value="employment_type"><input type="hidden" name="id" value="<?=$x['id']?>"><button class="mini-action <?=$x['active']?'org-deactivate':'org-reactivate'?>" title="<?=$x['active']?'Deactivate':'Reactivate'?>"><?=$x['active']?'Deactivate':'Reactivate'?></button></form></div><?php endif;?></div><?php endforeach;?></div>
       </section>
     </div>
     <?php render_portal_footer(); exit;

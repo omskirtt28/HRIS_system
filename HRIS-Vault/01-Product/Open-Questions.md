@@ -97,3 +97,10 @@ Related: [[Decision-Log]] · [[Roadmap]] · [[Business-Rules]] · [[PH-Labor-and
 - [x] **Q61. HR cancelling a case and HR names.** Assumed: HR dismisses (with a reason) instead of cancelling a Submitted case, and the handling HR reviewer is named on updates and messages that every reader sees. Confirm, or ask for HR to appear only as "HR". → [[Business-Rules]] BR-780, BR-781
 - [x] **Q62. Darker light-theme hue tokens.** Light chips, badges and alerts measure 4.1-4.4:1 (AA needs 4.5:1). The fix is darker `--hris-success/info/danger/warning` (suggested #137a50, #2560d6, #c2364a, plus an amber), which also drive buttons, alerts and charts. Confirm, then a separate patch. → [[Design-System]]
 - [ ] **Q63. Head Office Creatives/MIS biometric file.** Cutoff 2026-09-19 to 2026-10-03: the uploaded biometric PDFs have no punches for Creatives (9) and MIS (5). Does the HO file still need uploading, or are they exempt from biometric? Code is fixed; only the data question remains. → [[Business-Rules]] BR-783, [[Attendance-and-DTR]]
+
+- Q64 (2026-10-28): "Human Resources Assistant" is the only active HR-type position; it fails the PMBSI exact-alias rule (HR / Human Resource / Human Resources) and the 2LOG HR exclusion, so nobody can be assigned it. Add it as a PMBSI position? Owner: John.
+
+- 2026-10-28: Should "Human Resources Assistant" count as a PMBSI position, or will John add a plain "Human Resource" position? (John is adding the latter.)
+
+- Q65 (2026-10-29): With "Include someone" removed from the IR case page, HR cannot re-add a person after "Remove" in People on this case. Keep Remove, or remove it too? Owner: John.
+- Q66 (2026-10-29): `incident_case_test.php`, `incident_case_ui_test.php` and `incident_browser_setup.php` fixtures lack `nature`, `location_type`, `immediate_head`, so the suites crash before any assertion. Update fixtures? Owner: John.

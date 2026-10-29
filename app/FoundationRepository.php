@@ -179,11 +179,32 @@ final class FoundationRepository
         return $id===false?null:(int)$id;
     }
 
+    /** Code is an internal key: use the typed one, otherwise derive it from the name and keep it unique. */
+    private static function uniqueCode(string $table,string $label,string $name,string $given=''): string
+    {
+        $name=trim($name);
+        if($name==='') throw new RuntimeException($label.' name is required.');
+        $st=db()->prepare("SELECT COUNT(*) FROM {$table} WHERE LOWER(name)=LOWER(?)");$st->execute([$name]);
+        if((int)$st->fetchColumn()>0) throw new RuntimeException($label." '".$name."' already exists.");
+        $code=strtoupper(trim($given));
+        if($code==='') {
+            $code=trim((string)preg_replace('/[^A-Z0-9]+/','_',strtoupper($name)),'_');
+            $code=substr($code!==''?$code:'ITEM',0,30);
+        }
+        $base=$code;$n=1;
+        $chk=db()->prepare("SELECT COUNT(*) FROM {$table} WHERE code=?");
+        while(true) {
+            $chk->execute([$code]);
+            if((int)$chk->fetchColumn()===0) return $code;
+            $n++;$code=substr($base,0,27).'_'.$n;
+        }
+    }
+
     public static function createBusinessUnit(string $code,string $name,string $group=''): void
     {
         if(!self::tableExists('business_units')) throw new RuntimeException('Import the Organization Master migration first.');
-        $code=strtoupper(trim($code));$name=trim($name);$group=strtoupper(trim($group));
-        if($code===''||$name==='') throw new RuntimeException('Company Name code and name are required.');
+        $name=trim($name);$group=strtoupper(trim($group));
+        $code=self::uniqueCode('business_units','Company Name',$name,$code);
         if(!isset(self::companyGroups()[$group])) throw new RuntimeException('Choose the Company Group for this Company Name.');
         $st=db()->prepare('INSERT INTO business_units(code,name,company_group,active,sort_order) VALUES(?,?,?,1,300)');
         $st->execute([$code,$name,$group]);
@@ -193,35 +214,64 @@ final class FoundationRepository
     public static function createLegalEntity(string $code,string $name): void
     {
         if(!self::tableExists('legal_entities')) throw new RuntimeException('Import the Organization Master migration first.');
-        $code=strtoupper(trim($code));$name=trim($name);
-        if($code===''||$name==='') throw new RuntimeException('Company / legal entity code and name are required.');
+        $name=trim($name);
+        $code=self::uniqueCode('legal_entities','Company / legal entity',$name,$code);
         $st=db()->prepare('INSERT INTO legal_entities(code,name,active) VALUES(?,?,1)');
         $st->execute([$code,$name]);
         audit('Organization','CREATE_LEGAL_ENTITY','legal_entity',(int)db()->lastInsertId(),['code'=>$code,'name'=>$name]);
     }
 
-    public static function createDepartment(string $code,string $name): void
+    public static function createDepartment(string $code,string $name,string $company='2LOG'): void
     {
-        $code=strtoupper(trim($code)); $name=trim($name);
-        if($code===''||$name==='') throw new RuntimeException('Department code and name are required.');
-        $st=db()->prepare('INSERT INTO departments(code,name,active) VALUES(?,?,1)'); $st->execute([$code,$name]);
-        audit('Organization','CREATE_DEPARTMENT','department',(int)db()->lastInsertId(),['code'=>$code,'name'=>$name]);
+        $name=trim($name);$company=strtoupper(trim($company));
+        if(!in_array($company,['2LOG','PMBSI'],true)) throw new RuntimeException('Choose a valid department company.');
+        $hasCompany=self::columnExists('departments','work_company');
+        if(!$hasCompany && $company==='PMBSI') throw new RuntimeException('The department company migration is required.');
+        $code=self::uniqueCode('departments','Department',$name,$code);
+        $st=db()->prepare($hasCompany?'INSERT INTO departments(code,name,work_company,active) VALUES(?,?,?,1)':'INSERT INTO departments(code,name,active) VALUES(?,?,1)');
+        $st->execute($hasCompany?[$code,$name,$company]:[$code,$name]);
+        audit('Organization','CREATE_DEPARTMENT','department',(int)db()->lastInsertId(),['code'=>$code,'name'=>$name,'work_company'=>$company]);
     }
 
-    public static function createPosition(string $code,string $name,?int $departmentId): void
+    public static function createPosition(string $code,string $name,?int $departmentId,string $company): void
     {
         if(!self::tableExists('positions')) throw new RuntimeException('Run the Phase 1 foundation migration first.');
-        $code=strtoupper(trim($code)); $name=trim($name);
-        if($code===''||$name==='') throw new RuntimeException('Position code and name are required.');
+        $name=trim($name);$company=strtoupper(trim($company));
+        if(!in_array($company,['2LOG','PMBSI'],true)) throw new RuntimeException('Choose a valid position company.');
+        if(!EmployeeRepository::positionAllowedForWorkCompany($name,$company)) throw new RuntimeException($company==='PMBSI'?'This position name is not eligible for PMBSI. Use an allowed Human Resource name.':'This position name is not eligible for 2LOG.');
+        if($departmentId) {
+            $hasCompany=self::columnExists('departments','work_company');
+            if(!$hasCompany && $company==='PMBSI') throw new RuntimeException('The department company migration is required.');
+            $st=db()->prepare($hasCompany?'SELECT active,work_company FROM departments WHERE id=?':"SELECT active,'2LOG' work_company FROM departments WHERE id=?");
+            $st->execute([$departmentId]);$department=$st->fetch();
+            if(!$department || !(int)$department['active'] || $department['work_company']!==$company) throw new RuntimeException('Choose an active department for '.$company.'.');
+        }
+        $code=self::uniqueCode('positions','Position',$name,$code);
         $st=db()->prepare('INSERT INTO positions(department_id,code,name,active) VALUES(?,?,?,1)'); $st->execute([$departmentId ?: null,$code,$name]);
         audit('Organization','CREATE_POSITION','position',(int)db()->lastInsertId(),['code'=>$code,'name'=>$name]);
+    }
+
+    public static function updatePositionDepartment(int $id,?int $departmentId,string $company): void
+    {
+        if(!in_array($company,['2LOG','PMBSI'],true) || $id<=0 || $departmentId<0) throw new RuntimeException('Choose a valid position and company.');
+        $st=db()->prepare('SELECT name,department_id FROM positions WHERE id=?'); $st->execute([$id]); $position=$st->fetch();
+        if(!$position || !EmployeeRepository::positionAllowedForWorkCompany((string)$position['name'],$company)) throw new RuntimeException('Position is not eligible for this company.');
+        if($departmentId) {
+            $hasCompany=self::columnExists('departments','work_company');
+            if(!$hasCompany && $company==='PMBSI') throw new RuntimeException('The department company migration is required.');
+            $st=db()->prepare($hasCompany?'SELECT active,work_company FROM departments WHERE id=?':"SELECT active,'2LOG' work_company FROM departments WHERE id=?");
+            $st->execute([$departmentId]); $department=$st->fetch();
+            if(!$department || !(int)$department['active'] || $department['work_company']!==$company) throw new RuntimeException('Choose an active department for '.$company.'.');
+        }
+        $st=db()->prepare('UPDATE positions SET department_id=? WHERE id=?'); $st->execute([$departmentId ?: null,$id]);
+        audit('Organization','UPDATE_POSITION_DEPARTMENT','position',$id,['from_department_id'=>$position['department_id'],'to_department_id'=>$departmentId ?: null]);
     }
 
     public static function createArea(string $code,string $name): void
     {
         if(!self::tableExists('areas')) throw new RuntimeException('Import the Phase 3A migration first.');
-        $code=strtoupper(trim($code));$name=trim($name);
-        if($code===''||$name==='') throw new RuntimeException('Area code and name are required.');
+        $name=trim($name);
+        $code=self::uniqueCode('areas','Area',$name,$code);
         $st=db()->prepare('INSERT INTO areas(code,name,active) VALUES(?,?,1)');$st->execute([$code,$name]);
         audit('Organization','CREATE_AREA','area',(int)db()->lastInsertId(),['code'=>$code,'name'=>$name]);
     }
@@ -250,8 +300,8 @@ final class FoundationRepository
     public static function createEmploymentType(string $code,string $name): void
     {
         if(!self::tableExists('employment_types')) throw new RuntimeException('Run the Phase 1 foundation migration first.');
-        $code=strtoupper(trim($code)); $name=trim($name);
-        if($code===''||$name==='') throw new RuntimeException('Employee Status code and name are required.');
+        $name=trim($name);
+        $code=self::uniqueCode('employment_types','Employee Status',$name,$code);
         $st=db()->prepare('INSERT INTO employment_types(code,name,active,sort_order) VALUES(?,?,1,100)'); $st->execute([$code,$name]);
         audit('Organization','CREATE_EMPLOYMENT_TYPE','employment_type',(int)db()->lastInsertId(),['code'=>$code,'name'=>$name]);
     }

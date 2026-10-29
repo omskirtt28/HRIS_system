@@ -8,6 +8,17 @@ updated: 2026-10-26
 
 # Session Log
 
+## 2026-10-29 - Shared shell search, sidebar scroll and unread badges
+- Implemented John's supplied plan using hris-patch, hris-ui and Ponytail; no subagents. Preserved existing uncommitted edits, including the hris-modern.css asset version in View.php.
+- App files: app/View.php, app/NotificationService.php, app/NotificationModule.php, public/assets/hris-app.js, public/assets/notifications.css. Added tests/notification_sidebar_test.php (three mapping scenarios, syntax checked only, unexecuted).
+- Removed shared top search; added user/portal scroll persistence, metadata/access-based all-unread single-menu counts, zero/99+/accessible badges and successful-read-only bell/sidebar updates. Stale GET responses are ignored; malformed read IDs rejected. Sidebar navigation does not mark read.
+- PHP/JS syntax and three source-only scenarios passed: storage/search; mapping/query/response consistency; confirmed reads/auth/CSRF/failures. Same-pattern sweep found no other shared search markup/read callers needing changes. Existing unused top-search CSS left alone to avoid unrelated edits. Application/test files use CRLF; vault notes retain their existing endings. Module/design/model/progress/CHANGELOG synced.
+- No browser/app/DB execution, migration, new notification recipients/events, commit or deployment. Actual scroll/rendering/live counts/query performance and regression execution unverified.
+
+## 2026-10-29 - Incident case compact panel
+- Status action stays visible; status note and separate HR-only note are collapsible. People, summary, attachments and timeline use compact disclosures, with counts and latest visible event preview. Existing access and actions retained.
+- Static review and PHP syntax checks only; browser, mobile rendering and live behavior not verified. No database or deployment changes.
+
 ## 2026-10-27 - Incident Others submit blocker fixed
 - **John:** screenshot showed "Nature other is missing or invalid (maximum 200 characters)"; report needs to send without that blocker. Planner traced a required Others field with an optional-looking UI, not a 200-character minimum.
 - **Patched:** IncidentDocument nature_other optional, blank/short allowed, max5000; IncidentViews labels/help/maxlength match. Same-class supporting_other limit raised to5000; still required only when Supporting Documents Others selected. Category/auth/storage/transactions unchanged.
@@ -122,3 +133,88 @@ Isang entry kada session, pinakabago sa taas. Mga plano ay nasa `Plans/` (templa
 
 ## 2026-10-27 - BINAWI ang Codex muna (John)
 - BINAWI 2026-10-27: Claude Code + sariling subagents + advisor na ulit; walang codex exec maliban kung hilingin ni John.
+
+## 2026-10-28 - Employee work company
+- Source patch: 2LOG / PMBSI work assignment in Add and Edit, conditional fields and 2LOG HR position filtering; legacy records remain unassigned until HR selects. PMBSI remains legal employer.
+- Additive migration and guarded rollback prepared; not applied. PHP/JS syntax checked; runtime, database and browser acceptance not verified. No deployment or commit.
+
+
+## 2026-10-28 - PMBSI positions limited to Human Resource
+- John: existing other positions belong to 2LOG; PMBSI gets Human Resource only until company confirms more. Planner -> engineer -> static tester -> simplify reviewer; main owns vault sync.
+- Incremental source patch: app/EmployeeRepository.php shared eligibility validation and index.php Add/Edit option filtering/messages. Preserve prior work-company patch and migration; no DB/master-data changes, commit or deployment. Unknown active HR master availability is shown as an empty-state message, never a fake position.
+- Verification: PHP lint passed EmployeeRepository.php and index.php; both affected inline scripts passed node --check. Static QA PASS WITH NOTES, three source scenarios reviewed. Runtime/browser/DB and active HR master availability not verified.
+- Simplify review: no blocker. Optional misplaced docblock correction and shared inline-script renderer left as proposals; no extra refactor. Recruitment/import flows without work_company remain outside scope. Skills: hris-patch, hris-debug, hris-ui, hris-review.
+
+## 2026-10-28 - Obsidian-only and minimal agent context
+Recorded John's Obsidian-only and minimal agent context instruction in workflow, Conventions and Decision-Log, linked from Start-Here. No agents spawned; vault documentation only.
+
+- 2026-10-28: John clarified: skills follow the same Obsidian-only scope as main and agents. Use only the relevant vault note/section and reuse session context. Do not open external SKILL.md files, auto-run skill workflows, spawn agents or expand reads beyond Obsidian unless John authorizes that scope. See [[Codex-Agent-Workflow]].
+
+## 2026-10-28 - Token budget for agents
+John: context ran out from subagents rereading code/vault. Added READ BUDGET to all agents, CLAUDE.md Token budget, and [[Claude-Agents-and-Skills]]. Files: .claude/agents/*, CLAUDE.md, 00-Meta/Claude-Agents-and-Skills.md, Start-Here.md.
+
+## 2026-10-28 - Work-company patch, Claude handoff (Codex usage limit)
+- Tinuloy ni Claude ang Codex patch (John approved ang handoff + `.claude/allow-claude-edit` para sa hook). Cleanup: tinanggal ang stray `.work_company_ui_*.py`, inayos ang indent sa Edit form, inilipat ang naligaw na docblock ng `resolveCompany`.
+- Tests (isolated `hris_slice15_test_20261028_234641`, galing sa verified mysqldump): migration up, re-run, down, up OK; down guard tumanggi kapag may assignment; live `pmbsi_hris` walang `work_company` (hindi in-apply). Validation (PMBSI/2LOG/invalid/required) at alias helper 9/9 OK. PHP lint OK.
+- **Open:** ang tanging active HR-type position sa data ay "Human Resources Assistant"; hindi ito exact alias kaya PMBSI = empty-state at 2LOG ay nag-e-exclude. Tanong kay John: idagdag ba bilang PMBSI position? Browser check at apply sa live DB hindi pa ginawa. Walang commit/push.
+
+- Applied to localhost pmbsi_hris (John: "patch mo na"): `employees.work_company VARCHAR(10) NULL`. Basis: verified dump before_stageb_118 (restore verified), isolated-DB migration cycle + repository update test OK. After: 370 employees, department/position counts unchanged (370/370), work_company all NULL (legacy unassigned). Browser check not done. No commit/push.
+
+## 2026-10-28 - Organization Setup friendly add forms
+- Code input removed from 6 master add forms; `FoundationRepository::uniqueCode` generates and de-dupes; duplicate names rejected; Retire/Reactivate labels; HR empty-state link in Employee Add/Edit. Plan: ~/.claude/plans/bale-bro-eto-gusto-curried-grove.md.
+- Live in localhost working tree (no migration). php -l OK; browser/isolated-DB test not run. No commit/push. Next: John adds "Human Resource" position in Organization Setup.
+
+## 2026-10-29 - IR handler: CC-only HR can handle
+- Sanhi: HR Kristian Acosta naka-CC sa IR kaya excluded sa `TicketIncident::isHandler` (hindi dahil unlinked account). Fix: tanging reporter at Involved/Witness HR ang excluded; CC-only HR puwede na (BR-775 updated). Permission-rule change, aprubado ni John.
+- `app/TicketIncident.php` only; php -l OK; isolated-DB test (tests/incident_case_test.php) hindi pa tinakbo. No migration, no commit/push.
+- Verified (isolated DB hris_slice15_test_20261028_234641, scratch check): reporter/Involved/Witness HR = not handler; CC-only HR and unlisted HR = handler. Old `tests/incident_case_test.php` already fails before this patch ("Choose one nature of incident", stale fixture) - not touched.
+
+## 2026-10-29 - IR case page cleanup (UI only)
+- Removed "Include someone" picker from HR actions (people are chosen at filing; CC list in "People on this case" is the source). Status form is now always visible; the duplicate top "Update status" button and collapsed copy are gone. Internal note kept. Backend `core_incident_participant_add` untouched (no UI now).
+- Composer no longer sticky (it covered the conversation). Original incident report now shows on the page right away: PDF iframe when a PDF exists, else a read-only HTML sheet of the frozen answers; Download (.docx)/Open PDF stay as header buttons; handler-only "Create PDF copy".
+- Files: `app/IncidentCaseViews.php`, `public/assets/tickets.css`. No migration, no commit/push. Reader rule unchanged (reporter + eligible HR only).
+
+## 2026-10-29 - John's rules in the vault for agents
+- `00-Meta/Claude-Agents-and-Skills.md` now has "Tungkol kay John" (preferences, forbidden actions) and an agent role table; each `.claude/agents/*.md` points to it (one line). No app change.
+
+## 2026-10-29 - Codex independence and lower usage
+- John requested independent Codex/Claude agents and skills, shared patch facts in Obsidian, and Ponytail for Codex. Updated [[Codex-Agent-Workflow]], [[Conventions]], [[Decision-Log]], [[Start-Here]] and [[Progress]].
+- Vault-only documentation update; actual agent/config separation and Ponytail installation/fresh-session discovery remain unverified. No app, data or deployment change; usage savings not measured.
+
+- Ponytail verification: Codex session lists all six Ponytail skills; their SKILL.md files exist under the user's Codex skills directory, and the main skill header was read. Version and discovery in a new session remain unverified. Agent/config separation is still pending.
+
+## 2026-10-29 - Employee linking and PMBSI position
+- Employee forms now list eligible HR/Admin accounts for Super Admin, retaining recruitment's employee-only picker; server validates changed links and restricts HR/Admin and own-account changes. Users requires an explicit link/unlink selection; Employee audits include account IDs.
+- Company position filter accepts Human Resource PMBSI variants. Human Resources Assistant remains excluded by the existing policy and needs a separate business decision.
+- `app/EmployeeRepository.php`, `index.php`; PHP lint and diff check passed. No browser/runtime/DB testing or writes, deployment or commit. Plan: [[2026-10-29-employee-account-linking]].
+
+## 2026-10-29 - Codex HRIS sandbox ACL repair
+- Sandbox log reported access denied updating deny ACLs on HRIS .agents and .codex. Granted the John Joshua Windows account ChangePermissions on those folder roots only; existing ACL entries preserved. Non-elevated ACL write checks passed on both. A fresh sandboxed HRIS session must verify helper startup; no app or database change.
+
+## 2026-10-29 - Global Codex Ponytail plugin
+- John requested Ponytail across projects. Codex marketplace and plugin installed globally from DietrichGebert/ponytail, version 5.3.3; plugin list confirms installed and enabled. The six global Ponytail skills already existed. Node v24.13.0 available. Hook trust and fresh-session behavior remain unverified; no project application or Claude settings changed.
+
+## 2026-10-29 - PMBSI departments (prepared)
+- PMBSI Departments: Organization Setup add/retire/reactivate; Employee 201 Add/Edit filters and validates departments by work company and uses existing history. Existing departments default to 2LOG. PHP lint and two inline JS syntax checks passed; static QA PASS WITH NOTES. Roster import can still bypass company classification. Migration, DB, runtime and browser not tested; no deployment or commit.
+
+## 2026-10-29 - Codex HRIS low-usage alignment
+- Aligned project instructions, six Codex agents, four skills and vault routing with bounded task context and no automatic agent relay or Claude configuration reads. Existing runtime and security restrictions retained. See [[Codex-Agent-Workflow]]. Static checks only; fresh-session discovery and usage savings unverified.
+
+- 2026-10-29 verification: Fresh local Codex app-server skills/list discovered all four HRIS skills; config/read found no HRIS agent registrations initially. Added project .codex/config.toml with six role entries; a fresh config/read returned all six. TOML and target references passed. No agent was spawned; behavior, model usage and savings remain unverified.
+
+- 2026-10-29: Authorized isolated department migration checks passed (up/re-run/down/up, existing 2LOG, employee checksum, PMBSI insert, rollback guard). Backup contains HRIS data; see [[Data-Model]]. Local application remains separately unauthorized.
+
+- 2026-10-29: John authorized and applied department work-company migration to localhost pmbsi_hris. Fresh private backup department_preapply_20261029_150231.sql restored to hris_department_verify_20261029_150231: 118 base-table checksums and schema dumps (excluding comments) matched. Post-apply: VARCHAR(10) NOT NULL DEFAULT 2LOG; 29 existing departments 2LOG; original department field mismatches 0; employee assignment mismatches 0 across 370 employees, employee checksum 1552809314 unchanged. PMBSI insert and guarded down were tested on the earlier isolated database only. Browser/application flow not tested; no commit or deployment.
+
+- 2026-10-29: Organization Setup positions split by existing Employee Add/Edit eligibility into 2LOG, PMBSI and Needs classification. Company add validates name and optional active company department; shared records and eligibility unchanged, no schema or data migration. PHP lint passed; browser, application and DB behavior unverified.
+
+- 2026-10-29: Organization Setup hides Needs classification and adds position default-department editing with company eligibility, active department validation, permission, CSRF and audit. Existing assignment and history data are unchanged; changing a default can affect later employee/recruitment validation. Human Resources Assistant removal remains blocked pending database reference verification; no DB access or write performed. PHP syntax checked; runtime and browser unverified.
+
+- 2026-10-29: Organization Setup UI cleanup: scoped markup/CSS and status wording; existing actions unchanged. PHP lint passed; browser, application and DB unverified.
+
+## 2026-10-29 - Organization Setup side-by-side UI/UX
+
+- Implemented the supplied Organization Setup plan using hris-ui, hris-patch planning/delivery guidance and Ponytail; main only. Scoped markup/CSS and stylesheet version updated; all master cards swept. Checks (3 scenarios): static markup/labels/form contracts; responsive/focus/active/inactive/read-only source review; PHP lint plus task-entry diff and line-ending review. Both PHP files passed lint; no browser/app/DB execution. Source files were LF at entry; retained LF without whole-file normalization. Existing unrelated working-tree edits retained. Visual acceptance pending.
+
+## 2026-10-29 - CEO patch report (October 20-29)
+- John requested a Canva report of all documented HRIS work in the period. Source-checked root changelog, Progress, Session-Log, Stage B results and attendance note; consolidated dated work and latest localhost migration status. Oct21-23 has no dated record located; Oct12 export fix excluded, Oct26 regression tests included. Report content/checkpoint: [[2026-10-29-CEO-Patch-Report]]. Canva generation started; no application changes, runtime/browser/DB checks or deployment.

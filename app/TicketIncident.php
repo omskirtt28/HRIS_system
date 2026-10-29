@@ -85,11 +85,16 @@ final class TicketIncident
         if(!self::ready())return false;
         $q=db()->prepare('SELECT 1 FROM incident_participants WHERE ticket_id=? AND user_id=?');$q->execute([$ticketId,$uid]);return (bool)$q->fetchColumn();
     }
-    /** The one HR reviewer rule: HR, not the reporter, not named on the case. */
+    /** The one HR reviewer rule: HR, not the reporter, not named as Involved or Witness. CC-only HR may handle (John, 2026-10-29). */
     public static function isHandler(array $t):bool
     {
         $uid=TicketRepository::uid();
-        return TicketRepository::isHr() && (int)$t['requester_user_id']!==$uid && !self::onCase((int)$t['id'],$uid);
+        return TicketRepository::isHr() && (int)$t['requester_user_id']!==$uid && !self::onCaseNonCc((int)$t['id'],$uid);
+    }
+    private static function onCaseNonCc(int $ticketId,int $uid):bool
+    {
+        if(!self::ready())return false;
+        $q=db()->prepare('SELECT 1 FROM incident_participants WHERE ticket_id=? AND user_id=? AND role<>"CC"');$q->execute([$ticketId,$uid]);return (bool)$q->fetchColumn();
     }
     public static function mayComment(array $t):bool { return in_array($t['status'],self::OPEN,true); }
 

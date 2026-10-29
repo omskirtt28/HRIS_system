@@ -72,14 +72,15 @@ function incident_composer(array $t,array $p,bool $handler):void
 {
     if(!$p['comment']){echo '<p class="tk-card tk-closed" role="note">This case is closed to new messages.'.($handler?' You can still add an internal note.':'').'</p>';return;}
     $old=(string)($_SESSION['core_ticket_comment'][$t['id']]??'');unset($_SESSION['core_ticket_comment'][$t['id']]);// shown once after a failed send
-    echo '<form method="post" action="'.e(url('incident-act')).'" class="tk-composer tk-sticky"><input type="hidden" name="csrf" value="'.e(csrf_token()).'"><input type="hidden" name="action" value="core_incident_message"><input type="hidden" name="ticket_id" value="'.(int)$t['id'].'">',
+    echo '<form method="post" action="'.e(url('incident-act')).'" class="tk-card tk-composer"><input type="hidden" name="csrf" value="'.e(csrf_token()).'"><input type="hidden" name="action" value="core_incident_message"><input type="hidden" name="ticket_id" value="'.(int)$t['id'].'">',
         '<div class="field"><label for="inc-message">Write a message</label><textarea id="inc-message" name="body" rows="2" maxlength="3000" required aria-describedby="inc-message-help">'.e($old).'</textarea><small id="inc-message-help" class="tk-hint">Everyone on this case can read your message.</small></div>',
         '<button class="btn primary" type="submit">Send message</button></form>';
 }
 
 function incident_people_rail(array $t,bool $handler,int $uid):void
 {
-    echo '<section class="tk-card" aria-labelledby="inc-people-h"><h2 id="inc-people-h">People on this case</h2><ul class="tk-rail-people">';
+    $preview=array_slice($t['participants'],0,3);$count=count($t['participants']);
+    echo '<details class="tk-card tk-rail-collapse"><summary><span class="tk-rail-title">People on this case <span class="tk-chip is-gray">'.$count.'</span></span><span class="tk-rail-preview">'.($preview?e(implode(', ',array_column($preview,'name'))).($count>3?' …':''):'No participants.').'</span></summary><ul class="tk-rail-people">';
     foreach($t['participants'] as $p){
         $you=$p['user_id']===$uid;$chip=$p['label']!==null?'<span class="tk-chip '.($p['role']==='REPORTER'?'is-blue':'is-gray').'">'.e($p['label']).'</span>':'';
         echo '<li class="tk-rail-person">'.ticket_avatar($p['name']).'<div class="tk-rail-name"><span class="tk-person-name">'.e($p['name']).($you?' (you)':'').'</span> '.$chip;
@@ -88,25 +89,25 @@ function incident_people_rail(array $t,bool $handler,int $uid):void
         if($handler&&$p['role']!=='REPORTER')echo '<form method="post" action="'.e(url('incident-act')).'" class="tk-inline"><input type="hidden" name="csrf" value="'.e(csrf_token()).'"><input type="hidden" name="action" value="core_incident_participant_remove"><input type="hidden" name="ticket_id" value="'.(int)$t['id'].'"><input type="hidden" name="user_id" value="'.(int)$p['user_id'].'"><button class="btn sm" type="submit" aria-label="Remove '.e($p['name']).' from this case" onclick="return confirm(\'Remove this person from the case? They will no longer be able to read it.\')">Remove</button></form>';
         echo '</li>';
     }
-    echo '</ul></section>';
+    echo '</ul></details>';
 }
 
 function incident_summary(array $t):void
 {
     $pl=$t['payload'];$at=(string)($pl['incident_at']??'');
-    echo '<section class="tk-card" aria-labelledby="inc-summary-h"><h2 id="inc-summary-h">Case summary</h2>';
+    echo '<details class="tk-card tk-rail-collapse"><summary><span class="tk-rail-title">Case summary</span></summary>';
     echo ticket_kv(['When it happened'=>['html'=>$at!==''?ticket_time($at):'Not recorded'],'Where'=>(string)($pl['location_text']??$pl['location']??'Not recorded'),'Branch'=>(string)($pl['branch_name']??'')!==''?(string)$pl['branch_name']:'Not a specific branch','Category'=>(string)($pl['category_label']??$pl['category']??'Not recorded'),'Filed'=>['html'=>$t['filed_at']?ticket_time((string)$t['filed_at']):'Not filed yet']]);
-    echo '<h3 class="tk-sub">What happened</h3><p class="ticket-text">'.e((string)($pl['explanation']??'')).'</p></section>';
+    echo '<h3 class="tk-sub">What happened</h3><p class="ticket-text">'.e((string)($pl['explanation']??'')).'</p></details>';
 }
 
 function incident_attachments(array $t,array $p):void
 {
-    echo '<section class="tk-card" aria-labelledby="inc-files-h"><h2 id="inc-files-h">Attachments</h2>';
+    echo '<details class="tk-card tk-rail-collapse"><summary><span class="tk-rail-title">Attachments <span class="tk-chip is-gray">'.count($t['attachments']).'</span></span></summary>';
     if(!$t['attachments'])echo ticket_empty('No attachments.');
     else{echo '<ul class="tk-files">';foreach($t['attachments'] as $f)echo '<li><a href="'.e(url('hr-request-attachment',['id'=>$f['id']])).'">'.e($f['original_name']).'</a> <small class="tk-hint">'.e(number_format($f['file_size']/1024,1)).' KB</small></li>';echo '</ul>';}
     if($p['attach'])echo '<form method="post" enctype="multipart/form-data" class="tk-attach"><input type="hidden" name="csrf" value="'.e(csrf_token()).'"><input type="hidden" name="action" value="core_ticket_attach"><input type="hidden" name="ticket_id" value="'.(int)$t['id'].'">';
     if($p['attach']){ticket_upload_input('inc-attach');echo '<button class="btn" type="submit">Add attachments</button></form>';}
-    echo '</section>';
+    echo '</details>';
 }
 
 /** Readable event list. Names are shown as on messages (everyone who reads a case sees the names on it); remarks live in the conversation, not here. People-change events reach this list for the handler only. */
@@ -130,10 +131,10 @@ function incident_timeline(array $t,bool $handler):void
         $actor=(int)$ev['actor_user_id']===$uid?'You':(string)$ev['actor_name'];
         $rows[]=['label'=>$label,'actor'=>$actor,'at'=>(string)$ev['created_at'],'tone'=>$tone];
     }
-    echo '<section class="tk-card" aria-labelledby="inc-tl-h"><h2 id="inc-tl-h">Timeline</h2>';
+    echo '<details class="tk-card tk-rail-collapse"><summary><span class="tk-rail-title">Timeline</span><span class="tk-rail-preview">'.($rows?e($rows[0]['label']).' · '.ticket_time($rows[0]['at']):'Nothing has happened yet.').'</span></summary>';
     if(!$rows)echo ticket_empty('Nothing has happened yet.');
     else{echo '<ol class="tk-timeline">';foreach($rows as $r)echo '<li class="tk-tl-item is-'.e($r['tone']).'">'.ticket_avatar($r['actor']).'<div class="tk-tl-body"><p class="tk-tl-name">'.e($r['label']).'</p><p class="tk-tl-when">'.e($r['actor']).' · '.ticket_time($r['at']).'</p></div></li>';echo '</ol>';}
-    echo '</section>';
+    echo '</details>';
 }
 
 /** Handling HR reviewer only: status with remarks, include or remove people, internal note. Not rendered for anyone else. */
@@ -142,7 +143,7 @@ function incident_hr_panel(array $t,array $p):void
     $id=(int)$t['id'];$csrf='<input type="hidden" name="csrf" value="'.e(csrf_token()).'"><input type="hidden" name="ticket_id" value="'.$id.'">';$act=e(url('incident-act'));$old=$_SESSION['core_incident_status'][$id]??[];unset($_SESSION['core_incident_status'][$id]);$oldNote=(string)($_SESSION['core_incident_note'][$id]??'');unset($_SESSION['core_incident_note'][$id]);// shown once after a failed save
     echo '<aside class="tk-card tk-hr-panel" aria-labelledby="inc-hr-h"><h2 id="inc-hr-h">HR actions <span class="badge amber">HR only</span></h2>';
     // 1. status
-    echo '<details class="tk-hr-block" id="inc-status-panel"'.($old?' open':'').'><summary class="tk-sub">Update status</summary>';
+    echo '<div class="tk-hr-block" id="inc-status-panel"><h3 class="tk-sub">Update status</h3>';
     if(!$p['status'])echo '<p class="tk-hint">This case is final. No further status change is possible.</p>';
     else{
         echo '<form method="post" action="'.$act.'">'.$csrf.'<input type="hidden" name="action" value="core_incident_status"><input type="hidden" name="version" value="'.(int)$t['version'].'">',
@@ -150,48 +151,15 @@ function incident_hr_panel(array $t,array $p):void
         foreach($p['status'] as $to){$label=TicketTypes::label($to,'INCIDENT_REPORT');if($to==='IN_PROGRESS'&&in_array($t['status'],['RESOLVED','CLOSED'],true))$label='Reopen: '.$label;echo '<option value="'.e($to).'"'.(($old['to']??'')===$to?' selected':'').'>'.e($label).'</option>';}
         echo '</select></div>',
             '<div class="field tk-field-public"><label for="inc-remarks">Remarks <span class="badge blue">Everyone on the case can read this</span></label><textarea id="inc-remarks" name="remarks" rows="3" maxlength="5000" required>'.e((string)($old['remarks']??'')).'</textarea><small>Required for every change. A dismissal needs the reason.</small></div>',
-            '<div class="field tk-field-internal"><label for="inc-status-note">Internal note <span class="badge amber">HR only</span></label><textarea id="inc-status-note" name="internal_note" rows="2" maxlength="2000">'.e((string)($old['internal_note']??'')).'</textarea><small>Optional. Never shown to anyone else.</small></div>',
+            '<details class="tk-status-note"'.((string)($old['internal_note']??'')!==''?' open':'').'><summary>Optional note with status <span class="badge amber">HR only</span></summary><div class="field tk-field-internal"><label for="inc-status-note">Internal note for this status change</label><textarea id="inc-status-note" name="internal_note" rows="2" maxlength="2000">'.e((string)($old['internal_note']??'')).'</textarea><small>Only HR reviewers handling this case can read it.</small></div></details>',
             '<button class="btn primary" type="submit">Save status</button></form>';
     }
-    echo '</details>';
-    // 2. people
-    $endpoint=e(url('incident-people',['case'=>$id]));
-    echo '<div class="tk-hr-block"><h3 class="tk-sub">Include someone</h3>';
-    if(!$p['participants'])echo '<p class="tk-hint">People cannot be changed on this case.</p>';
-    else{
-        echo '<form method="post" action="'.$act.'" data-hr-picker data-endpoint="'.$endpoint.'">'.$csrf.'<input type="hidden" name="action" value="core_incident_participant_add"><input type="hidden" name="user_id" value="" id="inc-add-user">',
-            '<p class="tk-hint" id="inc-add-help">A person you include can read this case and its conversation. Choose Involved or Witness to give them access too.</p>',
-            '<div class="field"><label for="inc-add-q">Find a person by name</label><input id="inc-add-q" type="search" autocomplete="off" aria-describedby="inc-add-help inc-add-status"></div>',
-            '<p id="inc-add-status" class="tk-hint" role="status" aria-live="polite"></p><ul class="tk-results" id="inc-add-results" aria-label="Search results"></ul>',
-            '<p class="tk-chosen" id="inc-add-chosen" hidden></p>',
-            '<div class="field"><label for="inc-add-role">Role on this case</label><select id="inc-add-role" name="role">';
-        foreach(TicketIncident::ROLES as $code=>$label)echo '<option value="'.e($code).'">'.e($label).'</option>';
-        echo '</select></div><button class="btn" type="submit" id="inc-add-go" disabled>Include in case</button></form>';
-        ?>
-<script>
-(()=>{const f=document.querySelector('[data-hr-picker]');if(!f)return;
-  const q=f.querySelector('#inc-add-q'),res=f.querySelector('#inc-add-results'),st=f.querySelector('#inc-add-status'),uid=f.querySelector('#inc-add-user'),chosen=f.querySelector('#inc-add-chosen'),go=f.querySelector('#inc-add-go');
-  let timer=null,seq=0;
-  const el=(tag,props={},kids=[])=>{const n=document.createElement(tag);Object.assign(n,props);kids.forEach(k=>n.append(k));return n;};
-  async function search(){const term=q.value.trim(),mine=++seq;res.replaceChildren();
-    if(term.length<2){st.textContent=term.length?'Type at least 2 letters.':'';return;}
-    try{const r=await fetch(f.dataset.endpoint+'&q='+encodeURIComponent(term),{headers:{Accept:'application/json'},credentials:'same-origin'});if(!r.ok)throw new Error();const data=await r.json();if(mine!==seq)return;
-      st.textContent=data.people.length?data.people.length+' found. Choose one.':'No one found.';
-      data.people.forEach(p=>{const b=el('button',{type:'button',className:'tk-result-btn'},[el('strong',{textContent:p.name}),el('small',{textContent:p.branch||'No branch'})]);
-        b.addEventListener('click',()=>{uid.value=String(p.id);chosen.textContent='Selected: '+p.name;chosen.hidden=false;go.disabled=false;res.replaceChildren();q.value='';st.textContent=p.name+' selected. Choose a role, then include them.';f.querySelector('#inc-add-role').focus();});
-        res.append(el('li',{className:'tk-result'},[b]));});
-    }catch(_){if(mine===seq)st.textContent='Search is unavailable right now. Try again.';}}
-  q.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(search,250);});
-  q.addEventListener('keydown',e=>{if(e.key==='Enter')e.preventDefault();});
-})();
-</script>
-        <?php
-    }
     echo '</div>';
+    // people are chosen when the report is filed; HR no longer adds anyone here (see People on this case)
     // 3. internal note
-    echo '<div class="tk-hr-block"><h3 class="tk-sub">Internal note</h3><form method="post" action="'.$act.'">'.$csrf.'<input type="hidden" name="action" value="core_incident_note">',
+    echo '<details class="tk-hr-block tk-hr-note"'.($oldNote!==''?' open':'').'><summary>Separate internal note <span class="badge amber">HR only</span></summary><form method="post" action="'.$act.'">'.$csrf.'<input type="hidden" name="action" value="core_incident_note">',
         '<div class="field tk-field-internal"><label for="inc-note">Note <span class="badge amber">HR only</span></label><textarea id="inc-note" name="body" rows="3" maxlength="3000" required>'.e($oldNote).'</textarea><small>Only HR reviewers handling this case can read it. It is not shown in the conversation to anyone else.</small></div>',
-        '<button class="btn" type="submit">Save internal note</button></form></div>';
+        '<button class="btn" type="submit">Save internal note</button></form></details>';
     echo '</aside>';
 }
 
@@ -287,24 +255,43 @@ function incident_queue_page(array $result,array $counts):void
     render_portal_footer();
 }
 
-/** The original report is stricter than conversation access: reporter and eligible handling HR only. */
+/** Read-only copy of the submitted answers, shown on the page when no PDF copy exists. Same reader rule as the document: reporter and eligible handling HR only. */
+function incident_document_sheet(array $a):void
+{
+    $v=static fn(string $k):string=>trim((string)($a[$k]??''))!==''?trim((string)$a[$k]):'Not provided';
+    $at=(string)($a['incident_at']??'');$end=trim((string)($a['incident_end_time']??''));
+    $nature=IncidentDocument::NATURES[$a['nature']??'']??'Not provided';
+    if(($a['nature']??'')==='OTHERS'&&trim((string)($a['nature_other']??''))!=='')$nature.=': '.trim((string)$a['nature_other']);
+    $loc=trim((IncidentDocument::LOCATIONS[$a['location_type']??'']??'').' · '.trim((string)($a['location']??'')),' ·');
+    $picked=(array)($a['supporting']??[]);$sup=[];
+    foreach($picked as $k)if(isset(IncidentDocument::SUPPORTING[$k])&&$k!=='OTHERS')$sup[]=IncidentDocument::SUPPORTING[$k];
+    if(in_array('OTHERS',$picked,true))$sup[]='Others'.(trim((string)($a['supporting_other']??''))!==''?': '.trim((string)$a['supporting_other']):'');
+    echo '<div class="tk-doc-sheet" role="region" aria-label="Submitted incident report">',
+        ticket_kv(['Employee'=>$v('employee_name'),'Position'=>$v('position'),'Company / branch'=>$v('company_branch'),'Immediate head'=>$v('immediate_head'),'Contact no.'=>$v('contact_no'),
+            'Nature of incident'=>$nature,'Location'=>$loc!==''?$loc:'Not provided','Date and time'=>['html'=>$at!==''?ticket_time($at).($end!==''?' to '.e($end):''):'Not provided'],
+            'Customer'=>$v('customer_name'),'Customer contact'=>$v('customer_contact'),'Persons involved'=>$v('involved_names'),'Witnesses'=>$v('witness_names'),
+            'Supporting documents'=>$sup?implode(', ',$sup):'None']),
+        '<h3 class="tk-sub">Explanation</h3><p class="ticket-text">'.e($v('explanation')).'</p>',
+        '<h3 class="tk-sub">Initial action taken</h3><p class="ticket-text">'.e($v('initial_action')).'</p></div>';
+}
+
+/** The original report is stricter than conversation access: reporter and eligible handling HR only. It is shown on the page right away; downloading stays an option. */
 function incident_document_card(array $t,bool $handler):void
 {
     if(!IncidentDocument::canRead($t))return;
     $doc=IncidentDocument::info($t);$id=(int)$t['id'];
-    echo '<section class="tk-card tk-document" aria-labelledby="inc-document-h"><h2 id="inc-document-h">Original incident report</h2>';
+    echo '<section class="tk-card tk-document" aria-labelledby="inc-document-h"><div class="tk-doc-head"><h2 id="inc-document-h">Original incident report</h2>';
     if(!$doc){
-        echo '<p class="tk-hint">This case has no generated official document. Reports filed before the document workflow keep their original case details.</p></section>';return;
+        echo '</div><p class="tk-hint">This case has no generated official document. Reports filed before the document workflow keep their original case details.</p></section>';return;
     }
-    echo '<p class="tk-hint">Submitted answers are saved in the original template. Only the reporter and eligible handling HR can access this document.</p>',
-        '<div class="ticket-actions"><a class="btn" href="'.e(url('incident-document',['id'=>$id,'format'=>'docx'])).'">Download original (.docx)</a>';
-    if($doc['pdf_status']==='ready')echo '<a class="btn" href="'.e(url('incident-document',['id'=>$id,'format'=>'pdf'])).'">Open PDF preview</a>';
-    echo '</div>';
+    echo '<div class="ticket-actions"><a class="btn sm" href="'.e(url('incident-document',['id'=>$id,'format'=>'docx'])).'">Download (.docx)</a>';
+    if($doc['pdf_status']==='ready')echo '<a class="btn sm" href="'.e(url('incident-document',['id'=>$id,'format'=>'pdf'])).'">Open PDF</a>';
+    echo '</div></div>';
     if($doc['pdf_status']==='ready'){
         echo '<iframe class="tk-document-preview" title="Original incident report PDF preview" src="'.e(url('incident-document',['id'=>$id,'format'=>'pdf'])).'" loading="lazy"></iframe>';
     }else{
-        echo '<p class="tk-hint" role="status">The PDF preview is unavailable. Your report and original Word document are saved; you can download the document above.</p>';
-        if($handler)echo '<form method="post" action="'.e(url('incident-act')).'">'.csrf_field().'<input type="hidden" name="action" value="core_incident_pdf_retry"><input type="hidden" name="ticket_id" value="'.$id.'"><input type="hidden" name="version" value="'.(int)$t['version'].'"><button class="btn" type="submit">Retry PDF preview</button></form>';
+        incident_document_sheet((array)($t['payload']['official_incident']??[]));
+        if($handler)echo '<form method="post" action="'.e(url('incident-act')).'" class="tk-doc-retry">'.csrf_field().'<input type="hidden" name="action" value="core_incident_pdf_retry"><input type="hidden" name="ticket_id" value="'.$id.'"><input type="hidden" name="version" value="'.(int)$t['version'].'"><button class="btn sm" type="submit">Create PDF copy</button></form>';
     }
     echo '</section>';
 }
@@ -322,8 +309,7 @@ function incident_case_page(array $t):void
         '<dl class="tk-dates"><div><dt>Filed</dt><dd>'.($t['filed_at']?ticket_time((string)$t['filed_at']):'Not filed yet').'</dd></div><div><dt>Last update</dt><dd>'.ticket_time((string)($t['updated_at']??$t['created_at'])).'</dd></div></dl></div>',
         '<span class="tk-pill is-'.e(ticket_tone((string)$t['status'])).'"><span class="tk-sr">Status: </span>'.e(TicketTypes::label((string)$t['status'],'INCIDENT_REPORT')).'</span></section>';
     incident_stepper($t);
-    if($handler&&$p['status'])echo '<p class="tk-status-action"><a class="btn primary" href="#inc-status-panel" data-incident-status aria-controls="inc-status-panel">Update status</a></p>';
-    elseif(TicketRepository::isHr()&&!$handler)echo '<p class="tk-hint" role="note">You are the reporter or a participant on this case, including CC. Another eligible HR reviewer must handle its status.</p>';
+    if(TicketRepository::isHr()&&!$handler)echo '<p class="tk-hint" role="note">You are the reporter or a participant on this case, including CC. Another eligible HR reviewer must handle its status.</p>';
     echo '<div class="tk-case-grid"><div class="tk-case-col">';
     incident_document_card($t,$handler);
     incident_thread($t,$handler,$uid);
@@ -336,6 +322,5 @@ function incident_case_page(array $t):void
     incident_timeline($t,$handler);
     if($own&&$p['cancel'])incident_withdraw_card($t);
     echo '</div></div>';
-    if($handler&&$p['status'])echo '<script>document.querySelector("[data-incident-status]")?.addEventListener("click",()=>{const panel=document.getElementById("inc-status-panel");panel.open=true;panel.querySelector("select")?.focus();});</script>';
     render_portal_footer();
 }

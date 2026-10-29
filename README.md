@@ -156,3 +156,26 @@ The official active Organization master data is now roster-based. After overlayi
 - Reminders appear in the bell and on **People → Probation Watch**. They are checked once a day when anyone opens HRIS.
 - To also send them by Gmail: turn on 2-Step Verification for the HR Gmail account, create an **App password**, then copy the `mail` block from `config/config.local.example.php` into `config/config.local.php` (this file is not committed). Check it with `php scripts\run_notifications.php --test-email=you@example.com`.
 - To send emails even when nobody opens HRIS, add a daily Windows Task Scheduler task that runs `C:\xampp\php\php.exe C:\xampp\htdocs\HRIS_system\scripts\run_notifications.php`.
+
+## Employee work company migration
+
+Select the intended HRIS database first, then apply `database/migrations/20261028_employee_work_company.sql` under the project's migration workflow. Existing employees remain unclassified until HR chooses a work company. Verify the column after applying with:
+
+```sql
+SELECT COLUMN_NAME, IS_NULLABLE, DATA_TYPE FROM information_schema.columns
+WHERE table_schema = DATABASE() AND table_name = 'employees' AND column_name = 'work_company';
+```
+
+The result should show one nullable `varchar` column. Selecting a work company requires this migration; the selection does not change the legal employer.
+
+## Department work company migration
+
+Select the intended HRIS database first. Run `database/migrations/20261029_department_work_company.sql` only after the standing isolated migration checks; existing departments default to 2LOG. Verify the column and classifications with:
+
+```sql
+SELECT COLUMN_NAME, COLUMN_DEFAULT FROM information_schema.columns
+WHERE table_schema = DATABASE() AND table_name = 'departments' AND column_name = 'work_company';
+SELECT work_company, COUNT(*) FROM departments GROUP BY work_company;
+```
+
+The column default should be `2LOG`; confirm existing department counts and employee assignments against the pre-migration backup. The guarded down migration refuses rollback while any non-2LOG department exists.

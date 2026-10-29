@@ -111,14 +111,14 @@ final class EmployeeRepository
         $st->execute([$userId]); $row=$st->fetch(); return $row ?: null;
     }
 
-    public static function masters(?int $employeeId=null): array
+    public static function masters(?int $employeeId=null, bool $includeStaff=false): array
     {
         return [
             'departments'=>FoundationRepository::departments(),
             'positions'=>FoundationRepository::positions(),
             'branches'=>FoundationRepository::branches(),
             'employment_types'=>FoundationRepository::employmentTypes(),
-            'employee_users'=>self::availableEmployeeUsers($employeeId),
+            'employee_users'=>self::availableEmployeeUsers($employeeId,$includeStaff),
             'manager_candidates'=>self::managerCandidates($employeeId),
             'business_units'=>FoundationRepository::businessUnits(),
             'legal_entities'=>FoundationRepository::legalEntities(),
@@ -221,12 +221,12 @@ final class EmployeeRepository
         if((int)$row['manager_ready']!==1)throw new RuntimeException('Selected Reporting To approver does not have Manager or branch ADL approval access. Ask an administrator to update the account role or permissions first.');
     }
 
-    public static function availableEmployeeUsers(?int $employeeId=null): array
+    public static function availableEmployeeUsers(?int $employeeId=null, bool $includeStaff=false): array
     {
         if(!self::ready()) return [];
-        $sql="SELECT u.id,u.full_name,u.email,e.id linked_employee_id FROM users u JOIN roles r ON r.id=u.role_id
+        $sql="SELECT u.id,u.full_name,u.email,u.status,r.name role_name,e.id linked_employee_id FROM users u JOIN roles r ON r.id=u.role_id
             LEFT JOIN employees e ON e.user_id=u.id
-            WHERE r.portal='employee' AND u.status='ACTIVE' AND (e.id IS NULL";
+            WHERE ((r.portal='employee'".($includeStaff && Auth::is('SUPER_ADMIN') ? " OR r.portal IN ('hr','admin')" : '').") AND u.status='ACTIVE' AND e.id IS NULL".($includeStaff ? ' AND u.id<>'.(int)(Auth::user()['id']??0) : '');
         $params=[];
         if($employeeId){$sql.=' OR e.id=?';$params[]=$employeeId;}
         $sql.=') ORDER BY u.full_name';
@@ -236,6 +236,10 @@ final class EmployeeRepository
     public static function create(array $data): int
     {
         if(!self::ready()) throw new RuntimeException('Run the Phase 2A employee migration first.');
+        self::validateAccountLink((int)($data['user_id']??0),0);
+        $workCompany=self::validateWorkCompany($data, null);
+        $data['work_company']=$workCompany;
+        if($workCompany==='PMBSI') $data['branch_id']='';
         [$employeeNo,$first,$middle,$last,$suffix,$companyEmail,$personalEmail,$status,$userId,$departmentId,$positionId,$branchId,$employmentTypeId,$hireDate,$regularizationDate]=self::validatedEmployeeData($data,null);
         if(!empty($data['require_employee_status']) && !$employmentTypeId) throw new RuntimeException('Choose an Employee Status.');
         self::assertEmployeeStatusActive($employmentTypeId,null);
@@ -252,6 +256,7 @@ final class EmployeeRepository
         try { $st=db()->prepare($sql); $st->execute($params); }
         catch(PDOException $e){ self::throwDuplicateEmployee($e); throw $e; }
         $id=(int)db()->lastInsertId();
+        if($workCompany!==null) db()->prepare('UPDATE employees SET work_company=? WHERE id=?')->execute([$workCompany,$id]);
         if(self::columnExists('employees','business_unit_id') && self::columnExists('employees','legal_entity_id')) {
             [$companyId,$companyGroup]=self::resolveCompany($data,[],$branchId);
             db()->prepare('UPDATE employees SET business_unit_id=?,legal_entity_id=? WHERE id=?')->execute([$companyId,FoundationRepository::pmbsiEntityId(),$id]);
@@ -263,7 +268,7 @@ final class EmployeeRepository
             $createTypeCode=EmployeeStatusPolicy::code($employmentTypeId);
             if($probationEnd) db()->prepare('UPDATE employees SET probation_start_date=?,probation_end_date=?,regularization_date=? WHERE id=?')->execute([$probationStart,$probationEnd,EmployeeStatusPolicy::isProbation($createTypeCode)?EmployeeStatusPolicy::addMonths($probationStart,EmployeeStatusPolicy::PROBATION_MONTHS):null,$id]);
         }
-        audit('Employees','CREATE_EMPLOYEE','employee',$id,['employee_no'=>$employeeNo,'name'=>trim($first.' '.$last),'status'=>$status]);
+        audit('Employees','CREATE_EMPLOYEE','employee',$id,['employee_no'=>$employeeNo,'name'=>trim($first.' '.$last),'status'=>$status,'work_company'=>$workCompany,'user_id'=>$userId]);
         if(self::phase2Ready()) self::addHistory($id,'HIRED',$hireDate,null,[
             'department_id'=>$departmentId,'position_id'=>$positionId,'branch_id'=>$branchId,'employment_type_id'=>$employmentTypeId,'status'=>$status
         ],'Employee master record created.');
@@ -369,6 +374,10 @@ final class EmployeeRepository
     {
         self::requirePhase2Employee($id);
         $old=self::find($id); if(!$old) throw new RuntimeException('Employee record not found.');
+        if(array_key_exists('user_id',$data)) self::validateAccountLink((int)$data['user_id'],(int)($old['user_id']??0));
+        $workCompany=self::validateWorkCompany($data, $old);
+        $data['work_company']=$workCompany;
+        if($workCompany==='PMBSI') $data['branch_id']='';
         [$employeeNo,$first,$middle,$last,$suffix,$companyEmail,$personalEmail,$status,$userId,$departmentId,$positionId,$branchId,$employmentTypeId,$hireDate,$regularizationDate]=self::validatedEmployeeData(array_merge($old,$data),$id);
         $effectiveDate=self::dateOrNull((string)($data['effective_date']??'')) ?: date('Y-m-d');
         $remarks=trim((string)($data['remarks']??''));
@@ -410,6 +419,7 @@ final class EmployeeRepository
         if(!$retail) self::validateImmediateManager($managerEmployeeId,$id);
         elseif($managerChanged || $departmentId!==$before['department_id']) self::validateImmediateManager($managerEmployeeId,$id,true);
         $after=['department_id'=>$departmentId,'position_id'=>$positionId,'branch_id'=>$branchId,'employment_type_id'=>$employmentTypeId,'manager_employee_id'=>$managerEmployeeId,'status'=>$status];
+        if($workCompany!==($old['work_company']??null)) { $before['work_company']=$old['work_company']??null; $after['work_company']=$workCompany; }
         $changed=[];foreach($before as $k=>$v) if($v!==$after[$k])$changed[]=$k;
         $owned=!db()->inTransaction();if($owned)db()->beginTransaction();
         try{
@@ -417,6 +427,7 @@ final class EmployeeRepository
             $sql=$hasManager?'UPDATE employees SET employee_no=?,user_id=?,department_id=?,position_id=?,branch_id=?,employment_type_id=?,manager_employee_id=?,hire_date=?,regularization_date=?,status=?,updated_by=? WHERE id=?':'UPDATE employees SET employee_no=?,user_id=?,department_id=?,position_id=?,branch_id=?,employment_type_id=?,hire_date=?,regularization_date=?,status=?,updated_by=? WHERE id=?';
             $params=$hasManager?[$employeeNo,$userId,$departmentId,$positionId,$branchId,$employmentTypeId,$managerEmployeeId,$hireDate,$regularizationDate,$status,(int)(Auth::user()['id']??0)?:null,$id]:[$employeeNo,$userId,$departmentId,$positionId,$branchId,$employmentTypeId,$hireDate,$regularizationDate,$status,(int)(Auth::user()['id']??0)?:null,$id];
             $st=db()->prepare($sql);$st->execute($params);
+            if($workCompany!==null) db()->prepare('UPDATE employees SET work_company=? WHERE id=?')->execute([$workCompany,$id]);
             $directoryAfter=EmployeeDirectoryPlacement::save($id,$data,$old);
             if(self::columnExists('employees','business_unit_id') && self::columnExists('employees','legal_entity_id')) {
                 // Company Group -> Company Name; the Employer is always PMBSI.
@@ -443,12 +454,14 @@ final class EmployeeRepository
                 // A type change also moves the derived status; describe it by the Employee Status change.
                 $eventKeys=in_array('employment_type_id',$changed,true)?array_values(array_diff($changed,['status'])):$changed;
                 $event=self::historyEventType($eventKeys,(string)$old['status'],$status,$oldTypeCode,$newTypeCode);
-                self::addHistory($id,$event,$effectiveDate,$before,$after,$remarks?:'Employment information updated.');
+                $historyRemarks=$remarks?:'Employment information updated.';
+                if(in_array('work_company',$changed,true)) $historyRemarks.=' Work company: '.($before['work_company']?:'Not set').' to '.($after['work_company']?:'Not set').'.';
+                self::addHistory($id,$event,$effectiveDate,$before,$after,$historyRemarks);
             }
             if($resigning) EmployeeArchiveService::archive($id,'RESIGNED',$effectiveDate,$remarks);
             if($owned)db()->commit();
         }catch(Throwable $e){if($owned&&db()->inTransaction())db()->rollBack();if($e instanceof PDOException)self::throwDuplicateEmployee($e);throw $e;}
-        audit('Employees','UPDATE_EMPLOYMENT','employee',$id,['changed'=>$changed,'effective_date'=>$effectiveDate,'remarks'=>$remarks,'employee_no_before'=>$old['employee_no'],'employee_no_after'=>$employeeNo,'hire_date_before'=>$old['hire_date'],'hire_date_after'=>$hireDate,'company_before'=>[$old['business_unit_id'] ?? null,$old['legal_entity_id'] ?? null],'company_after'=>$companyValues ?? [],'directory_before'=>array_intersect_key($old,array_flip(['directory_company_group','directory_role','directory_area_ids','directory_section_id'])),'directory_after'=>$directoryAfter ?? [],'needs_details_before'=>(int)($old['roster_needs_details'] ?? 0),'needs_details_after'=>(int)(self::find($id)['roster_needs_details'] ?? 0)]);
+        audit('Employees','UPDATE_EMPLOYMENT','employee',$id,['changed'=>$changed,'user_id_before'=>$old['user_id']??null,'user_id_after'=>$userId,'effective_date'=>$effectiveDate,'remarks'=>$remarks,'work_company_before'=>$old['work_company']??null,'work_company_after'=>$workCompany,'employee_no_before'=>$old['employee_no'],'employee_no_after'=>$employeeNo,'hire_date_before'=>$old['hire_date'],'hire_date_after'=>$hireDate,'company_before'=>[$old['business_unit_id'] ?? null,$old['legal_entity_id'] ?? null],'company_after'=>$companyValues ?? [],'directory_before'=>array_intersect_key($old,array_flip(['directory_company_group','directory_role','directory_area_ids','directory_section_id'])),'directory_after'=>$directoryAfter ?? [],'needs_details_before'=>(int)($old['roster_needs_details'] ?? 0),'needs_details_after'=>(int)(self::find($id)['roster_needs_details'] ?? 0)]);
     }
 
     public static function uploadProfilePhoto(int $id,array $file): void
@@ -643,7 +656,7 @@ final class EmployeeRepository
         if($followup && $userId && (!$employeeNo || !$hireDate || !$first || !$last || isset($pending['name']))) throw new RuntimeException('Confirm the Employee Code, name and Start Date before linking a portal account.');
         if($employeeId){$st=db()->prepare('SELECT COUNT(*) FROM employees WHERE employee_no=? AND id<>?');$st->execute([$employeeNo,$employeeId]);if((int)$st->fetchColumn()>0)throw new RuntimeException('Employee number already exists.');}
         if($userId){$sql='SELECT COUNT(*) FROM employees WHERE user_id=?'.($employeeId?' AND id<>?':'');$st=db()->prepare($sql);$st->execute($employeeId?[$userId,$employeeId]:[$userId]);if((int)$st->fetchColumn()>0)throw new RuntimeException('That user account is already linked to an employee.');}
-        if($positionId&&$departmentId){$st=db()->prepare('SELECT department_id FROM positions WHERE id=?');$st->execute([$positionId]);$pd=$st->fetchColumn();if($pd!==false&&$pd!==null&&(int)$pd!==$departmentId)throw new RuntimeException('Selected position does not belong to the selected department.');}
+        if($positionId&&$departmentId&&($data['work_company']??'')!=='PMBSI'){$st=db()->prepare('SELECT department_id FROM positions WHERE id=?');$st->execute([$positionId]);$pd=$st->fetchColumn();if($pd!==false&&$pd!==null&&(int)$pd!==$departmentId)throw new RuntimeException('Selected position does not belong to the selected department.');}
         return [$employeeNo,$first,$middle,$last,$suffix,$companyEmail,$personalEmail,$status,$userId,$departmentId,$positionId,$branchId,$employmentTypeId,$hireDate,$regularizationDate];
     }
 
@@ -652,6 +665,57 @@ final class EmployeeRepository
         if(!FoundationRepository::tableExists('employee_employment_history'))return;$uid=(int)(Auth::user()['id']??0)?:null;
         $st=db()->prepare('INSERT INTO employee_employment_history(employee_id,event_type,effective_date,from_department_id,to_department_id,from_position_id,to_position_id,from_branch_id,to_branch_id,from_employment_type_id,to_employment_type_id,from_status,to_status,remarks,created_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
         $st->execute([$employeeId,$eventType,$effectiveDate,$from['department_id']??null,$to['department_id']??null,$from['position_id']??null,$to['position_id']??null,$from['branch_id']??null,$to['branch_id']??null,$from['employment_type_id']??null,$to['employment_type_id']??null,$from['status']??null,$to['status']??null,$remarks?:null,$uid]);
+    }
+
+    private static function validateAccountLink(int $userId,int $oldUserId): void
+    {
+        if($userId===$oldUserId) return;
+        foreach(array_filter([$oldUserId,$userId]) as $id) {
+            $q=db()->prepare('SELECT u.status,r.portal FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=?');
+            $q->execute([$id]); $user=$q->fetch();
+            if(!$user || ($id===$userId && $user['status']!=='ACTIVE')) throw new RuntimeException('Choose an active user account.');
+            if($id===(int)(Auth::user()['id']??0)) throw new RuntimeException('You cannot change your own account link here.');
+            if(in_array($user['portal'],['hr','admin'],true) && (!Auth::is('SUPER_ADMIN') || $id===(int)(Auth::user()['id']??0))) throw new RuntimeException('Only a Super Admin can link or unlink another HR or Admin account.');
+            if($id===$userId && !in_array($user['portal'],['employee','hr','admin'],true)) throw new RuntimeException('Choose an employee, HR or Admin account.');
+        }
+    }
+
+    private static function validateWorkCompany(array $data, ?array $old): ?string
+    {
+        $company=trim((string)($data['work_company']??''));
+        if($company==='' && $old) $company=(string)($old['work_company']??'');
+        if($company==='' && !empty($data['require_work_company'])) throw new RuntimeException('Choose a Company.');
+        if($company==='') return null;
+        if(!in_array($company,['2LOG','PMBSI'],true)) throw new RuntimeException('Choose a valid Company.');
+        if(!self::columnExists('employees','work_company')) throw new RuntimeException('The work company migration is required.');
+        $department=(int)($data['department_id']??($old['department_id']??0));
+        if($department) {
+            $hasCompany=self::columnExists('departments','work_company');
+            if(!$hasCompany && $company==='PMBSI') throw new RuntimeException('The department company migration is required.');
+            $q=db()->prepare($hasCompany?'SELECT active,work_company FROM departments WHERE id=?':"SELECT active,'2LOG' work_company FROM departments WHERE id=?");
+            $q->execute([$department]);$row=$q->fetch();
+            if(!$row) throw new RuntimeException('Choose a valid Department.');
+            $unchanged=$department===(int)($old['department_id']??0) && $company===($old['work_company']??null);
+            if(!$unchanged && (!(int)$row['active'] || $row['work_company']!==$company)) throw new RuntimeException('Choose an active Department for the selected Company.');
+        }
+        $position=(int)($data['position_id']??($old['position_id']??0));
+        if($position) {
+            $q=db()->prepare('SELECT name,active FROM positions WHERE id=?');$q->execute([$position]);$row=$q->fetch();
+            if(!$row) throw new RuntimeException('Choose a valid Position.');
+            if(!(int)$row['active'] && $position!==(int)($old['position_id']??0)) throw new RuntimeException('Choose an active Position.');
+            if(!self::positionAllowedForWorkCompany((string)$row['name'],$company)) {
+                throw new RuntimeException($company==='PMBSI'?'PMBSI currently allows Human Resource only. Choose Human Resource or Unassigned.':'HR positions are available under PMBSI only.');
+            }
+        }
+        return $company;
+    }
+
+    public static function positionAllowedForWorkCompany(string $name,string $company): bool
+    {
+        $name=strtolower(trim((string)preg_replace('/\s+/',' ',$name)));
+        if($company==='PMBSI') return in_array($name,['hr','human resource','human resources','human resource pmbsi','human resources pmbsi'],true);
+        if($company==='2LOG') return !preg_match('/(^|[^a-z])hr([^a-z]|$)|human resources?([^a-z]|$)/i',$name);
+        return true;
     }
 
     /** Validated Company Name (business_unit) and its Company Group. Empty falls back to the branch's company. */

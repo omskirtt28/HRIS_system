@@ -71,3 +71,8 @@ Phase I1 (data, rules, access, status and people services, notifications, tests)
 [[Self-Service-Portal]] · [[Auth-and-RBAC]] · [[Org-Structure]] · [[Employee-Records]] · [[Notifications]] · [[Payroll]] · [[Recruitment-and-Onboarding]] · [[Reports-and-Analytics]] · [[Data-Model]] · [[Architecture]] · [[Business-Rules]] · [[Screens]] · [[API-Surface]] · [[Design-System]] · [[Progress]]
 
 **I4 (2026-10-26):** `hr-incidents` is the Incident Cases queue (tabs, filters, aging; BR-782). `TicketIncident::OPEN_QUEUE`, `queueFilters`, `TicketRepository::incidentQueueCounts`; view `incident_queue_page` in `IncidentCaseViews.php`.
+
+## 2026-10-29 - Incident case page cleanup
+Compact panel update: status action remains visible; optional status note and separate internal note are collapsible and labelled HR-only. People, summary, attachments and timeline expand on demand; participant and attachment counts and latest visible event are shown collapsed. Static review only; rendered and live behavior unverified.
+
+HR actions = status form (always visible) + internal note; "Include someone" UI removed (`core_incident_participant_add` and `incident-people` remain with no UI caller). Composer is a normal card. Original report is inline: PDF iframe if a PDF exists, else read-only sheet of `official_incident` answers (reporter + eligible HR only); Download (.docx)/Open PDF in the card header; handler-only "Create PDF copy". See Q65, Q66.

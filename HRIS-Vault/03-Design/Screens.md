@@ -113,7 +113,7 @@ Server-rendered PHP pages addressed as `?page=<id>`; the sidebar groups are buil
 | SCR-767 | Employee 201, Employment tab, panel "Who can view this employee's tickets" (read-only, red PROBLEM lines) | `hr-employee` | employee view | [[Org-Structure]] |
 | SCR-768 | My Incidents (cases I filed or was given access to; status chip, last update, no other people's role labels) | `incident-mine` | any employee/HR/admin account (list is BR-769 scoped) | [[Employee-Tickets]] |
 | SCR-769 | File an Incident: Employee Information for the filer, Incident Details with eight template nature choices/date/start/optional end/free names, Incident Description, Initial Action Taken, Customer Involved, Supporting Documents; account participant picker separate from document names. Immutable official DOCX generated on submit; failed input retained, success opens case. No Employee 201 link message retained. BR-784..786. | `incident-new` | `ticket.file.incident` + linked Employee 201 | [[Employee-Tickets]] |
-| SCR-770 | Incident Case page: header/pipeline -> official document -> conversation/sticky composer; existing HR/people/summary/attachments/timeline rail. Handler Update status near pipeline reveals existing form; excluded HR sees explanation. Official PDF preview/DOCX download reporter/handler only; PDF fallback + handler retry; legacy no-document state. Document precedes conversation on mobile. BR-787. | `hr-request&id=` (incident cases) | reader per BR-769; HR panel handler only (BR-780), document gate BR-787 | [[Employee-Tickets]] |
+| SCR-770 | Incident Case page: header/pipeline -> official document -> conversation -> composer; rail: visible status form and collapsible HR-only notes, people, summary, attachments and timeline. Counts and latest visible event show while collapsed; rail follows main content on mobile. Original report is inline (PDF or read-only sheet) with download kept. Excluded HR sees explanation. Official document access remains reporter/handler only; PDF fallback and handler retry; legacy no-document state. BR-787. | `hr-request&id=` (incident cases) | reader per BR-769; HR panel handler only (BR-780), document gate BR-787 | [[Employee-Tickets]] |
 
 Sidebar: group **Requests** (all portals) holds the ticket screens; group **HR Request Setup** (third group for HR and Admin portals) holds Ticket Approvers, Ticket Viewers, Accounting Members, COE Template, Printable HR Forms. The older SCR-7xx rows above are the design target; where both exist, the page ids here are the built ones.
 
@@ -161,3 +161,14 @@ Hub for HR requests: [[Employee-Tickets]] · UI rules: [[Design-System]]
 
 ### Ticket detail components (P1, 2026-10-25)
 Request detail (`hr-request`) uses shared pieces from `tickets.css`: stepper states done, current, skipped (dash), stop, warn, todo; status chip and pill with a gray tone; Approval chain as a vertical timeline (avatar initials, role, name, status chip, date); empty state for no comments; comment composer; every date through `ticket_time()`. Layout (two columns, Payroll Concern on the same page) is P2 of [[2026-10-25-ticketing-ui-ux-redesign]]. No new screen or route.
+
+## 2026-10-29 - PMBSI departments (prepared)
+- Organization Setup separates 2LOG and PMBSI Departments; Employee 201 Add/Edit filters department choices by work company. Visual and runtime behavior not verified.
+
+- 2026-10-29: Organization Setup positions split by existing Employee Add/Edit eligibility into 2LOG, PMBSI and Needs classification. Company add validates name and optional active company department; shared records and eligibility unchanged, no schema or data migration. PHP lint passed; browser, application and DB behavior unverified.
+
+- 2026-10-29: Organization Setup rows and position department editor use responsive wrapping and focusable compact actions; status wording uses Deactivate, Reactivate and Inactive. Visual behavior unverified.
+
+## 2026-10-29 - Organization Setup side-by-side UI/UX
+
+- Organization Setup implementation: name/status heading, metadata second line, actions below across every master card; labeled Add forms and full-width Position name. Native details keeps the department editor below its summary/toggle row. Existing two-column desktop and one-column narrow card layout retained, with wrapping names and responsive form grids. Rendered layout and interaction remain unverified.

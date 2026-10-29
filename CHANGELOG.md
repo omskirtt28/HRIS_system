@@ -1,3 +1,20 @@
+## 2026-10-29 - Shared shell search, sidebar scroll and unread badges
+- Removed shared portal top search; page-local search retained. Sidebar scroll persists per user/portal with storage fallback.
+- Added accessible sidebar badges for all unread existing HR request/incident and employee reminder notifications using existing metadata/access. Bell/sidebar update together after confirmed reads; failures/stale GETs do not clear displayed counts. Malformed read IDs rejected.
+- PHP/JS syntax, source/static checks and scoped diff passed. Mapping regression scenarios added but not executed. Browser/app/DB/live counts unverified; no migration, recipients change or new transaction notifications.
+
+## 2026-10-29 - Codex HRIS low-usage alignment
+- Aligned Codex agent/skill context routing and project vault rules; no application behavior changed. Fresh-session discovery and usage savings unverified.
+
+## 2026-10-29 - Incident case compact panel
+- Compact expandable case rail with participant and attachment counts, latest visible timeline event, and clearly labelled HR-only notes. Status action remains visible. Browser and live behavior unverified.
+
+## 2026-10-29 - Incident case page cleanup
+- HR actions no longer has "Include someone"; status form always visible, duplicate Update status button removed. Composer is no longer sticky. The original incident report is shown on the page (PDF or read-only sheet of the submitted answers) with download kept. UI only.
+
+## 2026-10-29 - Incident handler: CC-only HR may handle
+- `TicketIncident::isHandler` now excludes only the reporter and HR named Involved/Witness; CC-only HR sees status controls. BR-775 updated.
+
 ## 2026-10-27 - Incident Others submission correction
 - Nature specification now optional, including Others, with max5000 instead of200. UI/backend agree; supporting Others specification max5000 with existing conditional requirement retained. Both changed PHP files pass php -l; runtime acceptance by John, no further review/deployment.
 
@@ -359,3 +376,37 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 - Opening an incident now shows a case page: status and a five-step progress bar, a conversation everyone on the case can read, the people on the case, a summary, attachments and a timeline. Messages are sent from a composer that stays at the bottom of the screen.
 - HR reviewers handling the case can change its status (remarks are required and everyone on the case sees them), add an optional note only HR sees, include or remove people, reopen a resolved or closed case and add internal notes. The person who filed can withdraw a report until HR starts reviewing it.
 - Nobody new can read a case: the access rules are unchanged. No database change.
+
+## 2026-10-28 - Employee work company
+- Source patch: 2LOG / PMBSI work assignment in Add and Edit, conditional fields and 2LOG HR position filtering; legacy records remain unassigned until HR selects. PMBSI remains legal employer.
+- Additive migration and guarded rollback prepared; not applied. PHP/JS syntax checked; runtime, database and browser acceptance not verified. No deployment or commit.
+
+
+## 2026-10-28 - PMBSI Human Resource position restriction
+- Employee Add/Edit PMBSI choices now limited to existing exact HR aliases, with matching server validation. 2LOG excludes HR variants. Missing active HR configuration is shown; incompatible saved choices require explicit correction. Unassigned stays optional. No database changes or deployment; runtime acceptance remains unverified.
+- Verification: PHP lint passed EmployeeRepository.php and index.php; both affected inline scripts passed node --check. Static QA PASS WITH NOTES, three source scenarios reviewed. Runtime/browser/DB and active HR master availability not verified.
+
+## 2026-10-28 - Work company handoff verification
+- Migration cycle verified on isolated DB, not applied to live. Cleanup of Add/Edit form whitespace and a misplaced docblock. See Q64.
+
+## 2026-10-28 - Work company migration applied (localhost)
+- employees.work_company added to pmbsi_hris; no existing rows changed.
+
+## 2026-10-28 - Organization Setup friendly add forms
+- No manual Code on master add forms (auto-generated, unique), duplicate-name error, Retire/Reactivate labels, HR empty-state link in Employee Add/Edit. No migration.
+
+## 2026-10-29 - Employee account linking and position
+- Employee and Users linking clarity and server validation; Human Resource PMBSI position aliases supported. PHP lint passed; runtime and browser acceptance pending. No migration or DB write.
+
+## 2026-10-29 - PMBSI departments (prepared)
+- Prepared PMBSI department master and Employee 201 company filtering/validation with additive department classification migration. Static checks passed with notes; migration and runtime not verified.
+
+- 2026-10-29: Organization Setup positions split by existing Employee Add/Edit eligibility into 2LOG, PMBSI and Needs classification. Company add validates name and optional active company department; shared records and eligibility unchanged, no schema or data migration. PHP lint passed; browser, application and DB behavior unverified.
+
+- 2026-10-29: Organization Setup hides Needs classification and adds position default-department editing with company eligibility, active department validation, permission, CSRF and audit. Existing assignment and history data are unchanged; changing a default can affect later employee/recruitment validation. Human Resources Assistant removal remains blocked pending database reference verification; no DB access or write performed. PHP syntax checked; runtime and browser unverified.
+
+- 2026-10-29: Organization Setup: improve row actions and position department editor; use Deactivate and Inactive wording. Static verification only.
+
+## 2026-10-29 - Organization Setup side-by-side UI/UX
+
+- Organization Setup UI/UX: preserve side-by-side desktop cards; name/status headings, separate metadata/actions, labeled rounded Add fields, wider Position name, expandable department panel, consistent focusable actions and responsive branch forms. Updated stylesheet cache marker. PHP lint and static checks passed; rendered/browser/app/DB behavior unverified.
