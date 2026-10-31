@@ -1,5 +1,39 @@
 'use strict';
 
+// Foldable sidebar groups: the group holding the current page is always open; other groups remember what was opened.
+// Runs before the scroll restore below so the restored position matches the final layout.
+(() => {
+  const side = document.querySelector('#side[data-scroll-key]');
+  if (!side) return;
+  const key = 'hris-nav-open:' + side.dataset.scrollKey;
+  let opened = [];
+  try { opened = JSON.parse(localStorage.getItem(key) || '[]'); } catch (_) { /* Storage can be disabled. */ }
+  if (!Array.isArray(opened)) opened = [];
+  const set = (group, open) => {
+    group.classList.toggle('is-collapsed', !open);
+    group.querySelector('.gl-toggle')?.setAttribute('aria-expanded', String(open));
+  };
+  const save = () => {
+    const names = [...side.querySelectorAll('.nav-group.foldable:not(.is-collapsed)')].map(g => g.dataset.navGroup);
+    try { localStorage.setItem(key, JSON.stringify(names)); } catch (_) { /* Storage can be disabled. */ }
+  };
+  side.querySelectorAll('.nav-group.foldable').forEach(group => {
+    if (opened.includes(group.dataset.navGroup)) set(group, true);
+    group.querySelector('.gl-toggle')?.addEventListener('click', () => {
+      set(group, group.classList.contains('is-collapsed'));
+      save();
+    });
+  });
+  // Folded groups still surface unread counts on their header.
+  window.refreshNavGroupCounts = () => side.querySelectorAll('.nav-group.foldable').forEach(group => {
+    const total = [...group.querySelectorAll('[data-sidebar-count]')].reduce((sum, b) => sum + (b.hidden ? 0 : parseInt(b.textContent, 10) || 0), 0);
+    const chip = group.querySelector('[data-group-count]');
+    if (!chip) return;
+    chip.textContent = total > 99 ? '99+' : String(total);
+    chip.hidden = total < 1;
+  });
+})();
+
 // The sidebar itself is the scrolling element; restore before the rest of the page controls.
 (() => {
   const side = document.querySelector('#side[data-scroll-key]');
@@ -27,6 +61,39 @@ window.toggleSidebar = () => {
   const open = side?.classList.toggle('open') ?? false;
   document.querySelector('.mobtoggle')?.setAttribute('aria-expanded', String(open));
 };
+// Desktop rail: html[data-side=folded] drives the CSS; the .nl labels stay for screen readers and a fixed tooltip names each icon (the rail's overflow would clip a CSS one).
+let sideTip = null;
+const showSideTip = link => {
+  if (document.documentElement.dataset.side !== 'folded') return;
+  const label = link.querySelector('.nl')?.textContent.trim();
+  if (!label) return;
+  if (!sideTip) { sideTip = document.createElement('div'); sideTip.className = 'side-tip'; sideTip.setAttribute('aria-hidden', 'true'); document.body.appendChild(sideTip); }
+  sideTip.textContent = label;
+  const r = link.getBoundingClientRect();
+  sideTip.style.left = (r.right + 10) + 'px';
+  sideTip.style.top = (r.top + r.height / 2) + 'px';
+  sideTip.classList.add('show');
+};
+const hideSideTip = () => sideTip?.classList.remove('show');
+const SIDE_TIP_TARGET = '.side .nav-item, .side .sidebar-logout';
+['mouseover', 'focusin'].forEach(ev => document.addEventListener(ev, e => { const l = e.target.closest?.(SIDE_TIP_TARGET); if (l) showSideTip(l); }));
+['mouseout', 'focusout'].forEach(ev => document.addEventListener(ev, e => { if (e.target.closest?.(SIDE_TIP_TARGET)) hideSideTip(); }));
+document.addEventListener('scroll', hideSideTip, true);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') hideSideTip(); });
+const applySideFold = folded => {
+  const root = document.documentElement;
+  if (folded) root.dataset.side = 'folded'; else delete root.dataset.side;
+  hideSideTip();
+  const btn = document.querySelector('.sidefold');
+  btn?.setAttribute('aria-expanded', String(!folded));
+  btn?.setAttribute('aria-label', folded ? 'Expand sidebar' : 'Collapse sidebar');
+};
+window.toggleSideFold = () => {
+  const folded = document.documentElement.dataset.side !== 'folded';
+  applySideFold(folded);
+  try { localStorage.setItem('hris-side', folded ? 'folded' : 'open'); } catch (_) { /* Storage can be disabled. */ }
+};
+if (document.documentElement.dataset.side === 'folded') applySideFold(true);
 window.toggleProfileMenu = () => {
   const open = document.getElementById('profilePop')?.classList.toggle('open') ?? false;
   document.querySelector('.profile-trigger')?.setAttribute('aria-expanded', String(open));
@@ -94,6 +161,7 @@ if (hrisClock) {
       badge.hidden = count < 1;
       badge.setAttribute('aria-label', `${count} unread notifications`);
     });
+    window.refreshNavGroupCounts?.();
   };
   const validCounts = data => Number.isInteger(data.unread) && data.unread >= 0 &&
     data.sidebar_counts && typeof data.sidebar_counts === 'object' &&

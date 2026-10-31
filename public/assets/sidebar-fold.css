@@ -1,0 +1,47 @@
+/* PMBSI HRIS · Collapsible sidebar (icon rail) · 2026-10-31 · desktop only */
+.sidefold{display:none}
+@media(min-width:901px){
+  .sidefold{display:grid}
+  .shell{transition:grid-template-columns .16s ease}
+  html[data-side=folded] .shell{grid-template-columns:88px minmax(0,1fr)}
+  html[data-side=folded] .side{padding:18px 10px 16px;overflow-x:hidden;scrollbar-width:none}
+  html[data-side=folded] .side::-webkit-scrollbar{display:none}
+  /* Labels stay in the accessibility tree; only the pixels go. */
+  html[data-side=folded] .side .nl{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  html[data-side=folded] .side .gl,
+  html[data-side=folded] .side .brand-portal-meta,
+  html[data-side=folded] .side .nav-item .soon,
+  html[data-side=folded] .side .side-footer .prof>div{display:none!important}
+  html[data-side=folded] .side .brand-portal{padding:0 0 12px!important;align-items:center!important}
+  /* Rail shows only the round p emblem: the 44px box crops the wide logo to its left end so it stays crisp and centred. */
+  html[data-side=folded] .side .brand-portal .brand-full-logo{width:44px!important;height:44px!important;max-width:none;object-fit:cover!important;object-position:left center!important;margin:0 auto!important}
+  html[data-side=folded] .side .nav-group{margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.07)}
+  html[data-side=folded] .side .nav-group:first-child{margin-top:0;padding-top:0;border-top:0}
+  html[data-side=folded] .side .nav-item{position:relative;justify-content:center;gap:0;padding:11px 0}
+  html[data-side=folded] .side .nav-item.active{box-shadow:inset 3px 0 0 var(--hris-brand)}
+  html[data-side=folded] .side .sidebar-notify-badge{position:absolute;top:3px;right:6px;margin:0;min-width:16px;padding:0 4px;font-size:10px;line-height:16px;box-shadow:0 0 0 2px var(--hris-sidebar)}
+  html[data-side=folded] .side .side-footer .prof{justify-content:center;padding:0 0 10px!important}
+  html[data-side=folded] .side .sidebar-logout{position:relative;justify-content:center;gap:0;padding:9px 0}
+}
+.side-tip{display:none}
+@media(min-width:901px){
+  .side-tip{display:block;position:fixed;z-index:80;transform:translateY(-50%);padding:6px 10px;border-radius:8px;background:#111318;color:#fff;font-size:12px;font-weight:600;line-height:1.2;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.28);pointer-events:none;opacity:0;transition:opacity .12s ease}
+  .side-tip.show{opacity:1}
+}
+@media(prefers-reduced-motion:reduce){.shell,.side-tip{transition:none}}
+
+/* Foldable nav groups · 2026-10-31 · only the group holding the current page starts open */
+.nav-group .gl-toggle{display:flex;align-items:center;gap:8px;width:100%;border:0;background:transparent;font:inherit;font-size:10px;text-transform:uppercase;letter-spacing:.1em;font-weight:600;color:#7b8290;padding:7px 11px;border-radius:8px;cursor:pointer;text-align:left;transition:background .16s ease,color .16s ease}
+.nav-group .gl-toggle:hover{background:var(--hris-sidebar-soft,#24272e);color:#fff}
+.nav-group .gl-toggle:focus-visible{outline:2px solid var(--hris-brand,#fdae04);outline-offset:1px}
+.nav-group .gl-text{flex:1;min-width:0}
+.nav-group .gl-toggle svg{width:16px;height:16px;flex:0 0 auto;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .16s ease}
+.nav-group.is-collapsed .gl-toggle svg{transform:rotate(-90deg)}
+.nav-group .gl-count{min-width:18px;padding:0 6px;border-radius:99px;background:var(--hris-danger,#c0262d);color:#fff;font-size:10px;font-weight:700;line-height:17px;text-align:center;letter-spacing:0}
+.nav-group .gl-count[hidden]{display:none}
+.nav-group.is-collapsed .nav-items{display:none}
+@media(min-width:901px){
+  /* The icon rail shows every icon; folding only applies to the full sidebar. */
+  html[data-side=folded] .side .nav-group.is-collapsed .nav-items{display:block}
+  html[data-side=folded] .side .gl-toggle{display:none}
+}
