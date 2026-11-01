@@ -1,0 +1,24 @@
+---
+source_file: "C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php"
+type: "code"
+community: "PayrollAttendanceService"
+location: "L673"
+tags:
+  - graphify/code
+  - graphify/EXTRACTED
+  - community/PayrollAttendanceService
+---
+
+# .rebuildEmployee()
+
+## Connections
+- [[dot-approvedRequests()]] - `calls` [EXTRACTED]
+- [[dot-attendanceApplication()]] - `calls` [EXTRACTED]
+- [[dot-calculate()]] - `calls` [EXTRACTED]
+- [[dot-calculate()_1]] - `calls` [EXTRACTED]
+- [[dot-rebuild()]] - `calls` [EXTRACTED]
+- [[dot-reviewOnly()]] - `calls` [EXTRACTED]
+- [[PayrollAttendanceService]] - `method` [EXTRACTED]
+- [[db()]] - `calls` [INFERRED]
+
+#graphify/code #graphify/EXTRACTED #community/PayrollAttendanceService

@@ -1,0 +1,29 @@
+---
+source_file: "C:/xampp/htdocs/HRIS_system/app/TicketAssignmentModule.php"
+type: "code"
+community: "TicketViewerService"
+location: "L6"
+tags:
+  - graphify/code
+  - graphify/EXTRACTED
+  - community/TicketViewerService
+---
+
+# ticket_assignment_handle()
+
+## Connections
+- [[dot-preview()]] - `calls` [EXTRACTED]
+- [[dot-ready()]] - `calls` [EXTRACTED]
+- [[dot-report()]] - `calls` [EXTRACTED]
+- [[dot-requireHr()]] - `calls` [EXTRACTED]
+- [[dot-save()]] - `calls` [EXTRACTED]
+- [[dot-time()]] - `calls` [INFERRED]
+- [[dot-user()]] - `calls` [EXTRACTED]
+- [[TicketAssignmentModule.php]] - `contains` [EXTRACTED]
+- [[flash()]] - `calls` [INFERRED]
+- [[need_db()]] - `calls` [INFERRED]
+- [[redirect()]] - `calls` [INFERRED]
+- [[ticket_assignment_page()]] - `calls` [INFERRED]
+- [[verify_csrf()]] - `calls` [INFERRED]
+
+#graphify/code #graphify/EXTRACTED #community/TicketViewerService

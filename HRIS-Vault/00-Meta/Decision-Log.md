@@ -111,3 +111,9 @@ John: Obsidian-only muna, pati lahat ng agents. Main passes only the exact task,
 
 ## 2026-10-29 - Codex task authorization
 John requested a fix for repeated permission prompts. Relevant source/config reads and scoped edits are authorized by the task request; explicit Obsidian-only or plan-only requests still apply. See [[Codex-Agent-Workflow]].
+
+## 2026-10-31 - My Profile access
+- Decision (John asked HR to have it): My Profile is open to every internal account (portal employee, hr, admin) instead of requiring employees.view_self, because HR roles do not hold that permission. Client accounts stay blocked; own record only. No role or permission rows changed. Employee edits are NOT allowed (John: only HR roles edit data). See [[Session-Log]] 2026-10-31.
+
+## 2026-10-31 - Lead notification and Follow up
+- Decision (John): notify Manager/ADL (+SC/OIC) on filing and every status change; Follow up goes to HR only; no Noted button; new table for follow-ups OK. Leads stay view-only.

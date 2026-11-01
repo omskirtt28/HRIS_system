@@ -1,0 +1,20 @@
+---
+source_file: "C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php"
+type: "code"
+community: "PayrollAttendanceService"
+location: "L805"
+tags:
+  - graphify/code
+  - graphify/EXTRACTED
+  - community/PayrollAttendanceService
+---
+
+# .backpayRows()
+
+## Connections
+- [[dot-rebuildBackpay()]] - `calls` [EXTRACTED]
+- [[PayrollAttendanceService]] - `method` [EXTRACTED]
+- [[db()]] - `calls` [INFERRED]
+- [[payroll_review_page()]] - `calls` [EXTRACTED]
+
+#graphify/code #graphify/EXTRACTED #community/PayrollAttendanceService

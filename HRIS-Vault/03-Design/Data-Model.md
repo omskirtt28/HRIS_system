@@ -379,3 +379,6 @@ Export and compare the ordered snapshots before and after the authorized up migr
 ## 2026-10-29 - Organization Setup side-by-side UI/UX
 
 - Organization Setup UI/UX patch checkpoint: presentation only; no model, migration, schema, data or eligibility changes. Form field names/required attributes and hidden payloads statically compared with the task-entry source. No DB access or writes.
+
+## 2026-10-31 - Migration 019 ticket_lead_followups
+- New table `ticket_lead_followups` (id, ticket_id FK tickets, user_id FK users, created_at; index ticket_id,user_id,created_at). Additive. Down script refuses ("in use") while any row exists. Applied to localhost pmbsi_hris 2026-10-31; existing business rows unchanged.

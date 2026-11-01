@@ -131,7 +131,7 @@ try {
     $m = throws(fn() => EmployeeRepository::updateEmployment($ocHo, ['name_only_edit' => 1]));
     check('an unrelated save (no section field) does not touch the section', $m === null && $section($ocHo) === $production, (string)$m);
     $m = throws(fn() => $post($ocHo, null));
-    check('"No section" clears it', $m === null && $section($ocHo) === null, (string)$m);
+    check('"No team" clears it', $m === null && $section($ocHo) === null, (string)$m);
 
     // --- leaving Ocampo's Head Office clears the section ---
     throws(fn() => $post($ocHo, $production));

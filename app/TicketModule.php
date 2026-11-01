@@ -52,6 +52,8 @@ function ticket_handle(string $page):void
                 TicketService::comment($id,(string)($_POST['body']??''),(string)($_POST['visibility']??'ALL'));unset($_SESSION['core_ticket_comment'][$id]);flash('success','Comment added.');
             }elseif($action==='core_ticket_attach'){
                 TicketService::attach($id,$_FILES['attachments']??[]);flash('success','Attachment(s) added.');
+            }elseif($action==='core_ticket_followup'){
+                TicketLeadFollowup::followUp($id);flash('success','HR has been asked to follow up.');
             }else throw new RuntimeException('Unknown ticket action.');
             redirect('hr-request',['id'=>$id]);
         }catch(Throwable $error){
@@ -88,7 +90,7 @@ function ticket_handle(string $page):void
             $_SESSION['core_ticket_keys']=array_filter($_SESSION['core_ticket_keys']??[],fn($expires)=>$expires>=time());
             $_SESSION['core_ticket_keys']=array_slice($_SESSION['core_ticket_keys'],-19,null,true);$_SESSION['core_ticket_keys'][$key]=time()+1800;
             ticket_new_page($employee,TicketRepository::types(),$key,$old);
-        }elseif($page==='hr-request')ticket_detail_page(TicketRepository::detail($id));
+        }elseif($page==='hr-request'){$d=TicketRepository::detail($id);if(!empty($d['viewer_only']))TicketLeadFollowup::markSeen($id,TicketRepository::uid());ticket_detail_page($d);}
         else{
             $mode=match($page){'hr-request-inbox'=>'inbox','hr-payroll-concerns'=>'hr','hr-service-requests'=>'services','hr-accounting-requests'=>'accounting','hr-incidents'=>'feed','hr-request-team'=>'team',default=>'my'};
             if($mode==='my'&&!Auth::can('tickets.request_self')&&!Auth::can('ticket.file_for_others'))throw new RuntimeException('Filing permission is required.');

@@ -14,11 +14,11 @@ final class EmployeeDirectoryPlacement
         'LEOBERTJHON|AMERICA',
     ];
 
-    /** Position names that make someone an ADL when Directory section is left on "Use saved position". */
+    /** Position names that make someone an ADL when Directory role is left on "Automatic (from position)". */
     private const ADL_POSITIONS = ['ADL','SR ADL','JR ADL','AREA DEVELOPMENT LEADER','SENIOR AREA DEVELOPMENT LEADER','JUNIOR AREA DEVELOPMENT LEADER','SR. ADL','JR. ADL'];
 
     /**
-     * SQL condition: this employee is an ADL. Same rule as the directory (Directory section first, then the position),
+     * SQL condition: this employee is an ADL. Same rule as the directory (Directory role first, then the position),
      * so Reporting To and the directory never disagree. $employee and $position are the table aliases in the query.
      */
     public static function isAdlSql(string $employee = 'e', string $position = 'p'): string

@@ -89,3 +89,8 @@ In dark mode the solid hue tokens (`--hris-success/info/danger/warning`) stay as
 ## 2026-10-29 - Organization Setup side-by-side UI/UX
 
 - Organization Setup uses scoped org-field labels, rounded 38px controls/actions, normal button letter spacing, bordered Edit department, subtle danger Deactivate and success Reactivate. Focus-visible styles cover buttons, summaries and fields. Existing organization CSS was revised in place; branch name truncation removed. Static review only; visual acceptance remains pending.
+
+- 2026-10-31 My Profile UI follows existing tokens (hris-modern.css) with .myp-* classes: hero, pill tabs (anchors, no-JS fallback), definition-grid cards, ID rows with expiry chips, document thumbnail grid with filter chips and a dialog preview; 44px touch targets; print stylesheet.
+
+## 2026-10-31 - Dashboard tiers pattern (HR dashboard v2)
+All new rules live under `.hd2` in `public/assets/hr-ops.css`, tokens only. Two KPI tiers: action cards (36px value, 4px tone rail via `data-tone`) and compact overview cards (24px). Delta is a chip with arrow plus text, never colour alone. Segmented control for short period lists (links, `aria-current`). Count chips use text colour `--hris-text` on a soft tone background so contrast holds in dark mode. Shared `.metric-card`, `.panel`, `.panel-link` in `hris-modern.css` are unchanged; Employee, Client and Admin dashboards still use them (follow-up slice if John wants the same look there).

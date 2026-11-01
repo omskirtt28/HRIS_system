@@ -144,7 +144,7 @@ function ticket_service_detail(array $t):void {
  <section class="tk-head" aria-label="Request summary"><div class="tk-head-main"><span class="tk-eyebrow"><?=e($t['type_name'])?></span><p class="tk-no"><?=e($t['ticket_no'])?></p>
   <dl class="tk-dates"><div><dt>Filed</dt><dd><?=e($t['filed_at']?ticket_when($t['filed_at']):'Not filed yet (draft)')?></dd></div><div><dt>Last update</dt><dd><?=e(ticket_when($t['updated_at']??$t['created_at']))?></dd></div><div><dt>Requested by</dt><dd><?=e($t['payload']['employee_name'])?></dd></div></dl></div>
   <span class="tk-pill is-<?=e(ticket_tone($t['status']))?>"><span class="tk-sr">Status: </span><?=e($label)?></span></section>
- <?php ticket_stepper($t);
+ <?php ticket_followup_bar($t);ticket_stepper($t);
  if($t['type_code']==='MANPOWER_REQUEST'){$q=db()->prepare('SELECT date_served FROM ticket_manpower_requests WHERE ticket_id=?');$q->execute([$t['id']]);$served=$q->fetchColumn();if($served)echo '<p>Date served: '.e($served).'</p>';}
  ticket_response_card($t);ticket_internal_notes($t);
  if(in_array($t['type_code'],['ATM_REQUEST','ID_REQUEST'],true)):

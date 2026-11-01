@@ -8,6 +8,9 @@ updated: 2026-10-25
 
 # Start Here
 
+<!-- DEV-SKILLS-20261030 -->
+- 2026-10-30: [[Codex-Agent-Workflow]] - two shared Addy dev skills installed; retain local HRIS skills, remove superseded automatic pipeline instructions; no duplicate skill chain.
+
 - Incident submit correction (2026-10-27): Others nature specification optional, no200-character requirement/cap; BR-785 updated. Both PHP lint passed; John checks submission. See [[Session-Log]].
 
 - Assistant handoff (John, 2026-10-29): Claude and Codex work independently; cross-assistant handoff requires John's explicit request. Share project status through [[Session-Log]]. See [[Codex-Agent-Workflow]].
@@ -113,3 +116,7 @@ See [[Codex-Agent-Workflow]] for current rules and [[Decision-Log]] for history.
 
 
 - 2026-10-29: Task requests authorize relevant source reads and scoped edits without repeated permission prompts; see [[Codex-Agent-Workflow]].
+
+<!-- GRAPHIFY-SCOPED-20261030 -->
+## Graphify setup - 30 October 2026
+[[Graphify/Index|Graphify projects]] and [[Graphify/Graphify Workflow|scoped workflow]] added. Central receipt: `C:/Users/John Joshua/Documents/Brain/00-Inbox/Graphify-Setup/Checkpoint.md`. Independent provider registrations; selected-source graphs, per-project HTML, and code/semantic freshness. No deployment or Brain Office paused-work changes; current verification is in the receipt/status files.

@@ -8,6 +8,18 @@ updated: 2026-10-24
 
 # Progress
 
+- 2026-10-31 (Codex): John requires a saved shared checkpoint before every project-related final response, including context-only requests, plus automatic latest-patch lookup on the next session. Changed selected notes receive semantic extraction/Graphify refresh; unchanged state avoids duplicate writes. [[00-Meta/Shared Project Handoff]]. App/live status and existing pauses unchanged.
+
+
+<!-- SHARED-PROJECT-HANDOFF-20261031 -->
+## Current handoff workflow checkpoint - 31 October 2026 (Codex)
+Automatic shared project documentation/read continuity is active: [[00-Meta/Shared Project Handoff]]. Both public project instructions route to the shared checkpoint. Docs only; no application release/package/dependency or live-status change. Existing dated task notes remain authoritative for application evidence; future provider startup behavior is unverified.
+
+
+<!-- DEV-SKILLS-20261030 -->
+## 2026-10-30 - Codex dev skills
+Two shared Addy dev skills installed and documented in [[Codex-Agent-Workflow]]. Four local HRIS dev skills retained; removed superseded pipeline/shared-role block. No application/schema/data/deploy change. Source/resources and fresh discovery evidence: Brain installation receipt; token savings unmeasured.
+
 ## 2026-10-29 - Shared shell search, sidebar scroll and unread badges
 - Implemented shared top-search removal, per-user/per-portal sidebar scroll storage/fallback, all-unread single-menu badges for existing HR request/incident/probation/seasonal/maternity notifications, paired bell/sidebar read updates and failure handling.
 - PHP lint (3 application files + new mapping test), JS syntax, three source-only scenarios, sweep and scoped diff passed. Mapping regressions added but not executed. Browser/app/DB/live counts/query performance unverified. No schema/recipient change, new transaction events, commit or deployment.
@@ -207,3 +219,32 @@ Recorded Obsidian-only scope for main and all agents; exact task notes only, no 
 - Domain option: Cloudflare Registrar standard .com USD 10.46/year registration/renewal; use hris.<company-domain> if a company domain already exists. Name availability and checkout taxes not verified.
 - Prior 2 TB document target is conditional, not reconfirmed: private Backblaze B2 at published starting USD 6.95/TB/month, approximately USD 13.90/month for 2 TB primary storage; backup/version storage and excess usage extra. HRIS storage integration remains unverified.
 - Sources: https://www.hostinger.com/ph/vps-hosting ; https://www.hostinger.com/support/8311982-what-is-managed-hosting-in-hostinger/ ; https://pricing.registrar.cloudflare.com/ ; https://www.backblaze.com/cloud-storage/pricing . No application/source/schema change or browser/DB/runtime testing.
+## 2026-10-31 - My Profile T1
+- Slice T1 done locally (hero, guard, nav, own photo). T2-T7 pending. See [[Session-Log]] and tasks/plan.md. Visual acceptance pending.
+
+## 2026-10-31 - My Profile T2
+- Tabs content done locally; T3-T7 pending. Visual acceptance pending.
+
+## 2026-10-31 - My Profile T3
+- IDs and Documents tab done locally; T5-T7 pending. Visual acceptance pending.
+
+## 2026-10-31 - My Profile T5
+- Shortcuts, Print Summary and HR/admin access done locally; T6 polish and T7 tests/delivery pending.
+
+## 2026-10-31 - My Profile complete (local)
+- T1-T7 done locally; awaiting John visual/print acceptance on localhost. No commit/deploy.
+
+## 2026-10-31 - My Profile ship review
+- Local build complete and reviewed (code, security, test coverage). GO for John's manual upload; not deployed, not committed. Live status unknown until John reports it. See [[Session-Log]] 2026-10-31 ship entry for the exact upload list, smoke test and rollback.
+
+## 2026-10-31 - Profile parity patch 1 (local)
+- Lee code field in the HR employment form (audited, max 30), dropdown Profile removed in the employee portal only, directory fields relabelled (Directory role / Head Office team). Not deployed, not committed. DB-backed tests not run. Details: Session-Log.md.
+
+## 2026-10-31 - Profile parity patch 2 (local)
+- Downloads, FAQs, Payslip, Deductions, Additional pages + HR manage; migration 018 not applied to live. Full local check OK. hr-role-consolidation pending John. See Session-Log.md.
+
+- 2026-10-31 (Claude): Sidebar rail v2 (group icons + flyout, full logo). Static checks pass; browser not verified.
+
+- 2026-10-31 HR dashboard v2 (Claude, UI only): `.hd2` scoped restyle of `?page=hr-dashboard`. Needs action / Overview KPI tiers, segmented period control, three right-column cards, no bars for zero stages. Data layer, routes, permissions and shared CSS untouched. `php scripts/check.php task` OK (new `tests/hr_dashboard_ui_test.php` 20/20). Not browser-verified, not committed or deployed. Plan: [[2026-10-31-hr-dashboard-v2]].
+
+- 2026-10-31 Team Requests lead notification + Follow up (Claude): leads notified on filing and each status change, read-only "New" badge, Follow up to HR (24h limit), migration 019 applied to localhost. `check.php full` OK with scratch DB (new suite 30/30). Not run: browser, other ticket suites that already fail on incident fixtures / missing EmployeeProfileService in View.php. Not committed, not pushed.

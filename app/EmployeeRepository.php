@@ -378,6 +378,9 @@ final class EmployeeRepository
         $workCompany=self::validateWorkCompany($data, $old);
         $data['work_company']=$workCompany;
         if($workCompany==='PMBSI') $data['branch_id']='';
+        // Lee code is only touched when the form posts it (other callers leave it alone); blank clears it.
+        $leeSet=array_key_exists('lee_code',$data) && self::columnExists('employees','lee_code'); $leeCode=null;
+        if($leeSet){ $leeCode=trim((string)$data['lee_code']); if(mb_strlen($leeCode)>30) throw new RuntimeException('Lee code can be at most 30 characters.'); $leeCode=$leeCode===''?null:$leeCode; }
         [$employeeNo,$first,$middle,$last,$suffix,$companyEmail,$personalEmail,$status,$userId,$departmentId,$positionId,$branchId,$employmentTypeId,$hireDate,$regularizationDate]=self::validatedEmployeeData(array_merge($old,$data),$id);
         $effectiveDate=self::dateOrNull((string)($data['effective_date']??'')) ?: date('Y-m-d');
         $remarks=trim((string)($data['remarks']??''));
@@ -428,6 +431,7 @@ final class EmployeeRepository
             $params=$hasManager?[$employeeNo,$userId,$departmentId,$positionId,$branchId,$employmentTypeId,$managerEmployeeId,$hireDate,$regularizationDate,$status,(int)(Auth::user()['id']??0)?:null,$id]:[$employeeNo,$userId,$departmentId,$positionId,$branchId,$employmentTypeId,$hireDate,$regularizationDate,$status,(int)(Auth::user()['id']??0)?:null,$id];
             $st=db()->prepare($sql);$st->execute($params);
             if($workCompany!==null) db()->prepare('UPDATE employees SET work_company=? WHERE id=?')->execute([$workCompany,$id]);
+            if($leeSet) db()->prepare('UPDATE employees SET lee_code=? WHERE id=?')->execute([$leeCode,$id]);
             $directoryAfter=EmployeeDirectoryPlacement::save($id,$data,$old);
             if(self::columnExists('employees','business_unit_id') && self::columnExists('employees','legal_entity_id')) {
                 // Company Group -> Company Name; the Employer is always PMBSI.
@@ -461,7 +465,7 @@ final class EmployeeRepository
             if($resigning) EmployeeArchiveService::archive($id,'RESIGNED',$effectiveDate,$remarks);
             if($owned)db()->commit();
         }catch(Throwable $e){if($owned&&db()->inTransaction())db()->rollBack();if($e instanceof PDOException)self::throwDuplicateEmployee($e);throw $e;}
-        audit('Employees','UPDATE_EMPLOYMENT','employee',$id,['changed'=>$changed,'user_id_before'=>$old['user_id']??null,'user_id_after'=>$userId,'effective_date'=>$effectiveDate,'remarks'=>$remarks,'work_company_before'=>$old['work_company']??null,'work_company_after'=>$workCompany,'employee_no_before'=>$old['employee_no'],'employee_no_after'=>$employeeNo,'hire_date_before'=>$old['hire_date'],'hire_date_after'=>$hireDate,'company_before'=>[$old['business_unit_id'] ?? null,$old['legal_entity_id'] ?? null],'company_after'=>$companyValues ?? [],'directory_before'=>array_intersect_key($old,array_flip(['directory_company_group','directory_role','directory_area_ids','directory_section_id'])),'directory_after'=>$directoryAfter ?? [],'needs_details_before'=>(int)($old['roster_needs_details'] ?? 0),'needs_details_after'=>(int)(self::find($id)['roster_needs_details'] ?? 0)]);
+        audit('Employees','UPDATE_EMPLOYMENT','employee',$id,['changed'=>$changed,'user_id_before'=>$old['user_id']??null,'user_id_after'=>$userId,'effective_date'=>$effectiveDate,'remarks'=>$remarks,'work_company_before'=>$old['work_company']??null,'work_company_after'=>$workCompany,'employee_no_before'=>$old['employee_no'],'employee_no_after'=>$employeeNo,'lee_code_before'=>$old['lee_code']??null,'lee_code_after'=>$leeSet?$leeCode:($old['lee_code']??null),'hire_date_before'=>$old['hire_date'],'hire_date_after'=>$hireDate,'company_before'=>[$old['business_unit_id'] ?? null,$old['legal_entity_id'] ?? null],'company_after'=>$companyValues ?? [],'directory_before'=>array_intersect_key($old,array_flip(['directory_company_group','directory_role','directory_area_ids','directory_section_id'])),'directory_after'=>$directoryAfter ?? [],'needs_details_before'=>(int)($old['roster_needs_details'] ?? 0),'needs_details_after'=>(int)(self::find($id)['roster_needs_details'] ?? 0)]);
     }
 
     public static function uploadProfilePhoto(int $id,array $file): void
@@ -566,9 +570,16 @@ final class EmployeeRepository
         if(!FoundationRepository::tableExists('employee_documents'))return null;$st=db()->prepare('SELECT * FROM employee_documents WHERE id=? AND employee_id=?');$st->execute([$documentId,$employeeId]);$r=$st->fetch();return $r?:null;
     }
 
+    /** Drop the cached My Profile preview of a document (EmployeeProfileService::thumbnail writes <dir>/.thumbs/<stored_name>.jpg). */
+    public static function removeThumbnail(string $dir,string $storedName): void
+    {
+        $thumb=$dir.'/.thumbs/'.basename($storedName).'.jpg';
+        if(is_file($thumb))@unlink($thumb);
+    }
+
     public static function deleteDocument(int $employeeId,int $documentId): void
     {
-        $d=self::document($employeeId,$documentId);if(!$d)throw new RuntimeException('Document not found.');$st=db()->prepare('DELETE FROM employee_documents WHERE id=? AND employee_id=?');$st->execute([$documentId,$employeeId]);$path=self::storageDir('employee_documents').'/'.$d['stored_name'];if(is_file($path))@unlink($path);audit('Employees','DELETE_DOCUMENT','employee',$employeeId,['document_id'=>$documentId,'name'=>$d['original_name']]);
+        $d=self::document($employeeId,$documentId);if(!$d)throw new RuntimeException('Document not found.');$st=db()->prepare('DELETE FROM employee_documents WHERE id=? AND employee_id=?');$st->execute([$documentId,$employeeId]);$path=self::storageDir('employee_documents').'/'.$d['stored_name'];if(is_file($path))@unlink($path);self::removeThumbnail(dirname($path),(string)$d['stored_name']);audit('Employees','DELETE_DOCUMENT','employee',$employeeId,['document_id'=>$documentId,'name'=>$d['original_name']]);
     }
 
     public static function history(int $employeeId): array
@@ -776,6 +787,7 @@ final class EmployeeRepository
 
     private static function throwDuplicateEmployee(PDOException $e): void
     {
+        if($e->getCode()==='23000' && str_contains($e->getMessage(),'uq_employees_lee_code'))throw new RuntimeException('That Lee code is already used by another employee.');
         if($e->getCode()==='23000')throw new RuntimeException('Employee number, company email, or linked user already exists.');
     }
 }

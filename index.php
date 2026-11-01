@@ -3,6 +3,10 @@ declare(strict_types=1);
 require __DIR__ . '/app/bootstrap.php';
 require __DIR__ . '/app/View.php';
 require_once __DIR__ . '/app/PayrollTicketViews.php';
+require_once __DIR__ . '/app/EmployeeProfileService.php';
+require_once __DIR__ . '/app/EmployeeProfileViews.php';
+require_once __DIR__ . '/app/PortalContentService.php';
+require_once __DIR__ . '/app/PortalContentViews.php';
 
 $page = (string)($_GET['page'] ?? 'home');
 // Backward-compatible alias for early Phase 3A links/bookmarks.
@@ -356,6 +360,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             EmployeeRepository::updateEmployment($id,[
                 'work_company'=>(string)($_POST['work_company']??''),
+                ...(array_key_exists('lee_code',$_POST)?['lee_code'=>(string)$_POST['lee_code']]:[]),
                 'employee_no'=>(string)($_POST['employee_no']??''),'user_id'=>(int)($_POST['user_id']??0),'department_id'=>(int)($_POST['department_id']??0),
                 'position_id'=>(int)($_POST['position_id']??0),'branch_id'=>(int)($_POST['branch_id']??0),'employment_type_id'=>$postedType,'manager_employee_id'=>(int)($_POST['manager_employee_id']??0),
                 'business_unit_id'=>(int)($_POST['business_unit_id']??0),'legal_entity_id'=>(int)($_POST['legal_entity_id']??0),
@@ -835,7 +840,7 @@ if ($page === 'payroll-attachment') {
 }
 
 // -------- Employee portal --------
-if (str_starts_with($page,'employee-')) {
+if (str_starts_with($page,'employee-') && !in_array($page,['employee-profile','employee-profile-photo','employee-profile-document','employee-profile-reveal'],true)) { // My Profile is open to every internal account (EmployeeProfileService::requireAccess)
     need_db(); if (!Auth::check()) redirect('login'); if (!Auth::is('SUPER_ADMIN','HRIS_ADMIN')) Auth::requirePortal('employee');
 }
 
@@ -1039,6 +1044,95 @@ if ($page === 'employee-leave') {
     <div class="phase3a-leave-layout"><section class="panel"><div class="panel-head"><div><h2>Apply for leave</h2><p>Your Manager approves first. HR or Payroll gives final approval.</p></div></div><form method="post" class="panel-body"><?=csrf_field()?><input type="hidden" name="action" value="create_leave_request"><div class="field"><label>Leave type</label><select name="leave_type_id" required><option value="">Select leave type</option><?php foreach($types as $t):?><option value="<?=$t['id']?>"><?=e($t['name'])?></option><?php endforeach;?></select></div><div class="split"><div class="field"><label>From</label><input type="date" name="date_from" required></div><div class="field"><label>To</label><input type="date" name="date_to" required></div></div><div class="field"><label>Reason</label><textarea name="reason" rows="4" required></textarea></div><button class="btn primary">Submit leave request</button></form></section><section class="panel"><div class="panel-head"><div><h2>Leave history</h2><p>Current and previous requests.</p></div></div><div class="phase3a-list"><?php if(!$requests):?><div class="empty">No leave requests yet.</div><?php endif;foreach($requests as $r):?><div class="phase3a-list-row"><div><strong><?=e($r['leave_type_name'])?></strong><span><?=e(date('M j',strtotime($r['date_from'])))?> – <?=e(date('M j, Y',strtotime($r['date_to'])))?> · <?=e((string)$r['days'])?> day(s)</span></div><span class="phase3a-status"><?=e(stage_label($r['status']))?></span></div><?php endforeach;?></div></section></div>
     <section class="panel phase3a-section"><div class="panel-head"><div><h2>Leave credit transactions</h2><p>Every credit and deduction is traceable.</p></div></div><div class="phase3a-table-wrap"><table class="phase3a-table"><thead><tr><th>Date</th><th>Leave type</th><th>Transaction</th><th>Amount</th><th>Reason</th></tr></thead><tbody><?php if(!$history):?><tr><td colspan="5" class="empty">No leave credit transactions yet.</td></tr><?php endif;foreach($history as $h):?><tr><td><?=e(date('M j, Y',strtotime($h['created_at'])))?></td><td><?=e($h['leave_type_name'])?></td><td><?=e(stage_label($h['transaction_type']))?></td><td class="mono"><?=((float)$h['amount']>0?'+':'')?><?=number_format((float)$h['amount'],2)?></td><td><?=e($h['reason'])?></td></tr><?php endforeach;?></tbody></table></div></section><?php endif;?>
     <?php render_portal_footer(); exit;
+}
+
+// My Profile: read-only, always the signed-in user's own record (no id parameter is read).
+if ($page === 'employee-profile') {
+    need_db(); EmployeeProfileService::requireAccess();
+    $profile=EmployeeProfileService::forCurrentUser();
+    $kind=EmployeeProfileService::kind(Auth::user()??[]);
+    render_portal_header($kind,$page,'My Profile');page_head(['employee'=>'Employee Self-Service','hr'=>'Human Resources','admin'=>'Administration'][$kind].' / My Profile','My Profile');
+    if($profile){
+        $extra=EmployeeProfileService::extras((int)$profile['id']);
+        echo EmployeeProfileViews::page(EmployeeProfileService::hero($profile),EmployeeProfileService::personal($profile),EmployeeProfileService::contact($profile,$extra['emergency']),EmployeeProfileService::employment($profile,$extra['rate'],$extra['balances']),EmployeeProfileService::historyRows($extra['history']),['ids'=>$extra['ids'],'documents'=>$extra['documents']],$kind,EmployeeProfileService::shortcuts(static fn(string $p):bool=>Auth::can($p)));
+    } else echo EmployeeProfileViews::empty();
+    render_portal_footer(); exit;
+}
+// Reveal ONE of the signed-in employee's own government ID numbers (POST + CSRF, audited, never cached).
+if ($page === 'employee-profile-reveal') {
+    need_db(); EmployeeProfileService::requireAccess();
+    header('Content-Type: application/json'); header('Cache-Control: no-store'); header('X-Content-Type-Options: nosniff');
+    if(($_SERVER['REQUEST_METHOD']??'')!=='POST'){http_response_code(405);header('Allow: POST');exit('{"error":"Method not allowed"}');}
+    $sent=$_POST['csrf']??''; $expected=$_SESSION['csrf']??''; // an empty token never matches, even before the session has one
+    if(!is_string($sent)||$sent===''||$expected===''||!hash_equals($expected,$sent)){http_response_code(419);exit('{"error":"Session expired. Reload the page."}');}
+    $ownId=EmployeeProfileService::ownEmployeeId(); $number=$ownId?EmployeeProfileService::revealNumber($ownId,(int)($_POST['id']??0)):null;
+    if($number===null){http_response_code(404);exit('{"error":"ID not found"}');}
+    exit(json_encode(['number'=>$number],JSON_UNESCAPED_UNICODE));
+}
+// Own scanned documents. Ownership is enforced by the query (employee_id = signed-in employee).
+if ($page === 'employee-profile-document') {
+    need_db(); EmployeeProfileService::requireAccess();
+    $ownId=EmployeeProfileService::ownEmployeeId(); $doc=$ownId?EmployeeRepository::document($ownId,(int)($_GET['id']??0)):null;
+    session_write_close(); // nothing below writes the session; a slow thumbnail must not block the user's other requests
+    if(!$doc){http_response_code(404);exit('Document not found');}
+    $path=__DIR__.'/storage/employee_documents/'.basename((string)$doc['stored_name']);
+    if(!is_file($path)){http_response_code(404);exit('Document file not found');}
+    $mime=(string)$doc['mime_type']; $download=!empty($_GET['download']);
+    $inline=!$download&&in_array($mime,['application/pdf','image/jpeg','image/png','image/webp'],true);
+    $name=(string)$doc['original_name']; // ASCII fallback + RFC 5987 name: CR/LF, quotes, backslashes and non-ASCII can never reach the header raw
+    $disposition=($inline?'inline':'attachment').'; filename="'.preg_replace('/[^\x20-\x7E]|["\\\\;]/','_',$name).'"; filename*=UTF-8\'\''.rawurlencode($name);
+    // ?thumb=1 serves a small cached preview for the grid when GD can make one; otherwise the original, unchanged.
+    $thumb=(!empty($_GET['thumb'])&&!$download&&str_starts_with($mime,'image/'))?EmployeeProfileService::thumbnail($path,(string)$doc['stored_name']):null;
+    if($thumb) EmployeeProfileService::stream($thumb,'image/jpeg','inline; filename="preview.jpg"');
+    EmployeeProfileService::stream($path,$mime?:'application/octet-stream',$disposition);
+}
+if ($page === 'employee-profile-photo') {
+    need_db(); EmployeeProfileService::requireAccess();
+    $ownId=EmployeeProfileService::ownEmployeeId(); $photo=$ownId?EmployeeRepository::profilePhoto($ownId):null;
+    session_write_close();
+    if(!$photo){http_response_code(404);exit('Photo not found');}
+    $path=__DIR__.'/storage/employee_photos/'.basename((string)$photo['stored_name']);
+    if(!is_file($path)){http_response_code(404);exit('Photo file not found');}
+    $photoType=in_array((string)$photo['mime_type'],['image/jpeg','image/png','image/webp'],true)?(string)$photo['mime_type']:'application/octet-stream'; // only real image types are ever served as such
+    EmployeeProfileService::stream($path,$photoType,'');
+}
+
+// My Profile quick links: Downloads, FAQs and the three pay pages. Same access as My Profile; writes need employees.manage.
+if (in_array($page,['profile-downloads','profile-faqs','profile-payslip','profile-deductions','profile-additional'],true)) {
+    need_db(); EmployeeProfileService::requireAccess();
+    $kind=EmployeeProfileService::kind(Auth::user()??[]); $manage=PortalContentService::canManage(); $area=['employee'=>'Employee Self-Service','hr'=>'Human Resources','admin'=>'Administration'][$kind];
+    if(($_SERVER['REQUEST_METHOD']??'')==='POST' && in_array($page,['profile-downloads','profile-faqs'],true)){
+        verify_csrf();
+        if(!$manage){http_response_code(403);exit('Access denied');}
+        $action=(string)($_POST['action']??'');
+        try{
+            if($page==='profile-downloads'){
+                if($action==='add'){PortalContentService::addDownload($_FILES['file']??[],(string)($_POST['title']??''),(string)($_POST['description']??''));flash('success','File added.');}
+                elseif($action==='remove'){$ok=PortalContentService::removeDownload((int)($_POST['id']??0));flash($ok?'success':'error',$ok?'File removed.':'File not found.');}
+            } else {
+                if($action==='save'){$fid=(int)($_POST['id']??0);PortalContentService::saveFaq($fid,(string)($_POST['question']??''),(string)($_POST['answer']??''),(int)($_POST['sort_order']??100));flash('success',$fid>0?'FAQ saved.':'FAQ added.');}
+                elseif($action==='remove'){PortalContentService::removeFaq((int)($_POST['id']??0));flash('success','FAQ removed.');}
+            }
+        }catch(RuntimeException $ex){flash('error',$ex->getMessage());}
+        redirect($page);
+    }
+    $title=['profile-downloads'=>'Downloads','profile-faqs'=>'FAQs'][$page]??PortalContentViews::PAY_PAGES[$page][0];
+    render_portal_header($kind,$page,$title);
+    page_head($area.' / '.$title,$title,PortalContentViews::back());
+    if($page==='profile-downloads') echo PortalContentService::ready()?PortalContentViews::downloads(PortalContentService::downloads(),$manage):PortalContentViews::notReady($manage);
+    elseif($page==='profile-faqs') echo PortalContentService::ready()?PortalContentViews::faqs(PortalContentService::faqs(),$manage):PortalContentViews::notReady($manage);
+    else echo PortalContentViews::payPage($page,$kind!=='employee');
+    render_portal_footer(); exit;
+}
+if ($page === 'profile-download-file') {
+    need_db(); EmployeeProfileService::requireAccess();
+    $file=PortalContentService::download((int)($_GET['id']??0));
+    session_write_close();
+    if(!$file){http_response_code(404);exit('File not found');}
+    $path=PortalContentService::storageDir().'/'.basename((string)$file['stored_name']);
+    if(!is_file($path)){http_response_code(404);exit('File missing');}
+    $name=(string)$file['original_name'];
+    EmployeeProfileService::stream($path,(string)$file['mime_type']?:'application/octet-stream','attachment; filename="'.preg_replace('/[^\x20-\x7E]|["\\\\;]/','_',$name).'"; filename*=UTF-8\'\''.rawurlencode($name));
 }
 
 if ($page === 'manager-approvals') {
@@ -1329,6 +1423,7 @@ if ($page === 'hr-employee') {
       <?php employee_maternity_panel($e);?>
       <section class="panel phase2b-form-panel"><div class="panel-head"><div><h2>Employment information</h2><p>Assignment, status, portal linkage and effective-date history.</p></div><span class="badge gray">Changes are audited</span></div><?php if(!$canManage):?><div class="panel-body"><div class="alert">You have view-only access.</div></div><?php else:?><form method="post" class="panel-body employee-form-grid"><?=csrf_field()?><input type="hidden" name="action" value="update_employee_employment"><input type="hidden" name="employee_id" value="<?=$id?>"><input type="hidden" name="return_page" value="hr-employee"><input type="hidden" name="return_id" value="<?=$id?>"><input type="hidden" name="return_tab" value="employment">
         <div class="field"><label>Employee number</label><input name="employee_no" value="<?=e($e['employee_no'])?>" <?=empty($e['employee_no']) && !empty($e['roster_needs_details'])?'':'required'?>></div><div class="field"><label>User account</label><select name="user_id"><option value="">Not linked</option><?php foreach($masters['employee_users'] as $x):?><option value="<?=$x['id']?>" <?=((int)($e['user_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['full_name'].' · '.$x['email'].' · '.$x['role_name'].($x['status']!=='ACTIVE'?' · Inactive':''))?></option><?php endforeach;?></select><small>Active, unlinked accounts are shown. HR and Admin links require a Super Admin.</small></div>
+        <?php if(array_key_exists('lee_code',$e)):?><div class="field"><label for="lee_code">Lee code</label><input id="lee_code" name="lee_code" value="<?=e($e['lee_code']??'')?>" maxlength="30" autocomplete="off"><small>Payroll code used by Lee. Leave blank if none.</small></div><?php endif;?>
         <div class="field"><label for="work_company_edit">Company</label><select id="work_company_edit" name="work_company"><option value="">Not set</option><?php foreach(['2LOG','PMBSI'] as $wc):?><option value="<?=e($wc)?>" <?=($e['work_company']??'')===$wc?'selected':''?>><?=e($wc)?></option><?php endforeach;?></select><small>Choose the work assignment company.</small></div>
         <div class="field"><label>Department</label><select name="department_id"><option value="">Unassigned</option><?php foreach($masters['departments'] as $x): $isSelected=((int)($e['department_id']??0)===(int)$x['id']); if(!$x['active']&&!$isSelected)continue;?><option value="<?=$x['id']?>" data-company="<?=e($x['work_company']??'2LOG')?>" data-active="<?=(int)$x['active']?>" data-retail="<?=strtoupper((string)($x['code']??''))==='RETAIL'?'1':'0'?>" <?=$isSelected?'selected':''?>><?=e($x['name'])?><?=!$x['active']?' · Retired':''?></option><?php endforeach;?></select></div><div class="field"><label>Position</label><select name="position_id"<?=Auth::can('organization.manage')?' data-org-url="'.e(url('admin-organization')).'"':''?>><option value="">Unassigned</option><?php foreach($masters['positions'] as $x): $isSelected=((int)($e['position_id']??0)===(int)$x['id']); if(!$x['active']&&!$isSelected)continue;?><option value="<?=$x['id']?>" data-pmbsi-position="<?=EmployeeRepository::positionAllowedForWorkCompany((string)$x['name'],'PMBSI')?'1':'0'?>" data-2log-position="<?=EmployeeRepository::positionAllowedForWorkCompany((string)$x['name'],'2LOG')?'1':'0'?>" data-active="<?=(int)$x['active']?>" <?=$isSelected?'selected':''?>><?=e($x['name'])?><?=!empty($x['department_name'])?' · '.e($x['department_name']):''?><?=!$x['active']?' · Retired':''?></option><?php endforeach;?></select></div>
         <div class="field"><label>Branch / Site</label><select name="branch_id"><option value="">Unassigned</option><?php foreach($masters['branches'] as $x): $isSelected=((int)($e['branch_id']??0)===(int)$x['id']); if(!$x['active']&&!$isSelected)continue;?><option value="<?=$x['id']?>" data-companies="<?=e(json_encode(FoundationRepository::branchCompanyMap()[(int)$x['id']]??[],JSON_FORCE_OBJECT))?>" <?=$isSelected?'selected':''?>><?=e($x['name'])?><?=!$x['active']?' · Retired':''?></option><?php endforeach;?></select></div><div class="field"><label>Employee Status</label><?php $onMaternity=MaternityService::ready()&&(bool)MaternityService::active((int)$e['id']); $typeLocked=in_array($e['status'],EmployeeRepository::ARCHIVED_STATUSES,true)||$onMaternity;if($typeLocked):?><input type="hidden" name="employment_type_id" value="<?=e((string)($e['employment_type_id']??''))?>"><?php endif;?><select name="employment_type_id" <?=$typeLocked?'disabled':''?>><option value="">Unassigned</option><?php foreach($masters['employment_types'] as $x): if(!$x['active']&&(int)($e['employment_type_id']??0)!==(int)$x['id'])continue;?><option value="<?=$x['id']?>" data-code="<?=e($x['code'])?>" <?=((int)($e['employment_type_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select><small><?=$typeLocked?($onMaternity?'On maternity leave. Use Return to work in the Maternity leave box.':'In the Employee Archive. Use Restore to change it.'):'Resign moves the employee to the Employee Archive (needs the effective date and remarks below).'?></small></div>
@@ -1344,7 +1439,7 @@ if ($page === 'hr-employee') {
         <?php endif;?>
         <?php if(EmployeeDirectoryPlacement::ready()): $directoryAreas=FoundationRepository::areas(); $assignedDirectoryAreas=EmployeeDirectoryPlacement::areaIds($e['directory_area_ids']??null); ?>
         <input type="hidden" name="directory_fields_present" value="1">
-        <div class="field"><label for="directory_role">Directory section</label><select id="directory_role" name="directory_role"><?php foreach([''=>'Use saved position','EMPLOYEE'=>'Employees','DEPARTMENT_MANAGER'=>'Department Managers','ADL'=>'Area Development Leaders (ADL)'] as $code=>$label):?><option value="<?=e($code)?>" <?=($e['directory_role']??'')===$code?'selected':''?>><?=e($label)?></option><?php endforeach;?></select><small>This controls the employee directory display.</small></div>
+        <div class="field"><label for="directory_role">Directory role</label><select id="directory_role" name="directory_role"><?php foreach([''=>'Automatic (from position)','EMPLOYEE'=>'Employees','DEPARTMENT_MANAGER'=>'Department Managers','ADL'=>'Area Development Leaders (ADL)'] as $code=>$label):?><option value="<?=e($code)?>" <?=($e['directory_role']??'')===$code?'selected':''?>><?=e($label)?></option><?php endforeach;?></select><small>Decides where this person appears in the Employee Directory and Reporting To. Leave on Automatic unless the position is wrong.</small></div>
         <?=DirectorySectionViews::field($e)?>
         <fieldset class="field full directory-assigned-areas"><legend>Assigned areas for ADL</legend><small>Choose all areas handled by this ADL.</small><div class="directory-area-options"><?php foreach($directoryAreas as $area):$areaId=(int)$area['id'];if(empty($area['active'])&&!in_array($areaId,$assignedDirectoryAreas,true))continue;?><label><input type="checkbox" name="directory_area_ids[]" value="<?=$areaId?>" <?=in_array($areaId,$assignedDirectoryAreas,true)?'checked':''?>><?=e($area['name'])?></label><?php endforeach;?></div></fieldset>
         <?php endif;?>

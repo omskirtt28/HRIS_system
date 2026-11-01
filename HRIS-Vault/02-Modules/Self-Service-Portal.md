@@ -254,3 +254,6 @@ HR Requests → Ticketing Report (`ticket.report.view`, HR roles only). Read-onl
 [[Payroll]] · [[Attendance-and-DTR]] · [[Leave-Management]] · [[Employee-Records]] · [[Auth-and-RBAC]] · [[Notifications]] · [[Reports-and-Analytics]] · [[Offboarding-and-Clearance]] · [[Screens]] · [[API-Surface]] · [[Personas]] · [[Business-Rules]] · [[Security-and-Compliance]]
 
 Hub for HR requests: [[Employee-Tickets]] · UI rules: [[Design-System]]
+
+## 2026-10-31 - My Profile
+- Read-only own-profile page in the Employee portal (and Profile menu for HR/admin). Reads employees, emergency contacts, employment history, government IDs (masked), documents, current payroll rate and leave balances; no new table. Files: app/EmployeeProfileService.php, app/EmployeeProfileViews.php, public/assets/employee-profile.css/js. Tests: tests/employee_profile_test.php (pure), tests/employee_profile_db_test.php (scratch DB). Plan and spec: tasks/plan.md, SPEC-my-profile.md.

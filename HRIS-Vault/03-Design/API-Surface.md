@@ -216,3 +216,9 @@ Errors: a refused request returns HTTP 403 with the ticket error page. Scheduled
 [[Architecture]] · [[Data-Model]] · [[Auth-and-RBAC]] · [[Screens]] · [[Security-and-Compliance]] · [[Business-Rules]] · [[Payroll]] · [[Attendance-and-DTR]]
 
 Hub for HR requests: [[Employee-Tickets]] · UI rules: [[Design-System]]
+
+## 2026-10-31 - My Profile routes
+- GET employee-profile (page), GET employee-profile-photo, GET employee-profile-document?id=[&download=1], POST employee-profile-reveal (csrf, id = own government ID row, returns JSON number, no-store, audited REVEAL_OWN_GOV_ID). Guard: signed-in employee/hr/admin portal account (EmployeeProfileService::requireAccess), own employee row only; no employee id parameter. Ownership of ID rows and documents is enforced in the SQL (employee_id = signed-in employee).
+
+## 2026-10-31 - Follow up route
+- POST hr-request (action `core_ticket_followup`, ticket_id, csrf): `TicketLeadFollowup::followUp`. Read-only lead only, open status, not Incident Report, once per 24h. Opening a request as a viewer marks its notifications read.

@@ -104,3 +104,17 @@ Related: [[Decision-Log]] · [[Roadmap]] · [[Business-Rules]] · [[PH-Labor-and
 
 - Q65 (2026-10-29): With "Include someone" removed from the IR case page, HR cannot re-add a person after "Remove" in People on this case. Keep Remove, or remove it too? Owner: John.
 - Q66 (2026-10-29): `incident_case_test.php`, `incident_case_ui_test.php` and `incident_browser_setup.php` fixtures lack `nature`, `location_type`, `immediate_head`, so the suites crash before any assertion. Update fixtures? Owner: John.
+
+## 2026-10-31 - My Profile open points
+- Old HRIS fields not stored in employees (religion, blood type, mother maiden name, number of children, tel/fax, preferred contact, city/province/zip, address line 2, bio code): add only if John approves a schema change.
+- Payslip, Deductions, Additional, Downloads, FAQs are Soon.
+- Should HR roles get Send Request / DTR / Leave links (they hold none of those permissions)? Left unchanged.
+- Document thumbnails are the original image (lazy-loaded); add a server thumbnail step if large scans feel slow (GD is not enabled on local PHP).
+- Live: employees.view_self for EMPLOYEE verified on localhost only.
+
+- Document thumbnails need PHP GD on the live host (extension=gd); without it the grid serves the original images.
+
+- Reveal rate limit / step-up re-authentication and a CSP sandbox for inline PDFs: not done (decide if the threat model includes shared workstations). Global verify_csrf() accepts an empty token when the session has none (pre-existing).
+- My Profile JavaScript has no automated test; empty-state wording for HR/admin accounts with no employee row still says Contact HR.
+
+- Lead notifications: a Retail branch with no ADL/area or a Manager with no account notifies nobody (already shown in the viewer report). Follow-up notifications to HR have no sidebar count (only the bell). Browser check of the badge/button not done.

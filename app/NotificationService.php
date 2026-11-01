@@ -44,6 +44,7 @@ final class NotificationService
         if($n['type_code']==='NETSUITE_CONCERN' && $n['ticket_status']==='COMPLETED' && $access['accounting'])return 'hr-accounting-requests';
         if($access['approve'] && $n['assigned_approval'] && (int)$n['subject_user_id']!==$userId)return 'hr-request-inbox';
         if($access['hr'])return $n['type_code']==='PAYROLL_CONCERN'?'hr-payroll-concerns':'hr-service-requests';
+        if(!empty($access['team']))return 'hr-request-team';// read-only lead (Manager, ADL, SC, OIC)
         return null;
     }
 
@@ -57,7 +58,7 @@ final class NotificationService
         $workspace=in_array($portal,['employee','hr','admin'],true);
         $access=['incidents'=>$workspace,'self'=>$workspace&&(Auth::can('tickets.request_self')||Auth::can('ticket.file_for_others')),
             'hr'=>$tickets&&TicketRepository::isHr(),'approve'=>$workspace&&TicketRepository::canApprove(),
-            'accounting'=>$tickets&&$workspace&&TicketAccounting::canView(),
+            'accounting'=>$tickets&&$workspace&&TicketAccounting::canView(),'team'=>$tickets&&$workspace&&Auth::can('ticket.view_team'),
             'reminders'=>in_array($portal,['hr','admin'],true)&&Auth::can('employees.view_all')];
         $sql='SELECT n.kind';$params=[];
         if($tickets){

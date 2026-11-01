@@ -410,3 +410,20 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 ## 2026-10-29 - Organization Setup side-by-side UI/UX
 
 - Organization Setup UI/UX: preserve side-by-side desktop cards; name/status headings, separate metadata/actions, labeled rounded Add fields, wider Position name, expandable department panel, consistent focusable actions and responsive branch forms. Updated stylesheet cache marker. PHP lint and static checks passed; rendered/browser/app/DB behavior unverified.
+
+## 2026-10-31 - My Profile (read-only)
+- My Profile (page employee-profile): sidebar item for employees, and the top-right Profile menu for every internal account (employee, HR, admin). Hero, quick-link strip (Print Summary, Send Request, Send DTR Adjustment, Leave, Attendance; Payslip/Deductions/Additional/Downloads/FAQs as Soon), tabs Personal / Contact and Address / Employment (job, dates, pay rate, leave credits, history) / IDs and Documents (masked government IDs with audited Show, scanned documents grid with preview, filter and download). Employees cannot edit; HR maintains data in Employee 201. Old-page fields with no employees column are omitted. Visual and print acceptance pending.
+
+- 2026-10-31: CONSTRAINTS.md and scripts/check.php added (quality gate); see [[Session-Log]].
+
+- 2026-10-31: My Profile hardened after ship review (no-cache scans, EXIF thumbnails, memory guard, safe headers, reveal JS fix); tests 79/14/55.
+
+- 2026-10-31 Sidebar rail v2: full logo, group-icon flyout, interactive group headers (UI only; see Session-Log).
+
+## 2026-10-31 - HR dashboard v2 (UI only)
+- Restyled the HR dashboard: Needs action / Overview KPI tiers, segmented Period control, three right-column cards, compact empty states, no bars for zero recruitment stages. `app/HrDashboardViews.php`, `public/assets/hr-ops.css` (`.hd2`), new `tests/hr_dashboard_ui_test.php` (floor 20). No data, permission, route or shared CSS change.
+
+## 2026-10-31 - Team Requests lead notification and Follow up (Claude)
+- Head Office Manager (Reporting To) and Retail ADL / Sales Captain / OIC now get an in-app notification when a request is filed and on every status change (not drafts, comments, attachments or Incident Reports). Generic text, ticket number only.
+- Team Requests rows show a "New" badge until the lead opens the request; the sidebar badge for these notifications counts on Team Requests. Read-only leads get a "Follow up with HR" button (once per 24h per request) that notifies HR reviewers.
+- Migration 019 `ticket_lead_followups` (applied to localhost pmbsi_hris 2026-10-31 after verified dump/restore). New suite tests/ticket_lead_followup_test.php (30 checks). Not pushed or deployed; browser not checked.

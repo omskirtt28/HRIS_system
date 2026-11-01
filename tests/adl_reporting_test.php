@@ -69,7 +69,7 @@ try {
     check('Manager is not flagged is_adl', (int)($cands[$mgr]['is_adl'] ?? 1) === 0);
     check('isAdl() agrees', EmployeeRepository::isAdl($adlA) && !EmployeeRepository::isAdl($mgr));
     db()->exec("UPDATE employees SET directory_role='EMPLOYEE' WHERE id=$adlB");
-    check('Directory section override to Employees removes ADL (same rule as the directory)', !EmployeeRepository::isAdl($adlB));
+    check('Directory role override to Employees removes ADL (same rule as the directory)', !EmployeeRepository::isAdl($adlB));
     db()->exec("UPDATE employees SET directory_role=NULL WHERE id=$adlB");
 
     // --- HR session from here ---

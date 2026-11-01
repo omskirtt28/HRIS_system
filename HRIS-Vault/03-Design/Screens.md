@@ -172,3 +172,12 @@ Request detail (`hr-request`) uses shared pieces from `tickets.css`: stepper sta
 ## 2026-10-29 - Organization Setup side-by-side UI/UX
 
 - Organization Setup implementation: name/status heading, metadata second line, actions below across every master card; labeled Add forms and full-width Position name. Native details keeps the department editor below its summary/toggle row. Existing two-column desktop and one-column narrow card layout retained, with wrapping names and responsive form grids. Rendered layout and interaction remain unverified.
+
+## 2026-10-31 - My Profile
+- SCR My Profile (employee-profile): own record only, read-only, tabs Personal / Contact and Address / Employment / IDs and Documents, quick-link strip, print summary (A4). Opened from the Employee sidebar and the top-right Profile menu (employee, hr and admin portals). Related: [[Self-Service-Portal]], [[Employee-Records]].
+
+## 2026-10-31 - HR Dashboard v2 (`hr-dashboard`)
+Slim header (greeting, Employee directory, Open HR Request Queue). Filter bar: Company select + Period segmented control (links, `aria-current`). KPI tiers: Needs action (Pending requests, In progress, Incident Reports) and Overview (Served, Recruitment, Active employees); same values and links as before. Requests by type + wait-time bars on the left; Oldest pending requests, Incident Reports and Setup warnings (count chips, "All clear") on the right. Recruitment pulse shows no bar for a zero stage and an empty state. Panel links are plain text links.
+
+## 2026-10-31 - Team Requests lead additions
+- Team Requests (`hr-request-team`): "New" badge beside the ticket number while the lead's notification is unread. Request detail (lead, read-only): panel "Follow up with HR" button; after use it shows a disabled "Followed up" state for 24h.

@@ -4,17 +4,17 @@
   .sidefold{display:grid}
   .shell{transition:grid-template-columns .16s ease}
   html[data-side=folded] .shell{grid-template-columns:88px minmax(0,1fr)}
-  html[data-side=folded] .side{padding:18px 10px 16px;overflow-x:hidden;scrollbar-width:none}
+  html[data-side=folded] .side{padding:18px 10px 16px;overflow-x:hidden;scrollbar-width:none;z-index:60}
   html[data-side=folded] .side::-webkit-scrollbar{display:none}
   /* Labels stay in the accessibility tree; only the pixels go. */
   html[data-side=folded] .side .nl{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-  html[data-side=folded] .side .gl,
+  html[data-side=folded] .side div.gl,
   html[data-side=folded] .side .brand-portal-meta,
   html[data-side=folded] .side .nav-item .soon,
   html[data-side=folded] .side .side-footer .prof>div{display:none!important}
   html[data-side=folded] .side .brand-portal{padding:0 0 12px!important;align-items:center!important}
-  /* Rail shows only the round p emblem: the 44px box crops the wide logo to its left end so it stays crisp and centred. */
-  html[data-side=folded] .side .brand-portal .brand-full-logo{width:44px!important;height:44px!important;max-width:none;object-fit:cover!important;object-position:left center!important;margin:0 auto!important}
+  /* Rail keeps the whole logo (emblem + pmbsi wordmark), scaled to the rail width instead of cropped. */
+  html[data-side=folded] .side .brand-portal .brand-full-logo{width:100%!important;max-width:68px;height:auto!important;object-fit:contain!important;margin:0 auto!important}
   html[data-side=folded] .side .nav-group{margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.07)}
   html[data-side=folded] .side .nav-group:first-child{margin-top:0;padding-top:0;border-top:0}
   html[data-side=folded] .side .nav-item{position:relative;justify-content:center;gap:0;padding:11px 0}
@@ -36,12 +36,31 @@
 .nav-group .gl-toggle:focus-visible{outline:2px solid var(--hris-brand,#fdae04);outline-offset:1px}
 .nav-group .gl-text{flex:1;min-width:0}
 .nav-group .gl-toggle svg{width:16px;height:16px;flex:0 0 auto;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .16s ease}
-.nav-group.is-collapsed .gl-toggle svg{transform:rotate(-90deg)}
+.nav-group .gl-toggle>svg{width:14px;height:14px}
+.nav-group.is-collapsed .gl-toggle>svg{transform:rotate(-90deg)}
+.nav-group .gl-ico{display:grid;place-items:center;width:26px;height:26px;border-radius:8px;background:rgba(255,255,255,.06);transition:background .16s ease,color .16s ease,transform .16s ease}
+.nav-group .gl-toggle:hover .gl-ico{background:rgba(253,174,4,.18);color:var(--hris-brand,#fdae04);transform:scale(1.08)}
+.nav-group.has-active .gl-toggle{color:#fff}
+.nav-group.has-active .gl-ico{background:var(--hris-brand,#fdae04);color:#111318}
+.nav-group:not(.is-collapsed) .nav-items{animation:navIn .18s ease}
+.nav-group .nav-item{transition:transform .14s ease,background .16s ease}
+.nav-group .nav-item:hover{transform:translateX(2px)}
+@keyframes navIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 .nav-group .gl-count{min-width:18px;padding:0 6px;border-radius:99px;background:var(--hris-danger,#c0262d);color:#fff;font-size:10px;font-weight:700;line-height:17px;text-align:center;letter-spacing:0}
 .nav-group .gl-count[hidden]{display:none}
 .nav-group.is-collapsed .nav-items{display:none}
 @media(min-width:901px){
-  /* The icon rail shows every icon; folding only applies to the full sidebar. */
-  html[data-side=folded] .side .nav-group.is-collapsed .nav-items{display:block}
-  html[data-side=folded] .side .gl-toggle{display:none}
+  /* Icon rail: one icon per group; its items open in a flyout beside the rail (hover, focus or click). */
+  html[data-side=folded] .side .nav-group.foldable .nav-items{display:none;animation:none}
+  html[data-side=folded] .side .nav-group.foldable.fly .nav-items{display:block;position:fixed;z-index:70;min-width:220px;padding:8px;border-radius:12px;background:var(--hris-sidebar,#16181d);border:1px solid rgba(255,255,255,.1);box-shadow:0 10px 28px rgba(0,0,0,.4);animation:navIn .14s ease}
+  html[data-side=folded] .side .nav-group.foldable .nav-items::before{content:attr(data-title);display:block;padding:4px 10px 8px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#7b8290}
+  html[data-side=folded] .side .nav-group.foldable .nav-items .nl{position:static;width:auto;height:auto;overflow:visible;clip:auto;white-space:nowrap}
+  html[data-side=folded] .side .nav-group.foldable .nav-item{justify-content:flex-start;gap:10px;padding:9px 10px}
+  html[data-side=folded] .side .nav-group.foldable .nav-item.active{box-shadow:none;background:var(--hris-sidebar-soft,#24272e)}
+  html[data-side=folded] .side .gl-toggle{position:relative;justify-content:center;gap:0;padding:8px 0}
+  html[data-side=folded] .side .gl-toggle .gl-text,
+  html[data-side=folded] .side .gl-toggle>svg{display:none}
+  html[data-side=folded] .side .gl-toggle .gl-ico{width:34px;height:34px}
+  html[data-side=folded] .side .gl-toggle .gl-count{position:absolute;top:1px;right:8px;min-width:16px;padding:0 4px;line-height:16px;box-shadow:0 0 0 2px var(--hris-sidebar,#16181d)}
+  html[data-side=folded] .side .nav-group.has-active .gl-toggle{box-shadow:inset 3px 0 0 var(--hris-brand,#fdae04)}
 }

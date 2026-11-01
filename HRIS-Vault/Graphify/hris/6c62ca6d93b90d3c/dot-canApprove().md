@@ -1,0 +1,21 @@
+---
+source_file: "C:/xampp/htdocs/HRIS_system/app/TicketRepository.php"
+type: "code"
+community: ".isHr()"
+location: "L24"
+tags:
+  - graphify/code
+  - graphify/EXTRACTED
+  - community/isHr
+---
+
+# .canApprove()
+
+## Connections
+- [[dot-can()_1]] - `calls` [EXTRACTED]
+- [[dot-listing()]] - `calls` [EXTRACTED]
+- [[dot-unreadSummary()]] - `calls` [EXTRACTED]
+- [[TicketRepository]] - `method` [EXTRACTED]
+- [[ticket_detail_page()]] - `calls` [EXTRACTED]
+
+#graphify/code #graphify/EXTRACTED #community/isHr

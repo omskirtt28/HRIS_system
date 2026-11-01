@@ -350,3 +350,10 @@ Employee Add/Edit PMBSI permits only existing exact HR / Human Resource / Human 
 - Employee Add/Edit validates newly selected active department against work company; unchanged legacy/retired assignments are preserved. PMBSI position eligibility remains unchanged. Roster import is not covered by this validation.
 
 - 2026-10-29: Organization Setup positions split by existing Employee Add/Edit eligibility into 2LOG, PMBSI and Needs classification. Company add validates name and optional active company department; shared records and eligibility unchanged, no schema or data migration. PHP lint passed; browser, application and DB behavior unverified.
+
+## 2026-10-31 - My Profile rules
+- Own-profile view is read-only for the employee. Government ID numbers show only the last 4 letters/digits; full number only through the audited reveal, auto re-masked after 30 s and before print. Employees see all their own document types. Pay rate shown from the current payroll_employee_rates row (hourly = amount / divisor; daily or monthly only when stored that way). Employment data changes stay with HR in Employee 201.
+
+## 2026-10-31 - Team Requests leads
+- BR-830: A Head Office employee's Reporting To Manager, and a Retail employee's ADL, Sales Captain and OIC (the same people `viewersFor` lets view the request), are notified when a non-draft, non-Incident request is filed and on every status change. Comments and attachments do not notify them. A lead with no active account or without ticket.view_team is skipped and never blocks filing. Text is generic with the ticket number only.
+- BR-831: A read-only lead may press Follow up on an open request (SUBMITTED, PENDING_APPROVAL, PENDING_HR, IN_PROGRESS), once per 24h per lead per request; HR reviewers are notified (ticket number only). Leads cannot approve, comment or attach; there is no "Noted" action.

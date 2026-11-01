@@ -17,13 +17,40 @@
     const names = [...side.querySelectorAll('.nav-group.foldable:not(.is-collapsed)')].map(g => g.dataset.navGroup);
     try { localStorage.setItem(key, JSON.stringify(names)); } catch (_) { /* Storage can be disabled. */ }
   };
+  // Rail mode: a group is one icon and its items open in a fixed flyout beside it (fixed so the rail's overflow cannot clip it).
+  const railed = () => document.documentElement.dataset.side === 'folded';
+  let flyTimer = 0;
+  const closeFly = () => side.querySelectorAll('.nav-group.fly').forEach(g => {
+    g.classList.remove('fly');
+    g.querySelector('.gl-toggle')?.setAttribute('aria-expanded', String(!g.classList.contains('is-collapsed')));
+  });
+  const openFly = group => {
+    clearTimeout(flyTimer);
+    closeFly();
+    group.classList.add('fly');
+    const btn = group.querySelector('.gl-toggle');
+    btn?.setAttribute('aria-expanded', 'true');
+    const items = group.querySelector('.nav-items');
+    const r = btn.getBoundingClientRect();
+    items.style.left = (r.right + 6) + 'px';
+    // Keep the flyout on screen when the group sits near the bottom of the viewport.
+    items.style.top = Math.max(8, Math.min(r.top, innerHeight - items.offsetHeight - 8)) + 'px';
+  };
+  const closeFlySoon = () => { clearTimeout(flyTimer); flyTimer = setTimeout(closeFly, 160); };
   side.querySelectorAll('.nav-group.foldable').forEach(group => {
     if (opened.includes(group.dataset.navGroup)) set(group, true);
     group.querySelector('.gl-toggle')?.addEventListener('click', () => {
+      if (railed()) { group.classList.contains('fly') ? closeFly() : openFly(group); return; }
       set(group, group.classList.contains('is-collapsed'));
       save();
     });
+    group.addEventListener('mouseenter', () => { if (railed()) openFly(group); });
+    group.addEventListener('mouseleave', () => { if (railed()) closeFlySoon(); });
+    group.addEventListener('focusin', () => { if (railed()) openFly(group); });
+    group.addEventListener('focusout', e => { if (railed() && !group.contains(e.relatedTarget)) closeFlySoon(); });
   });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeFly(); });
+  side.addEventListener('scroll', closeFly, { passive: true });
   // Folded groups still surface unread counts on their header.
   window.refreshNavGroupCounts = () => side.querySelectorAll('.nav-group.foldable').forEach(group => {
     const total = [...group.querySelectorAll('[data-sidebar-count]')].reduce((sum, b) => sum + (b.hidden ? 0 : parseInt(b.textContent, 10) || 0), 0);
@@ -66,7 +93,7 @@ let sideTip = null;
 const showSideTip = link => {
   if (document.documentElement.dataset.side !== 'folded') return;
   const label = link.querySelector('.nl')?.textContent.trim();
-  if (!label) return;
+  if (!label || link.closest('.foldable')) return;
   if (!sideTip) { sideTip = document.createElement('div'); sideTip.className = 'side-tip'; sideTip.setAttribute('aria-hidden', 'true'); document.body.appendChild(sideTip); }
   sideTip.textContent = label;
   const r = link.getBoundingClientRect();

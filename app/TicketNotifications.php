@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__.'/NotificationService.php';
 require_once __DIR__.'/TicketTypes.php';
+require_once __DIR__.'/TicketLeadFollowup.php';
 
 final class TicketNotifications
 {
@@ -27,7 +28,7 @@ final class TicketNotifications
         $q=db()->prepare('INSERT IGNORE INTO ticket_notification_outbox(event_id,recipient_user_id) VALUES(?,?)');
         foreach(array_unique(array_filter($recipients)) as $uid)if($uid!==(int)Auth::user()['id'])$q->execute([$eventId,$uid]);
     }
-    private static function hrReviewerIds():array
+    public static function hrReviewerIds():array
     {
         return array_map('intval',db()->query('SELECT u.id FROM users u JOIN roles r ON r.id=u.role_id WHERE u.status="ACTIVE" AND r.portal IN ("hr","admin") AND (r.code="SUPER_ADMIN" OR EXISTS(SELECT 1 FROM role_permissions rp JOIN permissions p ON p.id=rp.permission_id WHERE rp.role_id=r.id AND p.code="tickets.review_hr"))')->fetchAll(PDO::FETCH_COLUMN));
     }
@@ -44,6 +45,11 @@ final class TicketNotifications
             foreach(db()->query('SELECT m.user_id FROM ticket_accounting_memberships m JOIN users u ON u.id=m.user_id WHERE m.active=1 AND u.status="ACTIVE"')->fetchAll(PDO::FETCH_COLUMN) as $uid)$recipients[]=(int)$uid;
         }
         $q=db()->prepare('INSERT IGNORE INTO ticket_notification_outbox(event_id,recipient_user_id) VALUES(?,?)');
+        // Team Requests leads hear about filing and every status change (not comments, attachments or drafts); they get the generic line only.
+        $q2=db()->prepare('SELECT event_type FROM ticket_events WHERE id=?');$q2->execute([$eventId]);
+        if(in_array($q2->fetchColumn(),['SUBMITTED','TRANSITION'],true)&&($ticket['status']??'')!=='DRAFT'&&TicketViewerService::ready()){
+            try{foreach(TicketLeadFollowup::leadUserIds((int)$ticket['subject_employee_id']) as $lead)$recipients[]=$lead;}catch(Throwable){error_log('HR request lead lookup failed.');}
+        }
         foreach(array_unique($recipients) as $uid)if($uid!==(int)Auth::user()['id'])$q->execute([$eventId,$uid]);
     }
     /**
