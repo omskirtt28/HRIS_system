@@ -357,3 +357,9 @@ Employee Add/Edit PMBSI permits only existing exact HR / Human Resource / Human 
 ## 2026-10-31 - Team Requests leads
 - BR-830: A Head Office employee's Reporting To Manager, and a Retail employee's ADL, Sales Captain and OIC (the same people `viewersFor` lets view the request), are notified when a non-draft, non-Incident request is filed and on every status change. Comments and attachments do not notify them. A lead with no active account or without ticket.view_team is skipped and never blocks filing. Text is generic with the ticket number only.
 - BR-831: A read-only lead may press Follow up on an open request (SUBMITTED, PENDING_APPROVAL, PENDING_HR, IN_PROGRESS), once per 24h per lead per request; HR reviewers are notified (ticket number only). Leads cannot approve, comment or attach; there is no "Noted" action.
+- BR-832: Creating an employee creates exactly one linked, ACTIVE portal account in the same transaction; if either fails neither is saved. Posted user_id and company_email are ignored.
+- BR-833: Account email = firstnamelastname at the domain of the employee's Company (PMBSI pmbsi.com, 2LOG 2log.com); duplicates get 2, 3 and so on; it cannot be edited.
+- BR-834: The account role at creation is Employee or HR (HR_USER) only; other roles use the existing Change role action (Super Admin for HR and Admin portal roles).
+- BR-835: The generated password is 12 chars (no look-alikes); a new or reset account must choose its own password at first sign-in.
+- BR-836: HR (users.view_credentials) may view any account's current password at any time; each view is audited and limited to 10 per minute. Exception to BR-117 (see the Auth-and-RBAC addendum).
+- BR-837: HR may reset passwords of employee-portal accounts only; Super Admin may reset any account.

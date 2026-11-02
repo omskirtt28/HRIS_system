@@ -74,6 +74,13 @@ try {
                     if($originalComments!==$p->query('SELECT id,ticket_id,author_user_id,body,created_at FROM ticket_comments ORDER BY id')->fetchAll()||(int)$p->query('SELECT COUNT(*) FROM ticket_comments WHERE visibility<>"ALL"')->fetchColumn())throw new RuntimeException('Original comments changed during visibility migration.');
                     continue;
                 }
+                if($number===20&&$table==='users'){ // migration 020 adds 3 columns: compare every original column and row, ignoring only those 3
+                    $h=hash_init('sha256');$rows=0;
+                    foreach($p->query('SELECT * FROM `users` ORDER BY `id`') as $row){foreach(['password_enc','must_change_password','password_changed_at'] as $c)unset($row[$c]);hash_update($h,json_encode($row,JSON_THROW_ON_ERROR)."
+");$rows++;}
+                    if($rows!==$before['rows']||hash_final($h)!==$before['data'])throw new RuntimeException('Existing records changed: users');
+                    continue;
+                }
                 $after=slice15_snapshot($p,[$table])[$table];
                 if($after['rows']!==$before['rows']||$after['data']!==$before['data'])throw new RuntimeException('Existing records changed: '.$table);
             }

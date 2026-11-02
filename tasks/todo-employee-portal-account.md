@@ -30,5 +30,5 @@ Write each test first (red), then code. Checkpoint after every 2 tasks: `php scr
 - [x] **T7 Remove old UI/handlers + fix sweep**
   - Delete Create New User card + `create_user` handler and its route map entry (index.php ~280, ~433, ~1784); `availableEmployeeUsers()`/`link_user_employee` stay for existing links (not removed). Recruitment hire path uses the new generator (no typed password). Re-grep: other typed "Temporary password" inputs, "Link later", dead JS for removed form.
   - Acceptance: grep shows none of the removed strings; no PHP notice on Users & Access.
-- [ ] **T8 Tests, checks, vault**
+- [x] **T8 Tests, checks, vault**
   - Register `employee_portal_account_test.php` (floor raised, never lowered), `php scripts/check.php task`, `full` with scratch DB, apply per standing rule, vault: Progress, Auth-and-RBAC (BR-117 exception + new BR), Employee-Records, Employee-Tickets, Data-Model (3 cols, 3 perms, type), Business-Rules, Screens/API-Surface (change-password, reveal), Decision-Log (D4/D11 risk), Open-Questions, CHANGELOG, Session-Log, plan status done.

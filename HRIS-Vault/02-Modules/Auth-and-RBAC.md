@@ -307,3 +307,10 @@ Permission `ticket.file.oic_authorization` (migration 013) lets a role file an O
 [[Employee-Records]] · [[Org-Structure]] · [[Payroll]] · [[Leave-Management]] · [[Attendance-and-DTR]] · [[Self-Service-Portal]] · [[Security-and-Compliance]] · [[Personas]] · [[Data-Model]] · [[API-Surface]] · [[Screens]] · [[Offboarding-and-Clearance]] · [[Business-Rules]]
 
 Hub for HR requests: [[Employee-Tickets]] · UI rules: [[Design-System]]
+
+## Addendum 2026-11-02 - Auto-generated portal accounts and viewable passwords
+- BR-117 exception (John, 2026-11-02, D4/D11): login still verifies only users.password_hash. In addition users.password_enc keeps an AES-256-GCM copy (key security.credential_key in git-ignored config.local.php, never in the database) so HR can view the current password. A missing or short key fails closed. Still never logged, emailed, put in a URL, ticket or audit row.
+- Every reveal needs users.view_credentials (role HR_USER and Super Admin), POST + CSRF, max 10 per minute per viewer, audit REVEAL_PASSWORD (viewer, target, no value). HR sees every account including Super Admin (accepted risk: any HR user can sign in as that account).
+- users.view_directory opens a read-only Users and Access to HR. HR may reset only employee-portal accounts; Super Admin resets any. A reset or the employee's own change rewrites the copy; a reset sets must_change_password.
+- First sign-in with must_change_password=1 redirects every page to the change-password page (only it and logout stay open). Own change needs the current password, 10+ chars with a letter and a number, locks 15 minutes after 5 misses, and revokes other sessions.
+- Accounts that existed before migration 020 have no copy: the eye tells HR to reset the password.

@@ -221,3 +221,6 @@ Codes auto-generated from names; HR position for PMBSI is added by HR via Organi
 
 ## 2026-10-29 - PMBSI departments (prepared)
 - Employee 201 Add/Edit supports PMBSI departments, company-matching validation and existing employment history. Existing unchanged legacy/retired assignments remain editable. Roster import is a separate flow and may produce a company mismatch. Runtime and DB unverified.
+
+## Addendum 2026-11-02 - Portal account on Create Employee
+Create Employee (create_employee) runs EmployeeAccountService::createEmployee: employee plus user in one transaction. Email = first+last name (accents folded, suffix dropped) at pmbsi.com (PMBSI) or 2log.com (2LOG), numbered on duplicates, written to employees.company_email (read-only preview on the form, posted value ignored). New Role field (Employee or HR) is allow-listed server-side. The old User account / Link later select is gone; existing links stay editable (Phase 2C modal, Change role and Link actions unchanged). Recruitment conversion "create account" now also stores the HR copy and forces a first change.

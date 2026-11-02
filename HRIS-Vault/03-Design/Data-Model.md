@@ -382,3 +382,6 @@ Export and compare the ordered snapshots before and after the authorized up migr
 
 ## 2026-10-31 - Migration 019 ticket_lead_followups
 - New table `ticket_lead_followups` (id, ticket_id FK tickets, user_id FK users, created_at; index ticket_id,user_id,created_at). Additive. Down script refuses ("in use") while any row exists. Applied to localhost pmbsi_hris 2026-10-31; existing business rows unchanged.
+
+## Migration 020 (2026-11-02) portal account
+users gets password_enc VARCHAR(255) NULL (v1:base64 of iv, tag and ciphertext), must_change_password TINYINT(1) NOT NULL DEFAULT 0 and password_changed_at DATETIME NULL. New permissions users.view_directory and users.view_credentials (HR_USER) and ticket.file.portal_account. ticket_types gets PORTAL_ACCOUNT_REQUEST. The down script refuses while any password copy, must-change flag or portal-account ticket exists.

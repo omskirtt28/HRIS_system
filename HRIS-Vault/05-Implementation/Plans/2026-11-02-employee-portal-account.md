@@ -8,7 +8,7 @@ updated: 2026-11-02
 
 # Employee portal account auto-generate
 
-Status: draft (spec approved by John 2026-11-02, build not yet approved)
+Status: done (2026-11-02), T1-T8 built and applied to localhost
 Date: 2026-11-02
 Session: [[Session-Log]]
 

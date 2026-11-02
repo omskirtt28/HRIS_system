@@ -181,3 +181,5 @@ Slim header (greeting, Employee directory, Open HR Request Queue). Filter bar: C
 
 ## 2026-10-31 - Team Requests lead additions
 - Team Requests (`hr-request-team`): "New" badge beside the ticket number while the lead's notification is unread. Request detail (lead, read-only): panel "Follow up with HR" button; after use it shows a disabled "Followed up" state for 24h.
+
+- 2026-11-02 Change password (page change-password, any signed-in user; forced at first sign-in). Users and Access: no Create New User card; password column with audited eye for HR and Super Admin; read-only for HR. Create Employee: Role field and read-only company email (portal login).

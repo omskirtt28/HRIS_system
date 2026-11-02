@@ -222,3 +222,5 @@ Hub for HR requests: [[Employee-Tickets]] · UI rules: [[Design-System]]
 
 ## 2026-10-31 - Follow up route
 - POST hr-request (action `core_ticket_followup`, ticket_id, csrf): `TicketLeadFollowup::followUp`. Read-only lead only, open status, not Incident Report, once per 24h. Opening a request as a viewer marks its notifications read.
+
+- 2026-11-02 POST page=user-password-reveal (JSON, CSRF, users.view_credentials, 10 per minute) returns ok, password, message. page=change-password GET and POST. Removed action create_user. reset_user_password now allows users.view_credentials (employee accounts only).

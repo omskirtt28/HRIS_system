@@ -427,3 +427,8 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 - Head Office Manager (Reporting To) and Retail ADL / Sales Captain / OIC now get an in-app notification when a request is filed and on every status change (not drafts, comments, attachments or Incident Reports). Generic text, ticket number only.
 - Team Requests rows show a "New" badge until the lead opens the request; the sidebar badge for these notifications counts on Team Requests. Read-only leads get a "Follow up with HR" button (once per 24h per request) that notifies HR reviewers.
 - Migration 019 `ticket_lead_followups` (applied to localhost pmbsi_hris 2026-10-31 after verified dump/restore). New suite tests/ticket_lead_followup_test.php (30 checks). Not pushed or deployed; browser not checked.
+
+## 2026-11-02 - Auto-generated employee portal account
+- Create Employee creates the portal account (email from name plus Company domain, generated password, Role HR or Employee); Create New User and "Link later" removed.
+- Change password page and forced change at first sign-in; HR password eye (audited, 10 per minute); HR read-only Users and Access; HR reset for employee accounts.
+- New HR Request type: Portal account / forgotten password. Migration 020. Config key security.credential_key required in config.local.php.

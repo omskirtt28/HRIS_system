@@ -353,3 +353,8 @@ John: context ran out from subagents rereading code/vault. Added READ BUDGET to 
 - John: auto-create the portal account when an employee is created; email firstnamelastname@pmbsi.com / @2log.com by Company; role (HR or Employee) chosen on Create Employee; HR (all HR users) can view any password with the eye anytime; employee can change it; forgotten password via HR Requests; remove Create New User form and "Link later". Decisions D1-D12 in the spec. Role clean-up (HR Leave/Timekeeping/Recruiter/Payroll) deferred to a separate patch.
 - Found: no sodium in PHP (use openssl AES-256-GCM); users has no must_change_password; no employee change-password page exists (must be built); HR role has no users.* permissions.
 - Files: SPEC-employee-portal-account.md, tasks/plan-employee-portal-account.md, tasks/todo-employee-portal-account.md, Plans/2026-11-02-employee-portal-account.md. Plan only, no code, no migration. Waiting for John's go-ahead to build.
+
+## 2026-11-02 - Auto-generated employee portal account built (Claude)
+- John: go after approving the plan; skills: build, test (TDD), frontend-ui-engineering, constraints, review. T1-T8 done. Migration 020 applied to localhost pmbsi_hris after verified dump/restore, cycle and guard.
+- The runtime HTTP test found a real bug (HR got 403 on admin-users because of the admin-* portal gate); fixed. Recruitment conversion accounts aligned. Tests: employee_portal_account_test (101) and _http_test (23); constraint floors raised, none lowered.
+- Not run: browser screenshots. Not pushed, not deployed. config/config.local.php (git-ignored, holds the key) must be backed up and copied to any other server before deploying.

@@ -117,3 +117,6 @@ John requested a fix for repeated permission prompts. Relevant source/config rea
 
 ## 2026-10-31 - Lead notification and Follow up
 - Decision (John): notify Manager/ADL (+SC/OIC) on filing and every status change; Follow up goes to HR only; no Noted button; new table for follow-ups OK. Leads stay view-only.
+
+## 2026-11-02 - Viewable account passwords (John)
+Decision: HR can view any account's current password anytime (including Super Admin), stored as an AES-256-GCM copy beside the hash; no reveal window. Why: HR hands credentials to new hires and resets forgotten ones. Alternatives refused: initial-only visibility, no visibility. Risk accepted: HR can sign in as any account; whoever holds the DB and the key sees all passwords. Mitigations: key outside DB and git, audit per view, 10 per minute limit, fail closed. Rollback: drop password_enc (migration 020 down, only when unused). Also decided: email by Company domain, roles HR and Employee only for now, role clean-up (HR Leave, HR Timekeeping, Recruiter, Payroll) deferred to its own patch.

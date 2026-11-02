@@ -79,3 +79,6 @@ HR actions = status form (always visible) + internal note; "Include someone" UI 
 
 ## 2026-10-31 - Lead notification and Follow up
 Spec: SPEC-request-followup.md (repo root), plan: [[2026-10-31-request-followup]]. `TicketNotifications::enqueue()` adds `TicketLeadFollowup::leadUserIds()` (from `TicketViewerService::viewersFor`, active account + view_team) for SUBMITTED/TRANSITION events of non-draft, non-incident tickets. `TicketLeadFollowup::followUp()` (viewer_only, open status, 24h limit, notifies `hrReviewerIds()`), `unreadTicketIds()` / `markSeen()` for the New badge. UI: `ticket_followup_bar()` on both detail pages, badge in Team Requests list. No Noted button (John decided).
+
+## Addendum 2026-11-02 - Portal account / forgotten password request
+Ticket type PORTAL_ACCOUNT_REQUEST (HR_ONLY routing, filing permission ticket.file.portal_account for EMPLOYEE, ADL, MANAGER, OIC, SC, TC, HR_USER, HRIS_ADMIN). Fields: concern (Forgot password, Cannot sign in, Other) and optional remarks (must not contain a password). HR resolves it by viewing or resetting the password in Users and Access. Limit: filing needs a signed-in session, so the login page tells people to ask HR directly.

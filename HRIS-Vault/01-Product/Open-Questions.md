@@ -118,3 +118,7 @@ Related: [[Decision-Log]] · [[Roadmap]] · [[Business-Rules]] · [[PH-Labor-and
 - My Profile JavaScript has no automated test; empty-state wording for HR/admin accounts with no employee row still says Contact HR.
 
 - Lead notifications: a Retail branch with no ADL/area or a Manager with no account notifies nobody (already shown in the viewer report). Follow-up notifications to HR have no sidebar count (only the bell). Browser check of the badge/button not done.
+
+- Q64 (2026-11-02): Role clean-up patch: remove HR Leave, HR Timekeeping, Recruiter and Payroll roles (users on them: Recruiter 2, HR Leave 1, Payroll 2; Recruitment Manager 1 not mentioned). Needs a permission diff against Human Resources, a reassign migration and a guarded down script. Owner: John. Not started.
+- Q65 (2026-11-02): Filing the forgotten-password request needs a signed-in session; an unauthenticated request form was not built (abuse risk). The login page says to ask HR. Revisit if employees cannot reach HR.
+- Q66 (2026-11-02): The 20 existing accounts have no stored password copy until reset; no bulk backfill is possible (hash only).
