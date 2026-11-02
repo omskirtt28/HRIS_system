@@ -74,7 +74,7 @@ $suites = [ // script => [minimum PASS count, needs scratch DB]
     'tests/lee_code_db_test.php' => [8, true],
     'tests/profile_content_http_test.php' => [51, true],
     'tests/ticket_lead_followup_test.php' => [30, true],
-    'tests/employee_portal_account_test.php' => [94, true],
+    'tests/employee_portal_account_test.php' => [100, true],
 ];
 $db = getenv('HRIS_TEST_DB') ?: '';
 $dbOk = $db !== '' && $db !== 'pmbsi_hris';

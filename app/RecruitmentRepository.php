@@ -284,6 +284,8 @@ final class RecruitmentRepository
                 $fullName=trim((string)($data['first_name']??$a['first_name']).' '.(string)($data['middle_name']??$a['middle_name']??'').' '.(string)($data['last_name']??$a['last_name']));
                 $pdo->prepare('INSERT INTO users(role_id,client_id,full_name,email,password_hash,status) VALUES(?,NULL,?,?,?,"ACTIVE")')->execute([(int)$role,$fullName,$accountEmail,password_hash($password,PASSWORD_DEFAULT)]);
                 $userId=(int)$pdo->lastInsertId();
+                require_once __DIR__.'/EmployeeAccountService.php';
+                EmployeeAccountService::setPassword($userId,$password,true); // same rules as auto accounts: HR can view it, the employee must choose their own at first sign-in
                 audit('Access Control','CREATE_EMPLOYEE_ACCOUNT','user',$userId,['email'=>$accountEmail,'source_application_id'=>$applicationId]);
                 if(trim((string)($data['company_email']??''))==='')$data['company_email']=$accountEmail;
             } elseif($accountMode!=='later') throw new RuntimeException('Invalid employee account option.');

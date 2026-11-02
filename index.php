@@ -279,11 +279,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             FoundationRepository::saveRolePermissions((int)($_POST['role_id']??0),(array)($_POST['permission_ids']??[]));
             flash('success','Role permissions updated.'); redirect('admin-roles',['role'=>(int)($_POST['role_id']??0)]);
         }
-        if ($action === 'create_user') {
-            Auth::requirePermission('users.manage');
-            FoundationRepository::createUser((string)($_POST['full_name']??''),(string)($_POST['email']??''),(string)($_POST['password']??''),(int)($_POST['role_id']??0));
-            flash('success','User account created.'); redirect('admin-users');
-        }
         if ($action === 'change_user_role') {
             Auth::requirePermission('users.manage');
             FoundationRepository::changeUserRole((int)($_POST['user_id']??0),(int)($_POST['role_id']??0));
@@ -431,7 +426,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $defaultBack = match($action) {
             'create_business_unit','create_legal_entity','create_department','create_position','update_position_department','create_area','create_branch','create_employment_type','toggle_master' => 'admin-organization',
             'create_role','save_role_permissions' => 'admin-roles',
-            'create_user','toggle_user_status','reset_user_password','change_user_role','link_user_employee' => 'admin-users',
+            'toggle_user_status','reset_user_password','change_user_role','link_user_employee' => 'admin-users',
             'create_employee' => 'hr-employee-new',
             'create_payroll_request' => 'employee-request-new',
             'payroll_request_decision' => 'manager-approvals',
@@ -1787,17 +1782,6 @@ if ($page === 'admin-users') {
     </div>
 
     <div class="users-access-layout">
-      <?php if(Auth::can('users.manage')):?><form method="post" class="panel users-create-card" id="createUserForm"><?=csrf_field()?>
-        <input type="hidden" name="action" value="create_user">
-        <div class="users-card-head"><h2>Create New User</h2><p>Add a new user account to PMBSI HRIS.</p></div>
-        <div class="users-create-body">
-          <div class="field"><label for="create_full_name">Full name</label><input id="create_full_name" name="full_name" required placeholder="Enter full name" autocomplete="name"></div>
-          <div class="field"><label for="create_email">Email address</label><input id="create_email" name="email" type="email" required placeholder="name@pmbsi.com" autocomplete="email"></div>
-          <div class="field"><label for="create_role">Role</label><select id="create_role" name="role_id" required><option value="">Select role</option><?php foreach($assignableRoles as $r):?><option value="<?=$r['id']?>"><?=e($r['name'])?></option><?php endforeach;?></select></div>
-          <div class="field"><label for="create_password">Temporary password</label><div class="users-password-input"><input id="create_password" name="password" type="password" minlength="10" required autocomplete="new-password" placeholder="Minimum 10 characters"><button class="users-eye-btn" type="button" aria-label="Show temporary password" title="Show / hide password" data-password-toggle="#create_password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></div><small>Minimum 10 characters. Include at least one letter and one number.</small></div>
-          <button class="btn primary block users-create-btn" type="submit"><?=icon_svg('user-plus')?> <span>Create account</span></button>
-        </div>
-      </form><?php endif;?>
 
       <section class="panel users-list-card">
         <div class="users-list-head">

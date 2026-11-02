@@ -27,7 +27,7 @@ Write each test first (red), then code. Checkpoint after every 2 tasks: `php scr
   - `config/ticket_types.php` `PORTAL_ACCOUNT_REQUEST` (name "Portal account / forgotten password", fields: concern select [Forgot password, Cannot log in, Other] + remarks), `TicketTypes::FILE_PERMISSIONS`, shown under HR Requests for employees; HR resolves via reveal/reset then completes the ticket.
   - Acceptance: employee files it, HR sees it in queue, status flow like NETSUITE_CONCERN; no password ever written into ticket text (field helper text says so).
   - Files: config/ticket_types.php, app/TicketTypes.php, tests/ticket_*.
-- [ ] **T7 Remove old UI/handlers + fix sweep**
+- [x] **T7 Remove old UI/handlers + fix sweep**
   - Delete Create New User card + `create_user` handler and its route map entry (index.php ~280, ~433, ~1784); `availableEmployeeUsers()`/`link_user_employee` stay for existing links (not removed). Recruitment hire path uses the new generator (no typed password). Re-grep: other typed "Temporary password" inputs, "Link later", dead JS for removed form.
   - Acceptance: grep shows none of the removed strings; no PHP notice on Users & Access.
 - [ ] **T8 Tests, checks, vault**

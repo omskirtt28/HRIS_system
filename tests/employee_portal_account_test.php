@@ -191,4 +191,14 @@ $login=file_get_contents(dirname(__DIR__).'/index.php');
 check('login page tells people to ask HR when they forgot the password',str_contains($login,'Forgot your password? Ask HR to reset it.'));
 act($hrUser);
 
+
+// --- T7 static: old creation paths removed ------------------------------------------------
+$idx=file_get_contents(dirname(__DIR__).'/index.php');$rec=file_get_contents(dirname(__DIR__).'/app/RecruitmentRepository.php');$css=file_get_contents(dirname(__DIR__).'/public/assets/hris-modern.css');
+check('removed: Create New User card',!str_contains($idx,'Create New User')&&!str_contains($idx,'id="createUserForm"'));
+check('removed: create_user action handler and route entry',!str_contains($idx,"'create_user'")&&!str_contains($idx,'value="create_user"'));
+check('removed: no typed Temporary-password create form left on Users & Access',substr_count($idx,'name="password"')===substr_count($idx,'type="password" name="password"'));
+check('users list uses the full width now (single column layout)',str_contains($css,'.users-access-layout{display:grid;grid-template-columns:minmax(0,1fr);'));
+check('repository createUser stays as the tested API (not reachable from any page)',str_contains(file_get_contents(dirname(__DIR__).'/app/FoundationRepository.php'),'public static function createUser('));
+check('recruitment conversion accounts get the HR copy and a forced first change',str_contains($rec,'EmployeeAccountService::setPassword($userId,$password,true);'));
+
 finish();
