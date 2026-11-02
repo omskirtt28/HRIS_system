@@ -44,6 +44,7 @@ function stage_label(string $code): string {
     if($code==='FOR_HR_TIMEKEEPING_APPROVAL') return 'For HR Review';
     if($code==='HR_TIMEKEEPING') return 'HR Review';
     if($code==='RETURNED_FOR_REVISION') return 'For Changes';
+    if($code==='CLIENT_REVIEW') return 'Manager Review'; // label only (SPEC-rec-endorse-manager Q4); the stage code is unchanged
     return ucwords(strtolower(str_replace('_',' ', $code)));
 }
 function stage_badge(string $code): string {
@@ -55,6 +56,11 @@ function money(?float $min, ?float $max): string {
     if ($min === null && $max === null) return 'Salary negotiable';
     if ($min !== null && $max !== null) return '₱'.number_format($min,0).'–₱'.number_format($max,0);
     return '₱'.number_format((float)($min ?? $max),0);
+}
+/** Public salary text: a range only when both ends are set, otherwise Salary negotiable (Q-J5). */
+function job_salary(array $j): string {
+    $both=$j['salary_min']!==null&&$j['salary_max']!==null;
+    return money($both?(float)$j['salary_min']:null,$both?(float)$j['salary_max']:null);
 }
 function audit(string $module, string $action, ?string $recordType=null, ?int $recordId=null, ?array $details=null): void {
     if (!($GLOBALS['pdo'] ?? null) instanceof PDO) return;

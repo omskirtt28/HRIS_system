@@ -358,3 +358,126 @@ John: context ran out from subagents rereading code/vault. Added READ BUDGET to 
 - John: go after approving the plan; skills: build, test (TDD), frontend-ui-engineering, constraints, review. T1-T8 done. Migration 020 applied to localhost pmbsi_hris after verified dump/restore, cycle and guard.
 - The runtime HTTP test found a real bug (HR got 403 on admin-users because of the admin-* portal gate); fixed. Recruitment conversion accounts aligned. Tests: employee_portal_account_test (101) and _http_test (23); constraint floors raised, none lowered.
 - Not run: browser screenshots. Not pushed, not deployed. config/config.local.php (git-ignored, holds the key) must be backed up and copied to any other server before deploying.
+
+## 2026-11-02 - Bulk portal accounts for existing employees: spec approved + plan (Claude)
+- John: imported employees have no login; replace the 201 "User account" dropdown with Generate account, plus one-click Generate all on the Employees directory with a notice. Decisions: Active only; no link-existing at all; bulk = Employee role only (HR per employee only); skip-and-report on email collision.
+- Found: EmployeeRepository.php:664 would unlink the account on every 201 save once the dropdown is removed; T1 must keep user_id on update.
+- Files: SPEC-employee-bulk-portal-accounts.md, tasks/plan-employee-bulk-accounts.md, tasks/todo-employee-bulk-accounts.md, Plans/2026-11-02-employee-bulk-accounts.md. Plan only, no code, no migration. Waiting for John's go to build.
+
+## 2026-11-02 - Portal accounts for existing employees built (Claude)
+- John: go build. T1-T6 done: service (pending, issueForExisting, issueMissing), POST actions, 201 Generate account, directory notice plus Generate all, link-existing removed. Found: 352 imported employees have blank Company, so the domain falls back to Legal entity (PMBSI). Verified dump and restore into hris_slice15_test_20261102_100702.
+- Files: app/EmployeeAccountService.php, app/EmployeeDirectoryViews.php, app/FoundationRepository.php, index.php, public/assets/employee-directory.css, scripts/check.php, CONSTRAINTS.md, tests/employee_bulk_account_test.php, tests/employee_bulk_account_http_test.php. Live bulk run, commit, push, deploy: not done.
+
+## 2026-11-02 - Remove portal account: spec approved + plan (Claude)
+- John: add Remove account in Users & Access; account only goes, Employee 201 stays. Decisions: all HR users can remove; soft removal; Removed accounts view with Restore; additive users.removed_at migration OK; clear employees.company_email when it matches (use case: wrong company in a generated account, remove, fix 201, Generate again).
+- Found: users.id has many FKs with no ON DELETE (audit, leave, tickets), so hard delete is unsafe. HR currently sees "No available actions" because the menu is gated by users.manage.
+- Files: SPEC-remove-portal-account.md, tasks/plan-remove-portal-account.md, tasks/todo-remove-portal-account.md, Plans/2026-11-02-remove-portal-account.md. Plan only, no code, no migration applied. Waiting for John's go to build.
+
+## 2026-11-02 - Remove portal account built (Claude)
+- John: go build. T1-T6 done. Advisor review caught three issues before apply and they were fixed: restore re-activating a deactivated account (added removed_status), HR scope aligned to what John approved (HR and employee accounts removable, Super Admin never, Admin-portal only by Super Admin), and users.remove no longer granted to HRIS_ADMIN. Migration 021 cycled, guarded and applied to localhost pmbsi_hris after a verified dump.
+- Files: database/migrations/20261102_021_remove_portal_account(.down).sql, app/FoundationRepository.php, app/RecruitmentRepository.php, index.php, public/assets/hris-modern.css, scripts/check.php, scripts/ticket_stageb_database.php, CONSTRAINTS.md, tests/remove_account_test.php, tests/remove_account_http_test.php. Not committed: the bulk-accounts patch is still uncommitted in the same files. Not run: browser, push, deploy.
+
+## 2026-11-02 - Recruitment (job board + tracker + pipeline): capability map proposed (Claude)
+- John: HR posts jobs, public searches/applies/tracks, HR moves stages per hand-drawn flow, manpower tickets must reach HR Manpower Requests. Found: nothing creates job_openings (Careers shows 0); tickets and hr-manpower use different tables; stages differ from flowchart.
+- Decisions D1-D4 (Pre-Deployment last, Client Review -> For Review, all HR users post, HR reviews ticket before posting). 5 modules proposed: rec-manpower-intake, rec-jobs, rec-pipeline, rec-apply, rec-track.
+- Files: SPEC-recruitment-map.md. Plan only, no module spec, no code, no migration. Waiting for John to approve the map.
+
+## 2026-11-02 - rec-manpower-intake: module spec drafted (Claude)
+- John: gamitin ang spec skill, unahin ang Recruitment. Used agent-skills:spec-driven-development (no skill named agent-skills:spec exists). Module 1 of the recruitment map; D1-D4 already approved, but the 5-module map itself was not explicitly approved yet.
+- Found: job_openings.manpower_request_id is NOT NULL, manpower_requests.client_id NOT NULL with only demo clients, ticket completion only stamps date_served, hr-manpower create form is Super Admin / Recruitment Manager only. Proposal: bridge row linked to the ticket, one HR decision driving the ticket transition.
+- Files: SPEC-rec-manpower-intake.md. Spec only: no plan, no code, no migration. Open: Q-A client (needs John's word), Q-B HR permissions, Q-C to Q-F defaults.
+
+## 2026-11-02 - rec-manpower-intake spec v2: Q-A and Q-B answered (Claude)
+- John: remove the demo clients, HR users add employers themselves; salary optional (2Log usually blank, other employers may fill); Q-B check and seed if missing. Checked live read-only: HR_USER already has recruitment.view and recruitment.manage, no seed needed. Demo clients still referenced by branches 4 and 5 and users 5 and 6; manpower/jobs/applications are all 0.
+- Files: SPEC-rec-manpower-intake.md (v2). Spec only, no code, no migration, nothing changed in pmbsi_hris. Open: R1 (unlink + delete demo clients), Q-C to Q-G.
+
+## 2026-11-02 - rec-manpower-intake: plan and tasks written (Claude)
+- John: "okay lahat" (R1 unlink + delete demo clients, Q-G HR picks employer at Approve, defaults for Q-C to Q-F), asked for plan and tasks. Plan only: no code, no migration, nothing changed in pmbsi_hris.
+- Design change vs spec v2, needs John's OK: manpower_requests row is created at Approve (not at intake) because client_id is required and the employer is chosen at Approve; the HR list is a UNION of manpower_requests and unlinked tickets. Fallback: nullable client_id. TicketService::act COMPLETE/REJECT reused for the ticket step.
+- Files: HRIS-Vault/05-Implementation/Plans/2026-11-02-rec-manpower-intake.md, tasks/plan-rec-manpower-intake.md, tasks/todo-rec-manpower-intake.md (T1-T7). Migrations planned: 022 (ticket link), 023 (remove demo clients, gated by verified dump). Waiting for John's go to build.
+
+
+## 2026-11-02 - rec-manpower-intake built (Claude)
+- John: "go build" with the build, test, constraints and code-simplify skills (mapped to incremental-implementation, test-driven-development, constraint-driven-development, code-simplification plus hris-patch). T1-T7 done. Migration 022 cycled, guarded and applied to localhost pmbsi_hris after a verified dump. Advisor review changed the build: the ticket screens now refuse Served without a recruitment request (otherwise HR could bypass Recruitment), Approve and Decline show only for HR ticket reviewers, the demo-client script verifies no other business row changed and rolls back otherwise, the requester-sees-reason check was added.
+- Demo clients: not a migration but scripts/remove_demo_clients.php (dry-run, scratch test, then live). The active demo client-portal login was deactivated because a client user with no client_id sees every client (confirmed in code). schema.sql demo seed kept (its demo rows depend on the clients).
+- Files: database/migrations/20261102_022_manpower_ticket_link(.down).sql, app/ManpowerIntake.php, app/ManpowerIntakeViews.php, app/TicketTypes.php, app/RecruitmentRepository.php, index.php, scripts/remove_demo_clients.php, scripts/check.php, CONSTRAINTS.md, tests/rec_manpower_intake_test.php (28), tests/rec_manpower_intake_http_test.php (19), tests/rec_manpower_intake_http_fixture.php, tests/ticket_manpower_cases.php. check.php full OK. Not run: browser, commit, push, deploy.
+
+## 2026-11-02 - rec-jobs: module spec drafted (Claude)
+- John: spec muna para sa rec-jobs (agent-skills:spec-driven-development). Module 2 of the recruitment map; D3 and D4 already approved, the 5-module map itself still not explicitly approved.
+- Found: job_openings schema already has every field needed, so no migration expected; nothing inserts job_openings; closes_at is never checked on public reads; job_card shows the employer name publicly. Proposal: Draft/Published/Closed lifecycle, expiry via closes_at in one shared visibility fragment, standalone job creates its own APPROVED manual request, no hard delete.
+- Files: SPEC-rec-jobs.md. Spec only: no plan, no code, no migration, nothing changed in pmbsi_hris. Open: Q-J1 (employer name public, needs John) and Q-J2 to Q-J6 (defaults). Waiting for John's approval.
+
+## 2026-11-02 - rec-jobs: spec approved, D5 added, plan written (Claude)
+- John: "okay lahat, PMBSI lang sa public", gawa na ng plan. Screenshot of HR > Manpower Requests: HR should not request, HR creates the hiring. Recorded as D5: remove the "+ Create new manpower request" form and the Pipeline "+ New manpower request" button; Manpower Requests is ticket-only; walk-in vacancies go through "+ New job". Supersedes the module 1 assumption that the manual form stays.
+- Q-J1 public shows PMBSI only; Q-J2 to Q-J6 defaults accepted. No migration (job_openings has all columns); bridge rows for standalone jobs hidden from Open.
+- Files: SPEC-rec-jobs.md (v2), tasks/plan-rec-jobs.md, tasks/todo-rec-jobs.md (T1-T7), Plans/2026-11-02-rec-jobs.md. Plan only: no code, nothing changed in pmbsi_hris. Waiting for John's go to build.
+
+## 2026-11-02 - rec-jobs built (Claude)
+- John: go build with the build, test, constraints and code-simplify skills (mapped to incremental-implementation, test-driven-development, constraint-driven-development, code-simplification plus hris-patch). T1-T7 done, no migration. Advisor review before coding added: employer on the walk-in form, employer no longer searchable or shown publicly, code and slug from the insert id, closing date stored as 23:59:59, server check of the request status, Post job gated on recruitment.manage only, Open tab hides ticket-less rows.
+- Checks: rec_jobs_test 50, rec_jobs_http_test 38, module 1 tests 28 and 19 (updated for D5, floors kept), check.php full OK on hris_slice15_test_20261102_141600. Live pmbsi_hris untouched (no migration). Not run: browser, commit, push, deploy.
+- Files: app/JobOpenings.php, app/JobOpeningsViews.php, app/RecruitmentRepository.php, app/ManpowerIntake.php, app/ManpowerIntakeViews.php, app/View.php, index.php, tests/rec_jobs_test.php, tests/rec_jobs_http_test.php, tests/rec_manpower_intake_test.php, tests/rec_manpower_intake_http_test.php, scripts/check.php, CONSTRAINTS.md. Not committed: the tree still holds the bulk accounts, remove account and manpower intake patches in the same files.
+- Advisor review before done added three fixes: the Post job prefill copies only the ticket qualifications (never the internal request notes), the public salary rule from Q-J5 (range only when both ends are set), and a one-time form token against double submit. Row buttons got accessible names. Tests now 50 and 38; check.php full OK.
+
+## 2026-11-02 - rec-jobs form polish (Claude)
+- John: New job form: employer automatic PMBSI (no picker), remove Department, Employment type list = Regular, Probationary, Seasonal, Contract, Part-time, Project-based, Fixed-term, Internship.
+- Done: employer picker and "add new employer" removed from the form; with none posted, JobOpenings::save uses PMBSI (posted client_id/new_employer still honoured for the tests/API). Department field removed; edit no longer touches department_id (keeps the request's). JobOpenings::TYPES is now the 8-type map (stored codes REGULAR, PROBATIONARY, SEASONAL, CONTRACT, PART_TIME, PROJECT_BASED, FIXED_TERM, INTERNSHIP; VARCHAR(40), no migration). Old FULL_TIME jobs show as Regular in the edit form; saving FULL_TIME is refused.
+- Checks: php -l, check.php task OK, rec_jobs_test 52/0 on hris_slice15_test_20261102_141600 (floor raised 50 to 52). Not run: rec_jobs_http_test, browser, commit. Live pmbsi_hris untouched.
+- Files: app/JobOpenings.php, app/JobOpeningsViews.php, tests/rec_jobs_test.php, tests/rec_jobs_http_test.php, scripts/check.php.
+
+## 2026-11-02 - rec-apply-job built (Claude)
+- John: Apply page position must be automatic from the clicked job; HR applicant view like JobStreet (Job details like Job Openings, resume view/download); Q1 Apply Now to Careers, Q2 summary visible and description collapsed, Q3 type/location columns, Q4 inline view plus download, Q5 Notes tab skipped. Spec: SPEC-rec-apply-job.md.
+- Found: resumes were stored but no HR route could open them; added hr-application-resume (recruitment.view, audited).
+- Checks: php -l, rec_jobs_http_test 48/0 (floor 38 to 48) on hris_slice15_test_20261102_141600; check.php full: only tests/ticket_lead_followup_test.php fails (22 PASS vs floor 30, ADL badge cases; ticket area, not touched by this patch, cause not investigated). Not run: browser, commit.
+- Files: index.php, app/RecruitmentRepository.php, app/JobOpeningsViews.php, app/View.php, public/assets/hris-modern.css, tests/rec_jobs_http_test.php, scripts/check.php, SPEC-rec-apply-job.md.
+
+## 2026-11-02 - applicant stage flow, no manual set (Claude)
+- John: HR should not set the stage by hand; it flows on its own, only Rejected / Withdrawn / On Hold / Returned are manual.
+- Done: Stage & actions on hr-applicant now offers only those four (required), labelled "Reject, withdraw, hold or return"; when the candidate is in one of them it offers "Resume at" with the normal stages. A "Start screening" button shows at Applied (no existing action moves Applied to Screening). Existing automatic moves unchanged: schedule interview, endorse, send/accept offer, complete deployment. UI only: server moveStage still accepts any active stage (not tightened).
+- Checks: php -l; rec_jobs_http_test 50/0 (floor 48 to 50) on hris_slice15_test_20261102_141600. Not run: browser, commit.
+- Files: index.php, tests/rec_jobs_http_test.php, scripts/check.php.
+
+## 2026-11-02 - applicant Update button continues by itself (Claude)
+- John: the Update button failed with "Please select an item"; it should just update and move on, except to reject or stop the candidate.
+- Done: Stage & actions "Update to" now defaults to "Continue to <next stage>" (value NEXT), resolved on the server by RecruitmentRepository::nextStageCode: only from Applied, Screening, Interview, Endorsed, Client Review (before Offer). Offer, Deployment and Deployed still move through their own actions (send/accept offer, complete deployment), so there the select asks for a status as before. Rejected / Withdrawn / On Hold / Returned stay optional; "Resume at" after an exception. Start screening button removed (Update does it). The Reason is saved in the timeline.
+- Checks: php -l; rec_jobs_http_test 51/0 (floor 50 to 51) on hris_slice15_test_20261102_141600. Not run: browser, commit.
+- Files: index.php, app/RecruitmentRepository.php, tests/rec_jobs_http_test.php, scripts/check.php.
+
+## 2026-11-02 - endorse to Manager/ADL, spec only (Claude)
+- John: Client endorsement should go to the Manager or ADL (e.g. Sir Charles) who has the manpower request ticket; asks whether search or auto is better UX.
+- Recommendation written: auto-fill the ticket requester, searchable Change limited to Manager/ADL users; Manager/ADL get a "Candidates for review" page with resume view and a decision. Needs a migration (endorsements.reviewer_user_id, endorsement_reviews) and a new permission recruitment.review, so waiting for John's approval. No code changed.
+- File: SPEC-rec-endorse-manager.md (Q1-Q6 open).
+
+## 2026-11-02 - endorse spec decisions Q1-Q6 + two new slices (Claude)
+- John: Q1 yes, several recipients (HR can proceed if they do not answer), Not suitable returns to HR who can re-endorse, label Manager Review, Manager/ADL can interview and decide, remove the Client portal, applicant should see steps (Applied, initial / mid / final interview, Deployment, Start date). Spec updated in SPEC-rec-endorse-manager.md. Still spec only, no code.
+
+## 2026-11-02 - rec-endorse-manager plan (Claude)
+- John confirmed: applicant sees the steps (later slice), reviewers are Manager, ADL, TC and, in retail, SC; several recipients; HR can proceed if they stay silent; Not suitable returns to HR.
+- Plan: Plans/2026-11-02-rec-endorse-manager.md. Data design changed after review: standalone `application_reviewers` table (not altering `endorsements`), permission `recruitment.review` for MANAGER/ADL/SC/TC. Status draft: has a migration and a new permission, waiting for John's go. No code written. Open proof before apply: ticket_lead_followup_test failure unrelated on a fresh scratch DB.
+
+## 2026-11-02 - rec-endorse-manager built (Claude)
+- John: go ahead sa endorse-manager slice. Tapos na: migration 023 applied sa localhost pmbsi_hris (backup + restore verified, up/re-run/down/up, guard), HR card, reviewer pages, resume scope, desisyon rules, notifications, offer types sweep.
+- Advisor review nagdagdag ng: server stage gate = card stages, at round-scoped Not suitable rule (may test). check.php full OK sa hris_slice15_test_20261102_160636: rec_endorse_manager_test 37, http 33, ticket_lead_followup 30/30 (hindi na nag-fail sa fresh copy).
+- Hindi pa: commit (halo-halo ang tree, hinihintay ang desisyon ni John), browser check, push, deploy. Susunod: rec-remove-client-portal, rec-track-steps.
+- Files: app/RecruitmentRepository.php, app/CandidateReviewViews.php, app/View.php, app/NotificationService.php, app/functions.php, index.php, database/migrations/20261102_023_*, tests/rec_endorse_manager_test.php, tests/rec_endorse_manager_http_test.php, scripts/check.php, CONSTRAINTS.md.
+
+## 2026-11-02 - interview invite + chain specs and plan (Claude)
+- John: gamitin ang email ng applicant para ipadala ang Meet link (Gmail later); chain Initial -> Mid -> Final, pwedeng mag-pass ang reviewer, Final Proceed = balik kay HR (hindi auto-Offer). Q1-Q11 sinagot (Q10 default: legacy Proceed = ready for HR).
+- Specs: SPEC-interview-map.md, SPEC-interview-invite.md (approved), SPEC-interview-chain.md (decisions in). Plan: Plans/2026-11-02-interview-invite-chain.md, status draft, waiting for John's go (Slice B has migration 024). Walang code na binago.
+- Hindi pa: code, migration, real email, browser check, commit, Graphify refresh.
+
+## 2026-11-02 - interview invite + chain built (Claude)
+- John: go sa Slice A at B gamit ang build/test/constraints/code-simplify. Tapos na: invite email (switch off by default), Resend, pass-on, Final interviewer, Ready for HR card; migration 024 applied sa localhost pmbsi_hris (backup + restore verified, up/re-run/down/up, guard, rows unchanged).
+- Advisor nakahanap ng 2 bug na naayos: stale final flag mula sa lumang round, at HR schedule na nagbabalik ng stage. May test na pareho.
+- Checks: check.php full OK (invite 17+12, chain 29+19). Hindi pa: browser, totoong Gmail send, commit, push, deploy, Graphify refresh.
+
+## 2026-11-02 - reviewer decision closes after Proceed (Claude)
+- John (screenshot ng Candidate page ni Charles Chan): pagkatapos mag-Proceed, dapat sarado na ang decision; bukas pa ang comment box at buttons.
+- Interpretation (hindi 100% sigurado sa "close na si HR"): ang "Your decision" card ay read-only na may "Closed" badge kapag PROCEED na ang sagot. Pass-to-next-interviewer at Schedule ay bukas pa rin. Hindi nagbago ang HR side o ang stage rules.
+- UI lang (app/CandidateReviewViews.php); server decide() pwede pa ring tumanggap ng bagong sagot kung may direct POST. Checks: php -l, check.php task OK. Hindi pa: browser check, http test sa scratch DB, commit.
+- Follow-up (John, screenshot): after Proceed the "Pass to next interviewer" card must be gone too. Done: hidden when the reviewer's answer is PROCEED (app/CandidateReviewViews.php); Closed card text now "HR continues from here". Schedule card stays. Not run: interview_chain_http_test (scratch DB), browser.
+- Follow-up 2 (John, screenshot): Schedule an interview card also hidden after Proceed (app/CandidateReviewViews.php). After Proceed the reviewer sees only the Closed decision card. UI only; server actions unchanged. Not run: http tests, browser.
+
+## 2026-11-02 - offer rate type built (Claude)
+- John (screenshot of Offer card): Offered salary should be a Monthly / Daily / Hourly rate dropdown with peso input that computes the rest; default Monthly; Daily offers re-open as Daily; "okay na" sa 26 days default.
+- Done: migration 025 (applied localhost after backup + scratch cycle + guard), OfferRate, saveOffer, Offer form with live preview, tests (offer_rate 10, rec_endorse_manager 41), check.php full OK.
+- Hindi pa: browser check, commit, push, deploy, Graphify refresh. 26x8 pa rin NEEDS VERIFICATION.

@@ -1,3 +1,10 @@
+## 2026-11-02 - Offer rate type
+- Offer card: Rate type (Monthly / Daily / Hourly, default Monthly) with a peso rate and live equivalents; the monthly amount is computed with 26 days x 8 hours (to verify). Migration 025 (offers.rate_type, rate_amount) applied to localhost.
+
+## 2026-11-02 - Endorse to Manager review
+- HR endorses a candidate to one or more Manager / ADL / SC / TC users (checkbox list with name filter, requester pre-ticked). Reviewers get Candidates for review in the employee sidebar with only their own candidates, the resume, a decision (Proceed, Not suitable, Needs another interview) and an interview scheduler. Stage label Client Review is now Manager Review (label only). Offer form uses the Job Openings employment types.
+- Migration 023 application_reviewers plus permission recruitment.review (MANAGER, ADL, SC, TC); applied to localhost pmbsi_hris after backup, up/re-run/down/up and used-data guard. Not run: browser, push, deploy.
+
 ## 2026-10-29 - Shared shell search, sidebar scroll and unread badges
 - Removed shared portal top search; page-local search retained. Sidebar scroll persists per user/portal with storage fallback.
 - Added accessible sidebar badges for all unread existing HR request/incident and employee reminder notifications using existing metadata/access. Bell/sidebar update together after confirmed reads; failures/stale GETs do not clear displayed counts. Malformed read IDs rejected.
@@ -432,3 +439,39 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 - Create Employee creates the portal account (email from name plus Company domain, generated password, Role HR or Employee); Create New User and "Link later" removed.
 - Change password page and forced change at first sign-in; HR password eye (audited, 10 per minute); HR read-only Users and Access; HR reset for employee accounts.
 - New HR Request type: Portal account / forgotten password. Migration 020. Config key security.credential_key required in config.local.php.
+
+## 2026-11-02 - Portal accounts for existing employees (Claude)
+- Employee 201 > Employment: the User account dropdown is replaced by Generate account (role Employee, or HR for who may). Employees directory: notice listing active employees without an account and a Generate all accounts button (Employee role only, result panel shows created and skipped with reasons).
+- Removed link-existing-account (Users and Access form, link_user_employee handler, linkableEmployees). Saving Employment information no longer touches user_id (it would have unlinked accounts).
+- No migration. New suites employee_bulk_account_test (35) and employee_bulk_account_http_test (19).
+
+## 2026-11-02 - Remove portal account (Claude)
+- Users and Access: Remove account (HR) and Removed accounts with Restore. Soft removal: login dead, email freed, employee unlinked, 201 untouched, history kept. Restore keeps the earlier status.
+- Migration 021 (users.removed_at, removed_email, removed_employee_id, removed_status, permission users.remove) applied to localhost pmbsi_hris after a verified dump; must run before deploying this code elsewhere.
+- Tests remove_account_test (30) and remove_account_http_test (17) pass; check.php full OK. Not run: browser, commit, push, deploy.
+
+
+## 2026-11-02 - rec-manpower-intake (Claude)
+- HR > Recruitment > Manpower Requests now lists Manpower Request tickets (Awaiting HR) next to manual requests, with an Open/Declined/All filter. HR reviewers Approve (employer, priority, optional title) or Decline (reason required). Approve creates one linked request and completes the ticket; Decline rejects the ticket and the requester sees the reason.
+- Ticket screens refuse to mark a Manpower Request Served without its recruitment request. The existing ticket_manpower_cases were updated for this intended change (11 pass).
+- Migration 022 (manpower_requests.ticket_id, unique, FK) applied to localhost pmbsi_hris after a verified dump; it must run before deploying this code elsewhere. Demo clients removed from live by scripts/remove_demo_clients.php (dry-run first, verified dump, row checks); 2 branches and 2 users unlinked, the active demo client login deactivated.
+- The manual create form is open to every recruitment.manage user with an inline new employer; the applicant stage actions card uses recruitment.manage. Tests rec_manpower_intake_test (28) and rec_manpower_intake_http_test (19) pass; check.php full OK. Not run: browser, commit, push, deploy.
+
+## 2026-11-02 - rec-jobs: HR posts jobs, public shows PMBSI only
+- New `hr-jobs` (HR > Recruitment > Job Openings): list with All/Draft/Published/Closed tabs and search; plain form for create and edit; publish, unpublish, close, reopen (jobs are never deleted). Post job on an approved request row prefills the form; + New job covers walk-in vacancies and silently creates one APPROVED bridge request with no ticket. New `app/JobOpenings.php`, `app/JobOpeningsViews.php`. No migration.
+- D5: removed the HR "Create new manpower request" form, the `create_manpower` action and `RecruitmentRepository::createManpowerRequest`; Pipeline now offers + New job. Manpower Requests lists tickets; no-ticket rows show only under All as HR posting.
+- Public Careers, Home, job page, Apply select and the applicant tracker show PMBSI instead of the employer, and the employer name no longer matches a Careers search. One shared visibility rule (Published and not past closes_at) is used by every public reader, so Apply refuses closed or expired jobs.
+- Tests rec_jobs_test (50) and rec_jobs_http_test (38); module 1 tests updated for D5 with floors unchanged. check.php full OK on a scratch copy. Not run: browser, commit, push, deploy.
+
+## 2026-11-02 - Job form polish
+- New job form: employer is automatic (PMBSI), Department removed, Employment type now Regular / Probationary / Seasonal / Contract / Part-time / Project-based / Fixed-term / Internship. No migration.
+
+## 2026-11-02 - Apply page and HR applicant profile
+- Apply: position comes from the clicked job (no dropdown); Apply Now goes to Careers. HR applicant page: JobStreet-style header, stage tracker, tabs, Job details, resume view/download (new HR-only route). Applicants list shows type and location. No migration.
+- Applicant stage: normal stages advance automatically; HR sets only Reject / Withdraw / On Hold / Return (Resume at to go back). Start screening button at Applied.
+- Applicant Update button continues to the next step by default (before Offer); Reject / Withdraw / On Hold / Return are optional choices.
+
+## 2026-11-02 - Interview invite email and interview chain
+- Scheduling an interview (HR or reviewer) emails the applicant the type, date/time and Meet link (off until `mail.send_interview_invites` is true); timeline note, Resend invite button; HR scheduling no longer pushes a later stage back.
+- Reviewers can pass a candidate to the next interviewer and name a Final interviewer; the final Proceed hands the candidate back to HR (Final interview done, next: Offer). Proceed no longer moves a candidate to Offer by itself.
+- Migration 024 (application_reviewers.is_final, passed_by) applied to localhost.

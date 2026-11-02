@@ -3,6 +3,6 @@
 
 Code and semantic layers verified against source hashes.
 
-[[6c62ca6d93b90d3c/graph.canvas|Open graph canvas]]
+[[cf8d2de78ad2a3ef/graph.canvas|Open graph canvas]]
 
-[[6c62ca6d93b90d3c/SOURCE_INDEX|Exact sources]]
+[[cf8d2de78ad2a3ef/SOURCE_INDEX|Exact sources]]

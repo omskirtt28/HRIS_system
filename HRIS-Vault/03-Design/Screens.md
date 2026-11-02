@@ -183,3 +183,29 @@ Slim header (greeting, Employee directory, Open HR Request Queue). Filter bar: C
 - Team Requests (`hr-request-team`): "New" badge beside the ticket number while the lead's notification is unread. Request detail (lead, read-only): panel "Follow up with HR" button; after use it shows a disabled "Followed up" state for 24h.
 
 - 2026-11-02 Change password (page change-password, any signed-in user; forced at first sign-in). Users and Access: no Create New User card; password column with audited eye for HR and Super Admin; read-only for HR. Create Employee: Role field and read-only company email (portal login).
+
+- 2026-11-02 Employees directory (hr-employees): warning notice "N active employee(s) have no portal account" with a collapsible names list and Generate all accounts (confirm), only for employees.manage with users.view_credentials; result panel after a run (created, skipped with reason, no passwords). Employee 201 File > Employment: Portal account field = role select plus Generate account when unlinked, read-only email when linked, "No account" note for archived. Users and Access: Role card renamed Change role; Save employee link removed.
+
+- 2026-11-02 Users and Access (admin-users): row menu now offers Remove account (confirm names the person and says the employee record is kept) for users with users.remove; "No available actions" only shows when nothing applies. Collapsible Removed accounts panel (name, original email, role, employee, removed date) with Restore account, shown only to users with users.remove.
+
+
+- 2026-11-02 Manpower Requests (hr-manpower): Open / Declined / All filter, columns Request, Source, Employer, Position, Requested, Filled (filled / requested), Priority, Status, Target and Actions. Awaiting tickets show Approve and Decline only for HR ticket reviewers with recruitment.manage. Approve dialog: employer select or "Or add a new employer", position title, priority, optional remarks. Decline dialog: reason (required). The manual create form is now open to every user with recruitment.manage and also accepts a new employer inline. The applicant page stage actions card now uses recruitment.manage instead of three role codes.
+
+## 2026-11-02 - Job Openings (`hr-jobs`, rec-jobs)
+HR > Recruitment > Job Openings (menu, recruitment.view; actions need recruitment.manage). Tabs All / Draft / Published / Closed plus title/code search. Table: code, job, employer (with a note that the public sees PMBSI), type, openings, applications, status badge (Draft, Published, Expired, Closed), closes, actions (Edit, Publish, Unpublish, Close, Reopen). One plain form above the table (no script) for + New job, Post job (from Manpower Requests, ?request_id=) and Edit (?edit=); walk-in jobs show an Employer select with "Or add a new employer". Save as draft or Save and publish. Manpower Requests: the create form is gone; approved ticket rows show Post job and the count of open jobs. The Pipeline header button is + New job. Public job card, job page, Apply select and tracker show PMBSI.
+
+## 2026-11-02 - HR Applicant profile redesign and Apply page (rec-apply-job)
+`hr-applicant`: header band (name, "Applied for", client, applied date, mailto/tel contacts, Download resume), stage tracker (Applied to Deployed, read-only; moving still uses Stage & actions), tabs Resume (inline PDF or download) / Application (Job details + screening answer) / Interviews. Offer, Deployment, Endorsement, conversion and the timeline are unchanged. `hr-applicants` list gains Type and Location columns. Public `apply`: the position is read-only text from the clicked job; header and footer Apply Now go to Careers.
+
+Update 2026-11-02: hr-applicant Stage & actions no longer lists the normal stages. Manual status is only Rejected / Withdrawn / On Hold / Returned (and "Resume at" to get back into the flow); Start screening button at Applied; the rest advances automatically.
+
+Update 2026-11-02 (2): hr-applicant Update defaults to "Continue to <next stage>" (POST move_stage target_stage=NEXT, server-resolved, only before Offer); exceptions stay optional. Start screening button removed.
+
+## 2026-11-02 - rec-endorse-manager
+hr-applicant: the Client endorsement card is replaced by Endorse to Manager review (name filter, reviewer checkboxes with role, note, Endorse) plus a Manager review list of who was endorsed and what they answered (Proceed, Not suitable, Another interview, Waiting). Employee portal sidebar: Candidates for review (permission recruitment.review) with an unread badge. review-candidates: table of candidates endorsed to me. review-candidate: candidate facts, resume preview, interviews, Your decision form and Schedule an interview form. Stage label Manager Review replaces Client Review in badges, tracker, history and counts.
+
+## 2026-11-02 - interview-invite and interview-chain
+hr-applicant: Location or meeting link says the applicant is emailed; Interviews tab shows Resend invite per interview; Endorse card has a Final tick per person; Manager review list shows Final interviewer and passed by; a Final interview done, next: Offer card (Move to Offer) appears when the final interviewer proceeded. review-candidate: Proceed (renamed from Proceed to offer) with a hint, Final interviewer badge, a Pass to next interviewer card (people list with a Final tick and a note) while in Manager Review.
+
+## 2026-11-02 - offer-rate-type
+hr-applicant Offer card: Rate type select (Monthly rate / Daily rate / Hourly rate, default Monthly) + peso Rate input + live Monthly / Daily / Hourly line. Saved offer shows e.g. "₱800.00 / day (≈ ₱20,800.00 / month)". Re-opening a Daily offer pre-selects Daily. Offer card only; Job Openings salary unchanged.

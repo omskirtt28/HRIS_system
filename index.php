@@ -7,6 +7,12 @@ require_once __DIR__ . '/app/EmployeeProfileService.php';
 require_once __DIR__ . '/app/EmployeeProfileViews.php';
 require_once __DIR__ . '/app/PortalContentService.php';
 require_once __DIR__ . '/app/PortalContentViews.php';
+require_once __DIR__ . '/app/ManpowerIntake.php';
+require_once __DIR__ . '/app/ManpowerIntakeViews.php';
+require_once __DIR__ . '/app/OfferRate.php';
+require_once __DIR__ . '/app/JobOpenings.php';
+require_once __DIR__ . '/app/JobOpeningsViews.php';
+require_once __DIR__ . '/app/CandidateReviewViews.php';
 
 $page = (string)($_GET['page'] ?? 'home');
 require_once __DIR__.'/app/AccountPasswordModule.php';
@@ -77,7 +83,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if ($action === 'move_stage') {
             Auth::requirePermission('recruitment.manage');
-            RecruitmentRepository::moveStage((int)$_POST['application_id'],(string)$_POST['target_stage'],trim((string)($_POST['comment']??'')));
+            $target=(string)$_POST['target_stage'];
+            if($target==='NEXT'){$target=(string)RecruitmentRepository::nextStageCode((int)$_POST['application_id']);if($target==='')throw new RuntimeException('There is no next step from this stage.');}
+            RecruitmentRepository::moveStage((int)$_POST['application_id'],$target,trim((string)($_POST['comment']??'')));
             flash('success','Application stage updated.'); redirect('hr-applicant',['id'=>(int)$_POST['application_id']]);
         }
         if ($action === 'schedule_interview') {
@@ -86,26 +94,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'interview_type'=>(string)$_POST['interview_type'], 'scheduled_at'=>(string)$_POST['scheduled_at'],
                 'location_or_link'=>trim((string)($_POST['location_or_link']??'')), 'notes'=>trim((string)($_POST['notes']??''))
             ]);
-            flash('success','Interview scheduled and candidate moved to Interview stage.'); redirect('hr-applicant',['id'=>(int)$_POST['application_id']]);
+            flash('success','Interview scheduled. The applicant is emailed when email sending is on.'); redirect('hr-applicant',['id'=>(int)$_POST['application_id']]);
         }
-        if ($action === 'create_manpower') {
+        if ($action === 'resend_interview_invite') {
             Auth::requirePermission('recruitment.manage');
-            RecruitmentRepository::createManpowerRequest([
-                'client_id'=>(int)$_POST['client_id'],'branch_id'=>(int)($_POST['branch_id']??0),'department_id'=>(int)($_POST['department_id']??0),
-                'position_title'=>trim((string)$_POST['position_title']),'requested_headcount'=>(int)$_POST['requested_headcount'],
-                'employment_type'=>(string)$_POST['employment_type'],'priority'=>(string)$_POST['priority'],
-                'target_start_date'=>(string)($_POST['target_start_date']??''),'notes'=>trim((string)($_POST['notes']??''))
-            ]);
-            flash('success','Manpower request created.'); redirect('hr-manpower');
+            RecruitmentRepository::resendInterviewInvite((int)($_POST['interview_id']??0));
+            flash('success','Interview invite emailed to the applicant again.'); redirect('hr-applicant',['id'=>(int)($_POST['application_id']??0)]);
+        }
+        if ($action === 'save_job') {
+            Auth::requirePermission('recruitment.manage');
+            $jid=(int)($_POST['job_id']??0);
+            if(!$jid){ // a new job needs the one-time token its form carried, so a double click or a reload of the POST cannot create two
+                $tok=(string)($_POST['form_token']??'');$fresh=$tok!==''&&isset($_SESSION['job_form_tokens'][$tok]);unset($_SESSION['job_form_tokens'][$tok]);
+                if(!$fresh)throw new RuntimeException('This form was already submitted. Check Job Openings before posting again.');
+            }
+            $id=JobOpenings::save($_POST,$jid);$over=$jid?0:JobOpenings::overBy($id);
+            $published=!empty($_POST['publish_now'])&&(JobOpenings::find($id)['status']??'')==='DRAFT';
+            if($published)JobOpenings::publish($id);
+            flash('success',($jid?'Job updated.':'Job saved.').($published?' It is now live on Careers.':'')
+                .($over?' Note: open jobs for this request now exceed its unfilled headcount by '.$over.'.':''));
+            redirect('hr-jobs');
+        }
+        if (in_array($action,['publish_job','unpublish_job','close_job','reopen_job'],true)) {
+            Auth::requirePermission('recruitment.manage');
+            [$method,$done]=match($action){'publish_job'=>['publish','Job published. It is now live on Careers.'],'unpublish_job'=>['unpublish','Job unpublished. It is no longer on Careers.'],'close_job'=>['close','Job closed.'],'reopen_job'=>['reopen','Job reopened as a draft.']};
+            JobOpenings::$method((int)($_POST['job_id']??0));
+            flash('success',$done);redirect('hr-jobs');
+        }
+        if ($action === 'approve_manpower') {
+            Auth::requirePermission('recruitment.manage');
+            $clientId=(int)($_POST['client_id']??0);
+            if(trim((string)($_POST['new_employer']??''))!=='') $clientId=ManpowerIntake::employerByName((string)$_POST['new_employer']);
+            ManpowerIntake::approve((int)$_POST['ticket_id'],(int)$_POST['version'],$clientId,(string)($_POST['priority']??'NORMAL'),trim((string)($_POST['remarks']??'')),(string)($_POST['position_title']??''));
+            flash('success','Manpower request approved. It is ready to post as a job.'); redirect('hr-manpower');
+        }
+        if ($action === 'decline_manpower') {
+            Auth::requirePermission('recruitment.manage');
+            ManpowerIntake::decline((int)$_POST['ticket_id'],(int)$_POST['version'],trim((string)($_POST['remarks']??'')));
+            flash('success','Manpower request declined. The requester can see your reason on the ticket.'); redirect('hr-manpower');
         }
         if ($action === 'endorse') {
             Auth::requirePermission('recruitment.manage');
-            RecruitmentRepository::endorse((int)$_POST['application_id'],trim((string)($_POST['note']??'')));
-            flash('success','Candidate endorsed to the client and moved to Client Review.'); redirect('hr-applicant',['id'=>(int)$_POST['application_id']]);
+            RecruitmentRepository::endorseToReviewers((int)$_POST['application_id'],trim((string)($_POST['note']??'')),is_array($_POST['reviewers']??null)?$_POST['reviewers']:[],is_array($_POST['final']??null)?$_POST['final']:[]);
+            flash('success','Candidate endorsed and moved to Manager Review.'); redirect('hr-applicant',['id'=>(int)$_POST['application_id']]);
+        }
+        if ($action === 'review_decide') {
+            Auth::requirePermission('recruitment.review');
+            RecruitmentRepository::decide((int)$_POST['application_id'],(int)Auth::user()['id'],(string)($_POST['decision']??''),(string)($_POST['comment']??''));
+            flash('success','Your answer was saved and HR was notified.'); redirect('review-candidate',['id'=>(int)$_POST['application_id']]);
+        }
+        if ($action === 'review_pass_on') {
+            Auth::requirePermission('recruitment.review');
+            RecruitmentRepository::passOn((int)$_POST['application_id'],(int)Auth::user()['id'],is_array($_POST['to']??null)?$_POST['to']:[],is_array($_POST['final']??null)?$_POST['final']:[],trim((string)($_POST['note']??'')));
+            flash('success','Candidate passed on. The next interviewer was notified.'); redirect('review-candidate',['id'=>(int)$_POST['application_id']]);
+        }
+        if ($action === 'review_schedule') {
+            Auth::requirePermission('recruitment.review');
+            RecruitmentRepository::reviewerSchedule((int)$_POST['application_id'],(int)Auth::user()['id'],['interview_type'=>(string)($_POST['interview_type']??''),'scheduled_at'=>(string)($_POST['scheduled_at']??''),'location_or_link'=>(string)($_POST['location_or_link']??''),'notes'=>(string)($_POST['notes']??'')]);
+            flash('success','Interview scheduled. HR can see it on the candidate.'); redirect('review-candidate',['id'=>(int)$_POST['application_id']]);
         }
         if ($action === 'save_offer') {
             Auth::requirePermission('recruitment.manage');
-            RecruitmentRepository::saveOffer((int)$_POST['application_id'],['offered_salary'=>(float)($_POST['offered_salary']??0),'employment_type'=>(string)$_POST['employment_type'],'start_date'=>(string)($_POST['start_date']??'')]);
+            RecruitmentRepository::saveOffer((int)$_POST['application_id'],['rate_type'=>(string)($_POST['rate_type']??'MONTHLY'),'rate_amount'=>(float)($_POST['rate_amount']??0),'employment_type'=>(string)$_POST['employment_type'],'start_date'=>(string)($_POST['start_date']??'')]);
             flash('success','Offer saved and marked as sent.'); redirect('hr-applicant',['id'=>(int)$_POST['application_id']]);
         }
         if ($action === 'accept_offer') {
@@ -284,16 +334,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             FoundationRepository::changeUserRole((int)($_POST['user_id']??0),(int)($_POST['role_id']??0));
             flash('success','User role changed. The account was signed out so the new access applies.'); redirect('admin-users');
         }
-        if ($action === 'link_user_employee') {
-            Auth::requirePermission('users.manage');
-            if(!isset($_POST['employee_id']) || !preg_match('/^(0|[1-9][0-9]*)$/D',(string)$_POST['employee_id'])) throw new RuntimeException('Select an employee or choose Remove the link.');
-            FoundationRepository::linkUserEmployee((int)($_POST['user_id']??0),(int)($_POST['employee_id']??0));
-            flash('success','Employee link updated.'); redirect('admin-users');
+        if ($action === 'generate_employee_account') {
+            Auth::requirePermission('employees.manage');
+            require_once __DIR__.'/app/EmployeeAccountService.php';
+            $id=(int)($_POST['employee_id']??0);
+            $made=EmployeeAccountService::issueForExisting($id,(string)($_POST['account_role']??'EMPLOYEE'));
+            flash('success','Account created: '.$made['email'].'. Open Users & Access and use the eye icon to see the password.'); redirect('hr-employee',['id'=>$id,'tab'=>'employment']);
+        }
+        if ($action === 'generate_missing_accounts') {
+            Auth::requirePermission('employees.manage'); Auth::requirePermission('users.view_credentials'); // many passwords HR can reveal: same power as viewing them
+            require_once __DIR__.'/app/EmployeeAccountService.php';
+            set_time_limit(300); ignore_user_abort(true); // about 23 s for 350 accounts (password hashing); a 30 s web limit would cut it short
+            $result=EmployeeAccountService::issueMissing();
+            $_SESSION['account_bulk_result']=$result;
+            flash('success',count($result['created']).' account(s) created, '.count($result['skipped']).' skipped.'); redirect('hr-employees');
         }
         if ($action === 'toggle_user_status') {
             Auth::requirePermission('users.manage');
             FoundationRepository::toggleUserStatus((int)($_POST['user_id']??0));
             flash('success','User account status updated.'); redirect('admin-users');
+        }
+        if ($action === 'remove_user') {
+            Auth::requirePermission('users.remove');
+            FoundationRepository::removeUser((int)($_POST['user_id']??0));
+            flash('success','Account removed. The employee record was not changed, and a new account can be generated for them.'); redirect('admin-users');
+        }
+        if ($action === 'restore_user') {
+            Auth::requirePermission('users.remove');
+            $relinked=FoundationRepository::restoreUser((int)($_POST['user_id']??0));
+            flash('success',$relinked?'Account restored and linked to its employee again.':'Account restored. It is not linked to an employee (the employee already has another account or is no longer active).'); redirect('admin-users');
         }
         if ($action === 'reset_user_password') {
             if(!Auth::is('SUPER_ADMIN')) Auth::requirePermission('users.view_credentials'); // HR may reset employee accounts only (enforced in FoundationRepository)
@@ -357,7 +426,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             EmployeeRepository::updateEmployment($id,[
                 'work_company'=>(string)($_POST['work_company']??''),
                 ...(array_key_exists('lee_code',$_POST)?['lee_code'=>(string)$_POST['lee_code']]:[]),
-                'employee_no'=>(string)($_POST['employee_no']??''),'user_id'=>(int)($_POST['user_id']??0),'department_id'=>(int)($_POST['department_id']??0),
+                'employee_no'=>(string)($_POST['employee_no']??''),'department_id'=>(int)($_POST['department_id']??0),
                 'position_id'=>(int)($_POST['position_id']??0),'branch_id'=>(int)($_POST['branch_id']??0),'employment_type_id'=>$postedType,'manager_employee_id'=>(int)($_POST['manager_employee_id']??0),
                 'business_unit_id'=>(int)($_POST['business_unit_id']??0),'legal_entity_id'=>(int)($_POST['legal_entity_id']??0),
                 'directory_fields_present'=>!empty($_POST['directory_fields_present']),
@@ -422,11 +491,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } catch(Throwable $e) {
         if($action==='create_payroll_request') $_SESSION['payroll_request_old']=$_POST;
+        if($action==='save_job') $_SESSION['job_form_old']=array_diff_key($_POST,['csrf'=>1,'action'=>1]);
         flash('error',$e->getMessage());
         $defaultBack = match($action) {
             'create_business_unit','create_legal_entity','create_department','create_position','update_position_department','create_area','create_branch','create_employment_type','toggle_master' => 'admin-organization',
             'create_role','save_role_permissions' => 'admin-roles',
-            'toggle_user_status','reset_user_password','change_user_role','link_user_employee' => 'admin-users',
+            'toggle_user_status','reset_user_password','change_user_role','remove_user','restore_user' => 'admin-users',
+            'generate_missing_accounts' => 'hr-employees',
+            'approve_manpower','decline_manpower' => 'hr-manpower',
+            'save_job','publish_job','unpublish_job','close_job','reopen_job' => 'hr-jobs',
             'create_employee' => 'hr-employee-new',
             'create_payroll_request' => 'employee-request-new',
             'payroll_request_decision' => 'manager-approvals',
@@ -436,7 +509,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'update_employee_personal','update_employee_employment','maternity_receive_certificate','maternity_return_to_work','maternity_cancel','upload_employee_photo','save_government_id','delete_government_id','save_emergency_contact','delete_emergency_contact','upload_employee_document','delete_employee_document' => 'hr-employee',
             default => 'home',
         };
-        $back=(string)($_POST['return_page']??$defaultBack); $params=[]; if(!empty($_POST['return_id']))$params['id']=(int)$_POST['return_id']; if(!empty($_POST['return_tab']))$params['tab']=(string)$_POST['return_tab'];
+        $back=(string)($_POST['return_page']??$defaultBack); $params=[]; if(!empty($_POST['return_id']))$params['id']=(int)$_POST['return_id']; if(!empty($_POST['return_tab']))$params['tab']=(string)$_POST['return_tab']; if(!empty($_POST['return_job']))$params['job_id']=(int)$_POST['return_job'];
         if($action==='create_payroll_request' && !empty($_POST['revision_id'])) $params['revision']=(int)$_POST['revision_id'];
         redirect($back,$params);
     }
@@ -584,14 +657,17 @@ if ($page === 'careers') {
 if ($page === 'job') {
     need_db(); $job=RecruitmentRepository::jobBySlug((string)($_GET['slug']??'')); if(!$job){http_response_code(404);redirect('careers');}
     render_head($job['title']); render_public_header('careers'); $reqs=preg_split('/\R/',trim((string)$job['requirements'])) ?: []; ?>
-    <div class="wrap" style="padding-top:36px"><div class="crumb"><a href="<?=url('careers')?>" class="muted">← Back to all jobs</a></div><div class="split3" style="margin-top:14px"><div><div class="card pad"><span class="badge amber"><?=e($job['department_name']?:'General')?></span><h1 style="font-size:27px;margin:12px 0 6px"><?=e($job['title'])?></h1><div class="muted"><?=e($job['client_name'])?> · <?=e($job['location_text'])?></div><div style="display:flex;gap:22px;margin:18px 0;flex-wrap:wrap"><div><div class="tiny muted">SALARY</div><div class="mono" style="font-weight:600"><?=e(money($job['salary_min']!==null?(float)$job['salary_min']:null,$job['salary_max']!==null?(float)$job['salary_max']:null))?></div></div><div><div class="tiny muted">TYPE</div><div style="font-weight:600"><?=e(stage_label($job['employment_type']))?></div></div><div><div class="tiny muted">OPENINGS</div><div style="font-weight:600"><?=e((string)$job['openings'])?></div></div></div><h3 class="section-t">Job description</h3><p class="muted"><?=nl2br(e($job['description']))?></p><h3 class="section-t" style="margin-top:20px">Requirements</h3><ul class="muted" style="padding-left:18px"><?php foreach($reqs as $r):?><li><?=e($r)?></li><?php endforeach;?></ul></div></div><div><div class="card pad" style="position:sticky;top:80px"><div class="mono" style="font-size:20px;font-weight:600"><?=e(money($job['salary_min']!==null?(float)$job['salary_min']:null,$job['salary_max']!==null?(float)$job['salary_max']:null))?></div><div class="tiny muted" style="margin-bottom:14px">estimated monthly</div><a href="<?=url('apply',['job_id'=>$job['id']])?>" class="btn primary block" style="margin-bottom:9px">Apply for this role</a><div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)" class="small muted"><div style="margin-bottom:6px">✓ Direct employment</div><div style="margin-bottom:6px">✓ Government-mandated benefits</div><div>✓ Career growth support</div></div></div></div></div></div>
+    <div class="wrap" style="padding-top:36px"><div class="crumb"><a href="<?=url('careers')?>" class="muted">← Back to all jobs</a></div><div class="split3" style="margin-top:14px"><div><div class="card pad"><span class="badge amber"><?=e($job['department_name']?:'General')?></span><h1 style="font-size:27px;margin:12px 0 6px"><?=e($job['title'])?></h1><div class="muted"><?=e($job['client_name'])?> · <?=e($job['location_text'])?></div><div style="display:flex;gap:22px;margin:18px 0;flex-wrap:wrap"><div><div class="tiny muted">SALARY</div><div class="mono" style="font-weight:600"><?=e(job_salary($job))?></div></div><div><div class="tiny muted">TYPE</div><div style="font-weight:600"><?=e(stage_label($job['employment_type']))?></div></div><div><div class="tiny muted">OPENINGS</div><div style="font-weight:600"><?=e((string)$job['openings'])?></div></div></div><h3 class="section-t">Job description</h3><p class="muted"><?=nl2br(e($job['description']))?></p><h3 class="section-t" style="margin-top:20px">Requirements</h3><ul class="muted" style="padding-left:18px"><?php foreach($reqs as $r):?><li><?=e($r)?></li><?php endforeach;?></ul></div></div><div><div class="card pad" style="position:sticky;top:80px"><div class="mono" style="font-size:20px;font-weight:600"><?=e(job_salary($job))?></div><div class="tiny muted" style="margin-bottom:14px">estimated monthly</div><a href="<?=url('apply',['job_id'=>$job['id']])?>" class="btn primary block" style="margin-bottom:9px">Apply for this role</a><div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)" class="small muted"><div style="margin-bottom:6px">✓ Direct employment</div><div style="margin-bottom:6px">✓ Government-mandated benefits</div><div>✓ Career growth support</div></div></div></div></div></div>
     <?php render_public_footer(); exit;
 }
 
 if ($page === 'apply') {
-    need_db(); $jobs=RecruitmentRepository::publishedJobs(); $selected=(int)($_GET['job_id']??0); render_head('Apply'); render_public_header('careers'); ?>
+    need_db(); $selected=(int)($_GET['job_id']??0); $job=$selected>0?RecruitmentRepository::jobById($selected):null; render_head('Apply'); render_public_header('careers'); ?>
     <div class="wrap" style="padding-top:36px;max-width:760px"><div class="pagehead"><div><div class="crumb">Home / Careers / Apply</div><h1 style="font-size:26px">Submit your application</h1></div></div><div style="display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap"><div class="step cur"><span class="n">1</span> Your details</div><span class="muted">──</span><div class="step"><span class="n">2</span> Resume</div><span class="muted">──</span><div class="step"><span class="n">3</span> Screening</div><span class="muted">──</span><div class="step"><span class="n">4</span> Review</div></div>
-    <form class="card pad" method="post" enctype="multipart/form-data"><?=csrf_field()?><input type="hidden" name="action" value="apply"><input type="hidden" name="return_page" value="apply"><h3 class="section-t">Personal information</h3><div class="split"><div class="field"><label>First name <span class="req">*</span></label><input required name="first_name"></div><div class="field"><label>Last name <span class="req">*</span></label><input required name="last_name"></div></div><div class="split"><div class="field"><label>Email <span class="req">*</span></label><input required type="email" name="email"></div><div class="field"><label>Mobile number <span class="req">*</span></label><input required name="mobile_no" placeholder="+63 9XX XXX XXXX"></div></div><div class="field"><label>Position applying for <span class="req">*</span></label><select required name="job_opening_id"><option value="">Select position</option><?php foreach($jobs as $j):?><option value="<?=$j['id']?>" <?=$selected===(int)$j['id']?'selected':''?>><?=e($j['title'].' — '.$j['client_name'])?></option><?php endforeach;?></select></div><div class="field"><label>Resume / CV</label><div class="dropzone"><input type="file" name="resume" accept=".pdf,.doc,.docx"><div class="tiny" style="margin-top:6px">PDF, DOC, DOCX up to 5MB</div></div></div><div class="field"><label>Why are you a good fit for this role?</label><textarea rows="4" name="why_fit"></textarea></div><label class="small muted" style="display:flex;gap:7px;align-items:flex-start;margin-bottom:14px"><input type="checkbox" required> I consent to the processing of my recruitment information for this application.</label><div style="display:flex;gap:10px;justify-content:flex-end"><a href="<?=url('careers')?>" class="btn">Cancel</a><button class="btn primary">Submit application →</button></div></form></div>
+    <?php if(!$job):?><div class="card pad"><h3 class="section-t">Choose the job you are applying for</h3><p class="muted">Open a job from Careers and use Apply for this role. That way your application goes to the right position.</p><a href="<?=url('careers')?>" class="btn primary">Browse jobs</a></div></div>
+    <?php else:?>
+    <form class="card pad" method="post" enctype="multipart/form-data"><?=csrf_field()?><input type="hidden" name="action" value="apply"><input type="hidden" name="return_page" value="apply"><input type="hidden" name="return_job" value="<?=(int)$job['id']?>"><input type="hidden" name="job_opening_id" value="<?=(int)$job['id']?>"><h3 class="section-t">Personal information</h3><div class="split"><div class="field"><label>First name <span class="req">*</span></label><input required name="first_name"></div><div class="field"><label>Last name <span class="req">*</span></label><input required name="last_name"></div></div><div class="split"><div class="field"><label>Email <span class="req">*</span></label><input required type="email" name="email"></div><div class="field"><label>Mobile number <span class="req">*</span></label><input required name="mobile_no" placeholder="+63 9XX XXX XXXX"></div></div><div class="field"><label>Position applying for</label><div class="card pad" style="padding:12px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:180px"><strong><?=e($job['title'])?></strong><div class="tiny muted"><?=e((string)(JobOpenings::TYPES[$job['employment_type']]??stage_label($job['employment_type'])))?><?=$job['location_text']?' · '.e($job['location_text']):''?></div></div><a href="<?=url('careers')?>" class="btn sm">Choose a different job</a></div></div><div class="field"><label>Resume / CV</label><div class="dropzone"><input type="file" name="resume" accept=".pdf,.doc,.docx"><div class="tiny" style="margin-top:6px">PDF, DOC, DOCX up to 5MB</div></div></div><div class="field"><label>Why are you a good fit for this role?</label><textarea rows="4" name="why_fit"></textarea></div><label class="small muted" style="display:flex;gap:7px;align-items:flex-start;margin-bottom:14px"><input type="checkbox" required> I consent to the processing of my recruitment information for this application.</label><div style="display:flex;gap:10px;justify-content:flex-end"><a href="<?=url('careers')?>" class="btn">Cancel</a><button class="btn primary">Submit application →</button></div></form></div>
+    <?php endif;?>
     <?php render_public_footer(); exit;
 }
 
@@ -1425,8 +1501,9 @@ if ($page === 'hr-employee') {
     <?php elseif($tab==='employment'):?>
       <?php employee_archive_profile_panel($e);?>
       <?php employee_maternity_panel($e);?>
+      <?php if($canManage && empty($e['user_id'])):?><form id="genAccountForm" method="post" action="<?=url('hr-employee',['id'=>(int)$e['id'],'tab'=>'employment'])?>"><?=csrf_field()?><input type="hidden" name="action" value="generate_employee_account"><input type="hidden" name="employee_id" value="<?=(int)$e['id']?>"></form><?php endif;?>
       <section class="panel phase2b-form-panel"><div class="panel-head"><div><h2>Employment information</h2><p>Assignment, status, portal linkage and effective-date history.</p></div><span class="badge gray">Changes are audited</span></div><?php if(!$canManage):?><div class="panel-body"><div class="alert">You have view-only access.</div></div><?php else:?><form method="post" class="panel-body employee-form-grid"><?=csrf_field()?><input type="hidden" name="action" value="update_employee_employment"><input type="hidden" name="employee_id" value="<?=$id?>"><input type="hidden" name="return_page" value="hr-employee"><input type="hidden" name="return_id" value="<?=$id?>"><input type="hidden" name="return_tab" value="employment">
-        <div class="field"><label>Employee number</label><input name="employee_no" value="<?=e($e['employee_no'])?>" <?=empty($e['employee_no']) && !empty($e['roster_needs_details'])?'':'required'?>></div><div class="field"><label>User account</label><select name="user_id"><option value="">Not linked</option><?php foreach($masters['employee_users'] as $x):?><option value="<?=$x['id']?>" <?=((int)($e['user_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['full_name'].' · '.$x['email'].' · '.$x['role_name'].($x['status']!=='ACTIVE'?' · Inactive':''))?></option><?php endforeach;?></select><small>Active, unlinked accounts are shown. HR and Admin links require a Super Admin.</small></div>
+        <div class="field"><label>Employee number</label><input name="employee_no" value="<?=e($e['employee_no'])?>" <?=empty($e['employee_no']) && !empty($e['roster_needs_details'])?'':'required'?>></div><div class="field"><?php if(!empty($e['user_id'])):?><label for="portalAccountEmail">Portal account</label><input id="portalAccountEmail" value="<?=e((string)($e['company_email']??'Linked'))?>" readonly aria-readonly="true"><small>Linked. View or manage it in Users &amp; Access.</small><?php elseif(in_array((string)$e['status'],EmployeeRepository::ARCHIVED_STATUSES,true)):?><label>Portal account</label><input value="No account" readonly aria-readonly="true"><small>Archived employees do not get a new account.</small><?php else:?><label for="genAccountRole">Portal account</label><div class="account-generate"><select id="genAccountRole" name="account_role" form="genAccountForm"><option value="EMPLOYEE">Employee</option><?php if(Auth::can('users.view_credentials')):?><option value="HR">HR</option><?php endif;?></select><button class="btn" type="submit" form="genAccountForm">Generate account</button></div><small>No account yet. The email and a temporary password are created for you. The employee must change the password at first sign in.</small><?php endif;?></div>
         <?php if(array_key_exists('lee_code',$e)):?><div class="field"><label for="lee_code">Lee code</label><input id="lee_code" name="lee_code" value="<?=e($e['lee_code']??'')?>" maxlength="30" autocomplete="off"><small>Payroll code used by Lee. Leave blank if none.</small></div><?php endif;?>
         <div class="field"><label for="work_company_edit">Company</label><select id="work_company_edit" name="work_company"><option value="">Not set</option><?php foreach(['2LOG','PMBSI'] as $wc):?><option value="<?=e($wc)?>" <?=($e['work_company']??'')===$wc?'selected':''?>><?=e($wc)?></option><?php endforeach;?></select><small>Choose the work assignment company.</small></div>
         <div class="field"><label>Department</label><select name="department_id"><option value="">Unassigned</option><?php foreach($masters['departments'] as $x): $isSelected=((int)($e['department_id']??0)===(int)$x['id']); if(!$x['active']&&!$isSelected)continue;?><option value="<?=$x['id']?>" data-company="<?=e($x['work_company']??'2LOG')?>" data-active="<?=(int)$x['active']?>" data-retail="<?=strtoupper((string)($x['code']??''))==='RETAIL'?'1':'0'?>" <?=$isSelected?'selected':''?>><?=e($x['name'])?><?=!$x['active']?' · Retired':''?></option><?php endforeach;?></select></div><div class="field"><label>Position</label><select name="position_id"<?=Auth::can('organization.manage')?' data-org-url="'.e(url('admin-organization')).'"':''?>><option value="">Unassigned</option><?php foreach($masters['positions'] as $x): $isSelected=((int)($e['position_id']??0)===(int)$x['id']); if(!$x['active']&&!$isSelected)continue;?><option value="<?=$x['id']?>" data-pmbsi-position="<?=EmployeeRepository::positionAllowedForWorkCompany((string)$x['name'],'PMBSI')?'1':'0'?>" data-2log-position="<?=EmployeeRepository::positionAllowedForWorkCompany((string)$x['name'],'2LOG')?'1':'0'?>" data-active="<?=(int)$x['active']?>" <?=$isSelected?'selected':''?>><?=e($x['name'])?><?=!empty($x['department_name'])?' · '.e($x['department_name']):''?><?=!$x['active']?' · Retired':''?></option><?php endforeach;?></select></div>
@@ -1530,11 +1607,32 @@ if ($page === 'hr-employee') {
 }
 
 
+if ($page === 'hr-jobs') {
+    Auth::requirePermission('recruitment.view');
+    $canManage=Auth::can('recruitment.manage');
+    $filter=in_array((string)($_GET['filter']??''),['draft','published','closed'],true)?(string)$_GET['filter']:'all'; $search=trim((string)($_GET['q']??''));
+    $form=null;$old=$_SESSION['job_form_old']??null;unset($_SESSION['job_form_old']);
+    if($canManage){
+        try{
+            if($old)$form=$old;
+            elseif(isset($_GET['request_id']))$form=JobOpenings::defaultsFor((int)$_GET['request_id']);
+            elseif(isset($_GET['edit'])){
+                $j=JobOpenings::find((int)$_GET['edit']);
+                if(!$j||$j['status']==='CLOSED')throw new RuntimeException('That job cannot be edited.');
+                $form=$j+['job_id'=>(int)$j['id'],'closes_on'=>$j['closes_at']?substr((string)$j['closes_at'],0,10):''];
+            }
+            elseif(isset($_GET['new']))$form=['employment_type'=>'FULL_TIME','openings'=>1];
+        }catch(Throwable $e){flash('error',$e->getMessage());redirect('hr-jobs');}
+    }
+    render_portal_header('hr',$page,'Job Openings'); page_head('HR Portal / Job Openings','Job Openings',$canManage?'<a href="'.url('hr-jobs',['new'=>1]).'" class="btn primary sm">+ New job</a>':''); ?>
+    <?php job_openings_view(JobOpenings::listJobs($filter,$search),$filter,$search,$canManage,$form,RecruitmentRepository::clients(),RecruitmentRepository::departments());?>
+    <?php render_portal_footer(); exit;
+}
+
 if ($page === 'hr-manpower') {
-    $mrs=RecruitmentRepository::manpowerRequests(); $clients=RecruitmentRepository::clients(); $branches=RecruitmentRepository::branches(); $deps=RecruitmentRepository::departments();
+    $filter=in_array((string)($_GET['filter']??''),['declined','all'],true)?(string)$_GET['filter']:'open'; $mrs=ManpowerIntake::list($filter); $clients=RecruitmentRepository::clients();
     render_portal_header('hr',$page,'Manpower Requests'); page_head('HR Portal / Manpower Requests','Manpower Requests'); ?>
-    <?php if(Auth::is('SUPER_ADMIN','RECRUITMENT_MANAGER')):?><details class="card pad" style="margin-bottom:18px"><summary style="cursor:pointer;font-weight:600">+ Create new manpower request</summary><form method="post" style="margin-top:16px"><?=csrf_field()?><input type="hidden" name="action" value="create_manpower"><input type="hidden" name="return_page" value="hr-manpower"><div class="split"><div class="field"><label>Client</label><select name="client_id" required><?php foreach($clients as $c):?><option value="<?=$c['id']?>"><?=e($c['name'])?></option><?php endforeach;?></select></div><div class="field"><label>Branch / Site</label><select name="branch_id"><option value="">Not specified</option><?php foreach($branches as $b):?><option value="<?=$b['id']?>"><?=e($b['name'])?></option><?php endforeach;?></select></div></div><div class="split"><div class="field"><label>Department</label><select name="department_id"><option value="">Not specified</option><?php foreach($deps as $d):?><option value="<?=$d['id']?>"><?=e($d['name'])?></option><?php endforeach;?></select></div><div class="field"><label>Position title</label><input name="position_title" required></div></div><div class="split"><div class="field"><label>Requested headcount</label><input type="number" min="1" name="requested_headcount" required value="1"></div><div class="field"><label>Employment type</label><select name="employment_type"><option value="FULL_TIME">Full-time</option><option value="CONTRACT">Contract</option><option value="PART_TIME">Part-time</option></select></div></div><div class="split"><div class="field"><label>Priority</label><select name="priority"><option>NORMAL</option><option>URGENT</option></select></div><div class="field"><label>Target start date</label><input type="date" name="target_start_date"></div></div><div class="field"><label>Notes</label><textarea name="notes" rows="3"></textarea></div><button class="btn primary">Create request</button></form></details><?php endif;?>
-    <div class="card" style="overflow-x:auto"><table class="tbl"><thead><tr><th>Request</th><th>Client</th><th>Position</th><th>Headcount</th><th>Filled</th><th>Priority</th><th>Status</th><th>Target</th></tr></thead><tbody><?php foreach($mrs as $m):?><tr><td class="mono tiny"><?=e($m['request_no'])?></td><td><?=e($m['client_name'])?></td><td><strong><?=e($m['position_title'])?></strong><div class="tiny muted"><?=e($m['department_name']??'')?></div></td><td><?=$m['requested_headcount']?></td><td><?=$m['filled_headcount']?></td><td><span class="badge <?=$m['priority']==='URGENT'?'red':'gray'?>"><?=e($m['priority'])?></span></td><td><span class="badge blue"><?=e(stage_label($m['status']))?></span></td><td><?=e($m['target_start_date']?:'—')?></td></tr><?php endforeach;?></tbody></table></div>
+    <?php manpower_intake_view($mrs,$filter,$clients,Auth::can('recruitment.manage')&&TicketRepository::isHr(),Auth::can('recruitment.manage'),JobOpenings::openJobCounts());?>
     <?php render_portal_footer(); exit;
 }
 
@@ -1542,17 +1640,38 @@ if ($page === 'hr-applicants') {
     $filters=['q'=>trim((string)($_GET['q']??'')),'stage'=>trim((string)($_GET['stage']??''))]; $apps=RecruitmentRepository::applications($filters); $stages=RecruitmentRepository::stages();
     render_portal_header('hr',$page,'Applicant Database'); page_head('HR Portal / Applicants','Applicant Database'); ?>
     <form style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap"><input type="hidden" name="page" value="hr-applicants"><div class="search" style="flex:1;min-width:220px;max-width:340px;border:1px solid var(--border)">🔍<input name="q" value="<?=e($filters['q'])?>" placeholder="Search by name, ref, email…"></div><select class="btn" name="stage"><option value="">All stages</option><?php foreach($stages as $s):?><option value="<?=e($s['code'])?>" <?=$filters['stage']===$s['code']?'selected':''?>><?=e($s['name'])?></option><?php endforeach;?></select><button class="btn primary">Filter</button></form>
-    <div class="card" style="overflow-x:auto"><table class="tbl"><thead><tr><th>Applicant</th><th>Reference</th><th>Position</th><th>Client</th><th>Stage</th><th>Score</th><th>Recruiter</th><th></th></tr></thead><tbody><?php foreach($apps as $a):$name=$a['first_name'].' '.$a['last_name'];?><tr><td><div style="display:flex;gap:9px;align-items:center"><span class="avatar"><?=e(initials($name))?></span><div><div style="font-weight:600"><?=e($name)?></div><div class="tiny muted"><?=e($a['email'])?></div></div></div></td><td class="mono tiny"><?=e($a['application_no'])?></td><td><?=e($a['job_title'])?></td><td><?=e($a['client_name'])?></td><td><?=($a['application_status']??'')==='CONVERTED'?'<span class="badge green">Converted</span>':stage_badge($a['stage_code'])?></td><td><span class="badge <?=((float)$a['screening_score']>=85)?'green':'amber'?>"><?=e((string)($a['screening_score']??'—'))?></span></td><td class="small"><?=e($a['recruiter_name']??'Unassigned')?></td><td><a href="<?=url('hr-applicant',['id'=>$a['id']])?>" class="btn sm">View</a></td></tr><?php endforeach;?></tbody></table><?php if(!$apps):?><div class="empty">No applicants found.</div><?php endif;?></div>
+    <div class="card" style="overflow-x:auto"><table class="tbl"><thead><tr><th>Applicant</th><th>Reference</th><th>Position</th><th>Type</th><th>Location</th><th>Client</th><th>Stage</th><th>Score</th><th>Recruiter</th><th></th></tr></thead><tbody><?php foreach($apps as $a):$name=$a['first_name'].' '.$a['last_name'];?><tr><td><div style="display:flex;gap:9px;align-items:center"><span class="avatar"><?=e(initials($name))?></span><div><div style="font-weight:600"><?=e($name)?></div><div class="tiny muted"><?=e($a['email'])?></div></div></div></td><td class="mono tiny"><?=e($a['application_no'])?></td><td><?=e($a['job_title'])?></td><td><?=e(JobOpenings::TYPES[$a['job_employment_type']]??stage_label($a['job_employment_type']))?></td><td><?=e((string)($a['job_location']?:'-'))?></td><td><?=e($a['client_name'])?></td><td><?=($a['application_status']??'')==='CONVERTED'?'<span class="badge green">Converted</span>':stage_badge($a['stage_code'])?></td><td><span class="badge <?=((float)$a['screening_score']>=85)?'green':'amber'?>"><?=e((string)($a['screening_score']??'—'))?></span></td><td class="small"><?=e($a['recruiter_name']??'Unassigned')?></td><td><a href="<?=url('hr-applicant',['id'=>$a['id']])?>" class="btn sm">View</a></td></tr><?php endforeach;?></tbody></table><?php if(!$apps):?><div class="empty">No applicants found.</div><?php endif;?></div>
     <?php render_portal_footer(); exit;
 }
 
 if ($page === 'hr-pipeline') {
     $apps=RecruitmentRepository::applications(); $stages=RecruitmentRepository::stages(); $by=[]; foreach($apps as $a)$by[$a['stage_code']][]=$a;
-    render_portal_header('hr',$page,'Recruitment Pipeline'); page_head('HR Portal / Pipeline','Recruitment Pipeline','<a href="'.url('hr-manpower').'" class="btn primary sm">+ New manpower request</a>'); ?>
+    render_portal_header('hr',$page,'Recruitment Pipeline'); page_head('HR Portal / Pipeline','Recruitment Pipeline','<a href="'.url('hr-jobs',['new'=>1]).'" class="btn primary sm">+ New job</a>'); ?>
     <div class="kanban"><?php foreach($stages as $s):$items=$by[$s['code']]??[];?><div class="kcol"><div class="kh"><span><span class="kdot" style="background:var(--amber)"></span> <?=e($s['name'])?></span><span class="badge gray"><?=count($items)?></span></div><?php foreach(array_slice($items,0,8) as $a):$name=$a['first_name'].' '.$a['last_name'];?><a href="<?=url('hr-applicant',['id'=>$a['id']])?>" class="kcard" style="display:block"><div class="nm"><?=e($name)?></div><div class="tiny muted" style="margin:3px 0 7px"><?=e($a['job_title'])?></div><div style="display:flex;justify-content:space-between"><span class="tiny mono muted"><?=e(substr($a['application_no'],-6))?></span><span class="badge amber"><?=e((string)($a['screening_score']??'—'))?></span></div></a><?php endforeach;if(!$items):?><div class="tiny muted" style="text-align:center;padding:16px 0">No candidates</div><?php endif;?></div><?php endforeach;?></div>
     <?php render_portal_footer(); exit;
 }
 
+if ($page === 'hr-application-resume' || $page === 'review-resume') {
+    need_db();if(!Auth::check())redirect('login');
+    $id=(int)($_GET['id']??0);
+    if($page==='review-resume'){Auth::requirePermission('recruitment.review');if(!RecruitmentRepository::isReviewerOf($id,(int)Auth::user()['id'])){http_response_code(404);exit('Resume not found');}} // only the candidates endorsed to this user
+    else Auth::requirePermission('recruitment.view');$r=$id>0?RecruitmentRepository::resume($id):null;
+    $path=$r?rtrim((string)cfg('uploads.resume_dir'),'/\\').'/'.basename((string)$r['stored_name']):'';
+    if(!$r||!is_file($path)){http_response_code(404);exit('Resume not found');}
+    $download=!empty($_GET['download'])||$r['mime_type']!=='application/pdf';
+    audit('Recruitment','VIEW_RESUME','application',$id);
+    header('Content-Type: '.$r['mime_type']);header('Content-Disposition: '.($download?'attachment':'inline').'; filename="'.rawurlencode((string)$r['original_name']).'"');header('X-Content-Type-Options: nosniff');header('Content-Length: '.filesize($path));readfile($path);exit;
+}
+
+if ($page === 'review-candidates') {
+    need_db();if(!Auth::check())redirect('login');Auth::requirePermission('recruitment.review');
+    render_portal_header('employee','review-candidates','Candidates for review'); page_head('My Workspace / Recruitment','Candidates for review'); echo review_candidates_list(RecruitmentRepository::reviewQueue((int)Auth::user()['id'])); render_portal_footer(); exit;
+}
+if ($page === 'review-candidate') {
+    need_db();if(!Auth::check())redirect('login');Auth::requirePermission('recruitment.review');
+    $a=RecruitmentRepository::reviewerApplication((int)($_GET['id']??0),(int)Auth::user()['id']); if(!$a){http_response_code(404);exit('Candidate not found');}
+    render_portal_header('employee','review-candidates','Candidate'); page_head('My Workspace / Candidates for review','Candidate','<a href="'.e(url('review-candidates')).'" class="btn">Back to list</a>'); echo review_candidate_detail($a); render_portal_footer(); exit;
+}
 if ($page === 'hr-applicant') {
     $id=(int)($_GET['id']??0); $a=RecruitmentRepository::application($id); if(!$a){http_response_code(404);exit('Application not found');} $stages=RecruitmentRepository::stages(); $branches=RecruitmentRepository::branches(); $name=$a['first_name'].' '.$a['last_name'];
     $phase2CReady=RecruitmentRepository::phase2CReady();
@@ -1560,11 +1679,11 @@ if ($page === 'hr-applicant') {
     $canConvert=Auth::can('recruitment.manage')&&Auth::can('employees.create');
     $conversionEligible=$a['stage_code']==='HIRED' || ($a['stage_code']==='DEPLOYED' && (($a['deployment']['status']??'')==='DEPLOYED'));
     render_portal_header('hr','hr-applicants','Applicant Profile'); page_head('HR Portal / Applicants / Profile','Applicant Profile'); ?>
-    <div class="split3"><div><div class="card pad" style="margin-bottom:16px"><div style="display:flex;gap:14px;align-items:center"><span class="avatar" style="width:52px;height:52px;font-size:18px"><?=e(initials($name))?></span><div><h2 style="font-size:20px"><?=e($name)?></h2><div class="muted small"><?=e($a['job_title'])?> · <?=e($a['client_name'])?></div></div><div style="margin-left:auto;text-align:right"><?=$convertedEmployeeId>0?'<span class="badge green">Converted</span>':stage_badge($a['stage_code'])?><div class="tiny muted mono" style="margin-top:5px"><?=e($a['application_no'])?></div></div></div><div style="display:flex;gap:24px;margin-top:16px;flex-wrap:wrap" class="small"><div><div class="tiny muted">EMAIL</div><?=e($a['email'])?></div><div><div class="tiny muted">PHONE</div><?=e($a['mobile_no'])?></div><div><div class="tiny muted">MATCH / SCREEN SCORE</div><span class="badge green"><?=e((string)($a['screening_score']??'—'))?></span></div></div></div>
-    <?php if(Auth::is('SUPER_ADMIN','RECRUITMENT_MANAGER','RECRUITER') && $convertedEmployeeId===0):?><div class="card pad" style="margin-bottom:16px"><div class="section-t">Stage & actions</div><form method="post" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end"><?=csrf_field()?><input type="hidden" name="action" value="move_stage"><input type="hidden" name="application_id" value="<?=$a['id']?>"><input type="hidden" name="return_page" value="hr-applicant"><input type="hidden" name="return_id" value="<?=$a['id']?>"><div class="field" style="margin:0"><label>Move to</label><select name="target_stage" class="btn status-select"><?php foreach($stages as $s):?><option value="<?=e($s['code'])?>" <?=$s['code']===$a['stage_code']?'selected':''?>><?=e($s['name'])?></option><?php endforeach;?></select></div><div class="field" style="margin:0;flex:1;min-width:200px"><label>Comment</label><input name="comment" placeholder="Reason / note"></div><button class="btn primary">Update stage</button></form></div>
-    <details class="card pad" style="margin-bottom:16px"><summary style="font-weight:600;cursor:pointer">Schedule interview</summary><form method="post" style="margin-top:14px"><?=csrf_field()?><input type="hidden" name="action" value="schedule_interview"><input type="hidden" name="application_id" value="<?=$a['id']?>"><input type="hidden" name="return_page" value="hr-applicant"><input type="hidden" name="return_id" value="<?=$a['id']?>"><div class="split"><div class="field"><label>Interview type</label><select name="interview_type"><option>Initial Interview</option><option>Final Interview</option><option>Client Interview</option><option>Technical Interview</option></select></div><div class="field"><label>Date & time</label><input type="datetime-local" name="scheduled_at" required></div></div><div class="field"><label>Location or meeting link</label><input name="location_or_link"></div><div class="field"><label>Notes</label><textarea name="notes" rows="2"></textarea></div><button class="btn primary">Schedule interview</button></form></details>
-    <?php if(in_array($a['stage_code'],['INTERVIEW','ENDORSED'],true)):?><form method="post" class="card pad" style="margin-bottom:16px"><?=csrf_field()?><input type="hidden" name="action" value="endorse"><input type="hidden" name="application_id" value="<?=$a['id']?>"><input type="hidden" name="return_page" value="hr-applicant"><input type="hidden" name="return_id" value="<?=$a['id']?>"><div class="section-t">Client endorsement</div><div class="field"><label>Endorsement note</label><textarea name="note" rows="2" placeholder="Summary for client review"></textarea></div><button class="btn primary">Endorse to client →</button></form><?php endif;?>
-    <?php if($a['stage_code']==='OFFER' || $a['offer']):?><div class="card pad" style="margin-bottom:16px"><div class="section-t">Offer</div><?php if($a['offer']):?><div class="srow"><div class="small" style="flex:1"><strong><?=e($a['offer']['offer_no'])?></strong><div class="tiny muted">Status: <?=e($a['offer']['status'])?><?=!empty($a['offer']['start_date'])?' · Start '.e($a['offer']['start_date']):''?></div></div><span class="mono small"><?=e($a['offer']['offered_salary']!==null?'₱'.number_format((float)$a['offer']['offered_salary'],2):'—')?></span></div><?php endif;?><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="save_offer"><input type="hidden" name="application_id" value="<?=$a['id']?>"><input type="hidden" name="return_page" value="hr-applicant"><input type="hidden" name="return_id" value="<?=$a['id']?>"><div class="split"><div class="field"><label>Offered salary</label><input type="number" step="0.01" name="offered_salary" value="<?=e((string)($a['offer']['offered_salary']??''))?>"></div><div class="field"><label>Employment type</label><select name="employment_type"><option value="FULL_TIME">Full-time</option><option value="CONTRACT">Contract</option></select></div></div><div class="field"><label>Start date</label><input type="date" name="start_date" value="<?=e((string)($a['offer']['start_date']??''))?>"></div><button class="btn primary">Save / Send offer</button></form><?php if(($a['offer']['status']??'')==='SENT'):?><form method="post" style="margin-top:10px"><?=csrf_field()?><input type="hidden" name="action" value="accept_offer"><input type="hidden" name="application_id" value="<?=$a['id']?>"><input type="hidden" name="return_page" value="hr-applicant"><input type="hidden" name="return_id" value="<?=$a['id']?>"><button class="btn">Mark offer accepted → Deployment</button></form><?php endif;?></div><?php endif;?>
+    <div class="split3"><div><div class="card pad" style="margin-bottom:16px"><div style="display:flex;gap:14px;align-items:center"><span class="avatar" style="width:52px;height:52px;font-size:18px"><?=e(initials($name))?></span><div><h2 style="font-size:20px"><?=e($name)?></h2><div class="muted small">Applied for: <strong><?=e($a['job_title'])?></strong> · <?=e($a['client_name'])?> · <?=e(date('M j, Y',strtotime((string)$a['applied_at'])))?></div></div><div style="margin-left:auto;text-align:right"><?=$convertedEmployeeId>0?'<span class="badge green">Converted</span>':stage_badge($a['stage_code'])?><div class="tiny muted mono" style="margin-top:5px"><?=e($a['application_no'])?></div></div></div><div style="display:flex;gap:24px;margin-top:16px;flex-wrap:wrap" class="small"><div><div class="tiny muted">EMAIL</div><a href="mailto:<?=e($a['email'])?>"><?=e($a['email'])?></a></div><div><div class="tiny muted">PHONE</div><a href="tel:<?=e(preg_replace('/[^0-9+]/','',(string)$a['mobile_no']))?>"><?=e($a['mobile_no'])?></a></div><div><div class="tiny muted">MATCH / SCREEN SCORE</div><span class="badge green"><?=e((string)($a['screening_score']??'—'))?></span></div><?php if($a['resume']):?><div style="margin-left:auto;align-self:end"><a class="btn sm" href="<?=e(url('hr-application-resume',['id'=>$a['id'],'download'=>1]))?>">Download resume</a></div><?php endif;?></div><?=applicant_stage_tracker($a,$stages)?></div>
+    <?php if(Auth::can('recruitment.manage') && $convertedEmployeeId===0):?><div class="card pad" style="margin-bottom:16px"><div class="section-t">Stage & actions</div><form method="post" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end"><?=csrf_field()?><input type="hidden" name="action" value="move_stage"><input type="hidden" name="application_id" value="<?=$a['id']?>"><input type="hidden" name="return_page" value="hr-applicant"><input type="hidden" name="return_id" value="<?=$a['id']?>"><?php $excCodes=['REJECTED','WITHDRAWN','ON_HOLD','RETURNED'];$inExc=in_array($a['stage_code'],$excCodes,true);$nextCode=$inExc?null:RecruitmentRepository::nextStageCode((int)$a['id']);$nextName='';foreach($stages as $s0)if($s0['code']===$nextCode)$nextName=$s0['name'];?><div class="field" style="margin:0"><label><?=$inExc?'Resume at':'Update to'?></label><select name="target_stage" <?=$nextCode?'':'required'?> class="btn status-select"><?php if($nextCode):?><option value="NEXT" selected>Continue to <?=e($nextName)?></option><?php else:?><option value=""><?=$inExc?'Choose a stage':'Choose a status'?></option><?php endif;?><?php foreach($stages as $s):if($s['code']===$a['stage_code']||(!$inExc&&!in_array($s['code'],$excCodes,true)))continue;?><option value="<?=e($s['code'])?>"><?=e($s['name'])?></option><?php endforeach;?></select></div><div class="field" style="margin:0;flex:1;min-width:200px"><label>Reason</label><input name="comment" placeholder="Reason / note"></div><button class="btn primary">Update status</button></form><div class="tiny muted" style="margin-top:10px">Update moves the candidate to the next step. Scheduling an interview, endorsing, sending or accepting an offer and completing deployment also advance it on their own. Pick Rejected, Withdrawn, On Hold or Returned only when the candidate will not continue<?=$inExc?', or to put them back in the flow':''?>.</div></div>
+    <details class="card pad" style="margin-bottom:16px"><summary style="font-weight:600;cursor:pointer">Schedule interview</summary><form method="post" style="margin-top:14px"><?=csrf_field()?><input type="hidden" name="action" value="schedule_interview"><input type="hidden" name="application_id" value="<?=$a['id']?>"><input type="hidden" name="return_page" value="hr-applicant"><input type="hidden" name="return_id" value="<?=$a['id']?>"><div class="split"><div class="field"><label>Interview type</label><select name="interview_type"><option>Initial Interview</option><option>Final Interview</option><option>Client Interview</option><option>Technical Interview</option></select></div><div class="field"><label>Date & time</label><input type="datetime-local" name="scheduled_at" required></div></div><div class="field"><label>Location or meeting link</label><input name="location_or_link"><div class="tiny muted">The applicant is emailed the date, time and this link.</div></div><div class="field"><label>Notes</label><textarea name="notes" rows="2"></textarea></div><button class="btn primary">Schedule interview</button></form></details>
+    <?=applicant_reviewer_card($a)?>
+    <?php if($a['stage_code']==='OFFER' || $a['offer']):?><div class="card pad" style="margin-bottom:16px"><div class="section-t">Offer</div><?php if($a['offer']):?><div class="srow"><div class="small" style="flex:1"><strong><?=e($a['offer']['offer_no'])?></strong><div class="tiny muted">Status: <?=e($a['offer']['status'])?><?=!empty($a['offer']['start_date'])?' · Start '.e($a['offer']['start_date']):''?></div></div><span class="mono small"><?=e($a['offer']['offered_salary']!==null?(($a['offer']['rate_type']??'MONTHLY')!=='MONTHLY'&&$a['offer']['rate_amount']!==null?'₱'.number_format((float)$a['offer']['rate_amount'],2).' / '.(($a['offer']['rate_type']==='DAILY')?'day':'hour').' (≈ ₱'.number_format((float)$a['offer']['offered_salary'],2).' / month)':'₱'.number_format((float)$a['offer']['offered_salary'],2).' / month'):'—')?></span></div><?php endif;?><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="save_offer"><input type="hidden" name="application_id" value="<?=$a['id']?>"><input type="hidden" name="return_page" value="hr-applicant"><input type="hidden" name="return_id" value="<?=$a['id']?>"><?php $offType=(string)($a['offer']['rate_type']??'MONTHLY'); $offAmt=$a['offer']?(($a['offer']['rate_amount']??null)!==null?$a['offer']['rate_amount']:$a['offer']['offered_salary']):''; ?><div class="split"><div class="field"><label for="offer-rate-type">Rate type</label><select id="offer-rate-type" name="rate_type"><?php foreach(OfferRate::TYPES as $rk=>$rl):?><option value="<?=e($rk)?>"<?=$offType===$rk?' selected':''?>><?=e($rl)?></option><?php endforeach;?></select></div><div class="field"><label for="offer-rate-amount">Rate (₱)</label><div style="display:flex;align-items:center;gap:6px"><span aria-hidden="true">₱</span><input id="offer-rate-amount" type="number" inputmode="decimal" min="0.01" step="0.01" required name="rate_amount" value="<?=e((string)$offAmt)?>"></div></div></div><div class="tiny muted" id="offer-rate-calc" style="margin:-4px 0 12px" data-days="<?=OfferRate::DAYS_PER_MONTH?>" data-hours="<?=OfferRate::HOURS_PER_DAY?>" aria-live="polite"></div><div class="split"><div class="field"><label>Employment type</label><select name="employment_type"><?php $offerType=(string)($a['offer']['employment_type']??$a['job_employment_type']??'');foreach(JobOpenings::TYPES as $tk=>$tl):?><option value="<?=e($tk)?>"<?=$offerType===$tk?' selected':''?>><?=e($tl)?></option><?php endforeach;?></select></div></div><div class="field"><label>Start date</label><input type="date" name="start_date" value="<?=e((string)($a['offer']['start_date']??''))?>"></div><button class="btn primary">Save / Send offer</button></form><script>(function(){var t=document.getElementById("offer-rate-type"),a=document.getElementById("offer-rate-amount"),o=document.getElementById("offer-rate-calc");if(!t||!a||!o)return;var D=+o.dataset.days,H=+o.dataset.hours;function f(n){return "₱"+n.toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}function u(){var v=parseFloat(a.value);if(!(v>0)){o.textContent="";return}var m=t.value==="MONTHLY"?v:t.value==="DAILY"?v*D:v*H*D,d=m/D;o.textContent="Monthly "+f(m)+" · Daily "+f(d)+" · Hourly "+f(d/H)}t.addEventListener("change",u);a.addEventListener("input",u);u()})();</script><?php if(($a['offer']['status']??'')==='SENT'):?><form method="post" style="margin-top:10px"><?=csrf_field()?><input type="hidden" name="action" value="accept_offer"><input type="hidden" name="application_id" value="<?=$a['id']?>"><input type="hidden" name="return_page" value="hr-applicant"><input type="hidden" name="return_id" value="<?=$a['id']?>"><button class="btn">Mark offer accepted → Deployment</button></form><?php endif;?></div><?php endif;?>
     <?php if($a['stage_code']==='DEPLOYMENT' || $a['deployment']):?><div class="card pad" style="margin-bottom:16px"><div class="section-t">Deployment</div><?php if($a['deployment']):?><div class="srow"><div class="small" style="flex:1"><strong><?=e($a['deployment']['deployment_no'])?></strong><div class="tiny muted"><?=e($a['deployment']['status'])?><?=!empty($a['deployment']['branch_name'])?' · '.e($a['deployment']['branch_name']):''?></div></div><span class="tiny muted"><?=e($a['deployment']['scheduled_date']??'')?></span></div><?php endif;?><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="save_deployment"><input type="hidden" name="application_id" value="<?=$a['id']?>"><input type="hidden" name="return_page" value="hr-applicant"><input type="hidden" name="return_id" value="<?=$a['id']?>"><div class="split"><div class="field"><label>Deployment branch/site</label><select name="branch_id"><option value="">Not specified</option><?php foreach($branches as $b):?><option value="<?=$b['id']?>" <?=((int)($a['deployment']['branch_id']??0)===(int)$b['id'])?'selected':''?>><?=e($b['name'])?></option><?php endforeach;?></select></div><div class="field"><label>Scheduled date</label><input type="date" name="scheduled_date" value="<?=e((string)($a['deployment']['scheduled_date']??''))?>"></div></div><div class="field"><label>Notes</label><textarea name="notes" rows="2"><?=e((string)($a['deployment']['notes']??''))?></textarea></div><button class="btn primary">Save deployment schedule</button></form><?php if($a['deployment'] && $a['deployment']['status']!=='DEPLOYED'):?><form method="post" style="margin-top:10px" onsubmit="return confirm('Mark this candidate as deployed?')"><?=csrf_field()?><input type="hidden" name="action" value="complete_deployment"><input type="hidden" name="application_id" value="<?=$a['id']?>"><input type="hidden" name="return_page" value="hr-applicant"><input type="hidden" name="return_id" value="<?=$a['id']?>"><button class="btn">Mark as Deployed</button></form><?php endif;?></div><?php endif;?>
     <?php endif;?>
     <?php if($convertedEmployeeId>0):?>
@@ -1574,7 +1693,7 @@ if ($page === 'hr-applicant') {
     <?php elseif($a['stage_code']==='DEPLOYED'):?>
       <section class="card phase2c-conversion-state"><div class="phase2c-state-icon"><?=icon_svg('briefcase')?></div><div><strong>Complete deployment first</strong><p>The stage is Deployed, but the deployment record has not been completed. Finish the deployment workflow before employee conversion.</p></div><span class="badge amber">Not ready</span></section>
     <?php endif;?>
-    <div class="card pad"><div class="section-t">Screening answer</div><p class="muted"><?=nl2br(e($a['why_fit']?:'No answer provided.'))?></p><div class="section-t" style="margin-top:18px">Interviews</div><?php if(!$a['interviews']):?><div class="tiny muted">No interviews yet.</div><?php endif;foreach($a['interviews'] as $i):?><div class="srow"><div style="flex:1"><div class="small" style="font-weight:600"><?=e($i['interview_type'])?></div><div class="tiny muted"><?=e(date('M j, Y g:i A',strtotime($i['scheduled_at'])))?> · <?=e($i['location_or_link']?:'TBD')?></div></div><span class="badge blue"><?=e($i['status'])?></span></div><?php endforeach;?></div></div><div><div class="card pad"><div class="section-t">Activity timeline</div><div class="tl"><?php foreach($a['history'] as $h):?><div class="ev"><div class="small" style="font-weight:600"><?=e($h['to_name'])?></div><div class="tiny muted"><?=e(date('M j, Y g:i A',strtotime($h['changed_at'])))?><?=!empty($h['changed_by_name'])?' · '.e($h['changed_by_name']):''?></div><?php if($h['comment']):?><div class="tiny muted"><?=e($h['comment'])?></div><?php endif;?></div><?php endforeach;?></div></div></div></div>
+    <div class="card pad" id="apptabs"><div class="tabs" role="tablist" aria-label="Applicant sections"><button type="button" role="tab" class="t active" data-p="resume" aria-selected="true" style="background:none;border:0;border-bottom:2px solid transparent;cursor:pointer;font:inherit">Resume</button><button type="button" role="tab" class="t" data-p="application" aria-selected="false" style="background:none;border:0;border-bottom:2px solid transparent;cursor:pointer;font:inherit">Application</button><button type="button" role="tab" class="t" data-p="interviews" aria-selected="false" style="background:none;border:0;border-bottom:2px solid transparent;cursor:pointer;font:inherit">Interviews (<?=count($a['interviews'])?>)</button></div><div role="tabpanel" data-panel="resume"><?php if(!$a['resume']):?><div class="tiny muted">No resume uploaded.</div><?php else:?><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><strong><?=e($a['resume']['original_name'])?></strong><span class="tiny muted"><?=e(number_format((int)$a['resume']['file_size']/1024,0))?> KB</span><span style="margin-left:auto;display:flex;gap:8px"><a class="btn sm" target="_blank" rel="noopener" href="<?=e(url('hr-application-resume',['id'=>$a['id']]))?>">Open in new tab</a><a class="btn sm" href="<?=e(url('hr-application-resume',['id'=>$a['id'],'download'=>1]))?>">Download</a></span></div><?php if($a['resume']['mime_type']==='application/pdf'):?><iframe title="Resume of <?=e($name)?>" src="<?=e(url('hr-application-resume',['id'=>$a['id']]))?>" style="width:100%;height:680px;border:1px solid var(--border);border-radius:8px"></iframe><?php else:?><div class="tiny muted">Word documents cannot be previewed here. Use Download.</div><?php endif;endif;?></div><div role="tabpanel" data-panel="application" hidden><?=applicant_job_details($a)?><div class="section-t" style="margin-top:18px">Screening answer</div><p class="muted"><?=nl2br(e($a['why_fit']?:'No answer provided.'))?></p></div><div role="tabpanel" data-panel="interviews" hidden><?php if(!$a['interviews']):?><div class="tiny muted">No interviews yet.</div><?php endif;foreach($a['interviews'] as $i):?><div class="srow"><div style="flex:1"><div class="small" style="font-weight:600"><?=e($i['interview_type'])?></div><div class="tiny muted"><?=e(date('M j, Y g:i A',strtotime($i['scheduled_at'])))?> · <?=e($i['location_or_link']?:'TBD')?></div></div><span class="badge blue"><?=e($i['status'])?></span><?php if(Auth::can('recruitment.manage')):?><form method="post" style="margin-left:8px"><?=csrf_field()?><input type="hidden" name="action" value="resend_interview_invite"><input type="hidden" name="interview_id" value="<?=(int)$i['id']?>"><input type="hidden" name="application_id" value="<?=(int)$a['id']?>"><input type="hidden" name="return_page" value="hr-applicant"><input type="hidden" name="return_id" value="<?=(int)$a['id']?>"><button class="btn sm" title="Email the interview details to the applicant again">Resend invite</button></form><?php endif;?></div><?php endforeach;?></div></div><script>(function(){var r=document.getElementById("apptabs");if(!r)return;var t=r.querySelectorAll("[role=tab]"),p=r.querySelectorAll("[role=tabpanel]");function go(k){t.forEach(function(b){var on=b.dataset.p===k;b.classList.toggle("active",on);b.setAttribute("aria-selected",on?"true":"false");b.tabIndex=on?0:-1});p.forEach(function(x){x.hidden=x.dataset.panel!==k})}t.forEach(function(b){b.addEventListener("click",function(){go(b.dataset.p)});b.addEventListener("keydown",function(e){var i=Array.prototype.indexOf.call(t,b),n=e.key==="ArrowRight"?i+1:e.key==="ArrowLeft"?i-1:-1;if(n>=0){e.preventDefault();var x=t[(n+t.length)%t.length];x.focus();go(x.dataset.p)}})});go("resume")})();</script><div><div class="card pad"><div class="section-t">Activity timeline</div><div class="tl"><?php foreach($a['history'] as $h):?><div class="ev"><div class="small" style="font-weight:600"><?=e($h['to_name'])?></div><div class="tiny muted"><?=e(date('M j, Y g:i A',strtotime($h['changed_at'])))?><?=!empty($h['changed_by_name'])?' · '.e($h['changed_by_name']):''?></div><?php if($h['comment']):?><div class="tiny muted"><?=e($h['comment'])?></div><?php endif;?></div><?php endforeach;?></div></div></div></div>
     <?php render_portal_footer(); exit;
 }
 
@@ -1840,7 +1959,10 @@ if ($page === 'admin-users') {
                     </div>
                     <div class="users-action-menu-slot">
                       <button class="users-more-btn" type="button" aria-label="Open user actions" aria-expanded="false" data-user-menu-button>⋮</button>
-                      <div class="users-row-menu" hidden><?php if(Auth::can('users.manage')):?><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="toggle_user_status"><input type="hidden" name="user_id" value="<?=$u['id']?>"><button type="submit" <?=$isCurrent?'disabled':''?>><?=$u['status']==='ACTIVE'?'Deactivate account':'Activate account'?></button></form><?php else:?><span>No available actions</span><?php endif;?></div>
+                      <div class="users-row-menu" hidden><?php $canToggle=Auth::can('users.manage'); $canRemove=Auth::can('users.remove') && !$isCurrent && FoundationRepository::canRemove($u['role_code'],$u['portal']);
+                        if($canToggle):?><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="toggle_user_status"><input type="hidden" name="user_id" value="<?=$u['id']?>"><button type="submit" <?=$isCurrent?'disabled':''?>><?=$u['status']==='ACTIVE'?'Deactivate account':'Activate account'?></button></form><?php endif;
+                        if($canRemove):?><form method="post" onsubmit="return confirm(<?=e(json_encode('Remove the account of '.$u['full_name'].'? They will no longer be able to sign in. The employee record is kept, and you can generate a new account afterwards.'))?>)"><?=csrf_field()?><input type="hidden" name="action" value="remove_user"><input type="hidden" name="user_id" value="<?=$u['id']?>"><button type="submit" class="users-menu-danger">Remove account</button></form><?php endif;
+                        if(!$canToggle && !$canRemove):?><span>No available actions</span><?php endif;?></div>
                     </div>
                   </div>
                 </td>
@@ -1851,23 +1973,37 @@ if ($page === 'admin-users') {
           </table>
         </div>
       </section>
+      <?php if(Auth::can('users.remove') && ($removedUsers=FoundationRepository::removedUsers())):?>
+      <details class="panel users-removed-card" id="removedAccounts">
+        <summary><strong>Removed accounts (<?=count($removedUsers)?>)</strong><span>These people cannot sign in. Their employee records are unchanged.</span></summary>
+        <div class="users-removed-scroll"><table class="users-removed-table">
+          <thead><tr><th>Name / Email</th><th>Role</th><th>Employee</th><th>Removed</th><th><span class="sr-only">Action</span></th></tr></thead>
+          <tbody>
+          <?php foreach($removedUsers as $r):?>
+            <tr>
+              <td data-label="Name / Email"><strong><?=e($r['full_name'])?></strong><span><?=e($r['removed_email'])?></span></td>
+              <td data-label="Role"><?=e($r['role_name'])?></td>
+              <td data-label="Employee"><?=$r['employee_no']!==null?e($r['employee_no'].' · '.$r['employee_name']):'Not linked'?></td>
+              <td data-label="Removed"><?=e(date('M j, Y g:i A',strtotime((string)$r['removed_at'])))?></td>
+              <td><?php if(FoundationRepository::canRemove($r['role_code'],$r['portal'])):?><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="restore_user"><input type="hidden" name="user_id" value="<?=$r['id']?>"><button class="btn sm" type="submit">Restore account</button></form><?php endif;?></td>
+            </tr>
+          <?php endforeach;?>
+          </tbody>
+        </table></div>
+      </details>
+      <?php endif;?>
     </div>
 
-    <?php if($unlinkedUsers):?><div class="alert"><?=count($unlinkedUsers)?> active account(s) are not linked to an employee and cannot file HR requests: <?=e(implode(', ',array_column($unlinkedUsers,'full_name')))?>. Link them below.</div><?php endif;?>
+    <?php if($unlinkedUsers):?><div class="alert"><?=count($unlinkedUsers)?> active account(s) are not linked to an employee and cannot file HR requests: <?=e(implode(', ',array_column($unlinkedUsers,'full_name')))?>.</div><?php endif;?>
     <?php if(Auth::can('users.manage')):
       $managedUsers=array_values(array_filter($users,fn($u)=>(int)$u['id']!==(int)(Auth::user()['id']??0) && ($isSuperAdmin || ($u['role_code']!=='SUPER_ADMIN' && !in_array($u['portal'],['hr','admin'],true)))));
-      $linkEmployees=FoundationRepository::linkableEmployees(); ?>
-    <section class="panel"><div class="panel-head"><div><h2>Role and employee link</h2><p>Changing a role signs that account out. HR and Admin portal accounts can be changed by a Super Admin only.</p></div></div>
+ ?>
+    <section class="panel"><div class="panel-head"><div><h2>Change role</h2><p>Changing a role signs that account out. HR and Admin portal accounts can be changed by a Super Admin only.</p></div></div>
       <div class="panel-body foundation-layout">
         <form method="post"><?=csrf_field()?><input type="hidden" name="action" value="change_user_role">
           <div class="field"><label for="role_user">User</label><select id="role_user" name="user_id" required><option value="">Select user</option><?php foreach($managedUsers as $u): if($u['role_code']==='SUPER_ADMIN')continue;?><option value="<?=(int)$u['id']?>"><?=e($u['full_name'].' · '.$u['role_name'])?></option><?php endforeach;?></select></div>
           <div class="field"><label for="role_new">New role</label><select id="role_new" name="role_id" required><option value="">Select role</option><?php foreach($assignableRoles as $r):?><option value="<?=(int)$r['id']?>"><?=e($r['name'].' · '.strtoupper($r['portal']))?></option><?php endforeach;?></select></div>
           <button class="btn primary">Change role</button>
-        </form>
-        <form method="post"><?=csrf_field()?><input type="hidden" name="action" value="link_user_employee">
-          <div class="field"><label for="link_user">User</label><select id="link_user" name="user_id" required><option value="">Select user</option><?php foreach($managedUsers as $u):?><option value="<?=(int)$u['id']?>"><?=e($u['full_name'].($u['employee_id']===null?' · not linked':' · '.$u['employee_no']))?></option><?php endforeach;?></select></div>
-          <div class="field"><label for="link_employee">Employee</label><select id="link_employee" name="employee_id" required><option value="">Select employee or remove link</option><option value="0">Remove the link</option><?php foreach($linkEmployees as $emp):?><option value="<?=(int)$emp['id']?>" <?=$emp['user_id']!==null?'disabled':''?>><?=e($emp['employee_no'].' · '.$emp['first_name'].' '.$emp['last_name'].($emp['user_id']!==null?' (already linked)':''))?></option><?php endforeach;?></select><small>Select an unlinked employee, or explicitly choose Remove the link.</small></div>
-          <button class="btn">Save employee link</button>
         </form>
       </div>
     </section>

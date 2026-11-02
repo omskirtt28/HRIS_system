@@ -76,6 +76,21 @@ $suites = [ // script => [minimum PASS count, needs scratch DB]
     'tests/ticket_lead_followup_test.php' => [30, true],
     'tests/employee_portal_account_test.php' => [102, true],
     'tests/employee_portal_account_http_test.php' => [23, true],
+    'tests/employee_bulk_account_test.php' => [35, true],
+    'tests/employee_bulk_account_http_test.php' => [19, true],
+    'tests/remove_account_test.php' => [30, true],
+    'tests/remove_account_http_test.php' => [17, true],
+    'tests/rec_manpower_intake_test.php' => [28, true],
+    'tests/rec_manpower_intake_http_test.php' => [19, true],
+    'tests/rec_jobs_test.php' => [52, true],
+    'tests/rec_jobs_http_test.php' => [51, true],
+    'tests/offer_rate_test.php' => [10, false],
+    'tests/rec_endorse_manager_test.php' => [41, true],
+    'tests/rec_endorse_manager_http_test.php' => [33, true],
+    'tests/interview_invite_test.php' => [17, true],
+    'tests/interview_invite_http_test.php' => [12, true],
+    'tests/interview_chain_test.php' => [29, true],
+    'tests/interview_chain_http_test.php' => [19, true],
 ];
 $db = getenv('HRIS_TEST_DB') ?: '';
 $dbOk = $db !== '' && $db !== 'pmbsi_hris';

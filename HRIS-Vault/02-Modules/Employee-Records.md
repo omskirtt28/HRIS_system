@@ -224,3 +224,9 @@ Codes auto-generated from names; HR position for PMBSI is added by HR via Organi
 
 ## Addendum 2026-11-02 - Portal account on Create Employee
 Create Employee (create_employee) runs EmployeeAccountService::createEmployee: employee plus user in one transaction. Email = first+last name (accents folded, suffix dropped) at pmbsi.com (PMBSI) or 2log.com (2LOG), numbered on duplicates, written to employees.company_email (read-only preview on the form, posted value ignored). New Role field (Employee or HR) is allow-listed server-side. The old User account / Link later select is gone; existing links stay editable (Phase 2C modal, Change role and Link actions unchanged). Recruitment conversion "create account" now also stores the HR copy and forces a first change.
+
+## Addendum 2026-11-02 - Accounts for existing employees
+EmployeeAccountService::pending, issueForExisting and issueMissing (spec SPEC-employee-bulk-portal-accounts.md). 201 file Employment: Generate account button (role select) in a separate form; linked employees show the account email read-only. Employees directory: notice with names (first 50) and Generate all accounts with a confirm; result panel once via session. update_employee_employment no longer posts user_id. Removed: link_user_employee and linkableEmployees. FoundationRepository::linkUserEmployee stays as a tested API (ticket suites use it), not reachable from a page. BR-838 to BR-842.
+
+## Addendum 2026-11-02 - Remove portal account
+FoundationRepository::removeUser, restoreUser, removedUsers, canRemove (spec SPEC-remove-portal-account.md, migration 021). Removing frees the email, unlinks the employee and clears a matching company_email, so HR can fix the 201 (for example Company) and click Generate account again. Users and Access shows Remove account in the row menu and a Removed accounts panel with Restore.

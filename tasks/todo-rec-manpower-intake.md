@@ -1,0 +1,26 @@
+# Todo: rec-manpower-intake
+
+- [x] T1 Migration `database/migrations/20261102_022_manpower_ticket_link.sql` + down
+  - Acceptance: nullable unique `manpower_requests.ticket_id` with FK to tickets; up/re-run/down/up clean; down refuses when any row has ticket_id
+  - Verify: scratch DB `php scripts/ticket_stageb_database.php cycle` (confirm the script allows this change)
+  - Files: migration up/down, scripts/ticket_stageb_database.php (only if needed), vault Data-Model.md
+- [x] T2 Service `app/ManpowerIntake.php`
+  - Acceptance: list = manpower_requests UNION unlinked MANPOWER_REQUEST tickets (Source, status, filled/requested); approve creates one APPROVED row (employer required, priority default NORMAL) and completes the ticket in one transaction; decline needs a remark and rejects the ticket without creating a row; addEmployer validates and de-duplicates; mapping Probationary -> FULL_TIME, Seasonal -> CONTRACT, filled count never changed here; double submit or retry creates no second row
+  - Verify: tests/rec_manpower_intake_test.php (written first, red then green)
+  - Files: app/ManpowerIntake.php, app/RecruitmentRepository.php, tests/rec_manpower_intake_test.php
+- [x] T3 Routes `approve_manpower`, `decline_manpower` in index.php (adding an employer is a field inside Approve and the manual create form, no separate route); create form gate changed to `Auth::can('recruitment.manage')`
+  - Acceptance: non-HR user 403, missing CSRF rejected, HR_USER allowed, ticket requester sees the decision and remark
+  - Verify: tests/rec_manpower_intake_http_test.php
+  - Files: index.php, tests/rec_manpower_intake_http_test.php
+- [x] T4 UI `hr-manpower`: Source column, Filled / Requested, status filter (Declined hidden by default), Approve dialog (Employer + "+ Add employer", Priority), Decline dialog (remark required), ticket detail
+  - Acceptance: matches Design-System.md, English only, focus/hover/disabled/empty/error states, no overflow on narrow width
+  - Verify: syntax + HTTP render test; no browser unless John says go
+  - Files: index.php, public/assets/hris-modern.css (if needed)
+- [x] T5 Remove demo clients (needs verified dump first; R1 approved by John)
+  - DONE AS A SCRIPT, NOT A MIGRATION (changed from the plan): `scripts/remove_demo_clients.php <db|live> dry-run|apply` unlinks branches 4 and 5 and users 5 and 6, deactivates the active demo client-portal user, deletes the 5 demo clients matched by code, name and email; refuses while recruitment data points at them; checks no other business row changed and rolls back otherwise; live apply needs a restore-verified dump (`prepare 23`). Rollback = that dump. Tested dry-run/apply/re-run on scratch, then applied live (clients 0).
+  - `database/schema.sql` NOT changed: its demo manpower, job and applicant rows depend on the demo clients, so removing only the clients breaks a fresh install (Open-Questions Q75).
+  - Files: scripts/remove_demo_clients.php, vault Data-Model.md, Decision-Log.md
+- [x] T6 Sweep: other readers of `clients` (RecruitmentRepository, careers/job pages, endorsements, branch list), AdminDataResetService FK order for the new ticket_id, same permission/CSRF gaps in other recruitment POST handlers
+  - Verify: grep list recorded in the final report; tests
+  - Files: app/*.php and index.php as found
+- [x] T7 `php scripts/check.php task` then `full` (HRIS_TEST_DB set); raise CONSTRAINTS.md floors for the new suites, never lower; vault sync (Progress, Employee-Tickets, Recruitment-and-Onboarding, Data-Model, Business-Rules, Screens, API-Surface, Decision-Log, Open-Questions, CHANGELOG, Session-Log) and handoff checkpoint

@@ -1,0 +1,28 @@
+# Todo: rec-jobs
+
+- [x] T1 Service `app/JobOpenings.php` + shared public-visibility WHERE fragment
+  - Acceptance: create-from-request (prefill math), standalone create (one APPROVED bridge row, same transaction), update, publish/unpublish/close/reopen state machine, `published_at` set once, code `JOB-<year>-<seq>` and slug unique and frozen on edit, salary and closes_at optional, no delete method
+  - Verify: `php tests/rec_jobs_test.php` on the scratch DB, written first (red then green)
+  - Files: app/JobOpenings.php, tests/rec_jobs_test.php
+- [x] T2 Public reads + PMBSI-only text
+  - Acceptance: `publishedJobs`, `jobBySlug`, `jobById` use the fragment (PUBLISHED and closes_at null or not past); job card, job page and Home show "PMBSI", never the client name; salary range only when both set; draft/closed slug 404; Apply refuses a closed job
+  - Verify: `php tests/rec_jobs_http_test.php` (public part)
+  - Files: app/RecruitmentRepository.php, app/View.php (job_card), index.php (home, job, apply guard)
+- [x] T3 D5: remove HR manpower request creation
+  - Acceptance: create form and `create_manpower` handler gone (index.php:93, 464, 1572); Pipeline button reads "+ New job" and links to `hr-jobs`; Open list hides bridge rows, All shows them as "HR posting"; `createManpowerRequest` kept only if T1 reuses it, otherwise removed; module 1 HTTP test section E replaced by 2 checks that the action is refused, floor stays 19
+  - Verify: tests/rec_manpower_intake_test.php and tests/rec_manpower_intake_http_test.php still pass
+  - Files: index.php, app/ManpowerIntake.php, app/ManpowerIntakeViews.php, app/RecruitmentRepository.php, tests/rec_manpower_intake_http_test.php
+- [x] T4 HR > Recruitment > Job Openings (`hr-jobs`)
+  - Acceptance: list with tabs All/Draft/Published/Closed, search, status badge incl. Expired, applications count; "+ New job" dialog (title, department, location, type, openings, salary min/max optional, description, requirements, closes on, featured; Save draft / Save and publish); POST `save_job`, `publish_job`, `unpublish_job`, `close_job`, `reopen_job` with CSRF, `recruitment.manage`, state checks, audit row; menu entry under Recruitment; English only, Design-System, all states
+  - Verify: rec_jobs_http_test (HR allowed, non-HR 403, CSRF, double click)
+  - Files: app/JobOpeningsViews.php, index.php, app/View.php (menu), public/assets/hr-ops.css (only if no existing class fits)
+- [x] T5 Post job from an approved request
+  - Acceptance: approved ticket-sourced rows on `hr-manpower` show Post job and a live-jobs count; opens the T4 form prefilled from the request notes; warning (not block) when live openings exceed remaining headcount
+  - Verify: rec_jobs_http_test
+  - Files: app/ManpowerIntakeViews.php, index.php
+- [x] T6 Sweep
+  - Acceptance: grep every public reader of `clients.name` (Home, careers, job, apply select, track) and every recruitment POST handler for missing permission/CSRF; fix small same-class items, list the rest
+  - Files: as found
+- [x] T7 Finish
+  - Acceptance: `php scripts/check.php task` then `full` with HRIS_TEST_DB; register tests in scripts/check.php and raise CONSTRAINTS.md floors (never lower); vault sync: Progress, Recruitment-and-Onboarding, Screens, API-Surface, Business-Rules, Decision-Log (D5, Q-J1 to Q-J6), Open-Questions, CHANGELOG, Session-Log, Handoff; add SPEC-rec-jobs.md and the Plans note to the Graphify noteScopes before refresh
+  - Verify: report lists vault files changed, Fixed / Found and also fixed / Found but left alone / Not verified

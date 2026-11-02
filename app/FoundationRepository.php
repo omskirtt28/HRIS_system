@@ -64,13 +64,18 @@ final class FoundationRepository
         $permCount = self::tableExists('role_permissions')
             ? '(SELECT COUNT(*) FROM role_permissions rp WHERE rp.role_id=r.id)'
             : '0';
-        $sql='SELECT r.*, (SELECT COUNT(*) FROM users u WHERE u.role_id=r.id) user_count, '.$permCount.' permission_count FROM roles r ORDER BY r.is_system DESC, r.name';
+        $sql='SELECT r.*, (SELECT COUNT(*) FROM users u WHERE u.role_id=r.id AND u.removed_at IS NULL) user_count, '.$permCount.' permission_count FROM roles r ORDER BY r.is_system DESC, r.name';
         return db()->query($sql)->fetchAll();
     }
 
     public static function users(): array
     {
-        return db()->query('SELECT u.id,u.full_name,u.email,u.status,u.last_login_at,u.created_at,r.id role_id,r.code role_code,r.name role_name,r.portal,e.id employee_id,e.employee_no,TRIM(CONCAT(e.first_name," ",e.last_name)) employee_name FROM users u JOIN roles r ON r.id=u.role_id LEFT JOIN employees e ON e.user_id=u.id ORDER BY u.full_name')->fetchAll();
+        return db()->query('SELECT u.id,u.full_name,u.email,u.status,u.last_login_at,u.created_at,r.id role_id,r.code role_code,r.name role_name,r.portal,e.id employee_id,e.employee_no,TRIM(CONCAT(e.first_name," ",e.last_name)) employee_name FROM users u JOIN roles r ON r.id=u.role_id LEFT JOIN employees e ON e.user_id=u.id WHERE u.removed_at IS NULL ORDER BY u.full_name')->fetchAll();
+    }
+
+    public static function removedUsers(): array
+    {
+        return db()->query('SELECT u.id,u.full_name,u.removed_email,u.removed_at,r.name role_name,r.code role_code,r.portal,e.employee_no,TRIM(CONCAT(e.first_name," ",e.last_name)) employee_name FROM users u JOIN roles r ON r.id=u.role_id LEFT JOIN employees e ON e.id=u.removed_employee_id WHERE u.removed_at IS NOT NULL ORDER BY u.removed_at DESC')->fetchAll();
     }
 
     public static function departments(): array
@@ -412,8 +417,9 @@ final class FoundationRepository
     private static function managedUser(int $userId): array
     {
         if($userId===(int)(Auth::user()['id']??0)) throw new RuntimeException('You cannot change your own account here.');
-        $st=db()->prepare('SELECT u.id,u.role_id,r.code role_code,r.portal FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=?'); $st->execute([$userId]);
+        $st=db()->prepare('SELECT u.id,u.role_id,u.removed_at,r.code role_code,r.portal FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=?'); $st->execute([$userId]);
         $user=$st->fetch() ?: throw new RuntimeException('User account not found.');
+        if($user['removed_at']!==null) throw new RuntimeException('This account was removed. Restore it first.');
         if(!Auth::is('SUPER_ADMIN') && ($user['role_code']==='SUPER_ADMIN' || in_array($user['portal'],['hr','admin'],true))) throw new RuntimeException('Only a Super Admin can change HR or Admin portal accounts.');
         return $user;
     }
@@ -450,16 +456,70 @@ final class FoundationRepository
         } catch(Throwable $e) { if(db()->inTransaction()) db()->rollBack(); throw $e; }
     }
 
-    public static function linkableEmployees(): array
+    /** Soft removal (SPEC-remove-portal-account.md): users.id is referenced by audit, leave, ticket and approval rows, so the row stays; the login dies and the Employee 201 is untouched. */
+    /** Who may be removed or restored: never a Super Admin account, and admin-portal accounts only by a Super Admin. HR may remove HR and employee accounts. */
+    public static function canRemove(string $roleCode,string $portal): bool
     {
-        return db()->query('SELECT id,employee_no,first_name,last_name,user_id FROM employees WHERE status IN ("ACTIVE","PROBATIONARY","ON_LEAVE") ORDER BY last_name,first_name')->fetchAll();
+        return $roleCode!=='SUPER_ADMIN' && (Auth::is('SUPER_ADMIN') || $portal!=='admin');
+    }
+
+    private static function removalTarget(int $userId): array
+    {
+        if($userId===(int)(Auth::user()['id']??0)) throw new RuntimeException('You cannot remove your own account.');
+        $st=db()->prepare('SELECT u.id,r.code role_code,r.portal FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=?'); $st->execute([$userId]);
+        $user=$st->fetch() ?: throw new RuntimeException('User account not found.');
+        if(!self::canRemove($user['role_code'],$user['portal'])) throw new RuntimeException('Super Admin accounts cannot be removed, and only a Super Admin can remove Admin accounts.');
+        return $user;
+    }
+
+    public static function removeUser(int $userId): void
+    {
+        $user=self::removalTarget($userId);
+        $pdo=db(); $own=!$pdo->inTransaction(); if($own) $pdo->beginTransaction();
+        try {
+            $st=$pdo->prepare('SELECT email,status,removed_at FROM users WHERE id=? FOR UPDATE'); $st->execute([$userId]); $row=$st->fetch();
+            if($row['removed_at']!==null) throw new RuntimeException('This account was already removed.');
+            $email=(string)$row['email'];
+            $st=$pdo->prepare('SELECT id FROM employees WHERE user_id=? FOR UPDATE'); $st->execute([$userId]); $employeeId=(int)$st->fetchColumn();
+            if($employeeId>0) $pdo->prepare('UPDATE employees SET user_id=NULL,company_email=IF(LOWER(company_email)=LOWER(?),NULL,company_email) WHERE id=?')->execute([$email,$employeeId]);
+            $pdo->prepare('UPDATE users SET status="INACTIVE",removed_at=NOW(),removed_status=?,removed_email=?,removed_employee_id=?,email=? WHERE id=?')
+                ->execute([$row['status'],$email,$employeeId?:null,substr('removed.'.$userId.'.'.$email,0,190),$userId]); // email is UNIQUE: free the address so a corrected account can use it
+            if(self::tableExists('user_sessions')) $pdo->prepare('UPDATE user_sessions SET revoked_at=NOW() WHERE user_id=? AND revoked_at IS NULL')->execute([$userId]);
+            audit('Access Control','REMOVE_USER','user',$userId,['email'=>$email,'employee_id'=>$employeeId?:null,'role'=>$user['role_code']]);
+            if($own) $pdo->commit();
+        } catch(Throwable $e) { if($own && $pdo->inTransaction()) $pdo->rollBack(); throw $e; }
+    }
+
+    /** Returns true when the employee was linked again, false when the account came back unlinked. */
+    public static function restoreUser(int $userId): bool
+    {
+        self::removalTarget($userId);
+        $pdo=db(); $own=!$pdo->inTransaction(); if($own) $pdo->beginTransaction();
+        try {
+            $st=$pdo->prepare('SELECT removed_at,removed_email,removed_employee_id,removed_status FROM users WHERE id=? FOR UPDATE'); $st->execute([$userId]); $row=$st->fetch();
+            if($row['removed_at']===null) throw new RuntimeException('This account is not removed.');
+            $email=(string)$row['removed_email'];
+            $st=$pdo->prepare('SELECT 1 FROM users WHERE email=? AND id<>?'); $st->execute([$email,$userId]);
+            if($st->fetchColumn()) throw new RuntimeException('Another account already uses '.$email.', so this account cannot be restored.');
+            $relinked=false;
+            if((int)$row['removed_employee_id']>0){
+                $st=$pdo->prepare('UPDATE employees SET user_id=?,company_email=COALESCE(company_email,?) WHERE id=? AND user_id IS NULL AND status IN ("ACTIVE","PROBATIONARY","ON_LEAVE")'); $st->execute([$userId,$email,(int)$row['removed_employee_id']]);
+                $relinked=$st->rowCount()===1;
+            }
+            // back to the status it had when removed: HR must not be able to re-activate an account a Super Admin deactivated
+            $pdo->prepare('UPDATE users SET status=?,email=?,removed_at=NULL,removed_email=NULL,removed_employee_id=NULL,removed_status=NULL WHERE id=?')->execute([$row['removed_status']?:'ACTIVE',$email,$userId]);
+            audit('Access Control','RESTORE_USER','user',$userId,['email'=>$email,'relinked'=>$relinked]);
+            if($own) $pdo->commit();
+            return $relinked;
+        } catch(Throwable $e) { if($own && $pdo->inTransaction()) $pdo->rollBack(); throw $e; }
     }
 
     public static function toggleUserStatus(int $id): void
     {
         $me=(int)(Auth::user()['id']??0);
         if($id===$me) throw new RuntimeException('You cannot deactivate your own account.');
-        db()->prepare('UPDATE users SET status=IF(status="ACTIVE","INACTIVE","ACTIVE") WHERE id=?')->execute([$id]);
+        $st=db()->prepare('UPDATE users SET status=IF(status="ACTIVE","INACTIVE","ACTIVE") WHERE id=? AND removed_at IS NULL'); $st->execute([$id]);
+        if($st->rowCount()!==1) throw new RuntimeException('User account not found or was removed.');
         if(self::tableExists('user_sessions')) db()->prepare('UPDATE user_sessions SET revoked_at=NOW() WHERE user_id=? AND revoked_at IS NULL')->execute([$id]);
         audit('Access Control','TOGGLE_USER_STATUS','user',$id);
     }
@@ -472,7 +532,7 @@ final class FoundationRepository
         if(strlen($password)<10) throw new RuntimeException('Temporary password must be at least 10 characters.');
         if(!preg_match('/[A-Za-z]/',$password) || !preg_match('/[0-9]/',$password)) throw new RuntimeException('Temporary password must include at least one letter and one number.');
 
-        $st=db()->prepare('SELECT u.id,u.email,r.portal FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=? LIMIT 1');
+        $st=db()->prepare('SELECT u.id,u.email,r.portal FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=? AND u.removed_at IS NULL LIMIT 1');
         $st->execute([$id]);
         $user=$st->fetch();
         if(!$user) throw new RuntimeException('User account not found.');

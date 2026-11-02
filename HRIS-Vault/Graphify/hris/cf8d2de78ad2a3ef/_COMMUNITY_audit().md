@@ -1,0 +1,192 @@
+---
+type: community
+members: 128
+---
+
+# audit()
+
+**Members:** 128 nodes
+
+## Members
+- [[dot-addPayrollHistory()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollRepository.php
+- [[dot-adjustLeaveCredit()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollRepository.php
+- [[dot-afterApproval()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-applicationFromRow()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-applyLeaveCredit()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollRepository.php
+- [[dot-approvedRequests()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-assertTicketAllowed()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-attendanceApplication()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-attendancePolicy()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-autoMapEmployeeNumbers()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-automaticImport()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-automaticImportReady()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-automaticType()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-backpayRequest()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-backpayRows()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-batch()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportService.php
+- [[dot-build()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportReview.php
+- [[dot-cancel()]] - code - C:/xampp/htdocs/HRIS_system/app/MaternityService.php
+- [[dot-clearZeroCredit()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-commitImport()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-confirmCoverage()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-context()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-createPayrollRequest()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollRepository.php
+- [[dot-currentReport()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportService.php
+- [[dot-cutoffEmployeeScope()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-cutoffTickets()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-daily()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-dailyRows()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-date()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-decideLeave()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollRepository.php
+- [[dot-decidePayroll()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollRepository.php
+- [[dot-detail()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-download()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffDocuments.php
+- [[dot-employee()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-endRate()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-existingImport()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-fallbackEmployee()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportReview.php
+- [[dot-finalize()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-generate()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportService.php
+- [[dot-idForCode()]] - code - C:/xampp/htdocs/HRIS_system/app/EmployeeStatusPolicy.php
+- [[dot-ids()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportService.php
+- [[dot-import()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-importDeliverySummary()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-importFileResult()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-importFiles()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-iniBytes()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-isHeadOffice()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-issueLabels()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportReview.php
+- [[dot-lockOpen()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-markPaid()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportService.php
+- [[dot-missing()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportReview.php
+- [[dot-model()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportService.php
+- [[dot-number()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-otMinutes()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportService.php
+- [[dot-payments()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportService.php
+- [[dot-payrollRequest()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollRepository.php
+- [[dot-prepareImport()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-previewCounts()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-previewMatchingSql()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-previewRows()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-purgeExpired()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-ready()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-ready()_1]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportService.php
+- [[dot-rebuild()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-rebuildAffected()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-rebuildBackpay()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-rebuildEmployee()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-rematchImportedRows()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-requestApplication()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-requestTimes()]] - code - C:/xampp/htdocs/HRIS_system/app/EmployeeAttendanceService.php
+- [[dot-requireAutomaticImport()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-requireImportSite()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-requirePermission()]] - code - C:/xampp/htdocs/HRIS_system/app/Auth.php
+- [[dot-requireReady()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-requireReady()_1]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportService.php
+- [[dot-resetUserPassword()]] - code - C:/xampp/htdocs/HRIS_system/app/FoundationRepository.php
+- [[dot-resolve()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-returnToWork()]] - code - C:/xampp/htdocs/HRIS_system/app/MaternityService.php
+- [[dot-reviewCalendar()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportService.php
+- [[dot-reviewLeave()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportService.php
+- [[dot-reviewOnly()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-reviewRequests()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportService.php
+- [[dot-roster()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportService.php
+- [[dot-route()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-rules()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-run()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-saveDeadline()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-saveFaq()]] - code - C:/xampp/htdocs/HRIS_system/app/PortalContentService.php
+- [[dot-saveHoliday()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-saveMapping()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-saveRate()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-saveRules()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-saveSite()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-saved()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportService.php
+- [[dot-selectPunches()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-settings()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-site()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-sourceCoverage()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-sourceFingerprint()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-sourceGaps()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportService.php
+- [[dot-stage()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportReview.php
+- [[dot-toggleUserStatus()]] - code - C:/xampp/htdocs/HRIS_system/app/FoundationRepository.php
+- [[dot-updateCoverage()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-uploadDir()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-uploadLimits()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-uploadSizeLabel()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-user()]] - code - C:/xampp/htdocs/HRIS_system/app/Auth.php
+- [[dot-validTime()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollRepository.php
+- [[dot-validateImportFile()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[dot-zeroCredit()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[PayrollAttendanceService]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceService.php
+- [[PayrollAttendanceViews.php]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceViews.php
+- [[PayrollCutoffExportReview]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportReview.php
+- [[PayrollCutoffExportReview.php]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportReview.php
+- [[PayrollCutoffExportService]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportService.php
+- [[PayrollCutoffExportService.php]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportService.php
+- [[audit()]] - code - C:/xampp/htdocs/HRIS_system/app/functions.php
+- [[payroll_export()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceViews.php
+- [[payroll_post_action()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollModule.php
+- [[payroll_review_ot_minutes()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceViews.php
+- [[{closure1}()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceViews.php
+- [[{closure1}()_1]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportReview.php
+- [[{closure1}()_2]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportService.php
+- [[{closure2}()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceViews.php
+- [[{closure2}()_1]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportReview.php
+- [[{closure2}()_2]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportService.php
+- [[{closure3}()]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollAttendanceViews.php
+- [[{closure3}()_1]] - code - C:/xampp/htdocs/HRIS_system/app/PayrollCutoffExportService.php
+
+## Live Query (requires Dataview plugin)
+
+```dataview
+TABLE source_file, type FROM #community/audit
+SORT file.name ASC
+```
+
+## Connections to other communities
+- 89 edges to [[_COMMUNITY_db()]]
+- 59 edges to [[_COMMUNITY_url()]]
+- 35 edges to [[_COMMUNITY_EmployeeRepository]]
+- 29 edges to [[_COMMUNITY_PayrollRepository]]
+- 24 edges to [[_COMMUNITY_dot-cutoff()]]
+- 22 edges to [[_COMMUNITY_dot-tableExists()]]
+- 13 edges to [[_COMMUNITY_notification_handle()]]
+- 12 edges to [[_COMMUNITY_dot-time()]]
+- 12 edges to [[_COMMUNITY_dot-check()]]
+- 9 edges to [[_COMMUNITY_EmployeeRosterImportService]]
+- 8 edges to [[_COMMUNITY_EmployeeAccountService]]
+- 7 edges to [[_COMMUNITY_dot-saveRolePermissions()]]
+- 7 edges to [[_COMMUNITY_TicketViewerService]]
+- 6 edges to [[_COMMUNITY_EmployeeDeleteService]]
+- 6 edges to [[_COMMUNITY_TicketCoe]]
+- 5 edges to [[_COMMUNITY_PayrollCutoffDocuments]]
+- 5 edges to [[_COMMUNITY_PortalContentService]]
+- 5 edges to [[_COMMUNITY_dot-uid()]]
+- 3 edges to [[_COMMUNITY_dot-page()]]
+- 3 edges to [[_COMMUNITY_csrf_field()]]
+- 3 edges to [[_COMMUNITY_dot-isHr()]]
+- 3 edges to [[_COMMUNITY_EmployeeProfileService]]
+- 3 edges to [[_COMMUNITY_TicketOicAuthorization]]
+- 2 edges to [[_COMMUNITY_IncidentDocument]]
+- 2 edges to [[_COMMUNITY_ticket_handle()]]
+- 2 edges to [[_COMMUNITY_EmployeeDirectoryPlacement]]
+- 2 edges to [[_COMMUNITY_e()]]
+- 2 edges to [[_COMMUNITY_TicketService]]
+- 2 edges to [[_COMMUNITY_dot-department()]]
+- 1 edge to [[_COMMUNITY_PayrollAttendanceService.php]]
+- 1 edge to [[_COMMUNITY_TicketReportViews.php]]
+- 1 edge to [[_COMMUNITY_TicketIncident]]
+- 1 edge to [[_COMMUNITY_ticket_queue_page()]]
+- 1 edge to [[_COMMUNITY_ticket_viewers_page()]]
+- 1 edge to [[_COMMUNITY_dot-followUp()]]
+- 1 edge to [[_COMMUNITY_index.php]]
+- 1 edge to [[_COMMUNITY_View.php]]
+- 1 edge to [[_COMMUNITY_BiometricParser]]
+
+## Top bridge nodes
+- [[dot-user()]] - degree 93, connects to 26 communities
+- [[audit()]] - degree 115, connects to 21 communities
+- [[dot-requirePermission()]] - degree 53, connects to 10 communities
+- [[dot-decidePayroll()]] - degree 20, connects to 6 communities
+- [[payroll_post_action()]] - degree 33, connects to 5 communities

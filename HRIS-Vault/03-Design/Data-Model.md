@@ -385,3 +385,19 @@ Export and compare the ordered snapshots before and after the authorized up migr
 
 ## Migration 020 (2026-11-02) portal account
 users gets password_enc VARCHAR(255) NULL (v1:base64 of iv, tag and ciphertext), must_change_password TINYINT(1) NOT NULL DEFAULT 0 and password_changed_at DATETIME NULL. New permissions users.view_directory and users.view_credentials (HR_USER) and ticket.file.portal_account. ticket_types gets PORTAL_ACCOUNT_REQUEST. The down script refuses while any password copy, must-change flag or portal-account ticket exists.
+
+## Migration 021 (2026-11-02) remove portal account
+users gets removed_at DATETIME NULL, removed_email VARCHAR(190) NULL, removed_employee_id BIGINT UNSIGNED NULL (no FK, history only) and removed_status VARCHAR(20) NULL. A removed account keeps its row (users.id is referenced by audit, leave, ticket and approval tables without ON DELETE), has status INACTIVE and email replaced by removed.<id>.<email> so the UNIQUE address is free again. New permission users.remove (HR_USER). Additive and idempotent; the down script refuses ("in use") while any removed account exists. Applied to localhost pmbsi_hris 2026-11-02 after a verified dump; existing business rows unchanged.
+
+
+## Migration 022 (2026-11-02) manpower request ticket link
+manpower_requests gets ticket_id BIGINT UNSIGNED NULL with a unique key uq_mr_ticket and a foreign key fk_mr_ticket to tickets(id). One ticket becomes at most one recruitment request; manual requests keep it NULL. Down is refused while any row has a ticket_id. Applied to localhost pmbsi_hris after a verified dump; business rows unchanged. Data change (no migration): scripts/remove_demo_clients.php removed the five seeded demo clients (code, name and email matched), set the client link on branches 4 and 5 and users 5 and 6 to NULL, and set the active client-portal demo user INACTIVE; rollback is the verified dump. database/schema.sql still seeds demo clients and demo recruitment rows for fresh installs (see Open-Questions).
+
+## Migration 023 (2026-11-02) application_reviewers
+New table `application_reviewers(id, application_id FK applications, reviewer_user_id FK users, endorsed_by FK users, note TEXT NULL, endorsed_at, decision VARCHAR(30) NULL CHECK in PROCEED/NOT_SUITABLE/ANOTHER_INTERVIEW, decision_comment TEXT NULL, decided_at NULL, UNIQUE(application_id, reviewer_user_id))`. Re-endorsing the same person reuses the row and resets the answer. `endorsements` is not altered. Permission `recruitment.review` is granted to MANAGER, ADL, SC and TC only (never recruitment.view). Idempotent; down is refused while the table has rows, then drops the table and the permission. Files: database/migrations/20261102_023_application_reviewers.sql and .down.sql.
+
+## Migration 024 (2026-11-02) interview chain
+`application_reviewers` gets `is_final TINYINT(1) NOT NULL DEFAULT 0` and `passed_by BIGINT UNSIGNED NULL` (the reviewer who passed the candidate on; NULL = HR endorsed). Additive, idempotent (ADD COLUMN IF NOT EXISTS); the one existing row keeps is_final 0 and passed_by NULL. Down drops both columns and is refused while any row has is_final=1 or passed_by set. No new table, no permission. The invite result is not stored in a table: it is a timeline line and an audit entry (INTERVIEW_INVITE_SENT / _FAILED).
+
+## Migration 025 (2026-11-02) offer rate type
+`offers` gets `rate_type ENUM('MONTHLY','DAILY','HOURLY') NOT NULL DEFAULT 'MONTHLY'` and `rate_amount DECIMAL(12,2) NULL` (the rate HR typed). `offered_salary` stays the canonical monthly amount. Old rows: MONTHLY and NULL (readers fall back to offered_salary). Idempotent; down refused while any offer is Daily/Hourly or has a rate_amount.

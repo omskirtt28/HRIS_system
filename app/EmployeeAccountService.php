@@ -157,6 +157,54 @@ final class EmployeeAccountService
         } catch(Throwable $e) { if($own && $pdo->inTransaction()) $pdo->rollBack(); throw $e; }
     }
 
+    /** Employees that are still working but have no login yet (spec: bulk portal accounts). Names and employee numbers only. */
+    public static function pending(): array
+    {
+        $archived="'".implode("','",EmployeeRepository::ARCHIVED_STATUSES)."'"; // constant list, never user input
+        return db()->query("SELECT e.id,e.employee_no,COALESCE(NULLIF(TRIM(CONCAT(e.first_name,' ',e.last_name)),''),CONCAT('Employee #',e.id)) name
+            FROM employees e WHERE COALESCE(e.user_id,0)=0 AND e.status NOT IN ($archived) ORDER BY e.last_name,e.first_name,e.id")->fetchAll();
+    }
+
+    /**
+     * Login for an employee who already exists (imported or created before auto-accounts). One transaction; refuses an
+     * employee that already has a login or is archived, and never takes over a hand-made account that already uses the email.
+     * The email domain follows the Company; when Company is blank (all imported rows) it follows the Legal entity.
+     */
+    public static function issueForExisting(int $employeeId,string $roleKey='EMPLOYEE'): array
+    {
+        $roleKey=strtoupper(trim($roleKey));
+        if(!isset(self::ROLES[$roleKey])) throw new RuntimeException('Choose HR or Employee as the account role.');
+        if($roleKey==='HR' && !Auth::can('users.view_credentials')) throw new RuntimeException('Only HR or a Super Admin can create an HR account.');
+        self::key(); // fail closed before anything is written
+        $pdo=db(); $own=!$pdo->inTransaction(); if($own) $pdo->beginTransaction();
+        try {
+            $st=$pdo->prepare('SELECT e.id,e.first_name,e.last_name,e.status,e.user_id,e.work_company,l.name legal FROM employees e LEFT JOIN legal_entities l ON l.id=e.legal_entity_id WHERE e.id=? FOR UPDATE');
+            $st->execute([$employeeId]); $e=$st->fetch() ?: throw new RuntimeException('Employee not found.');
+            if((int)($e['user_id']??0)>0) throw new RuntimeException('This employee already has an account.');
+            if(in_array((string)$e['status'],EmployeeRepository::ARCHIVED_STATUSES,true)) throw new RuntimeException('Archived employees do not get a new account.');
+            if(trim((string)$e['first_name'])==='' || trim((string)$e['last_name'])==='') throw new RuntimeException('First name and last name are both needed to build the account email.');
+            $company=trim((string)$e['work_company'])!=='' ? (string)$e['work_company'] : (string)($e['legal']??'');
+            $base=self::localPart((string)$e['first_name'],(string)$e['last_name']).'@'.self::domainFor($company);
+            $taken=$pdo->prepare('SELECT 1 FROM users u WHERE u.email=? AND NOT EXISTS(SELECT 1 FROM employees x WHERE x.user_id=u.id)');
+            $taken->execute([$base]);
+            if($taken->fetchColumn()) throw new RuntimeException('An existing account already uses '.$base.'. HR must check it first.');
+            $account=self::issue($employeeId,(string)$e['first_name'],(string)$e['last_name'],$company,$roleKey);
+            if($own) $pdo->commit();
+            return $account;
+        } catch(Throwable $t) { if($own && $pdo->inTransaction()) $pdo->rollBack(); throw $t; }
+    }
+
+    /** Bulk: Employee role for every pending employee, one transaction each. A failing row is reported and the rest continue. */
+    public static function issueMissing(): array
+    {
+        $out=['created'=>[],'skipped'=>[]];
+        foreach(self::pending() as $p) {
+            try { $r=self::issueForExisting((int)$p['id']); $out['created'][]=['name'=>$p['name'],'employee_no'=>$p['employee_no'],'email'=>$r['email']]; }
+            catch(Throwable $t) { $out['skipped'][]=['name'=>$p['name'],'employee_no'=>$p['employee_no'],'reason'=>$t->getMessage()]; }
+        }
+        return $out;
+    }
+
     /** Creates the linked login for an employee row. Run inside the caller's transaction. Returns [user_id,email]. */
     public static function issue(int $employeeId,string $first,string $last,?string $workCompany,string $roleKey): array
     {

@@ -82,3 +82,7 @@ Spec: SPEC-request-followup.md (repo root), plan: [[2026-10-31-request-followup]
 
 ## Addendum 2026-11-02 - Portal account / forgotten password request
 Ticket type PORTAL_ACCOUNT_REQUEST (HR_ONLY routing, filing permission ticket.file.portal_account for EMPLOYEE, ADL, MANAGER, OIC, SC, TC, HR_USER, HRIS_ADMIN). Fields: concern (Forgot password, Cannot sign in, Other) and optional remarks (must not contain a password). HR resolves it by viewing or resetting the password in Users and Access. Limit: filing needs a signed-in session, so the login page tells people to ask HR directly.
+
+
+## Addendum 2026-11-02 - Manpower Request is served from Recruitment
+A Manpower Request ticket can no longer be marked Served/Complete from the ticket screens (TicketTypes::complete refuses) until a manpower_requests row exists for it. HR approves it in HR > Recruitment > Manpower Requests, which creates the row first and then completes the ticket (date_served stamped at approval). Decline there rejects the ticket with the HR reason, which the requester sees as a normal HR response. Quick and bulk actions already excluded this type.

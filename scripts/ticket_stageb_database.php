@@ -5,6 +5,8 @@ require __DIR__.'/slice15_database.php';
 $number=(int)($argv[2]??4);$mode=$argv[1]??'inspect';
 $live=$config['db']['database'];$folder='storage/slice15-private';
 $manifest=$folder.'/stageb-'.$number.'.json';
+$userColumns=[20=>['password_enc','must_change_password','password_changed_at'],21=>['removed_at','removed_email','removed_employee_id','removed_status'],24=>['is_final','passed_by'],25=>['rate_type','rate_amount']]; // columns a migration adds to an existing table
+$columnTable=[24=>'application_reviewers',25=>'offers']; // the table those columns belong to; users when not listed
 function stage_backup(string $source,string $label):array {
     global $folder;
     $p=slice15_connect($source);$before=slice15_snapshot($p);$stamp=date('Ymd_His');
@@ -74,11 +76,11 @@ try {
                     if($originalComments!==$p->query('SELECT id,ticket_id,author_user_id,body,created_at FROM ticket_comments ORDER BY id')->fetchAll()||(int)$p->query('SELECT COUNT(*) FROM ticket_comments WHERE visibility<>"ALL"')->fetchColumn())throw new RuntimeException('Original comments changed during visibility migration.');
                     continue;
                 }
-                if($number===20&&$table==='users'){ // migration 020 adds 3 columns: compare every original column and row, ignoring only those 3
+                if(isset($userColumns[$number])&&$table===($columnTable[$number]??'users')){ // migrations 020, 021 and 024 add columns to an existing table: compare every original column and row, ignoring only the added ones
                     $h=hash_init('sha256');$rows=0;
-                    foreach($p->query('SELECT * FROM `users` ORDER BY `id`') as $row){foreach(['password_enc','must_change_password','password_changed_at'] as $c)unset($row[$c]);hash_update($h,json_encode($row,JSON_THROW_ON_ERROR)."
+                    foreach($p->query('SELECT * FROM `'.$table.'` ORDER BY `id`') as $row){foreach($userColumns[$number] as $c)unset($row[$c]);hash_update($h,json_encode($row,JSON_THROW_ON_ERROR)."
 ");$rows++;}
-                    if($rows!==$before['rows']||hash_final($h)!==$before['data'])throw new RuntimeException('Existing records changed: users');
+                    if($rows!==$before['rows']||hash_final($h)!==$before['data'])throw new RuntimeException('Existing records changed: '.$table);
                     continue;
                 }
                 $after=slice15_snapshot($p,[$table])[$table];

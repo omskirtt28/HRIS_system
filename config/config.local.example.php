@@ -20,6 +20,7 @@ return [
         'username' => 'your.hr.account@gmail.com',
         'password' => 'xxxx xxxx xxxx xxxx',
         'from_name' => 'PMBSI HRIS',
+        'send_interview_invites' => false, // true = email applicants their interview details. Test with your own address first.
     ],
     'db' => [
         'host' => '127.0.0.1',

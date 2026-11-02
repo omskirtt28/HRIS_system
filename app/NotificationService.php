@@ -32,6 +32,8 @@ final class NotificationService
     {
         if(in_array($n['kind'],['PROBATION_5M','PROBATION_END','SEASONAL_2M','SEASONAL_END','MATERNITY_14D','MATERNITY_RETURN'],true))
             return $access['reminders']?'hr-probation':null;
+        if($n['kind']==='CANDIDATE_REVIEW')return !empty($access['review'])?'review-candidates':null; // rec-endorse-manager
+        if($n['kind']==='CANDIDATE_DECISION')return !empty($access['recruiting'])?'hr-applicants':null;
         if($n['kind']!=='HR_REQUEST' || empty($n['type_code']))return null;
         $own=(int)$n['requester_user_id']===$userId;
         if($n['type_code']==='INCIDENT_REPORT'){
@@ -59,7 +61,8 @@ final class NotificationService
         $access=['incidents'=>$workspace,'self'=>$workspace&&(Auth::can('tickets.request_self')||Auth::can('ticket.file_for_others')),
             'hr'=>$tickets&&TicketRepository::isHr(),'approve'=>$workspace&&TicketRepository::canApprove(),
             'accounting'=>$tickets&&$workspace&&TicketAccounting::canView(),'team'=>$tickets&&$workspace&&Auth::can('ticket.view_team'),
-            'reminders'=>in_array($portal,['hr','admin'],true)&&Auth::can('employees.view_all')];
+            'reminders'=>in_array($portal,['hr','admin'],true)&&Auth::can('employees.view_all'),
+            'review'=>$workspace&&Auth::can('recruitment.review'),'recruiting'=>$workspace&&Auth::can('recruitment.view')];
         $sql='SELECT n.kind';$params=[];
         if($tickets){
             [$read,$readArgs]=TicketIncident::readClause($userId,$access['hr']);

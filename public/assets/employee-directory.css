@@ -173,3 +173,20 @@ html[data-theme=dark] .employee-directory-grouped .directory-card-icon,body.dark
   .directory-global-search-actions .btn{flex:1;justify-content:center}
   .employee-directory-grouped .employee-filterbar.directory-global-result-filter{grid-template-columns:1fr}
 }
+/* Employees without a portal account: notice and bulk result (SPEC-employee-bulk-portal-accounts) */
+.employee-directory-grouped .account-notice{display:flex;gap:16px;align-items:center;justify-content:space-between;margin:0 0 16px;padding:14px 18px;border:1px solid color-mix(in srgb,var(--hris-warning) 25%,transparent);border-left:4px solid var(--hris-brand-strong);border-radius:14px;background:var(--hris-warning-soft);color:var(--hris-text)}
+.employee-directory-grouped .account-notice-icon{flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:var(--hris-brand-soft);color:var(--hris-warning)}
+.employee-directory-grouped .account-notice-icon svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.employee-directory-grouped .account-notice-body{flex:1 1 auto;min-width:0}
+.employee-directory-grouped .account-notice h2{margin:0 0 2px;font-size:15px;line-height:1.35;font-weight:700;color:var(--hris-text)}
+.employee-directory-grouped .account-notice p{margin:0;font-size:13px;line-height:1.5;color:var(--hris-muted)}
+.employee-directory-grouped .account-notice details{margin-top:6px;font-size:13px}
+.employee-directory-grouped .account-notice summary{cursor:pointer;font-weight:600;color:var(--hris-warning)}
+.employee-directory-grouped .account-notice summary:focus-visible,.employee-directory-grouped .account-notice .btn:focus-visible{outline:2px solid var(--hris-brand-strong);outline-offset:2px}
+.employee-directory-grouped .account-notice ul{max-height:240px;overflow:auto;margin:8px 0 0;padding-left:20px}
+.employee-directory-grouped .account-notice li span{color:var(--hris-muted)}
+.employee-directory-grouped .account-notice form{flex:none}
+.employee-directory-grouped .account-result{display:block}
+@media(max-width:600px){.employee-directory-grouped .account-notice{flex-direction:column;align-items:stretch;padding:16px}.employee-directory-grouped .account-notice form,.employee-directory-grouped .account-notice .btn{width:100%;justify-content:center}}
+.account-generate{display:flex;gap:8px;align-items:stretch}.account-generate select{flex:1 1 auto;min-width:0}.account-generate .btn{flex:none;white-space:nowrap}
+@media(max-width:480px){.account-generate{flex-direction:column}.account-generate .btn{width:100%}}

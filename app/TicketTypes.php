@@ -72,7 +72,12 @@ final class TicketTypes
         if($code==='BRANCH_TRANSFER')db()->prepare('INSERT INTO branch_transfers(ticket_id,employee_id,from_branch_id,to_branch_id,effective_date,company) VALUES(?,?,?,?,?,?) ON DUPLICATE KEY UPDATE from_branch_id=VALUES(from_branch_id),to_branch_id=VALUES(to_branch_id),effective_date=VALUES(effective_date),company=VALUES(company)')->execute([$id,$payload['employee'],$payload['from_branch'],$payload['to_branch'],$payload['effective_date'],$payload['company']]);
     }
     public static function complete(array $ticket,array $data=[]):bool {
-        if($ticket['type_code']==='MANPOWER_REQUEST')db()->prepare('UPDATE ticket_manpower_requests SET date_served=CURDATE() WHERE ticket_id=? AND date_served IS NULL')->execute([$ticket['id']]);
+        if($ticket['type_code']==='MANPOWER_REQUEST'){
+            // rec-manpower-intake: a Manpower Request is served by approving it in HR > Recruitment > Manpower Requests, which creates the recruitment request first.
+            $q=db()->prepare('SELECT 1 FROM manpower_requests WHERE ticket_id=?');$q->execute([$ticket['id']]);
+            if(!$q->fetchColumn())throw new RuntimeException('Approve this request in HR > Recruitment > Manpower Requests so it can be posted as a job.');
+            db()->prepare('UPDATE ticket_manpower_requests SET date_served=CURDATE() WHERE ticket_id=? AND date_served IS NULL')->execute([$ticket['id']]);
+        }
         if($ticket['type_code']==='BRANCH_TRANSFER')return TicketBranchTransfer::complete($ticket,$data);
         if($ticket['type_code']==='OIC_AUTHORIZATION')return TicketOicAuthorization::complete($ticket,$data);
         if($ticket['type_code']==='COE_REQUEST')return TicketCoe::complete($ticket,$data);

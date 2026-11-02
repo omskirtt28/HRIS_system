@@ -24,6 +24,29 @@ function employee_directory_grouped(array $data): void
     <?php if(!$data['ready']):?><div class="alert error">Employee records are not ready. Import the Employee database migration first.</div><?php endif;?>
     <?php if($data['ready'] && !$data['grouping_ready']):?><div class="alert error">Import <strong>20261010_employee_directory_groups.sql</strong> to load areas and branches. You can still open All employees below.</div><?php endif;?>
     <?php if($data['ready'] && !$data['placement_ready']):?><div class="alert">Import <strong>20261010_employee_company_directory.sql</strong> to save company groups and ADL areas.</div><?php endif;?>
+    <?php require_once __DIR__.'/EmployeeAccountService.php';
+      $bulk=$_SESSION['account_bulk_result']??null; unset($_SESSION['account_bulk_result']);
+      $noAccount=($data['ready'] && $canManage && Auth::can('users.view_credentials')) ? EmployeeAccountService::pending() : [];
+      $listRow=static fn(array $r): string => '<li>'.e($r['name']).(($r['employee_no']??'')!==''?' <span>'.e((string)$r['employee_no']).'</span>':'').(isset($r['email'])?' · '.e($r['email']):'').(isset($r['reason'])?' — '.e($r['reason']):'').'</li>'; ?>
+    <?php if($bulk):?>
+    <section class="account-notice account-result" role="status" aria-labelledby="account-result-title">
+      <h2 id="account-result-title"><?=count($bulk['created'])?> account(s) created, <?=count($bulk['skipped'])?> skipped</h2>
+      <p>Passwords are not listed here. Open Users &amp; Access and use the eye icon to see a password and give it to the employee.</p>
+      <?php if($bulk['skipped']):?><details open><summary>Skipped, needs HR (<?=count($bulk['skipped'])?>)</summary><ul><?php foreach(array_slice($bulk['skipped'],0,100) as $r) echo $listRow($r);?></ul><?php if(count($bulk['skipped'])>100):?><p>and <?=count($bulk['skipped'])-100?> more.</p><?php endif;?></details><?php endif;?>
+      <?php if($bulk['created']):?><details><summary>Created (<?=count($bulk['created'])?>)</summary><ul><?php foreach(array_slice($bulk['created'],0,100) as $r) echo $listRow($r);?></ul><?php if(count($bulk['created'])>100):?><p>and <?=count($bulk['created'])-100?> more.</p><?php endif;?></details><?php endif;?>
+    </section>
+    <?php endif;?>
+    <?php if($noAccount):?>
+    <section class="account-notice" role="status" aria-labelledby="account-notice-title">
+      <span class="account-notice-icon" aria-hidden="true"><?=icon_svg('user-plus')?></span>
+      <div class="account-notice-body">
+        <h2 id="account-notice-title"><?=count($noAccount)?> active employee(s) have no portal account</h2>
+        <p>They cannot sign in or file HR requests yet. Each new account gets the Employee role and a temporary password you can view in Users &amp; Access.</p>
+        <details><summary>Show who (<?=count($noAccount)?>)</summary><ul><?php foreach(array_slice($noAccount,0,50) as $r) echo $listRow($r);?></ul><?php if(count($noAccount)>50):?><p>and <?=count($noAccount)-50?> more.</p><?php endif;?></details>
+      </div>
+      <form method="post" action="<?=url('hr-employees')?>" onsubmit="return confirm('Create <?=count($noAccount)?> portal account(s) now?')"><?=csrf_field()?><input type="hidden" name="action" value="generate_missing_accounts"><button class="btn primary"><?=icon_svg('plus')?> Generate all accounts</button></form>
+    </section>
+    <?php endif;?>
     <form method="get" action="<?=url('hr-employees')?>" class="directory-global-search" role="search" aria-label="Search all employees">
       <input type="hidden" name="page" value="hr-employees">
       <input type="hidden" name="group" value="ALL">

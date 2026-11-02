@@ -1,0 +1,22 @@
+# Todo: Remove portal account
+
+- [x] T1 Migration `database/migrations/20261102_021_remove_portal_account.sql` + down
+  - Acceptance: nullable `removed_at` added; up/re-run/down/up clean; down refuses when any row has removed_at
+  - Verify: scratch DB `ticket_stageb_database.php cycle`
+  - Files: migration up/down, vault Data-Model.md
+- [x] T2 Repository `removeUser`, `restoreUser`, filter in `users()`, `removedUsers()`
+  - Acceptance: tombstone email, revoke sessions, unlink employee, clear matching company_email, audit; guards (self, last Super Admin, Admin/Super Admin by HR)
+  - Verify: tests/remove_account_test.php
+  - Files: app/FoundationRepository.php, tests/remove_account_test.php
+- [x] T3 Routes `remove_user`, `restore_user` (HR role gate, CSRF, return page map)
+  - Acceptance: non-HR 403, bad CSRF rejected
+  - Verify: tests/remove_account_http_test.php
+  - Files: index.php, tests/remove_account_http_test.php
+- [x] T4 UI kebab item + confirm dialog + Removed accounts view
+  - Acceptance: HR sees Remove on allowed rows (no more "No available actions"); confirm names the person and says employee record is kept
+  - Verify: syntax + HTTP render test (no browser unless John says go)
+  - Files: index.php, public/assets/hris-modern.css
+- [x] T5 Sweep: other `users` joins hide removed; EmployeeAccountService duplicate-email check
+  - Verify: grep list in plan; tests
+  - Files: app/*.php as found
+- [x] T6 `php scripts/check.php task`, vault sync (Progress, module note, Business-Rules, Screens, API-Surface, Decision-Log, CHANGELOG, Session-Log)

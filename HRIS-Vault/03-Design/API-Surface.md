@@ -224,3 +224,22 @@ Hub for HR requests: [[Employee-Tickets]] · UI rules: [[Design-System]]
 - POST hr-request (action `core_ticket_followup`, ticket_id, csrf): `TicketLeadFollowup::followUp`. Read-only lead only, open status, not Incident Report, once per 24h. Opening a request as a viewer marks its notifications read.
 
 - 2026-11-02 POST page=user-password-reveal (JSON, CSRF, users.view_credentials, 10 per minute) returns ok, password, message. page=change-password GET and POST. Removed action create_user. reset_user_password now allows users.view_credentials (employee accounts only).
+
+- 2026-11-02 POST generate_employee_account (employee_id, account_role EMPLOYEE or HR, csrf; employees.manage, HR role also needs users.view_credentials) and POST generate_missing_accounts (csrf; employees.manage and users.view_credentials) return a redirect with a flash; the bulk result is kept in the session for one directory render. Removed action link_user_employee. update_employee_employment ignores any posted user_id.
+
+- 2026-11-02 POST remove_user and POST restore_user (user_id, csrf; users.remove) on page=admin-users, redirect back with a flash. Scope: not self, not Super Admin, Admin-portal only by Super Admin. toggle_user_status, reset_user_password and change_user_role now refuse a removed account.
+
+
+- 2026-11-02 POST approve_manpower (ticket_id, version, client_id or new_employer, priority NORMAL|URGENT, position_title, remarks, csrf) and POST decline_manpower (ticket_id, version, remarks required, csrf) on page=hr-manpower; recruitment.manage plus HR ticket review; errors flash and redirect back to hr-manpower. create_manpower now also takes new_employer and refuses a missing employer. GET hr-manpower accepts filter=declined|all.
+
+## 2026-11-02 - rec-jobs routes
+GET hr-jobs (recruitment.view; ?filter=draft|published|closed, ?q=, ?new=1, ?request_id=, ?edit=). POST save_job (job_id 0 = create; manpower_request_id or client_id/new_employer; fields title, description, requirements, location_text, employment_type FULL_TIME|CONTRACT, openings 1-999, salary_min/max, closes_on, department_id, is_featured, publish_now), publish_job, unpublish_job, close_job, reopen_job (job_id); all need recruitment.manage and CSRF, errors flash and redirect to hr-jobs, and a refused save_job keeps the form input. Removed: POST create_manpower. Public readers use JobOpenings::PUBLIC_WHERE.
+
+## 2026-11-02 - rec-apply-job routes
+GET hr-application-resume?id=<application id>[&download=1] (recruitment.view). Streams the applicant's latest RESUME from uploads.resume_dir, found by application id (never a posted path); PDF inline, DOC/DOCX or &download=1 as attachment; nosniff; 404 when none; audit VIEW_RESUME. Not available to the client portal or the public. Apply page: GET apply?job_id=N now needs a public job (hidden job_opening_id); with none it shows a Browse jobs prompt, no form. Error redirects keep job_id (return_job).
+
+## 2026-11-02 - rec-endorse-manager routes
+POST endorse (recruitment.manage; fields application_id, note, reviewers[]) now endorses to reviewers. GET review-candidates and GET review-candidate?id= (recruitment.review; 404 unless endorsed to the signed-in user). GET review-resume?id=[&download=1] (recruitment.review plus a reviewer row for this user; HR keeps hr-application-resume). POST review_decide (application_id, decision PROCEED|NOT_SUITABLE|ANOTHER_INTERVIEW, comment) and POST review_schedule (application_id, interview_type, scheduled_at, location_or_link, notes), both recruitment.review and own rows only. Notification kinds CANDIDATE_REVIEW (to the reviewer, sidebar badge on review-candidates) and CANDIDATE_DECISION (to HR, badge on hr-applicants).
+
+## 2026-11-02 - interview-invite and interview-chain routes
+POST resend_interview_invite (recruitment.manage; interview_id, application_id; CSRF). POST review_pass_on (recruitment.review; application_id, to[], final[], note; CSRF; scoped to reviewers of the candidate). POST endorse also accepts final[] (subset of reviewers[]). POST schedule_interview and review_schedule now send the invite email.

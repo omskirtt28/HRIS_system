@@ -122,3 +122,26 @@ Related: [[Decision-Log]] · [[Roadmap]] · [[Business-Rules]] · [[PH-Labor-and
 - Q64 (2026-11-02): Role clean-up patch: remove HR Leave, HR Timekeeping, Recruiter and Payroll roles (users on them: Recruiter 2, HR Leave 1, Payroll 2; Recruitment Manager 1 not mentioned). Needs a permission diff against Human Resources, a reassign migration and a guarded down script. Owner: John. Not started.
 - Q65 (2026-11-02): Filing the forgotten-password request needs a signed-in session; an unauthenticated request form was not built (abuse risk). The login page says to ask HR. Revisit if employees cannot reach HR.
 - Q66 (2026-11-02): The 20 existing accounts have no stored password copy until reset; no bulk backfill is possible (hash only).
+- Q67 (2026-11-02) BLOCKS the live run: 368 employees have a blank Company. Bulk gives them @pmbsi.com (Legal entity is always PMBSI, so this is only a default). Emails are locked, so a 2LOG person would keep a wrong domain. Options: pmbsi.com for all blank, map by group (SW / OC), or skip until Company is set. A screenshot showed 2LOG for one employee whose database Company is blank.
+- Q68 (2026-11-02): The recruitment conversion form (Phase 2C) still offers Link later, existing or create account with a typed temporary password. Left alone; should it follow the auto-account rules?
+- Q69 (2026-11-02): The live bulk run (about 350 real logins) is not done; it waits for a word from John after a fresh verified dump.
+- Q70 (2026-11-02): users.remove is granted to HR_USER only. Should HRIS_ADMIN (Admin portal) also get it? Super Admin always can.
+- Q71 (2026-11-02): A removed account keeps its password hash and encrypted copy in the row. Wipe password_enc on removal? Restore would then need a password reset.
+
+
+- Q72 (2026-11-02): Position codes BS, SC and VS have no readable names in the app. HR types the title at Approve; do you want a code-to-name list?
+- Q73 (2026-11-02): Approving completes the ticket, so the requester sees "Date served" on the approval date although nobody is hired yet. Keep, or relabel for this type?
+- Q74 (2026-11-02): RECRUITER, COORDINATOR and RECRUITMENT_MANAGER have recruitment.manage but not tickets.review_hr, so they see the list but not Approve or Decline. Grant them the ticket review right (a permission change), or keep decisions to HR users?
+- Q75 (2026-11-02): database/schema.sql still seeds the five demo clients plus demo requests, jobs and applicants for fresh installs, and index.php:652 still shows ops@primelogistics.com as the client-portal login hint (inactive on live now). Clean both?
+- Q76 (2026-11-02): Careers and job pages will show the employer name HR types. Hide it for client-confidential hiring? Decide in rec-jobs.
+- Q76 ANSWERED (2026-11-02, John): public pages show PMBSI only, never the employer (BR-854).
+- Q77 ANSWERED (2026-11-02, spec Q-J5 approved by John): the public page shows a salary range only when both min and max are set, otherwise Salary negotiable (BR-855).
+- Q78 (2026-11-02): closing dates use the PHP clock when saving and MySQL NOW() when reading; they agree on this laptop (both Asia/Manila). Confirm the hosting MySQL time zone before deploy.
+- Q79 (2026-11-02): auto-closing a job when its request is fully filled belongs to rec-pipeline (it owns the filled count). Decide there.
+
+- Q80 (2026-11-02): a recipient from an earlier round who never answered still counts as pending, so Not suitable from the new round alone will not return the candidate; HR can move the stage by hand. Decide whether HR should be able to remove a recipient.
+- Q81 (2026-11-02): the rec-endorse-manager Mid interview type was added to the reviewer schedule form only; the HR schedule form still lists Initial, Final, Client and Technical. Align when rec-track-steps defines the interview rounds.
+
+- Q82 (2026-11-02): interview-invite sends from the one company Gmail (SMTP App Password). A real Google Calendar / Meet invite through the Google API, and an email when an interview is rescheduled or cancelled (no reschedule action exists yet), are later steps.
+- Q83 (2026-11-02): the Resend limit is per browser session and not stored; revisit if abuse from several sessions matters. The client-portal approval path still moves a candidate to Offer (client portal removal slice owns it).
+- Q84 (2026-11-02): offer-rate-type uses 26 days/month and 8 hours/day (OfferRate::DAYS_PER_MONTH / HOURS_PER_DAY). Confirm the company rule (22 days? payroll hourly_divisor?) before relying on computed monthly amounts. Job Openings salary min/max are still monthly-only.
