@@ -94,6 +94,26 @@ final class EmployeeAccountService
         $st->execute([password_hash($plain,PASSWORD_DEFAULT),self::encrypt($plain),$mustChange?1:0,$userId]);
     }
 
+    /**
+     * HR/Super Admin view of an account's current password (spec D4/D11). Needs users.view_credentials, max 10 per minute per viewer,
+     * every call audited with who/whose/when and never the value. password is null (with a message) when no copy exists.
+     */
+    public static function reveal(int $targetUserId): array
+    {
+        $actor=(int)(Auth::user()['id'] ?? 0);
+        if($actor<=0 || !Auth::can('users.view_credentials')) throw new RuntimeException('You do not have permission to view account passwords.');
+        $n=db()->prepare('SELECT COUNT(*) FROM audit_logs WHERE action="REVEAL_PASSWORD" AND user_id=? AND created_at>DATE_SUB(NOW(),INTERVAL 1 MINUTE)');
+        $n->execute([$actor]);
+        if((int)$n->fetchColumn()>=10) throw new RuntimeException('Too many password views. Wait a minute and try again.');
+        $st=db()->prepare('SELECT password_enc FROM users WHERE id=?'); $st->execute([$targetUserId]);
+        $row=$st->fetch();
+        if(!$row) return ['password'=>null,'message'=>'Account not found.'];
+        audit('Access Control','REVEAL_PASSWORD','user',$targetUserId,['viewer_user_id'=>$actor,'has_copy'=>$row['password_enc']!==null]);
+        $plain=self::decrypt($row['password_enc']);
+        return $plain!==null ? ['password'=>$plain,'message'=>null]
+            : ['password'=>null,'message'=>'This password cannot be shown (the account predates password viewing, or the key changed). Reset the password to enable viewing.'];
+    }
+
     /** True while the account still has to choose its own password. A missing column (migration 020 not applied) counts as false. */
     public static function mustChange(int $userId): bool
     {

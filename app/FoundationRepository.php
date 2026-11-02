@@ -472,12 +472,15 @@ final class FoundationRepository
         if(strlen($password)<10) throw new RuntimeException('Temporary password must be at least 10 characters.');
         if(!preg_match('/[A-Za-z]/',$password) || !preg_match('/[0-9]/',$password)) throw new RuntimeException('Temporary password must include at least one letter and one number.');
 
-        $st=db()->prepare('SELECT id,email FROM users WHERE id=? LIMIT 1');
+        $st=db()->prepare('SELECT u.id,u.email,r.portal FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=? LIMIT 1');
         $st->execute([$id]);
         $user=$st->fetch();
         if(!$user) throw new RuntimeException('User account not found.');
+        // HR (users.view_credentials) may reset employee-portal accounts only; Super Admin may reset any (spec D8/D11).
+        if(!Auth::is('SUPER_ADMIN') && (!Auth::can('users.view_credentials') || $user['portal']!=='employee')) throw new RuntimeException('Only a Super Admin can reset HR or Admin accounts.');
 
-        db()->prepare('UPDATE users SET password_hash=? WHERE id=?')->execute([password_hash($password,PASSWORD_DEFAULT),$id]);
+        require_once __DIR__.'/EmployeeAccountService.php';
+        EmployeeAccountService::setPassword($id,$password,true); // temporary: the user must choose their own at next sign-in
         if(self::tableExists('user_sessions')) {
             db()->prepare('UPDATE user_sessions SET revoked_at=NOW() WHERE user_id=? AND revoked_at IS NULL')->execute([$id]);
         }

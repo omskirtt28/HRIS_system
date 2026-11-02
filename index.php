@@ -301,14 +301,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('success','User account status updated.'); redirect('admin-users');
         }
         if ($action === 'reset_user_password') {
-            Auth::requireRoles(['SUPER_ADMIN']);
+            if(!Auth::is('SUPER_ADMIN')) Auth::requirePermission('users.view_credentials'); // HR may reset employee accounts only (enforced in FoundationRepository)
             $targetUserId=(int)($_POST['user_id']??0);
             $newTemporaryPassword=(string)($_POST['new_password']??'');
             FoundationRepository::resetUserPassword($targetUserId,$newTemporaryPassword);
-            // Make the freshly reset temporary password available only on the immediate
-            // Super Admin response page. It is never stored as plaintext in the database.
-            $_SESSION['password_reset_reveal']=['user_id'=>$targetUserId,'password'=>$newTemporaryPassword];
-            flash('success','Password reset successfully. Use the eye icon for that user to view or copy the new temporary password on this page. All active sessions for that account were signed out.');
+            flash('success','Password reset. Use the eye icon for that user to view or copy the new temporary password; they must choose their own at next sign-in. All active sessions for that account were signed out.');
             redirect('admin-users');
         }
         if ($action === 'create_employee') {
@@ -1768,21 +1765,18 @@ if ($page === 'admin-dashboard') {
 }
 
 if ($page === 'admin-users') {
-    Auth::requirePermission('users.view');
+    if(!Auth::can('users.view_directory')) Auth::requirePermission('users.view'); // HR gets a read-only directory (users.view_directory); Super Admin/Admin keep users.view
+    $canReveal=Auth::can('users.view_credentials');
     $users=FoundationRepository::users();
     $roles=FoundationRepository::roles();
     $assignableRoles=FoundationRepository::assignableRoles();
     $isSuperAdmin=Auth::is('SUPER_ADMIN');
     // Client accounts never file HR requests, so only non-client accounts need an employee link.
     $unlinkedUsers=array_values(array_filter($users,fn($u)=>$u['status']==='ACTIVE' && $u['portal']!=='client' && $u['employee_id']===null));
-    $passwordResetReveal=$_SESSION['password_reset_reveal'] ?? null;
-    unset($_SESSION['password_reset_reveal']);
-    $passwordResetRevealUserId=is_array($passwordResetReveal)?(int)($passwordResetReveal['user_id']??0):0;
-    $passwordResetRevealValue=is_array($passwordResetReveal)?(string)($passwordResetReveal['password']??''):'';
     $portalOptions=[];
     foreach($users as $usr){$portalKey=strtoupper((string)$usr['portal']); if($portalKey!==''){$portalOptions[$portalKey]=$portalKey;}}
     ksort($portalOptions);
-    render_portal_header('admin',$page,'Users'); ?>
+    render_portal_header(Auth::can('users.view')?'admin':'hr',$page,'Users'); ?>
 
     <div class="users-pagehead">
       <div>
@@ -1827,10 +1821,10 @@ if ($page === 'admin-users') {
               <col class="users-col-department">
               <col class="users-col-status">
               <col class="users-col-last-login">
-              <?php if($isSuperAdmin):?><col class="users-col-password"><?php endif;?>
+              <?php if($canReveal):?><col class="users-col-password"><?php endif;?>
               <col class="users-col-actions">
             </colgroup>
-            <thead><tr><th>Name / Email</th><th>Role</th><th class="users-department-head">Department</th><th>Status</th><th>Last login</th><?php if($isSuperAdmin):?><th>Password</th><?php endif;?><th class="users-actions-head">Actions</th></tr></thead>
+            <thead><tr><th>Name / Email</th><th>Role</th><th class="users-department-head">Department</th><th>Status</th><th>Last login</th><?php if($canReveal):?><th>Password</th><?php endif;?><th class="users-actions-head">Actions</th></tr></thead>
             <tbody>
             <?php foreach($users as $u):
               $roleFilter=strtolower((string)$u['role_name']);
@@ -1845,18 +1839,18 @@ if ($page === 'admin-users') {
                 <td data-label="Department"><span class="users-department"><?=e(strtoupper($u['portal']))?></span></td>
                 <td data-label="Status"><span class="users-status users-status-<?=e(strtolower($u['status']))?>"><?=e(strtoupper($u['status']))?></span></td>
                 <td data-label="Last login"><span class="users-last-login"><?=e($u['last_login_at']?date('M j, Y g:i A',strtotime($u['last_login_at'])):'Never')?></span></td>
-                <?php if($isSuperAdmin):?>
+                <?php if($canReveal):?>
                 <td data-label="Password">
                   <div class="users-password-cell">
                     <span class="password-mask">••••••••</span>
-                    <button class="users-eye-btn users-hash-eye" type="button" aria-label="Open password access" title="Password access" data-password-info data-user-id="<?=$u['id']?>" data-user-name="<?=e($u['full_name'])?>" data-user-email="<?=e($u['email'])?>" data-user-initials="<?=e(initials($u['full_name']))?>" data-is-current="<?=$isCurrent?'1':'0'?>" <?php if($passwordResetRevealUserId===(int)$u['id'] && $passwordResetRevealValue!==''):?>data-revealed-password="<?=e($passwordResetRevealValue)?>"<?php endif;?>><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                    <button class="users-eye-btn users-hash-eye" type="button" aria-label="View password for <?=e($u['full_name'])?>" title="View password" data-password-info data-user-id="<?=$u['id']?>" data-user-name="<?=e($u['full_name'])?>" data-user-email="<?=e($u['email'])?>" data-user-initials="<?=e(initials($u['full_name']))?>" data-is-current="<?=$isCurrent?'1':'0'?>" data-can-reset="<?=($isSuperAdmin||$u['portal']==='employee')?'1':'0'?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>
                   </div>
                 </td>
                 <?php endif;?>
                 <td data-label="Actions" class="users-actions-cell">
                   <div class="users-row-actions">
                     <div class="users-action-primary">
-                      <?php if(!$isCurrent):?><button class="btn sm users-reset-button" type="button" data-reset-user data-user-id="<?=$u['id']?>" data-user-name="<?=e($u['full_name'])?>" data-user-email="<?=e($u['email'])?>" data-user-initials="<?=e(initials($u['full_name']))?>">Reset password</button><?php else:?><span class="users-current-account">Current account</span><?php endif;?>
+                      <?php if(!$isCurrent && ($isSuperAdmin || $u['portal']==='employee')):?><button class="btn sm users-reset-button" type="button" data-reset-user data-user-id="<?=$u['id']?>" data-user-name="<?=e($u['full_name'])?>" data-user-email="<?=e($u['email'])?>" data-user-initials="<?=e(initials($u['full_name']))?>">Reset password</button><?php elseif($isCurrent):?><span class="users-current-account">Current account</span><?php endif;?>
                     </div>
                     <div class="users-action-menu-slot">
                       <button class="users-more-btn" type="button" aria-label="Open user actions" aria-expanded="false" data-user-menu-button>⋮</button>
@@ -1866,7 +1860,7 @@ if ($page === 'admin-users') {
                 </td>
               </tr>
             <?php endforeach;?>
-            <tr class="users-no-results" id="usersNoResults" hidden><td colspan="<?=6+($isSuperAdmin?1:0)?>">No user accounts match the current search or filters.</td></tr>
+            <tr class="users-no-results" id="usersNoResults" hidden><td colspan="<?=6+($canReveal?1:0)?>">No user accounts match the current search or filters.</td></tr>
             </tbody>
           </table>
         </div>
@@ -1893,20 +1887,20 @@ if ($page === 'admin-users') {
     </section>
     <?php endif;?>
 
-    <?php if($isSuperAdmin):?>
+    <?php if($canReveal):?>
+    <form id="passwordRevealForm" hidden><?=csrf_field()?></form>
     <div class="users-modal-backdrop" id="passwordAccessModal" hidden>
       <div class="users-modal users-password-access-modal" role="dialog" aria-modal="true" aria-labelledby="passwordAccessTitle" tabindex="-1">
-        <div class="users-modal-head"><div><h2 id="passwordAccessTitle">Password access</h2><p>Secure credential support for this account.</p></div><button class="users-modal-close" type="button" aria-label="Close password access dialog" data-close-password-access>×</button></div>
+        <div class="users-modal-head"><div><h2 id="passwordAccessTitle">Password access</h2><p>Current password for this account. Every view is recorded in the audit log.</p></div><button class="users-modal-close" type="button" aria-label="Close password access dialog" data-close-password-access>×</button></div>
         <div class="users-modal-user"><span class="users-modal-avatar" id="passwordAccessInitials">U</span><div><strong id="passwordAccessName">User</strong><span id="passwordAccessEmail">user@pmbsi.com</span></div></div>
         <div class="users-credential-reveal" id="passwordCredentialReveal" hidden>
-          <label for="passwordCredentialValue">Temporary password</label>
-          <div class="users-password-input"><input id="passwordCredentialValue" type="password" readonly autocomplete="off"><button class="users-eye-btn" type="button" aria-label="Show temporary password" data-password-toggle="#passwordCredentialValue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
-          <div class="users-credential-note success">This temporary password was just issued in your current Super Admin session. Copy it now; it will not be recoverable after this page is left or refreshed.</div>
+          <label for="passwordCredentialValue">Current password</label>
+          <div class="users-password-input"><input id="passwordCredentialValue" type="password" readonly autocomplete="off"><button class="users-eye-btn" type="button" aria-label="Show current password" data-password-toggle="#passwordCredentialValue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
+          <div class="users-credential-note success">This is the account's current password. It is hidden again after 30 seconds. Share it only with its owner.</div>
           <div class="users-modal-actions"><button class="btn" type="button" id="copyCredentialPassword"><?=icon_svg('clipboard')?> <span>Copy password</span></button><button class="btn primary" type="button" data-close-password-access>Done</button></div>
         </div>
         <div class="users-credential-protected" id="passwordCredentialProtected">
-          <div class="users-password-help"><span class="users-help-lock"><?=icon_svg('lock')?></span><div><strong>Current password is protected.</strong><br>PMBSI HRIS stores account passwords using secure one-way hashing. The existing password cannot be revealed, even to a Super Administrator.</div></div>
-          <p class="users-credential-guidance">If the user forgot the password, issue a new temporary password. This keeps the account secure and preserves the production authentication standard.</p>
+          <div class="users-password-help"><span class="users-help-lock"><?=icon_svg('lock')?></span><div><strong id="passwordProtectedTitle">Loading password...</strong><br><span id="passwordProtectedText"></span></div></div>
           <div class="users-modal-actions"><button class="btn" type="button" data-close-password-access>Close</button><button class="btn primary" type="button" id="passwordAccessResetButton"><?=icon_svg('key')?> <span>Reset password</span></button></div>
         </div>
       </div>
@@ -1970,24 +1964,36 @@ if ($page === 'admin-users') {
       const credentialValue=qs('#passwordCredentialValue');
       const accessResetButton=qs('#passwordAccessResetButton');
       let passwordAccessTrigger=null;
+      const revealForm=qs('#passwordRevealForm'),revealUrl=<?=json_encode(url('user-password-reveal'))?>,protectedTitle=qs('#passwordProtectedTitle'),protectedText=qs('#passwordProtectedText');
+      let revealTimer=null;
+      const showProtected=(t,x)=>{credentialReveal.hidden=true;credentialProtected.hidden=false;protectedTitle.textContent=t;protectedText.textContent=x;};
+      const loadPassword=async()=>{ // the server checks permission, rate-limits and audits each view; the value is hidden again after 30 s
+        const forUser=passwordAccessData.userId;
+        try{
+          const fd=new FormData(revealForm);fd.append('user_id',forUser);
+          const res=await fetch(revealUrl,{method:'POST',body:fd,credentials:'same-origin'});const j=await res.json();
+          if(passwordAccessModal.hidden||passwordAccessData.userId!==forUser)return;
+          if(j.ok){credentialValue.value=j.password;credentialValue.type='password';credentialReveal.hidden=false;credentialProtected.hidden=true;clearTimeout(revealTimer);revealTimer=setTimeout(closePasswordAccess,30000);}
+          else showProtected('Password not available',j.message||'Try again.');
+        }catch(err){showProtected('Could not load the password','Check your connection or sign in again, then retry.');}
+      };
       let passwordAccessData=null;
       const openPasswordAccess=btn=>{
         if(!passwordAccessModal)return;
         passwordAccessTrigger=btn;
-        passwordAccessData={userId:btn.dataset.userId||'',userName:btn.dataset.userName||'User',userEmail:btn.dataset.userEmail||'',userInitials:btn.dataset.userInitials||'U',isCurrent:btn.dataset.isCurrent==='1',revealedPassword:btn.dataset.revealedPassword||''};
+        passwordAccessData={userId:btn.dataset.userId||'',userName:btn.dataset.userName||'User',userEmail:btn.dataset.userEmail||'',userInitials:btn.dataset.userInitials||'U',isCurrent:btn.dataset.isCurrent==='1'||btn.dataset.canReset!=='1',revealedPassword:''};
         passwordAccessName.textContent=passwordAccessData.userName;
         passwordAccessEmail.textContent=passwordAccessData.userEmail;
         passwordAccessInitials.textContent=passwordAccessData.userInitials;
-        const hasReveal=passwordAccessData.revealedPassword!=='';
-        credentialReveal.hidden=!hasReveal;
-        credentialProtected.hidden=hasReveal;
-        if(hasReveal){credentialValue.value=passwordAccessData.revealedPassword;credentialValue.type='password';}
+        credentialValue.value='';credentialValue.type='password';
+        showProtected('Loading password...','');
         if(accessResetButton)accessResetButton.hidden=passwordAccessData.isCurrent;
         passwordAccessModal.hidden=false;
         document.body.classList.add('users-modal-open');
         requestAnimationFrame(()=>passwordAccessBox?.focus());
+        loadPassword();
       };
-      const closePasswordAccess=()=>{if(!passwordAccessModal||passwordAccessModal.hidden)return;passwordAccessModal.hidden=true;document.body.classList.remove('users-modal-open');passwordAccessTrigger?.focus();};
+      const closePasswordAccess=()=>{if(!passwordAccessModal||passwordAccessModal.hidden)return;clearTimeout(revealTimer);credentialValue.value='';passwordAccessModal.hidden=true;document.body.classList.remove('users-modal-open');passwordAccessTrigger?.focus();};
       qsa('[data-password-info]').forEach(btn=>btn.addEventListener('click',()=>openPasswordAccess(btn)));
       qsa('[data-close-password-access]').forEach(btn=>btn.addEventListener('click',closePasswordAccess));
       passwordAccessModal?.addEventListener('mousedown',e=>{if(e.target===passwordAccessModal)closePasswordAccess();});

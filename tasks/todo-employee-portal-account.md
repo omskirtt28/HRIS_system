@@ -10,16 +10,16 @@ Write each test first (red), then code. Checkpoint after every 2 tasks: `php scr
   - `generatePassword()`, `emailFor(first,last,workCompany)` with `DOMAINS=['PMBSI'=>'pmbsi.com','2LOG'=>'2log.com']` (shortcut comment: move to a table when companies get a UI), `encrypt/decrypt` (AES-256-GCM, key from config, fail closed), `issue(employeeId,...)`.
   - Acceptance: unit cases for accents, spaces, `Jr.`, empty name, collisions, round trip, tampered ciphertext rejected, missing key throws.
   - Files: app/EmployeeAccountService.php, config/config.local.example.php, tests/employee_portal_account_test.php (+ scripts/check.php register).
-- [ ] **T3 Create Employee wiring**
+- [x] **T3 Create Employee wiring**
   - `create_employee` handler + `EmployeeRepository::create` run in one transaction: insert employee, create linked user (role from allow-list HR/Employee), set `company_email`, `must_change_password=1`, encrypted copy; audit without password. `createUser` returns the id.
   - UI: Role field in Employment information, read-only email preview that follows Company; remove "User account / Link later" (index.php ~1319), edit form select (~1425?) and Phase 2C "Existing Employee account" (~1640) only where it links accounts at creation.
   - Acceptance: scenarios 1-3 in the plan; forged `role_id` rejected; duplicate employee still rejected.
   - Files: index.php, app/EmployeeRepository.php, app/FoundationRepository.php.
-- [ ] **T4 Change password + login gate**
+- [x] **T4 Change password + login gate**
   - New `change-password` page (any logged-in user, from account menu / My Profile), POST+CSRF, verifies current password, policy, revokes other sessions, rewrites hash + copy, clears `must_change_password`. Gate in `Auth`/router: while `must_change_password=1` only this page, logout and assets are reachable.
   - Acceptance: first login redirects to the page; after change normal landing; wrong current password rejected with generic message; rate-limited.
   - Files: app/Auth.php, index.php, app/View.php (menu link), tests.
-- [ ] **T5 Reveal + HR view**
+- [x] **T5 Reveal + HR view**
   - `FoundationRepository::revealPassword($userId)` (needs `users.view_credentials`, POST+CSRF, audit `REVEAL_PASSWORD` no value, 10/min/user). Reset (Super Admin and HR-for-employees) rewrites the copy. Users & Access: `users.view_directory` gives HR a read-only list (no create/role/disable/link), eye calls the reveal endpoint and shows value with copy button, auto-masks after 30 s; rows without a copy show "Not available. Reset password to enable viewing."
   - Acceptance: employee/Payroll/etc. cannot reveal (403); HR can reveal any account incl. Super Admin (D11); HR cannot change role/disable staff; audit row per reveal; page source never contains a password.
   - Files: index.php (users page ~1760-1990), app/FoundationRepository.php, hris css if needed, tests.

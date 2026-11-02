@@ -117,9 +117,58 @@ check('change: 5 wrong attempts lock further tries for a while',rejects(fn()=>Em
 // --- T4 static: page, gate and menu ------------------------------------------------------
 $mod=file_get_contents(dirname(__DIR__).'/app/AccountPasswordModule.php');$view=file_get_contents(dirname(__DIR__).'/app/View.php');$idx=file_get_contents(dirname(__DIR__).'/index.php');
 check('gate: module is hooked in index.php before any module handler',strpos($idx,'account_password_handle($page);')!==false&&strpos($idx,'account_password_handle($page);')<strpos($idx,'ticket_handle($page);'));
-check('gate: forced users are redirected except change-password and logout',str_contains($mod,"if(\$forced && \$page!=='logout') redirect('change-password');"));
+check('gate: forced users are redirected except change-password and logout',str_contains($mod,"if(\$forced && !in_array(\$page,['change-password','logout'],true)) redirect('change-password');"));
+check('reveal route: POST-only JSON, CSRF checked, no-store, uses the service',str_contains($mod,"\$page==='user-password-reveal'")&&str_contains($mod,"'Cache-Control: no-store'")&&str_contains($mod,'EmployeeAccountService::reveal('));
 check('page: POST is CSRF-protected and uses the service',str_contains($mod,'verify_csrf();')&&str_contains($mod,'EmployeeAccountService::changeOwnPassword('));
 check('page: password fields use the right autocomplete hints',substr_count($mod,'autocomplete="new-password"')===2&&str_contains($mod,'autocomplete="current-password"'));
 check('menu: account menu links to Change password',str_contains($view,"url('change-password')"));
+
+
+// --- T5 reveal and reset -----------------------------------------------------------------
+$hrRole=insert('INSERT INTO roles(code,name,portal) VALUES(?,?,"hr")',[$tag.'_hrv','Slice15 hr viewer']);
+foreach(['users.view_directory','users.view_credentials'] as $pc){$pp=row('SELECT id FROM permissions WHERE code=?',[$pc]);db()->prepare('INSERT INTO role_permissions(role_id,permission_id) VALUES(?,?)')->execute([$hrRole,$pp['id']]);}
+$hrId=insert('INSERT INTO users(role_id,full_name,email,password_hash,status) VALUES(?,?,?,?,"ACTIVE")',[$hrRole,'Slice15 HR Viewer',strtolower($tag).'_hrv@example.test',password_hash('Slice15-Test-Only!9',PASSWORD_DEFAULT)]);
+$hrUser=['id'=>$hrId,'role_id'=>$hrRole,'role_code'=>$tag.'_hrv','role_portal'=>'hr','name'=>'Slice15 HR Viewer','role_name'=>'HR viewer','email'=>strtolower($tag).'_hrv@example.test','client_id'=>null];
+$nobody=$f['employee'];
+$superUser=$hrUser;$superUser['role_code']='SUPER_ADMIN';
+$empUid=(int)$b['user_id'];$empPlain=EmployeeAccountService::decrypt(row('SELECT password_enc e FROM users WHERE id=?',[$empUid])['e']);
+act($hrUser);
+$r=EmployeeAccountService::reveal($empUid);
+check('reveal: HR sees an employee password',$r['password']===$empPlain&&$r['password']!==null);
+check('reveal: HR sees an HR account password too (D11)',EmployeeAccountService::reveal((int)$h['user_id'])['password']!==null);
+$legacy=insert('INSERT INTO users(role_id,full_name,email,password_hash,status) VALUES(?,?,?,?,"ACTIVE")',[$u['role_id'],'Slice15 Legacy',strtolower($tag).'_legacy@example.test',password_hash('Legacy-Pass-1x',PASSWORD_DEFAULT)]);
+$r=EmployeeAccountService::reveal($legacy);
+check('reveal: account without a stored copy returns no password and says to reset',$r['password']===null&&str_contains((string)$r['message'],'Reset'));
+check('reveal: unknown user returns no password',EmployeeAccountService::reveal(999999999)['password']===null);
+check('reveal: every reveal is audited without the password',(int)row('SELECT COUNT(*) c FROM audit_logs WHERE action="REVEAL_PASSWORD" AND user_id=? AND record_id=? AND details_json NOT LIKE ?',[$hrId,$empUid,'%'.$empPlain.'%'])['c']>=1);
+check('reveal: employee without the permission is refused',(function()use($nobody,$empUid){act($nobody);return rejects(fn()=>EmployeeAccountService::reveal($empUid));})());
+act($hrUser);
+$ok=0;for($i=0;$i<12;$i++){try{EmployeeAccountService::reveal($empUid);$ok++;}catch(RuntimeException){}}
+check('reveal: rate limited to 10 per minute per user',$ok<=7&&rejects(fn()=>EmployeeAccountService::reveal($empUid)));
+db()->prepare('DELETE FROM audit_logs WHERE action="REVEAL_PASSWORD" AND user_id=?')->execute([$hrId]);
+
+// reset: Super Admin any account, HR only employee-portal accounts; copy rewritten, must change set
+act($hrUser);FoundationRepository::resetUserPassword($empUid,'HR-Reset-Pass-55');
+$ru=row('SELECT * FROM users WHERE id=?',[$empUid]);
+check('reset by HR: employee account gets the new password everywhere',password_verify('HR-Reset-Pass-55',$ru['password_hash'])&&EmployeeAccountService::decrypt($ru['password_enc'])==='HR-Reset-Pass-55'&&(int)$ru['must_change_password']===1);
+check('reset by HR: HR-portal account is refused',rejects(fn()=>FoundationRepository::resetUserPassword((int)$h['user_id'],'HR-Reset-Pass-56')));
+check('reset by HR: own account is refused',rejects(fn()=>FoundationRepository::resetUserPassword($hrId,'HR-Reset-Pass-57')));
+act($nobody);check('reset by employee role is refused',rejects(fn()=>FoundationRepository::resetUserPassword($empUid,'Nope-Reset-Pass-58')));
+act($superUser);FoundationRepository::resetUserPassword((int)$h['user_id'],'Super-Reset-Pass-59');
+check('reset by Super Admin: HR account allowed and copy rewritten',EmployeeAccountService::decrypt(row('SELECT password_enc e FROM users WHERE id=?',[(int)$h['user_id']])['e'])==='Super-Reset-Pass-59');
+act($hrUser);
+
+
+// --- T5 static: Users & Access page -------------------------------------------------------
+$idx=file_get_contents(dirname(__DIR__).'/index.php');$view=file_get_contents(dirname(__DIR__).'/app/View.php');
+$users=substr($idx,strpos($idx,"if (\$page === 'admin-users') {"),30000);
+check('users page: HR directory permission opens the page',str_contains($users,"Auth::can('users.view_directory')")&&str_contains($users,"\$canReveal=Auth::can('users.view_credentials');"));
+check('users page: password column and modal follow users.view_credentials, not Super Admin only',substr_count($users,'<?php if($canReveal):?>')>=4&&!str_contains($users,'<?php if($isSuperAdmin):?><th>Password'));
+check('users page: no password or reveal value is ever rendered into the page',!str_contains($users,'data-revealed-password')&&!str_contains($idx,'password_reset_reveal'));
+check('users page: eye fetches the reveal route with CSRF and hides after 30 s',str_contains($users,"user-password-reveal")&&str_contains($users,'setTimeout(closePasswordAccess,30000)')&&str_contains($users,'id="passwordRevealForm"'));
+check('users page: old one-way-hash-only claim removed',!str_contains($users,'cannot be revealed, even to a Super Administrator'));
+check('users page: HR sees Reset only for employee-portal accounts',str_contains($users,"(\$isSuperAdmin || \$u['portal']==='employee')"));
+check('users page: reset action allows HR via users.view_credentials',str_contains($idx,"if(!Auth::is('SUPER_ADMIN')) Auth::requirePermission('users.view_credentials');"));
+check('nav: HR sidebar links to Users & Access with the directory permission',str_contains($view,"['Users & Access','admin-users','shield',false,'users.view_directory']"));
 
 finish();

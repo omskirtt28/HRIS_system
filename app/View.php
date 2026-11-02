@@ -103,7 +103,7 @@ function nav_config(string $kind): array {
       ]],
       'hr'=>['title'=>'PMBSI HRIS','sub'=>'Human Resources','groups'=>[
         ['Overview',[['Dashboard','hr-dashboard','home',false,'dashboard.hr.view']]],
-        ['People',[['Employees','hr-employees','users',false,'employees.view_all'],['Employee Archive','hr-employee-archive','file',false,'employees.view_all'],['Probation & Seasonal','hr-probation','clock',false,'employees.view_all']]],
+        ['People',[['Employees','hr-employees','users',false,'employees.view_all'],['Employee Archive','hr-employee-archive','file',false,'employees.view_all'],['Probation & Seasonal','hr-probation','clock',false,'employees.view_all'],['Users & Access','admin-users','shield',false,'users.view_directory']]],
         ['Payroll & Timekeeping',[['Payroll Ticket Review','hr-timekeeping','clipboard',false,'payroll.approve_hr'],['Import Logs','payroll-import','files',false,'payroll.biometric_import'],['Attendance Export','payroll-cutoff','file',false,'payroll.process'],['Leave Approvals','hr-leave','calendar',false,'leave.approve_hr'],['Team Approvals','manager-approvals','check-square',false,'payroll.approve_manager']]],
         ['Recruitment',[['Manpower Requests','hr-manpower','briefcase',false,'recruitment.view'],['Applicants','hr-applicants','user-plus',false,'recruitment.view'],['Pipeline','hr-pipeline','pipeline',false,'recruitment.view'],['Endorsements','hr-endorsements','check-square',false,'recruitment.view']]],
         ['HR Operations',[['Employee Relations','#','shield',true,null],['Performance','#','chart',true,null],['Training','#','book',true,null],['Offboarding','#','file',true,null]]],

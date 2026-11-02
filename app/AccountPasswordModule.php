@@ -11,10 +11,16 @@ function account_password_handle(string $page): void
     if(!(($GLOBALS['pdo'] ?? null) instanceof PDO) || !Auth::check()) return;
     $uid=(int)(Auth::user()['id'] ?? 0);
     $forced=EmployeeAccountService::mustChange($uid);
-    if($page!=='change-password') {
-        if($forced && $page!=='logout') redirect('change-password');
-        return;
+    if($forced && !in_array($page,['change-password','logout'],true)) redirect('change-password');
+    if($page==='user-password-reveal') { // JSON for the Users & Access eye icon; permission, rate limit and audit live in the service
+        header('Content-Type: application/json; charset=utf-8'); header('Cache-Control: no-store');
+        if($_SERVER['REQUEST_METHOD']!=='POST') { http_response_code(405); echo '{"ok":false}'; exit; }
+        verify_csrf();
+        try { $r=EmployeeAccountService::reveal((int)($_POST['user_id']??0)); echo json_encode(['ok'=>$r['password']!==null,'password'=>$r['password'],'message'=>$r['message']]); }
+        catch(RuntimeException $e) { http_response_code(403); echo json_encode(['ok'=>false,'message'=>$e->getMessage()]); }
+        exit;
     }
+    if($page!=='change-password') return;
     if($_SERVER['REQUEST_METHOD']==='POST') {
         verify_csrf();
         try {
