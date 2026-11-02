@@ -29,4 +29,7 @@ return [
         'password' => '',
         'charset' => 'utf8mb4',
     ],
+    // Account password copy (HR eye icon). 32 random bytes, base64. Generate: php -r "echo base64_encode(random_bytes(32));"
+    // Keep it out of git and the database. Without it, new accounts cannot be created (fails closed).
+    'security' => ['credential_key' => ''],
 ];

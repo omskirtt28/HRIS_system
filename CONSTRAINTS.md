@@ -35,6 +35,7 @@ Scratch copy for database suites: see the header of `tests/employee_profile_db_t
 | `tests/lee_code_db_test.php` PASS count (scratch DB) | 8, 0 FAIL | Lee code save, 30-character limit, blank clears, duplicate message, audit |
 | `tests/profile_content_http_test.php` PASS count (scratch DB) | 51, 0 FAIL | Downloads, FAQs, pay pages, HR-only writes, client/admin access, upload and FAQ edge cases, HR form labels |
 | `tests/ticket_lead_followup_test.php` PASS count (scratch DB) | 30, 0 FAIL | Team Requests leads: notified on filing and status changes, Follow up to HR once per 24h, New badge, no concern text, Incident Reports excluded |
+| `tests/employee_portal_account_test.php` PASS count (scratch DB) | 19, 0 FAIL | Auto-generated portal account: password and email generator, AES-256-GCM copy fails closed (grows with T3-T7) |
 | PHP files that must parse | all (163 at 2026-10-31, after the portal content patch) | Floor above |
 | JS files that must parse | all (5 at 2026-10-31) | Floor above |
 
