@@ -94,6 +94,31 @@ final class EmployeeAccountService
         $st->execute([password_hash($plain,PASSWORD_DEFAULT),self::encrypt($plain),$mustChange?1:0,$userId]);
     }
 
+    /** True while the account still has to choose its own password. A missing column (migration 020 not applied) counts as false. */
+    public static function mustChange(int $userId): bool
+    {
+        try { $st=db()->prepare('SELECT must_change_password FROM users WHERE id=?'); $st->execute([$userId]); return (int)$st->fetchColumn()===1; }
+        catch(PDOException) { return false; }
+    }
+
+    /** Own-password change: needs the current password, enforces the policy, locks after 5 misses in 15 minutes, signs out other devices. */
+    public static function changeOwnPassword(int $userId,string $current,string $new,string $confirm,string $keepTokenHash): void
+    {
+        $miss=db()->prepare('SELECT COUNT(*) FROM audit_logs WHERE action="CHANGE_PASSWORD_FAIL" AND record_id=? AND created_at>DATE_SUB(NOW(),INTERVAL 15 MINUTE)');
+        $miss->execute([$userId]);
+        if((int)$miss->fetchColumn()>=5) throw new RuntimeException('Too many attempts. Try again in 15 minutes or ask HR to reset your password.');
+        $st=db()->prepare('SELECT password_hash FROM users WHERE id=?'); $st->execute([$userId]);
+        $hash=(string)$st->fetchColumn();
+        if($hash==='' || !password_verify($current,$hash)) { audit('Auth','CHANGE_PASSWORD_FAIL','user',$userId); throw new RuntimeException('Your current password is not correct.'); }
+        if(strlen($new)<10) throw new RuntimeException('New password must be at least 10 characters.');
+        if(!preg_match('/[A-Za-z]/',$new) || !preg_match('/[0-9]/',$new)) throw new RuntimeException('New password must include at least one letter and one number.');
+        if($new!==$confirm) throw new RuntimeException('The new password and its confirmation do not match.');
+        if(hash_equals($current,$new)) throw new RuntimeException('Choose a password different from your current one.');
+        self::setPassword($userId,$new,false);
+        if(FoundationRepository::tableExists('user_sessions')) db()->prepare('UPDATE user_sessions SET revoked_at=NOW() WHERE user_id=? AND session_token_hash<>? AND revoked_at IS NULL')->execute([$userId,$keepTokenHash]);
+        audit('Auth','CHANGE_OWN_PASSWORD','user',$userId,['other_sessions_revoked'=>true]);
+    }
+
     /** Employee + login in ONE transaction: if either fails, neither is saved. The posted user_id/company_email are ignored (spec D1, D2). */
     public static function createEmployee(array $data,string $roleKey): array
     {

@@ -89,4 +89,37 @@ check('form: company email is a read-only preview with no name (never posted)',p
 check('handler: create_employee goes through EmployeeAccountService::createEmployee',str_contains($idx,'EmployeeAccountService::createEmployee([')&&str_contains($idx,"(string)(\$_POST['account_role']??'')"));
 check('handler: create_employee no longer trusts a posted user_id',!str_contains(substr($idx,strpos($idx,'EmployeeAccountService::createEmployee(['),400),"'user_id'"));
 
+
+// --- T4 employee changes own password ----------------------------------------------------
+$uid=(int)$a['user_id'];$old=$plain;$newp='Brand-New-Pass-77';
+check('must-change flag is on for a new account',EmployeeAccountService::mustChange($uid)===true);
+$tok=function(string $t)use($uid){insert('INSERT INTO user_sessions(user_id,session_token_hash,last_activity_at) VALUES(?,?,NOW())',[$uid,hash('sha256',$t)]);};
+$tok('keep-me'.$tag);$tok('other-device'.$tag);$keep=hash('sha256','keep-me'.$tag);
+$try=fn(string $cur,string $new,string $conf)=>EmployeeAccountService::changeOwnPassword($uid,$cur,$new,$conf,$keep);
+check('change: wrong current password is rejected',rejects(fn()=>$try('wrong-current-1',$newp,$newp)));
+check('change: too short is rejected',rejects(fn()=>$try($old,'Ab1',  'Ab1')));
+check('change: no number is rejected',rejects(fn()=>$try($old,'OnlyLettersHere','OnlyLettersHere')));
+check('change: no letter is rejected',rejects(fn()=>$try($old,'1234567890123','1234567890123')));
+check('change: confirmation mismatch is rejected',rejects(fn()=>$try($old,$newp,$newp.'x')));
+check('change: same as current is rejected',rejects(fn()=>$try($old,$old,$old)));
+check('change: rejected attempts changed nothing',password_verify($old,row('SELECT password_hash h FROM users WHERE id=?',[$uid])['h'])&&EmployeeAccountService::mustChange($uid));
+$try($old,$newp,$newp);
+$u2=row('SELECT * FROM users WHERE id=?',[$uid]);
+check('change: new password verifies and old no longer does',password_verify($newp,$u2['password_hash'])&&!password_verify($old,$u2['password_hash']));
+check('change: HR copy now decrypts to the new password',EmployeeAccountService::decrypt($u2['password_enc'])===$newp);
+check('change: must-change cleared and changed-at set',(int)$u2['must_change_password']===0&&$u2['password_changed_at']!==null&&!EmployeeAccountService::mustChange($uid));
+check('change: other sessions revoked, current kept',(int)row('SELECT COUNT(*) c FROM user_sessions WHERE user_id=? AND session_token_hash=? AND revoked_at IS NULL',[$uid,$keep])['c']===1&&(int)row('SELECT COUNT(*) c FROM user_sessions WHERE user_id=? AND session_token_hash<>? AND revoked_at IS NULL',[$uid,$keep])['c']===0);
+check('change: audit row written without any password',(int)row('SELECT COUNT(*) c FROM audit_logs WHERE action="CHANGE_OWN_PASSWORD" AND record_id=? AND details_json NOT LIKE ? AND details_json NOT LIKE ?',[$uid,'%'.$newp.'%','%'.$old.'%'])['c']===1);
+for($i=0;$i<5;$i++)rejects(fn()=>EmployeeAccountService::changeOwnPassword($uid,'wrong-guess-'.$i,'Another-Pass-88x','Another-Pass-88x',$keep));
+check('change: 5 wrong attempts lock further tries for a while',rejects(fn()=>EmployeeAccountService::changeOwnPassword($uid,$newp,'Another-Pass-88x','Another-Pass-88x',$keep))&&password_verify($newp,row('SELECT password_hash h FROM users WHERE id=?',[$uid])['h']));
+
+
+// --- T4 static: page, gate and menu ------------------------------------------------------
+$mod=file_get_contents(dirname(__DIR__).'/app/AccountPasswordModule.php');$view=file_get_contents(dirname(__DIR__).'/app/View.php');$idx=file_get_contents(dirname(__DIR__).'/index.php');
+check('gate: module is hooked in index.php before any module handler',strpos($idx,'account_password_handle($page);')!==false&&strpos($idx,'account_password_handle($page);')<strpos($idx,'ticket_handle($page);'));
+check('gate: forced users are redirected except change-password and logout',str_contains($mod,"if(\$forced && \$page!=='logout') redirect('change-password');"));
+check('page: POST is CSRF-protected and uses the service',str_contains($mod,'verify_csrf();')&&str_contains($mod,'EmployeeAccountService::changeOwnPassword('));
+check('page: password fields use the right autocomplete hints',substr_count($mod,'autocomplete="new-password"')===2&&str_contains($mod,'autocomplete="current-password"'));
+check('menu: account menu links to Change password',str_contains($view,"url('change-password')"));
+
 finish();

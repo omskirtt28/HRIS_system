@@ -9,6 +9,8 @@ require_once __DIR__ . '/app/PortalContentService.php';
 require_once __DIR__ . '/app/PortalContentViews.php';
 
 $page = (string)($_GET['page'] ?? 'home');
+require_once __DIR__.'/app/AccountPasswordModule.php';
+account_password_handle($page);
 // Backward-compatible alias for early Phase 3A links/bookmarks.
 if ($page === 'employee-request') { $page = 'payroll-request'; }
 
