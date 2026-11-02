@@ -637,6 +637,7 @@ if ($page === 'login') {
         <div class="field"><label>Email address</label><input type="email" name="email" required value="<?=e($meta[2])?>" autocomplete="username"></div>
         <div class="field"><label>Password</label><input type="password" name="password" required value="" autocomplete="current-password"></div>
         <button class="btn primary block" style="height:44px;justify-content:center">Sign in <?=icon_svg('arrow')?></button>
+        <p class="tiny" style="margin:0;text-align:center">Forgot your password? Ask HR to reset it.</p>
         <div class="login-footnote">Your dashboard is selected automatically based on your account role.</div>
         <div style="text-align:center;margin-top:14px"><a href="<?=url('home')?>" class="small muted">← Back to PMBSI Careers</a></div>
       </form></div>

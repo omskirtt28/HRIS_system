@@ -23,7 +23,7 @@ Write each test first (red), then code. Checkpoint after every 2 tasks: `php scr
   - `FoundationRepository::revealPassword($userId)` (needs `users.view_credentials`, POST+CSRF, audit `REVEAL_PASSWORD` no value, 10/min/user). Reset (Super Admin and HR-for-employees) rewrites the copy. Users & Access: `users.view_directory` gives HR a read-only list (no create/role/disable/link), eye calls the reveal endpoint and shows value with copy button, auto-masks after 30 s; rows without a copy show "Not available. Reset password to enable viewing."
   - Acceptance: employee/Payroll/etc. cannot reveal (403); HR can reveal any account incl. Super Admin (D11); HR cannot change role/disable staff; audit row per reveal; page source never contains a password.
   - Files: index.php (users page ~1760-1990), app/FoundationRepository.php, hris css if needed, tests.
-- [ ] **T6 Forgotten-password request**
+- [x] **T6 Forgotten-password request**
   - `config/ticket_types.php` `PORTAL_ACCOUNT_REQUEST` (name "Portal account / forgotten password", fields: concern select [Forgot password, Cannot log in, Other] + remarks), `TicketTypes::FILE_PERMISSIONS`, shown under HR Requests for employees; HR resolves via reveal/reset then completes the ticket.
   - Acceptance: employee files it, HR sees it in queue, status flow like NETSUITE_CONCERN; no password ever written into ticket text (field helper text says so).
   - Files: config/ticket_types.php, app/TicketTypes.php, tests/ticket_*.

@@ -38,6 +38,10 @@ return [
         'job_description_qualifications'=>['label'=>'Job description / Qualifications','kind'=>'text','max'=>5000],
         'area_department'=>['label'=>'Area / Department','kind'=>'text','max'=>160],
     ]],
+    'PORTAL_ACCOUNT_REQUEST'=>['name'=>'Portal account / forgotten password','profile'=>'HR_ONLY','fields'=>[
+        'concern'=>['label'=>'What do you need?','options'=>['Forgot password','Cannot sign in','Other']],
+        'remarks'=>['label'=>'Details (never write your password here)','kind'=>'text','max'=>1000,'optional'=>true,'rows'=>3],
+    ]],
     'NETSUITE_CONCERN'=>['name'=>'NetSuite Concern','profile'=>'HR_ONLY','fields'=>['concern'=>['label'=>'Concern remarks','kind'=>'text','max'=>5000]]],
     'UNIFORM_REQUEST'=>['name'=>'Uniform Request','profile'=>'HR_ONLY','fields'=>[
         'position'=>['label'=>'Position','kind'=>'text','max'=>160],

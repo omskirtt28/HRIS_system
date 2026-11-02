@@ -171,4 +171,24 @@ check('users page: HR sees Reset only for employee-portal accounts',str_contains
 check('users page: reset action allows HR via users.view_credentials',str_contains($idx,"if(!Auth::is('SUPER_ADMIN')) Auth::requirePermission('users.view_credentials');"));
 check('nav: HR sidebar links to Users & Access with the directory permission',str_contains($view,"['Users & Access','admin-users','shield',false,'users.view_directory']"));
 
+
+// --- T6 forgotten-password request under HR Requests --------------------------------------
+require_once dirname(__DIR__).'/app/TicketService.php';
+$def=TicketTypes::definition('PORTAL_ACCOUNT_REQUEST');
+check('ticket type: defined as an HR-only request with a concern and optional remarks',$def['name']==='Portal account / forgotten password'&&$def['profile']==='HR_ONLY'&&in_array('Forgot password',$def['fields']['concern']['options'],true)&&!empty($def['fields']['remarks']['optional']));
+check('ticket type: filing permission is ticket.file.portal_account',(TicketTypes::FILE_PERMISSIONS['PORTAL_ACCOUNT_REQUEST']??'')==='ticket.file.portal_account');
+check('ticket type: row exists after migration 020',(int)row('SELECT COUNT(*) c FROM ticket_types WHERE code="PORTAL_ACCOUNT_REQUEST" AND active=1')['c']===1);
+$empRole=row('SELECT r.id FROM roles r WHERE r.code="EMPLOYEE"')['id'];
+check('permission: Employee role may file it, HR role (HR_USER) too',(int)row('SELECT COUNT(*) c FROM role_permissions rp JOIN permissions p ON p.id=rp.permission_id WHERE p.code="ticket.file.portal_account" AND rp.role_id IN (SELECT id FROM roles WHERE code IN ("EMPLOYEE","HR_USER"))')['c']===2);
+$eu=row('SELECT u.id,u.role_id,u.full_name name,u.email,r.code role_code,r.name role_name,r.portal role_portal FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=?',[$empUid]);
+db()->prepare('UPDATE employees SET branch_id=?,business_unit_id=?,legal_entity_id=? WHERE id=?')->execute([$f['branch'],$f['company'],$f['legal'],$b['employee_id']]); // existing rule: filers need a company and branch
+$eu['client_id']=null;act($eu);
+check('filing: a new employee account may file the request',TicketTypes::canFile('PORTAL_ACCOUNT_REQUEST'));
+$tid=0;try{$tid=TicketService::create(['ticket_type_id'=>(int)row('SELECT id FROM ticket_types WHERE code="PORTAL_ACCOUNT_REQUEST"')['id'],'submission_key'=>bin2hex(random_bytes(32)),'concern'=>'Forgot password','remarks'=>'Cannot remember it'],true);}catch(Throwable $x){echo 'NOTE '.$x->getMessage().PHP_EOL;}
+check('filing: request is created and waits for HR',$tid>0&&row('SELECT status FROM tickets WHERE id=?',[$tid])['status']==='PENDING_HR');
+check('filing: invalid concern is rejected',rejects(fn()=>TicketService::create(['ticket_type_id'=>(int)row('SELECT id FROM ticket_types WHERE code="PORTAL_ACCOUNT_REQUEST"')['id'],'submission_key'=>bin2hex(random_bytes(32)),'concern'=>'Give me admin','remarks'=>''],true)));
+$login=file_get_contents(dirname(__DIR__).'/index.php');
+check('login page tells people to ask HR when they forgot the password',str_contains($login,'Forgot your password? Ask HR to reset it.'));
+act($hrUser);
+
 finish();

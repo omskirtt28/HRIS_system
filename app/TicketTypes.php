@@ -6,7 +6,7 @@ require_once __DIR__.'/TicketCoe.php';
 require_once __DIR__.'/TicketIncident.php';
 final class TicketTypes
 {
-    public const FILE_PERMISSIONS=['ATM_REQUEST'=>'ticket.file.atm','ID_REQUEST'=>'ticket.file.id','INCIDENT_REPORT'=>'ticket.file.incident','UNIFORM_REQUEST'=>'ticket.file.uniform','PAYROLL_CONCERN'=>'ticket.file.payroll_concern','MANPOWER_REQUEST'=>'ticket.file.manpower','NETSUITE_CONCERN'=>'ticket.file.netsuite','BRANCH_TRANSFER'=>'ticket.file_for_others','OIC_AUTHORIZATION'=>'ticket.file.oic_authorization','COE_REQUEST'=>'ticket.file.coe'];
+    public const FILE_PERMISSIONS=['ATM_REQUEST'=>'ticket.file.atm','ID_REQUEST'=>'ticket.file.id','INCIDENT_REPORT'=>'ticket.file.incident','UNIFORM_REQUEST'=>'ticket.file.uniform','PAYROLL_CONCERN'=>'ticket.file.payroll_concern','MANPOWER_REQUEST'=>'ticket.file.manpower','NETSUITE_CONCERN'=>'ticket.file.netsuite','BRANCH_TRANSFER'=>'ticket.file_for_others','OIC_AUTHORIZATION'=>'ticket.file.oic_authorization','COE_REQUEST'=>'ticket.file.coe','PORTAL_ACCOUNT_REQUEST'=>'ticket.file.portal_account'];
     private static ?bool $perTypeReady=null;
     public static function definitions():array { return require dirname(__DIR__).'/config/ticket_types.php'; }
     // Server-side gate for every filing path. Before migration 010, any filer keeps the old all-types access.
