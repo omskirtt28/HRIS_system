@@ -35,7 +35,7 @@ Scratch copy for database suites: see the header of `tests/employee_profile_db_t
 | `tests/lee_code_db_test.php` PASS count (scratch DB) | 8, 0 FAIL | Lee code save, 30-character limit, blank clears, duplicate message, audit |
 | `tests/profile_content_http_test.php` PASS count (scratch DB) | 51, 0 FAIL | Downloads, FAQs, pay pages, HR-only writes, client/admin access, upload and FAQ edge cases, HR form labels |
 | `tests/ticket_lead_followup_test.php` PASS count (scratch DB) | 30, 0 FAIL | Team Requests leads: notified on filing and status changes, Follow up to HR once per 24h, New badge, no concern text, Incident Reports excluded |
-| `tests/employee_portal_account_test.php` PASS count (scratch DB) | 101, 0 FAIL | Auto-generated portal account: generators, AES-256-GCM copy (fails closed), atomic create, change-own-password, reveal/reset permissions, forgotten-password ticket, removed Create New User |
+| `tests/employee_portal_account_test.php` PASS count (scratch DB) | 102, 0 FAIL | Auto-generated portal account: generators, AES-256-GCM copy (fails closed), atomic create, change-own-password, reveal/reset permissions, forgotten-password ticket, removed Create New User |
 | `tests/employee_portal_account_http_test.php` PASS count (scratch DB, php -S) | 23, 0 FAIL | End to end over HTTP: HR creates an employee, views the password, the employee is forced to change it, HR sees the new one, employee cannot reveal |
 | PHP files that must parse | all (163 at 2026-10-31, after the portal content patch) | Floor above |
 | JS files that must parse | all (5 at 2026-10-31) | Floor above |

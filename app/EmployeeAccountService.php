@@ -144,6 +144,8 @@ final class EmployeeAccountService
     {
         $roleKey=strtoupper(trim($roleKey));
         if(!isset(self::ROLES[$roleKey])) throw new RuntimeException('Choose HR or Employee as the account role.');
+        // An HR account can view every password, so only someone who already holds that power may create one (cannot grant what you lack).
+        if($roleKey==='HR' && !Auth::can('users.view_credentials')) throw new RuntimeException('Only HR or a Super Admin can create an HR account.');
         self::key(); // fail closed before anything is written
         $data['user_id']=0; $data['company_email']='';
         $pdo=db(); $own=!$pdo->inTransaction(); if($own) $pdo->beginTransaction();

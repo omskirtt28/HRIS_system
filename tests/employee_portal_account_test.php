@@ -62,7 +62,11 @@ $b=EmployeeAccountService::createEmployee(emp_data($nm,'Dela Cruz','2LOG'),'EMPL
 check('create: 2LOG employee gets @2log.com',$b['email']===strtolower($nm).'delacruz@2log.com');
 $c=EmployeeAccountService::createEmployee(emp_data($nm,'Dela Cruz','PMBSI'),'EMPLOYEE');
 check('create: duplicate name gets a number',$c['email']===strtolower($nm).'delacruz2@pmbsi.com');
+$sess=$_SESSION['user']??null;
+check('create: HR role needs users.view_credentials (no session or plain employee is refused)',rejects(fn()=>EmployeeAccountService::createEmployee(emp_data('Zznohr','Case','PMBSI'),'HR'))&&(int)row('SELECT COUNT(*) c FROM employees WHERE first_name="Zznohr"')['c']===0);
+act(['id'=>$f['hr']['id'],'role_id'=>$f['hr']['role_id'],'role_code'=>'SUPER_ADMIN','role_portal'=>'admin','name'=>'t','role_name'=>'t','email'=>'t@example.test','client_id'=>null]);
 $h=EmployeeAccountService::createEmployee(emp_data($nm.'hr','Dela Cruz','PMBSI'),'HR');
+if($sess)$_SESSION['user']=$sess;else unset($_SESSION['user']);Auth::clearPermissionCache();
 check('create: role HR maps to HR_USER',row('SELECT r.code FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=?',[$h['user_id']])['code']==='HR_USER');
 $before=(int)row('SELECT COUNT(*) c FROM employees')['c'];$beforeU=(int)row('SELECT COUNT(*) c FROM users')['c'];
 foreach(['SUPER_ADMIN','HR_USER','PAYROLL','',' '] as $bad)check('create: forged role "'.$bad.'" is rejected',rejects(fn()=>EmployeeAccountService::createEmployee(emp_data('Zzbad','Role','PMBSI'),$bad)));
