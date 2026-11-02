@@ -209,3 +209,18 @@ hr-applicant: Location or meeting link says the applicant is emailed; Interviews
 
 ## 2026-11-02 - offer-rate-type
 hr-applicant Offer card: Rate type select (Monthly rate / Daily rate / Hourly rate, default Monthly) + peso Rate input + live Monthly / Daily / Hourly line. Saved offer shows e.g. "₱800.00 / day (≈ ₱20,800.00 / month)". Re-opening a Daily offer pre-selects Daily. Offer card only; Job Openings salary unchanged.
+
+## 2026-11-02 - offer-working-days
+hr-applicant Offer card: Working days per month select (26 days (Mon-Sat) default, 22 days (Mon-Fri)) under Rate type / Rate; the live line and the saved offer summary ("... , 22 days/month (≈ ...)") use it. Always shown for every rate type.
+
+## Addendum 2026-11-02 - Convert to Employee: automatic portal account
+Recruitment > Applicants > Convert to Employee: the "Employee portal access / Account setup" card is gone. Employment assignment now shows Employer (PMBSI, read-only), a required Company select (2LOG / PMBSI, filled from the chosen Department, limits the Department list to that company), and Company email is a read-only live preview (firstnamelastname@2log.com or @pmbsi.com) with the note that it is created automatically. The confirm checkbox reads "...automatic portal account details". Password is not shown here; HR uses the reveal button on the employee profile. See BR-879.
+
+## 2026-11-02 - HR Appearance palette list (local, not committed)
+HR portal role only: Appearance in the top-right profile menu expands an inline list of 5 radio options (Light, Dark, Soft Beige, Earth Tones, Soft Pastel) with a colour swatch and a check mark on the active one. Choosing one applies at once and saves through POST palette-save; on failure the page reverts and shows "Could not save your choice. Reload the page and try again." Keyboard: Enter opens, Arrow Up/Down move, Escape closes the list and returns focus to Appearance. The topbar moon button for HR flips between Dark and the last light palette. Admin, Payroll, Manager and Employee pages keep the one-click Light/Dark toggle. The saved palette is written on the html tag by the server (data-theme, data-palette, data-palette-user) so there is no flash. Files: app/View.php, app/UserPalette.php, public/assets/palette-menu.css, public/assets/palettes.css, public/assets/hris-app.js.
+
+Update 2026-11-02: the Appearance list now has 6 options (Light, Dark, Soft Beige, Earth Tones, Soft Pastel, Soft Pink).
+
+Update 2026-11-02: My Profile avatar is clickable (camera badge) to change your own photo.
+
+Update 2026-11-02: My Profile avatar opens a photo dialog (view, or choose then crop to a square before upload).

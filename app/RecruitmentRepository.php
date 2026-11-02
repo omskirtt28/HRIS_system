@@ -351,15 +351,16 @@ final class RecruitmentRepository
         if(!isset(JobOpenings::TYPES[(string)($d['employment_type']??'')])) throw new RuntimeException('Choose an employment type from the list.');
         // Rate type + typed rate; a caller that only sends offered_salary is treated as a monthly rate.
         $type=(string)($d['rate_type']??'MONTHLY'); $typed=(float)($d['rate_amount']??$d['offered_salary']??0);
-        $conv=OfferRate::convert($type,$typed); $d['offered_salary']=$conv['monthly']; $d['rate_type']=$type; $d['rate_amount']=$typed;
+        $days=(int)($d['working_days']??OfferRate::DEFAULT_DAYS);
+        $conv=OfferRate::convert($type,$typed,$days); $d['offered_salary']=$conv['monthly']; $d['rate_type']=$type; $d['rate_amount']=$typed; $d['working_days']=$days;
         self::assertApplicationMutable($applicationId);
         $app=self::application($applicationId); if(!$app) throw new RuntimeException('Application not found.');
         $st=db()->prepare('SELECT id FROM offers WHERE application_id=? ORDER BY id DESC LIMIT 1'); $st->execute([$applicationId]); $id=$st->fetchColumn();
         if($id){
-            db()->prepare('UPDATE offers SET offered_salary=?,rate_type=?,rate_amount=?,employment_type=?,start_date=?,status="SENT",sent_at=NOW(),updated_at=NOW() WHERE id=?')->execute([$d['offered_salary'],$d['rate_type'],$d['rate_amount'],$d['employment_type'],$d['start_date']?:null,$id]);
+            db()->prepare('UPDATE offers SET offered_salary=?,rate_type=?,rate_amount=?,working_days=?,employment_type=?,start_date=?,status="SENT",sent_at=NOW(),updated_at=NOW() WHERE id=?')->execute([$d['offered_salary'],$d['rate_type'],$d['rate_amount'],$d['working_days'],$d['employment_type'],$d['start_date']?:null,$id]);
         } else {
             $no='OFR-'.date('Ymd').'-'.str_pad((string)random_int(1,9999),4,'0',STR_PAD_LEFT);
-            db()->prepare('INSERT INTO offers(application_id,offer_no,offered_salary,rate_type,rate_amount,employment_type,start_date,status,sent_at,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,"SENT",NOW(),?,NOW(),NOW())')->execute([$applicationId,$no,$d['offered_salary'],$d['rate_type'],$d['rate_amount'],$d['employment_type'],$d['start_date']?:null,$_SESSION['user']['id']]);
+            db()->prepare('INSERT INTO offers(application_id,offer_no,offered_salary,rate_type,rate_amount,working_days,employment_type,start_date,status,sent_at,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,"SENT",NOW(),?,NOW(),NOW())')->execute([$applicationId,$no,$d['offered_salary'],$d['rate_type'],$d['rate_amount'],$d['working_days'],$d['employment_type'],$d['start_date']?:null,$_SESSION['user']['id']]);
         }
         self::moveStage($applicationId,'OFFER','Offer prepared/sent'); audit('Recruitment','OFFER_SENT','application',$applicationId);
     }
@@ -476,35 +477,20 @@ final class RecruitmentRepository
                 if($existing=$dupe->fetch()) throw new RuntimeException('An employee record already uses this email ('.$existing['employee_no'].'). Review the existing employee instead of converting a duplicate.');
             }
 
-            $accountMode=(string)($data['account_mode']??'later');$userId=null;
-            if($accountMode==='existing'){
-                $userId=(int)($data['user_id']??0);if($userId<=0)throw new RuntimeException('Select an employee portal account to link.');
-                $st=$pdo->prepare('SELECT u.id FROM users u JOIN roles r ON r.id=u.role_id LEFT JOIN employees e ON e.user_id=u.id WHERE u.id=? AND u.status="ACTIVE" AND r.portal="employee" AND e.id IS NULL LIMIT 1');
-                $st->execute([$userId]);if(!$st->fetchColumn())throw new RuntimeException('The selected employee account is unavailable or already linked.');
-            } elseif($accountMode==='create') {
-                $accountEmail=strtolower(trim((string)($data['account_email']??'')));$password=(string)($data['temporary_password']??'');
-                if(!filter_var($accountEmail,FILTER_VALIDATE_EMAIL))throw new RuntimeException('Enter a valid employee account email.');
-                if(strlen($password)<10||!preg_match('/[A-Za-z]/',$password)||!preg_match('/[0-9]/',$password))throw new RuntimeException('Temporary password must be at least 10 characters and include a letter and a number.');
-                $role=$pdo->query('SELECT id FROM roles WHERE code="EMPLOYEE" LIMIT 1')->fetchColumn();if(!$role)throw new RuntimeException('Employee portal role is not configured.');
-                $st=$pdo->prepare('SELECT COUNT(*) FROM users WHERE LOWER(email)=LOWER(?)');$st->execute([$accountEmail]);if((int)$st->fetchColumn()>0)throw new RuntimeException('A user account already uses that email address.');
-                $fullName=trim((string)($data['first_name']??$a['first_name']).' '.(string)($data['middle_name']??$a['middle_name']??'').' '.(string)($data['last_name']??$a['last_name']));
-                $pdo->prepare('INSERT INTO users(role_id,client_id,full_name,email,password_hash,status) VALUES(?,NULL,?,?,?,"ACTIVE")')->execute([(int)$role,$fullName,$accountEmail,password_hash($password,PASSWORD_DEFAULT)]);
-                $userId=(int)$pdo->lastInsertId();
-                require_once __DIR__.'/EmployeeAccountService.php';
-                EmployeeAccountService::setPassword($userId,$password,true); // same rules as auto accounts: HR can view it, the employee must choose their own at first sign-in
-                audit('Access Control','CREATE_EMPLOYEE_ACCOUNT','user',$userId,['email'=>$accountEmail,'source_application_id'=>$applicationId]);
-                if(trim((string)($data['company_email']??''))==='')$data['company_email']=$accountEmail;
-            } elseif($accountMode!=='later') throw new RuntimeException('Invalid employee account option.');
-
+            // The portal account is always created with the employee (SPEC-convert-auto-account.md): the server builds the email from the Company
+            // and ignores any posted user_id, company_email or account fields, exactly like Create Employee.
+            require_once __DIR__.'/EmployeeAccountService.php';
             $employeeData=[
-                'employee_no'=>(string)($data['employee_no']??''),'user_id'=>$userId,'first_name'=>(string)($data['first_name']??$a['first_name']),
+                'employee_no'=>(string)($data['employee_no']??''),'user_id'=>0,'first_name'=>(string)($data['first_name']??$a['first_name']),
                 'middle_name'=>(string)($data['middle_name']??$a['middle_name']??''),'last_name'=>(string)($data['last_name']??$a['last_name']),'suffix'=>(string)($data['suffix']??$a['suffix']??''),
-                'company_email'=>(string)($data['company_email']??''),'personal_email'=>$personalEmail,'mobile_no'=>(string)($data['mobile_no']??$a['mobile_no']),
+                'company_email'=>'','personal_email'=>$personalEmail,'mobile_no'=>(string)($data['mobile_no']??$a['mobile_no']),
+                'work_company'=>(string)($data['work_company']??''),'require_work_company'=>true,
                 'department_id'=>(int)($data['department_id']??0),'position_id'=>(int)($data['position_id']??0),'branch_id'=>(int)($data['branch_id']??0),
                 'employment_type_id'=>(int)($data['employment_type_id']??0),'hire_date'=>(string)($data['hire_date']??''),'regularization_date'=>(string)($data['regularization_date']??''),
                 'status'=>(string)($data['status']??'PROBATIONARY')
             ];
             $employeeId=EmployeeRepository::create($employeeData);
+            EmployeeAccountService::issue($employeeId,$employeeData['first_name'],$employeeData['last_name'],$employeeData['work_company'],'EMPLOYEE');
 
             if(!empty($data['transfer_documents'])){
                 $srcDir=(string)cfg('uploads.resume_dir');$destDir=dirname(__DIR__).'/storage/employee_documents';

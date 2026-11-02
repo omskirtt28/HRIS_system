@@ -243,3 +243,7 @@ POST endorse (recruitment.manage; fields application_id, note, reviewers[]) now 
 
 ## 2026-11-02 - interview-invite and interview-chain routes
 POST resend_interview_invite (recruitment.manage; interview_id, application_id; CSRF). POST review_pass_on (recruitment.review; application_id, to[], final[], note; CSRF; scoped to reviewers of the candidate). POST endorse also accepts final[] (subset of reviewers[]). POST schedule_interview and review_schedule now send the invite email.
+
+- 2026-11-02 hr-appearance-palettes Task 2 of 5 (Claude): `POST index.php?page=palette-save` (csrf, palette = light|dark|beige|earth|pastel). JSON only: 200 {ok,palette}; 401 signed out; 403 not the HR portal role (Admin included); 405 not POST; 419 bad or missing token (generic POST guard); 422 unknown value. Saves users.ui_palette and refreshes the session; login now puts ui_palette in the session user.
+
+Update 2026-11-02: POST action upload_own_photo (page employee-profile): any internal account with My Profile access; own employee row only (employee_id never read from the form); same 3 MB JPG/PNG/WEBP rules as upload_employee_photo; errors flash back to My Profile.

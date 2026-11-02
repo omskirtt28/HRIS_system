@@ -108,7 +108,7 @@ final class EmployeeProfileViews
             .self::card('Pay rate', $employment['pay'] ? self::rows($employment['pay']) : '<p class="myp-none">No pay rate has been set up for you yet.</p>')
             .self::card('Leave credits', self::leave($employment['leave']))
             .self::card('Employment history', self::history($history), true);
-        $note = $kind === 'employee' ? 'This page is read-only. To update your details, contact HR.' : 'This page is read-only. Profile data is maintained in Employee 201.';
+        $note = $kind === 'employee' ? 'This page is read-only. To update your details, contact HR. You can change your own photo.' : 'This page is read-only. Profile data is maintained in Employee 201. You can change your own photo.';
         return self::hero($hero).self::shortcuts($shortcuts).self::tabs([
             'personal' => ['Personal', self::card('Personal details', self::rows($personal))],
             'contact' => ['Contact and Address', $contactHtml],
@@ -142,6 +142,22 @@ final class EmployeeProfileViews
         if ($h['tenure'] !== '') $facts[] = ['Tenure', $h['tenure']];
         $factHtml = '';
         foreach ($facts as [$label, $value]) $factHtml .= '<div><dt>'.e($label).'</dt><dd>'.e($value).'</dd></div>';
+        // Own photo only: the route takes the employee from the session, never from the form. The browser crops to a square and submits the result (employee-profile.js).
+        $big = $h['has_photo'] ? '<img class="myp-crop-img" alt="" draggable="false">' : '<span class="myp-crop-initials" aria-hidden="true">'.e(initials($h['name'])).'</span>';
+        $avatar = '<form class="myp-avatar-form" method="post" enctype="multipart/form-data" action="'.e(url('employee-profile')).'">'.csrf_field()
+            .'<input type="hidden" name="action" value="upload_own_photo">'
+            .'<button type="button" class="myp-avatar-edit" data-photo-open aria-haspopup="dialog" title="View or change photo">'.$avatar
+            .'<span class="myp-avatar-badge" aria-hidden="true">&#128247;</span><span class="myp-sr-only">View or change profile photo</span></button>'
+            .'<input class="myp-sr-only" id="mypPhotoFile" tabindex="-1" type="file" name="profile_photo" accept="image/jpeg,image/png,image/webp">'
+            .'<dialog class="myp-photo-dlg" aria-labelledby="mypPhotoTitle" data-src="'.($h['has_photo'] ? e(url('employee-profile-photo')) : '').'"><h3 id="mypPhotoTitle">Profile photo</h3>'
+            .'<div class="myp-crop" tabindex="0" aria-label="Photo preview. In crop mode drag or use the arrow keys to move the photo.">'.$big.'</div>'
+            .'<div class="myp-photo-id"><strong>'.e($h['name']).'</strong>'.($h['position']!==''?'<span>'.e($h['position']).'</span>':'').'</div>'
+            .'<label class="myp-zoom" hidden>Zoom <input type="range" min="1" max="3" step="0.02" value="1"></label>'
+            .'<p class="myp-photo-msg" role="alert" hidden></p>'
+            .'<div class="myp-photo-actions"><button type="button" class="btn" data-photo-close>Close</button>'
+            .'<button type="button" class="btn" data-photo-pick>Change photo</button>'
+            .'<button type="button" class="btn primary" data-photo-save hidden>Save photo</button></div></dialog>'
+            .'<noscript><p class="small muted">Turn on JavaScript to change your photo.</p></noscript></form>';
         return '<section class="panel myp-hero">'.$avatar.'<div class="myp-hero-copy">'
             .'<div class="myp-title"><h2>'.e($h['name']).'</h2>'.($h['status'] !== '' ? '<span class="badge '.e($h['tone']).'">'.e($h['status']).'</span>' : '').'</div>'
             .'<p class="myp-role">'.e($h['position'] !== '' ? $h['position'] : 'Position not provided').'</p>'

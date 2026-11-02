@@ -33,6 +33,7 @@ $html = EmployeeProfileViews::hero($hero);
 check('hero: name escaped', !str_contains($html, '<b>') && str_contains($html, '&lt;b&gt;'));
 check('hero: shows employee no and position', str_contains($html, 'PMBSI007663') && str_contains($html, 'Graphic Artist'));
 check('hero: initials avatar without photo', str_contains($html, 'myp-avatar') && !str_contains($html, '<img'));
+check('hero: own photo upload form posts upload_own_photo with csrf and no employee id', ($h = EmployeeProfileViews::hero(EmployeeProfileService::hero($emp, $now))) && str_contains($h, 'value="upload_own_photo"') && str_contains($h, 'name="csrf"') && str_contains($h, 'name="profile_photo"') && !str_contains($h, 'employee_id'));
 check('hero: own-photo route when photo exists', str_contains(EmployeeProfileViews::hero(EmployeeProfileService::hero(['profile_photo_stored_name' => 'x.jpg'] + $emp, $now)), 'employee-profile-photo'));
 check('hero: no id parameter in any link', !str_contains($html, '&id=') && !str_contains($html, '?id='));
 check('empty state wording', str_contains(EmployeeProfileViews::empty(), 'not linked to an employee record'));

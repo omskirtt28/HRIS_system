@@ -3,6 +3,11 @@
 .myp-avatar,.myp-photo{width:88px;height:88px;border-radius:50%;flex:0 0 88px}
 .myp-avatar{display:grid;place-items:center;background:var(--hris-brand-soft);color:var(--hris-brand-strong);font-size:28px;font-weight:700}
 .myp-photo{object-fit:cover;border:3px solid var(--hris-surface);box-shadow:0 0 0 1px var(--hris-line)}
+.myp-avatar-form{margin:0}
+.myp-avatar-edit{position:relative;display:block;width:88px;height:88px;border-radius:50%;cursor:pointer}
+.myp-avatar-edit:focus-within{outline:2px solid var(--hris-brand-strong);outline-offset:3px}
+.myp-avatar-badge{position:absolute;right:-2px;bottom:-2px;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:14px;background:var(--hris-surface);box-shadow:0 0 0 1px var(--hris-line)}
+.myp-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .myp-hero-copy{min-width:0}
 .myp-title{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
 .myp-title h2{margin:0;font-size:22px;line-height:1.2;overflow-wrap:anywhere}
@@ -95,3 +100,29 @@ a.myp-shortcut:hover,button.myp-shortcut:hover{border-color:var(--hris-brand);ba
 .myp-docbody{flex:1;display:flex;flex-direction:column}
 .myp-docactions{margin-top:auto;padding-top:8px}
 @media (max-width:520px){.myp-facts{justify-self:stretch;width:100%}}
+/* Photo dialog: view (soft feathered portrait, name and role) and crop (square stage, circular guide). */
+.myp-avatar-edit{padding:0;border:0;background:none;font:inherit;color:inherit}
+.myp-photo-dlg{border:0;border-radius:var(--hris-radius);padding:22px;width:min(92vw,360px);background:var(--hris-surface);color:var(--hris-text);box-shadow:0 12px 40px rgba(0,0,0,.35)}
+.myp-photo-dlg::backdrop{background:rgba(10,12,16,.7)}
+.myp-photo-dlg h3{margin:0 0 14px;font-size:16px}
+.myp-crop{position:relative;width:280px;max-width:100%;aspect-ratio:1;margin:0 auto;overflow:hidden;border-radius:50%;background:var(--hris-brand-soft);touch-action:none;display:grid;place-items:center}
+.myp-crop:focus-visible{outline:2px solid var(--hris-brand-strong);outline-offset:3px}
+.myp-crop-img{position:absolute;left:0;top:0;max-width:none;user-select:none;-webkit-user-drag:none}
+.myp-crop-initials{font-size:72px;font-weight:700;color:var(--hris-brand-strong)}
+.myp-photo-dlg:not(.is-crop) .myp-crop{background:none}
+.myp-photo-dlg:not(.is-crop) .myp-crop-img{position:static;width:100%;height:100%;object-fit:cover}
+.myp-photo-dlg.is-crop .myp-crop{cursor:grab;border-radius:0}
+.myp-photo-dlg.is-crop .myp-crop::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle closest-side,transparent 99%,rgba(0,0,0,.55) 100%);box-shadow:inset 0 0 0 1px var(--hris-line)}
+.myp-photo-id{margin-top:12px;text-align:center;display:grid;gap:2px}
+.myp-photo-id strong{font-size:17px;overflow-wrap:anywhere}
+.myp-photo-id span{color:var(--hris-muted)}
+.myp-photo-dlg.is-crop .myp-photo-id{display:none}
+.myp-zoom{display:flex;align-items:center;gap:10px;margin-top:14px;font-weight:600}
+.myp-zoom[hidden],.myp-photo-msg[hidden]{display:none}
+.myp-zoom input{flex:1}
+.myp-photo-msg{margin:12px 0 0;color:var(--hris-danger,#b42318);font-weight:600}
+.myp-photo-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-top:16px}
+@media print{.myp-photo-dlg,.myp-avatar-badge{display:none!important}}
+/* Hero photo: larger, sharp and fully visible. */
+.myp-photo{width:116px;height:116px;flex-basis:116px}
+.myp-avatar-edit:has(.myp-photo){width:116px;height:116px}

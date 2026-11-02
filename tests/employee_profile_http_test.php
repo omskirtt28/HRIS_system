@@ -111,7 +111,7 @@ check('A own documents shown, memo included', str_contains($body, 'My SSS scan')
 $thumbs = preg_replace('#<dialog.*?</dialog>#s', '', $body);
 check('A thumbnails are lazy with alt text', substr_count($thumbs, '<img') === 2 && substr_count($thumbs, '<img') === substr_count($thumbs, 'loading="lazy"') && !preg_match('/<img(?![^>]*alt=)/', $thumbs));
 check('A read-only note, no form or editable field in profile', str_contains($body, 'contact HR') && !preg_match('/<form|<textarea|<input/', $body));
-check('A stylesheet and script linked with version', str_contains($html, 'employee-profile.css?v=20261031-my-profile-v7') && str_contains($html, 'employee-profile.js?v=20261031-my-profile-v7'));
+check('A stylesheet and script linked with version', str_contains($html, 'employee-profile.css?v=20261031-my-profile-v11') && str_contains($html, 'employee-profile.js?v=20261031-my-profile-v11'));
 $css = $a->req('GET', '/public/assets/employee-profile.css?v=x'); $js = $a->req('GET', '/public/assets/employee-profile.js?v=x');
 check('A assets served', $css['code'] === 200 && $js['code'] === 200 && strlen($css['body']) > 3000 && strlen($js['body']) > 2000);
 $csrf = $a->csrf($body);

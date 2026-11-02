@@ -123,6 +123,7 @@ window.toggleSideFold = () => {
 if (document.documentElement.dataset.side === 'folded') applySideFold(true);
 window.toggleProfileMenu = () => {
   const open = document.getElementById('profilePop')?.classList.toggle('open') ?? false;
+  if (!open) togglePaletteList(false);
   document.querySelector('.profile-trigger')?.setAttribute('aria-expanded', String(open));
 };
 window.toggleTheme = () => {
@@ -130,10 +131,52 @@ window.toggleTheme = () => {
   document.documentElement.dataset.theme = theme;
   try { localStorage.setItem('hris-theme', theme); } catch (_) { /* Storage can be disabled. */ }
 };
-try {
+// HR users get their palette from the server (data-palette-user on <html>); everyone else keeps the browser's Light/Dark choice.
+const hrPalette = document.documentElement.hasAttribute('data-palette-user');
+if (!hrPalette) try {
   const saved = localStorage.getItem('hris-theme');
   if (saved === 'dark' || saved === 'light') document.documentElement.dataset.theme = saved;
 } catch (_) { /* Use the default theme. */ }
+
+const palList = () => document.getElementById('palList');
+const palOptions = () => [...(palList()?.querySelectorAll('[role="menuitemradio"]') ?? [])];
+const currentPalette = () => document.documentElement.dataset.theme === 'dark' ? 'dark' : (document.documentElement.dataset.palette || 'light');
+let lastLight = currentPalette() === 'dark' ? 'light' : currentPalette();
+window.togglePaletteList = force => {
+  const list = palList(), trigger = document.getElementById('palTrigger');
+  if (!list || !trigger) return;
+  const open = typeof force === 'boolean' ? force : list.hidden;
+  list.hidden = !open;
+  trigger.setAttribute('aria-expanded', String(open));
+  if (open) (palOptions().find(o => o.getAttribute('aria-checked') === 'true') ?? palOptions()[0])?.focus();
+};
+const showPalette = key => {
+  const root = document.documentElement;
+  root.dataset.theme = key === 'dark' ? 'dark' : 'light';
+  if (['beige', 'earth', 'pastel', 'pink'].includes(key)) root.dataset.palette = key; else delete root.dataset.palette;
+  palOptions().forEach(o => o.setAttribute('aria-checked', String(o.dataset.paletteKey === key)));
+};
+window.setPalette = async key => {
+  const before = currentPalette(), msg = document.getElementById('palMsg');
+  if (msg) msg.hidden = true;
+  showPalette(key);
+  try {
+    const res = await fetch('index.php?page=palette-save', { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' }, body: new URLSearchParams({ csrf: palList()?.dataset.csrf ?? '', palette: key }) });
+    if (!res.ok) throw new Error('save failed');
+    if (key !== 'dark') lastLight = key;
+  } catch (_) {
+    showPalette(before);
+    if (msg) { msg.textContent = 'Could not save your choice. Reload the page and try again.'; msg.hidden = false; }
+  }
+};
+window.quickTheme = () => window.setPalette(currentPalette() === 'dark' ? lastLight : 'dark');
+document.addEventListener('keydown', event => {
+  const list = palList();
+  if (!list || list.hidden || !list.contains(document.activeElement)) return;
+  const opts = palOptions(), i = opts.indexOf(document.activeElement);
+  if (event.key === 'Escape') { event.stopPropagation(); togglePaletteList(false); document.getElementById('palTrigger')?.focus(); }
+  else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); opts[(i + (event.key === 'ArrowDown' ? 1 : opts.length - 1)) % opts.length].focus(); }
+}, true);
 document.addEventListener('click', event => {
   if (!event.target.closest('.profile-menu')) {
     document.getElementById('profilePop')?.classList.remove('open');

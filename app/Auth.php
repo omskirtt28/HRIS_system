@@ -46,6 +46,7 @@ final class Auth
             'id'=>(int)$u['id'], 'role_id'=>(int)$u['role_id'], 'name'=>$u['full_name'], 'email'=>$u['email'],
             'role_code'=>$u['role_code'], 'role_name'=>$u['role_name'], 'role_portal'=>$u['role_portal'],
             'client_id'=>$u['client_id'] ? (int)$u['client_id'] : null, 'client_name'=>$u['client_name'] ?? null,
+            'ui_palette'=>$u['ui_palette'] ?? 'light', // HR appearance palette; absent before migration 027
         ];
         db()->prepare('UPDATE users SET last_login_at=NOW() WHERE id=?')->execute([$u['id']]);
         self::startTrackedSession((int)$u['id']);

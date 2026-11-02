@@ -21,6 +21,6 @@ check('js: tooltip hidden by Escape, scroll and toggle', str_contains($js, "e.ke
 check('js: tooltip is aria-hidden (labels stay in .nl)', str_contains($js, "setAttribute('aria-hidden', 'true')"));
 check('js: no native title duplicate', !str_contains($js, 'link.title ='));
 check('view: fold toggle keeps aria wiring', str_contains($view, 'onclick="toggleSideFold()"') && str_contains($view, 'aria-controls="side"'));
-check('view: rail assets versioned', str_contains($view, 'sidebar-fold.css?v=20261031-v6') && str_contains($view, 'hris-app.js?v=20261031-railfly'));
+check('view: rail assets versioned', str_contains($view, 'sidebar-fold.css?v=20261031-v6') && str_contains($view, 'hris-app.js?v=20261102-pal-v2'));
 check('view: nav labels stay in .nl for screen readers', str_contains($view, '<span class="nl"><?=e($label)?></span>'));
 exit($fail ? 1 : 0);

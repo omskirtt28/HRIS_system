@@ -1,0 +1,18 @@
+/* Appearance list inside the HR profile menu (SPEC-hr-appearance-palettes.md, Task 4). Loaded for the HR portal role only. */
+.profile-pop .pal-trigger::after{content:"";margin-left:auto;width:7px;height:7px;border-right:1.6px solid currentColor;border-bottom:1.6px solid currentColor;transform:rotate(45deg) translateY(-2px);transition:transform .15s ease}
+.profile-pop .pal-trigger[aria-expanded="true"]::after{transform:rotate(225deg) translateY(-2px)}
+.pal-list{margin:2px 0 4px;padding:4px 0 2px 8px;border-left:2px solid var(--hris-line)}
+.pal-list[hidden],.pal-msg[hidden]{display:none}
+.profile-pop .pal-opt{position:relative;padding:8px 28px 8px 8px}
+.profile-pop .pal-opt:focus-visible,.profile-pop .pal-trigger:focus-visible{outline:2px solid var(--hris-brand);outline-offset:-2px}
+.pal-opt[aria-checked="true"]{font-weight:600;background:var(--hris-surface-2)}
+.pal-opt[aria-checked="true"]::after{content:"";position:absolute;right:11px;top:50%;width:5px;height:9px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:translateY(-62%) rotate(45deg)}
+.pal-sw{flex:0 0 auto;width:22px;height:16px;border-radius:5px;border:1px solid var(--hris-line);background:linear-gradient(90deg,var(--b) 0 38%,var(--a) 38% 100%)}
+.pal-sw[data-k="light"]{--a:#f6f7f9;--b:#17191d}
+.pal-sw[data-k="dark"]{--a:#111318;--b:#0c0e12}
+.pal-sw[data-k="beige"]{--a:#f6efe6;--b:#3b2f25}
+.pal-sw[data-k="earth"]{--a:#eef0e4;--b:#34423a}
+.pal-sw[data-k="pastel"]{--a:#f6f2fa;--b:#3a3550}
+.pal-sw[data-k="pink"]{--a:#fbeff6;--b:#4a2540}
+.pal-msg{margin:4px 8px 2px;font-size:11px;color:var(--hris-danger)}
+@media (prefers-reduced-motion:reduce){.profile-pop .pal-trigger::after{transition:none}}

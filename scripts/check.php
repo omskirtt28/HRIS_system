@@ -65,7 +65,7 @@ if ($mode === 'fast') { echo ($failed ? 'FAILED' : 'OK')." ($mode)\n"; exit($fai
 
 // 3. Tests. Floors are the counts recorded in CONSTRAINTS.md; a suite may add checks but never lose them.
 $suites = [ // script => [minimum PASS count, needs scratch DB]
-    'tests/employee_profile_test.php' => [84, false],
+    'tests/employee_profile_test.php' => [85, false],
     'tests/notification_sidebar_test.php' => [3, false],
     'tests/sidebar_fold_test.php' => [16, false],
     'tests/hr_dashboard_ui_test.php' => [20, false],
@@ -84,13 +84,18 @@ $suites = [ // script => [minimum PASS count, needs scratch DB]
     'tests/rec_manpower_intake_http_test.php' => [19, true],
     'tests/rec_jobs_test.php' => [52, true],
     'tests/rec_jobs_http_test.php' => [51, true],
-    'tests/offer_rate_test.php' => [10, false],
-    'tests/rec_endorse_manager_test.php' => [41, true],
+    'tests/offer_rate_test.php' => [15, false],
+    'tests/rec_convert_auto_account_test.php' => [18, true],
+    'tests/rec_convert_auto_account_http_test.php' => [22, true],
+    'tests/rec_endorse_manager_test.php' => [43, true],
     'tests/rec_endorse_manager_http_test.php' => [33, true],
     'tests/interview_invite_test.php' => [17, true],
     'tests/interview_invite_http_test.php' => [12, true],
     'tests/interview_chain_test.php' => [29, true],
     'tests/interview_chain_http_test.php' => [19, true],
+    'tests/hr_palette_test.php' => [32, true],
+    'tests/hr_palette_http_test.php' => [21, true],
+    'tests/hr_palette_css_test.php' => [21, false],
 ];
 $db = getenv('HRIS_TEST_DB') ?: '';
 $dbOk = $db !== '' && $db !== 'pmbsi_hris';

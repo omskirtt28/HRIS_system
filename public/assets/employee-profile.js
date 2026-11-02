@@ -101,3 +101,83 @@ document.addEventListener('click', function (ev) {
   dlg.addEventListener('click', function (ev) { if (ev.target === dlg) dlg.close(); });
   dlg.addEventListener('close', function () { img.removeAttribute('src'); });
 })();
+
+// Profile photo: view the current photo, or pick a new one, drag/zoom it into a square crop and upload the cropped JPEG.
+(function () {
+  var form = document.querySelector('.myp-avatar-form');
+  var dlg = form && form.querySelector('.myp-photo-dlg');
+  if (!dlg || typeof dlg.showModal !== 'function') return; // without <dialog> nothing opens
+  var S = 280, OUT = 512;
+  var stage = dlg.querySelector('.myp-crop'), zoomWrap = dlg.querySelector('.myp-zoom'), zoom = zoomWrap.querySelector('input');
+  var msg = dlg.querySelector('.myp-photo-msg'), file = form.querySelector('#mypPhotoFile');
+  var btnPick = dlg.querySelector('[data-photo-pick]'), btnSave = dlg.querySelector('[data-photo-save]'), btnClose = dlg.querySelector('[data-photo-close]');
+  var img = stage.querySelector('img'), firstHtml = stage.innerHTML;
+  var src = dlg.getAttribute('data-src'), crop = null, url = null;
+  function say(t) { msg.textContent = t || ''; msg.hidden = !t; }
+  function size() { S = stage.clientWidth || 280; }
+  function view() {
+    crop = null; dlg.classList.remove('is-crop'); zoomWrap.hidden = true; btnSave.hidden = true; btnPick.textContent = src ? 'Change photo' : 'Add photo';
+    if (url) { URL.revokeObjectURL(url); url = null; }
+    if (!src && img) { stage.innerHTML = firstHtml; img = null; } // no saved photo: back to the initials
+    else if (img) { img.src = src; img.removeAttribute('style'); }
+    stage.removeAttribute('aria-roledescription');
+  }
+  function place() {
+    var w = crop.w * crop.scale, h = crop.h * crop.scale;
+    crop.x = Math.min(0, Math.max(S - w, crop.x)); crop.y = Math.min(0, Math.max(S - h, crop.y));
+    img.style.width = w + 'px'; img.style.height = h + 'px'; img.style.transform = 'translate(' + crop.x + 'px,' + crop.y + 'px)';
+  }
+  function setZoom(z) { // keeps the centre of the frame fixed
+    var cx = (S / 2 - crop.x) / crop.scale, cy = (S / 2 - crop.y) / crop.scale;
+    crop.scale = crop.base * z; crop.x = S / 2 - cx * crop.scale; crop.y = S / 2 - cy * crop.scale; place();
+  }
+  function start(f) {
+    say('');
+    if (!/^image\/(jpeg|png|webp)$/.test(f.type)) { say('Choose a JPG, PNG or WEBP photo.'); return; }
+    if (url) URL.revokeObjectURL(url);
+    url = URL.createObjectURL(f);
+    var probe = new Image();
+    probe.onload = function () {
+      if (!img) { img = document.createElement('img'); img.className = 'myp-crop-img'; img.alt = ''; img.draggable = false; stage.textContent = ''; stage.appendChild(img); }
+      dlg.classList.add('is-crop'); size();
+      img.removeAttribute('style'); img.src = url;
+      var base = S / Math.min(probe.naturalWidth, probe.naturalHeight);
+      crop = { w: probe.naturalWidth, h: probe.naturalHeight, base: base, scale: base, x: 0, y: 0 };
+      crop.x = (S - crop.w * base) / 2; crop.y = (S - crop.h * base) / 2; place();
+      zoom.value = 1; zoomWrap.hidden = false; btnSave.hidden = false; btnPick.textContent = 'Choose another';
+      stage.focus();
+    };
+    probe.onerror = function () { say('This photo could not be read. Try a JPG or PNG.'); };
+    probe.src = url;
+  }
+  form.querySelector('[data-photo-open]').addEventListener('click', function () { say(''); view(); dlg.showModal(); });
+  btnPick.addEventListener('click', function () { file.value = ''; file.click(); });
+  file.addEventListener('change', function () { if (file.files[0]) start(file.files[0]); });
+  btnClose.addEventListener('click', function () { dlg.close(); });
+  dlg.addEventListener('click', function (ev) { if (ev.target === dlg) dlg.close(); });
+  dlg.addEventListener('close', function () { if (url) { URL.revokeObjectURL(url); url = null; } file.value = ''; });
+  zoom.addEventListener('input', function () { if (crop) setZoom(parseFloat(zoom.value)); });
+  var drag = null;
+  stage.addEventListener('pointerdown', function (ev) { if (!crop) return; drag = { px: ev.clientX, py: ev.clientY, x: crop.x, y: crop.y }; stage.setPointerCapture(ev.pointerId); });
+  stage.addEventListener('pointermove', function (ev) { if (!drag) return; crop.x = drag.x + ev.clientX - drag.px; crop.y = drag.y + ev.clientY - drag.py; place(); });
+  stage.addEventListener('pointerup', function () { drag = null; });
+  stage.addEventListener('pointercancel', function () { drag = null; });
+  stage.addEventListener('keydown', function (ev) {
+    if (!crop) return;
+    var d = { ArrowLeft: [10, 0], ArrowRight: [-10, 0], ArrowUp: [0, 10], ArrowDown: [0, -10] }[ev.key];
+    if (!d) return;
+    ev.preventDefault(); crop.x += d[0]; crop.y += d[1]; place();
+  });
+  btnSave.addEventListener('click', function () {
+    if (!crop) return;
+    var c = document.createElement('canvas'); c.width = c.height = OUT;
+    var g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, OUT, OUT);
+    g.drawImage(img, -crop.x / crop.scale, -crop.y / crop.scale, S / crop.scale, S / crop.scale, 0, 0, OUT, OUT);
+    btnSave.disabled = true; btnSave.textContent = 'Saving...';
+    c.toBlob(function (blob) {
+      if (!blob) { say('Could not prepare the photo. Try another one.'); btnSave.disabled = false; btnSave.textContent = 'Save photo'; return; }
+      var dt = new DataTransfer(); dt.items.add(new File([blob], 'profile.jpg', { type: 'image/jpeg' }));
+      file.files = dt.files; form.submit();
+    }, 'image/jpeg', 0.9);
+  });
+})();

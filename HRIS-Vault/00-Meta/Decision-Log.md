@@ -143,3 +143,18 @@ John: send the Meet link to the applicant by email using the address on the appl
 
 ## 2026-11-02 - offer rate type (John and Claude)
 John: Offered salary becomes a Monthly / Daily / Hourly rate dropdown with a peso input, default Monthly, computing the rest; Daily offers re-open as Daily. Decisions: Offer card only; offered_salary stays monthly; 26 days x 8 hours default accepted without confirmation ("okay na saakin"), still NEEDS VERIFICATION. Spec: SPEC-offer-rate-type.md.
+
+## 2026-11-02 - offer working days (John and Claude)
+John: add 22 and 26 working days to the Offer so salary is computed correctly; "go ahead, use your recommendations". Decisions: select always shown, labels with Mon-Fri / Mon-Sat, offer-only (no payroll link), default 26, additive migration 026.
+
+## 2026-11-02 - convert to employee: automatic portal account (John and Claude)
+John: remove the Account setup dropdown on Convert to Employee; generate the account automatically; Company decides the domain (2LOG, PMBSI only for now). Decisions: no link-later or link-existing option; Company required and defaulted from the Department (John unsure, took the recommendation); Employer PMBSI is a label; password only via the reveal button, no success-screen display; Ocampos/Silverworks deferred until John gives a domain. Spec: SPEC-convert-auto-account.md.
+
+## 2026-11-02 - hr-appearance-palettes
+- D: topbar moon button for HR is a quick Dark/last-light flip that also saves (not a Light/Dark-only toggle), so one control never silently drops a palette without saving.
+- D: HR users start on Light. A Dark choice kept only in their browser (localStorage) is ignored for HR from this patch on; they pick Dark again once and it follows them across devices.
+- D: the Appearance list opens inline inside the profile menu (accordion), not as a floating popover, so it cannot be clipped at narrow widths.
+
+- 2026-11-02: Own-photo upload on My Profile uses the existing employees.profile_photo_* columns; no migration; the old HR-only upload on Employee 201 is unchanged.
+
+- 2026-11-02: Cropping is done in the browser (canvas, 512 px JPEG); the server still validates type and size, so a tampered upload gets the same checks.

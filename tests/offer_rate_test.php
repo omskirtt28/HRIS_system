@@ -19,4 +19,9 @@ t('a negative rate is refused',throws(fn()=>OfferRate::convert('MONTHLY',-5.0)))
 t('NaN is refused',throws(fn()=>OfferRate::convert('MONTHLY',NAN)));
 t('an absurd amount is refused',throws(fn()=>OfferRate::convert('HOURLY',1e12)));
 t('the dropdown lists Monthly, Daily, Hourly in that order',array_values(OfferRate::TYPES)===['Monthly rate','Daily rate','Hourly rate']);
+t('Daily 800 is 17,600 a month on 22 days and 20,800 on 26',OfferRate::convert('DAILY',800.0,22)['monthly']===17600.0&&OfferRate::convert('DAILY',800.0,26)['monthly']===20800.0);
+t('Hourly 100 on 22 days is Daily 800 and Monthly 17,600',(function(){$r=OfferRate::convert('HOURLY',100.0,22);return $r['daily']===800.0&&$r['monthly']===17600.0;})());
+t('Monthly 26,000 gives Daily 1,181.82 on 22 days and 1,000 on 26',OfferRate::convert('MONTHLY',26000.0,22)['daily']===1181.82&&OfferRate::convert('MONTHLY',26000.0)['daily']===1000.0);
+t('the default is 26 days',OfferRate::DEFAULT_DAYS===26&&OfferRate::convert('DAILY',800.0)['monthly']===20800.0);
+t('21, 0 and 30 days are refused',throws(fn()=>OfferRate::convert('DAILY',800.0,21))&&throws(fn()=>OfferRate::convert('DAILY',800.0,0))&&throws(fn()=>OfferRate::convert('DAILY',800.0,30)));
 exit($bad?1:0);

@@ -1,0 +1,48 @@
+/* HR appearance palettes (SPEC-hr-appearance-palettes.md). Loaded after hris-modern.css and sidebar-fold.css.
+   Every rule is scoped to :root[data-palette]; Light and Dark are untouched. Status colours and the amber brand fill are never overridden.
+   The sidebar text colours in hris-modern.css are tuned for a near-black sidebar, so each palette supplies lighter sidebar text tokens.
+   Contrast (>= 4.5:1) is checked by tests/hr_palette_css_test.php. Hex values are estimated from John's reference images: NEEDS VERIFICATION in the browser. */
+
+:root[data-palette="beige"]{
+  --hris-bg:#f6efe6; --hris-surface:#fffdf9; --hris-surface-2:#faf4ea; --hris-line:#e6d9c8;
+  --hris-text:#2b2620; --hris-muted:#6b6153; --hris-brand-soft:#fbeccb;
+  --hris-sidebar:#3b2f25; --hris-sidebar-soft:#4a3b2e;
+  --pal-side-nav:#e6e0d8; --pal-side-label:#d2c9bd;
+  --bg:var(--hris-bg); --panel:var(--hris-surface); --panel-2:var(--hris-surface-2); --border:var(--hris-line);
+  --ink:var(--hris-text); --slate:var(--hris-muted); --amber-soft:var(--hris-brand-soft);
+}
+:root[data-palette="earth"]{
+  --hris-bg:#eef0e4; --hris-surface:#fbfaf4; --hris-surface-2:#f3f4ea; --hris-line:#d9dccb;
+  --hris-text:#262a22; --hris-muted:#596050; --hris-brand-soft:#f4e0d2;
+  --hris-sidebar:#34423a; --hris-sidebar-soft:#415247;
+  --pal-side-nav:#e4e8e2; --pal-side-label:#d0d7cd;
+  --bg:var(--hris-bg); --panel:var(--hris-surface); --panel-2:var(--hris-surface-2); --border:var(--hris-line);
+  --ink:var(--hris-text); --slate:var(--hris-muted); --amber-soft:var(--hris-brand-soft);
+}
+:root[data-palette="pink"]{
+  --hris-bg:#fbeff6; --hris-surface:#ffffff; --hris-surface-2:#fdf6fa; --hris-line:#efd9e5;
+  --hris-text:#2e2230; --hris-muted:#6a5668; --hris-brand-soft:#fce7f1;
+  --hris-sidebar:#4a2540; --hris-sidebar-soft:#5c3052;
+  --pal-side-nav:#f2e6ee; --pal-side-label:#e0cbd9;
+  --bg:var(--hris-bg); --panel:var(--hris-surface); --panel-2:var(--hris-surface-2); --border:var(--hris-line);
+  --ink:var(--hris-text); --slate:var(--hris-muted); --amber-soft:var(--hris-brand-soft);
+}
+:root[data-palette="pastel"]{
+  --hris-bg:#f6f2fa; --hris-surface:#ffffff; --hris-surface-2:#faf7fd; --hris-line:#e6dff0;
+  --hris-text:#26232e; --hris-muted:#655f73; --hris-brand-soft:#fde8ee;
+  --hris-sidebar:#3a3550; --hris-sidebar-soft:#4a4464;
+  --pal-side-nav:#e6e3ee; --pal-side-label:#d3cfe0;
+  --bg:var(--hris-bg); --panel:var(--hris-surface); --panel-2:var(--hris-surface-2); --border:var(--hris-line);
+  --ink:var(--hris-text); --slate:var(--hris-muted); --amber-soft:var(--hris-brand-soft);
+}
+
+/* Sidebar text and fills that hris-modern.css hard-codes for the near-black sidebar. */
+:root[data-palette] .nav-item{color:var(--pal-side-nav)}
+:root[data-palette] .nav-item:hover{color:#fff}
+:root[data-palette] .nav-group .gl,
+:root[data-palette] .nav-group .gl-toggle{color:var(--pal-side-label)}
+:root[data-palette] .nav-item.active{background:var(--hris-sidebar-soft);color:#fff}
+:root[data-palette] .side .brand .sub,
+:root[data-palette] .side .prof .muted{color:var(--pal-side-label)}
+:root[data-palette] .side .prof .avatar{background:var(--hris-sidebar-soft)}
+:root[data-palette] .nav-item .soon{color:var(--pal-side-label);background:var(--hris-sidebar-soft);border-color:transparent}

@@ -1,4 +1,31 @@
+
+## 2026-11-02 - My Profile photo view and crop (local)
+- Click your avatar to view the photo large (soft edges, name, role), or pick a new one, drag and zoom it into a square crop, then save. Stylesheet version bumped so browsers load the new look.
+
+
+## 2026-11-02 - My Profile photo upload (local)
+- Anyone with a My Profile page (employee, HR, admin) can now click their avatar to upload their own photo (JPG/PNG/WEBP, 3 MB). No database change.
+
+## 2026-11-02 - Soft Pink palette (local)
+- HR Appearance now also offers Soft Pink (the pink column from your reference). No database change.
+
+## 2026-11-02 - HR Appearance palettes (local)
+- HR users now choose Light, Dark, Soft Beige, Earth Tones or Soft Pastel from Appearance; it is saved to their account and applied before the page paints. Other roles keep the one-click Light/Dark toggle. HR users start on Light; a Dark choice saved only in the browser is no longer used for HR.
+
+## 2026-11-02 - HR appearance palettes, stylesheet (local)
+- Added the three palette colour sets (Soft Beige, Earth Tones, Soft Pastel) with a contrast check. Not switched on for any page yet.
+
+## 2026-11-02 - HR appearance palettes, save endpoint (local)
+- HR users can now save a palette through a new endpoint (palette-save); Admin and other roles are refused. Migration 027 (users.ui_palette) applied to localhost. No screen change yet.
+
+## 2026-11-02 - HR appearance palettes, groundwork (local)
+- Added users.ui_palette (migration 027, not yet applied to localhost) and the UserPalette service that limits palette choice to the HR portal role. No screen change yet; the Appearance list comes in Task 4.
+
+## 2026-11-02 - Convert to Employee: automatic portal account (local)
+- Converting an applicant now always creates the Employee portal account (email from the Company: 2LOG or PMBSI) and requires a Company that matches the Department. The Convert form now shows Employer PMBSI, a Company select filled from the Department and a live email preview; the old Account setup card is removed.
+
 ## 2026-11-02 - Offer rate type
+- Offer card: Working days per month (22 Mon-Fri / 26 Mon-Sat, default 26) drives the Monthly / Daily / Hourly maths. Migration 026 (offers.working_days) applied to localhost.
 - Offer card: Rate type (Monthly / Daily / Hourly, default Monthly) with a peso rate and live equivalents; the monthly amount is computed with 26 days x 8 hours (to verify). Migration 025 (offers.rate_type, rate_amount) applied to localhost.
 
 ## 2026-11-02 - Endorse to Manager review

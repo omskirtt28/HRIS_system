@@ -401,3 +401,9 @@ New table `application_reviewers(id, application_id FK applications, reviewer_us
 
 ## Migration 025 (2026-11-02) offer rate type
 `offers` gets `rate_type ENUM('MONTHLY','DAILY','HOURLY') NOT NULL DEFAULT 'MONTHLY'` and `rate_amount DECIMAL(12,2) NULL` (the rate HR typed). `offered_salary` stays the canonical monthly amount. Old rows: MONTHLY and NULL (readers fall back to offered_salary). Idempotent; down refused while any offer is Daily/Hourly or has a rate_amount.
+
+## Migration 026 (2026-11-02) offer working days
+`offers` gets `working_days TINYINT UNSIGNED NOT NULL DEFAULT 26` (22 = Mon-Fri, 26 = Mon-Sat; the divisor used to compute offered_salary). Old rows read 26, the divisor they already used. Down script refuses when any row is not 26.
+
+## 2026-11-02 - users.ui_palette (migration 027, applied to localhost 2026-11-02; all 27 existing users light)
+- `users.ui_palette VARCHAR(16) NOT NULL DEFAULT 'light'`: the palette an HR-portal user picked (light, dark, beige, earth, pastel). Allowed values enforced in app/UserPalette.php, not by a DB constraint. Existing rows get light. Down script refuses while any user has a non-light value. Spec: SPEC-hr-appearance-palettes.md.

@@ -257,3 +257,5 @@ Hub for HR requests: [[Employee-Tickets]] · UI rules: [[Design-System]]
 
 ## 2026-10-31 - My Profile
 - Read-only own-profile page in the Employee portal (and Profile menu for HR/admin). Reads employees, emergency contacts, employment history, government IDs (masked), documents, current payroll rate and leave balances; no new table. Files: app/EmployeeProfileService.php, app/EmployeeProfileViews.php, public/assets/employee-profile.css/js. Tests: tests/employee_profile_test.php (pure), tests/employee_profile_db_test.php (scratch DB). Plan and spec: tasks/plan.md, SPEC-my-profile.md.
+
+- 2026-11-02: My Profile avatar is now a self-service photo upload (own record only, action upload_own_photo). Topbar/sidebar avatars still show initials.

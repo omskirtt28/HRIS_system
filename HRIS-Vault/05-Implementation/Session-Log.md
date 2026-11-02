@@ -481,3 +481,42 @@ John: context ran out from subagents rereading code/vault. Added READ BUDGET to 
 - John (screenshot of Offer card): Offered salary should be a Monthly / Daily / Hourly rate dropdown with peso input that computes the rest; default Monthly; Daily offers re-open as Daily; "okay na" sa 26 days default.
 - Done: migration 025 (applied localhost after backup + scratch cycle + guard), OfferRate, saveOffer, Offer form with live preview, tests (offer_rate 10, rec_endorse_manager 41), check.php full OK.
 - Hindi pa: browser check, commit, push, deploy, Graphify refresh. 26x8 pa rin NEEDS VERIFICATION.
+
+## 2026-11-02 - offer working days built (Claude)
+- John: add 22 and 26 days so salary computes; go with recommendations. Done: Working days select on the Offer card, OfferRate/saveOffer, migration 026 applied localhost (backup + restore verified, cycle, guard, rows unchanged), tests, check.php full OK.
+- Hindi pa: browser check, commit, push, deploy, Graphify refresh. Days are offer-only (Q85).
+
+## 2026-11-02 - convert auto account, Task 1 built (Claude)
+- John (screenshots of Convert to Employee): remove the Account setup dropdown, generate the account automatically, show employer PMBSI, Company (2LOG or PMBSI) gives the email domain. Spec and plan saved (SPEC-convert-auto-account.md, tasks/plan-convert-auto-account.md); John approved "go na task 1". John also wants build/test/constraints/code-simplify used whenever coding.
+- Done: Task 1 backend (see Progress.md), tests green, floors ratcheted. Hindi pa: Task 2 form, Task 3 HTTP test and sweep, browser check, commit, push, deploy, Graphify refresh.
+
+## 2026-11-02 - convert auto account, Task 2 built (Claude)
+- John: "go na task 2". Done: Convert form (see Screens.md addendum). Hindi pa: Task 3 (HTTP render test, sweep), browser check by John, commit, push, deploy, Graphify refresh. Dead CSS .phase2c-account-* left on purpose.
+
+## 2026-11-02 - convert auto account, Task 3 built (Claude)
+- John: "go na task 3". Done: HTTP test, sweep, vault sync, floors ratcheted (convert 18 + 22). Slice complete locally. Hindi pa: browser check ni John, commit, push, deploy, Graphify refresh. Open for John: hide Branch for PMBSI on Convert like Create Employee?
+
+## 2026-11-02 - HR appearance palettes, spec only (Claude)
+- John (screenshot of the profile menu, Appearance circled + 3 palette images): HR role only should get colour palettes. Answers: Light, Dark, Soft Beige, Earth Tones, Soft Pastel; saved per user in the DB; recolour page, cards, topbar, sidebar (status/brand colours unchanged); non-HR keep Light/Dark.
+- Done: SPEC-hr-appearance-palettes.md (DRAFT). Waiting for John's approval of the spec; then plan/tasks. No code, no migration yet (027 planned: users.ui_palette).
+- Hindi pa: approval, plan, build, browser check, commit, push, deploy, Graphify refresh. Hex values are estimates, NEEDS VERIFICATION by the contrast test.
+
+## 2026-11-02 - HR appearance palettes, plan and tasks (Claude)
+- John: "go na, HR portal lang, plan and tasks na". Spec approved; Admin does NOT get palettes (Q1 closed). Plan: tasks/plan-hr-appearance-palettes.md, tasks: tasks/todo-hr-appearance-palettes.md (5 tasks), vault plan Plans/2026-11-02-hr-appearance-palettes.md.
+- Hindi pa: any build (Task 1 next, waiting for John go), browser check, commit, push, deploy, Graphify refresh.
+
+- 2026-11-02 hr-appearance-palettes Task 1 (Claude): UserPalette service and migration 027 built locally (not applied to localhost yet). Nothing visible to users yet.
+
+- 2026-11-02 hr-appearance-palettes Task 2 (Claude): save endpoint built, migration 027 applied to localhost. Next: Task 3 (palettes.css + contrast test), waiting for John go.
+
+- 2026-11-02 hr-appearance-palettes Task 3 (Claude): palettes.css and contrast test built, not linked yet. Next: Task 4 (menu, server render, JS), waiting for John go.
+
+- 2026-11-02 hr-appearance-palettes Task 4 (Claude): menu, server render and JS built; migration 027 already applied. Next: Task 5 (sweep, browser check, vault), waiting for John go. JS is only node --check and HTTP-render tested so far.
+
+- 2026-11-02 hr-appearance-palettes (Claude): Soft Pink added as the 6th palette at John request (screenshot). Task 5 (sweep, browser check) still pending John go.
+
+- 2026-11-02 my-profile-photo-upload (Claude): self-service photo upload on My Profile hero (action upload_own_photo, own record only, reuses EmployeeRepository::uploadProfilePhoto). No migration. Not run: browser check, commit, push, deploy, Graphify refresh.
+
+- 2026-11-02 my-profile-photo view+crop (Claude): avatar opens a dialog (view with feathered portrait, name, role; crop with drag/zoom/arrow keys, 512px JPEG made in the browser, then the same upload_own_photo POST). CSS/JS v9, footer note. Not run: real browser check, check.php full, commit, push, deploy, Graphify refresh.
+
+- 2026-11-02 My Profile hero photo is now a larger feathered portrait (CSS only, v10).

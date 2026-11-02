@@ -145,3 +145,8 @@ Related: [[Decision-Log]] · [[Roadmap]] · [[Business-Rules]] · [[PH-Labor-and
 - Q82 (2026-11-02): interview-invite sends from the one company Gmail (SMTP App Password). A real Google Calendar / Meet invite through the Google API, and an email when an interview is rescheduled or cancelled (no reschedule action exists yet), are later steps.
 - Q83 (2026-11-02): the Resend limit is per browser session and not stored; revisit if abuse from several sessions matters. The client-portal approval path still moves a candidate to Offer (client portal removal slice owns it).
 - Q84 (2026-11-02): offer-rate-type uses 26 days/month and 8 hours/day (OfferRate::DAYS_PER_MONTH / HOURS_PER_DAY). Confirm the company rule (22 days? payroll hourly_divisor?) before relying on computed monthly amounts. Job Openings salary min/max are still monthly-only.
+- Q85 (2026-11-02): working days are informational on the offer. Decide later whether the accepted offer days should feed the hired employee payroll divisor (payroll rule, needs approval). Q84 is partly answered: 22 and 26 are now both selectable; hours per day 8 still unverified.
+
+## 2026-11-02 - hr-appearance-palettes
+- Q: Palette hex values are estimates from the reference images (NEEDS VERIFICATION). John to confirm the look after the browser check; adjust palettes.css only, the contrast test guards readability.
+- Q: Should Admin ever get the palettes? Closed for now: HR portal only (John, 2026-11-02).

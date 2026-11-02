@@ -204,6 +204,6 @@ check('removed: create_user action handler and route entry',!str_contains($idx,"
 check('removed: no typed Temporary-password create form left on Users & Access',substr_count($idx,'name="password"')===substr_count($idx,'type="password" name="password"'));
 check('users list uses the full width now (single column layout)',str_contains($css,'.users-access-layout{display:grid;grid-template-columns:minmax(0,1fr);'));
 check('repository createUser stays as the tested API (not reachable from any page)',str_contains(file_get_contents(dirname(__DIR__).'/app/FoundationRepository.php'),'public static function createUser('));
-check('recruitment conversion accounts get the HR copy and a forced first change',str_contains($rec,'EmployeeAccountService::setPassword($userId,$password,true);'));
+check('recruitment conversion accounts get the HR copy and a forced first change',str_contains($rec,"EmployeeAccountService::issue(\$employeeId,\$employeeData['first_name'],\$employeeData['last_name'],\$employeeData['work_company'],'EMPLOYEE');")&&!str_contains($rec,'temporary_password'));
 
 finish();

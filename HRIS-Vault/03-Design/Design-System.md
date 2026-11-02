@@ -94,3 +94,22 @@ In dark mode the solid hue tokens (`--hris-success/info/danger/warning`) stay as
 
 ## 2026-10-31 - Dashboard tiers pattern (HR dashboard v2)
 All new rules live under `.hd2` in `public/assets/hr-ops.css`, tokens only. Two KPI tiers: action cards (36px value, 4px tone rail via `data-tone`) and compact overview cards (24px). Delta is a chip with arrow plus text, never colour alone. Segmented control for short period lists (links, `aria-current`). Count chips use text colour `--hris-text` on a soft tone background so contrast holds in dark mode. Shared `.metric-card`, `.panel`, `.panel-link` in `hris-modern.css` are unchanged; Employee, Client and Admin dashboards still use them (follow-up slice if John wants the same look there).
+
+## HR appearance palettes (2026-11-02, built locally, not yet linked into pages)
+HR-portal-only palettes live in `public/assets/palettes.css` as token overrides under `:root[data-palette="beige|earth|pastel"]` (Light and Dark untouched; brand and status colours never overridden). Values are estimated from the reference images and are NEEDS VERIFICATION in the browser.
+
+| Token | Soft Beige | Earth Tones | Soft Pastel |
+|---|---|---|---|
+| bg | #f6efe6 | #eef0e4 | #f6f2fa |
+| surface | #fffdf9 | #fbfaf4 | #ffffff |
+| surface-2 | #faf4ea | #f3f4ea | #faf7fd |
+| line | #e6d9c8 | #d9dccb | #e6dff0 |
+| text | #2b2620 | #262a22 | #26232e |
+| muted | #6b6153 | #596050 | #655f73 |
+| brand-soft | #fbeccb | #f4e0d2 | #fde8ee |
+| sidebar / soft | #3b2f25 / #4a3b2e | #34423a / #415247 | #3a3550 / #4a4464 |
+| sidebar nav / label text | #e6e0d8 / #d2c9bd | #e4e8e2 / #d0d7cd | #e6e3ee / #d3cfe0 |
+
+The sidebar text colours in hris-modern.css are hard-coded for a near-black sidebar, so palettes override nav, group label, brand sub, profile muted and Soon chip colours with the two lighter sidebar tokens. All text pairs are at least 4.5:1 (lowest 4.64, checked by tests/hr_palette_css_test.php).
+
+Added 2026-11-02 (John, from the circled #F8AADD pink column of the Soft Gradients image): palette **Soft Pink** (key `pink`, no migration). bg #fbeff6, surface #ffffff, surface-2 #fdf6fa, line #efd9e5, text #2e2230, muted #6a5668, brand-soft #fce7f1, sidebar #4a2540 / soft #5c3052, sidebar nav / label text #f2e6ee / #e0cbd9. Lowest text contrast 4.73:1 (checked by tests/hr_palette_css_test.php). Flat colours only; the gradient look is not used. NEEDS VERIFICATION in the browser.

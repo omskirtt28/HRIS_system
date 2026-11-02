@@ -209,3 +209,15 @@ Chain: a reviewer can Pass to next interviewer (Manager Review only), optionally
 
 ## Addendum 2026-11-02 - offer rate type
 The Offer card takes a Rate type (Monthly / Daily / Hourly) and a peso rate; `RecruitmentRepository::saveOffer` validates through `OfferRate::convert` and stores rate_type, rate_amount and the monthly offered_salary (migration 025). A caller sending only offered_salary is treated as monthly. See BR-877.
+
+## Addendum 2026-11-02 - offer working days
+`OfferRate::convert($type,$amount,$days)` takes 22 or 26 (DAYS, DEFAULT_DAYS=26; replaces DAYS_PER_MONTH). `saveOffer` reads `working_days` (missing = 26), rejects other values, stores it on `offers.working_days` (migration 026). Spec: SPEC-offer-working-days.md.
+
+## Addendum 2026-11-02 - convert auto account (Task 1, backend)
+`RecruitmentRepository::convertToEmployee` no longer reads account_mode/user_id/account_email/temporary_password. It saves `work_company` (required, must match the Department), creates the employee with `user_id=0` and `company_email=''`, then calls `EmployeeAccountService::issue(...,'EMPLOYEE')` in the same transaction. The form carries a plain required Company select for now; Task 2 replaces the old Employee portal access card, adds the Employer label and the email preview. See BR-879. Spec: SPEC-convert-auto-account.md, plan: tasks/plan-convert-auto-account.md.
+
+## Addendum 2026-11-02 - convert auto account (Task 2, form)
+Form clean-up in `index.php` (Convert to Employee page): old account card, its script and the typed Temporary password removed; Employer label, Company select (data-company on Department options), live email preview script added. Leftovers not removed: `.phase2c-account-*` CSS in `public/assets/hris-modern.css` (dead, left to avoid an asset-version change) and the unused `$masters['employee_users']` list.
+
+## Addendum 2026-11-02 - convert auto account (Task 3, tests and sweep)
+`tests/rec_convert_auto_account_http_test.php` (22 checks, port 8103): form has no account choices, Employer label, required Company, read-only email preview; CSRF and permission refusals; missing or mismatched Company saves nothing; forged account fields ignored; 2LOG and PMBSI accounts; one convert per application; HR reveal and the forced first password change. Sweep: no other screen offers link-later or link-existing for a new account. Left alone: Employee 201 edit still links an existing account (`availableEmployeeUsers`, a different feature), Branch is still shown for PMBSI on Convert (Create Employee hides it), unused `$masters['employee_users']` query and dead `.phase2c-account-*` CSS on Convert.

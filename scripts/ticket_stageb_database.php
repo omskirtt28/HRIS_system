@@ -5,8 +5,8 @@ require __DIR__.'/slice15_database.php';
 $number=(int)($argv[2]??4);$mode=$argv[1]??'inspect';
 $live=$config['db']['database'];$folder='storage/slice15-private';
 $manifest=$folder.'/stageb-'.$number.'.json';
-$userColumns=[20=>['password_enc','must_change_password','password_changed_at'],21=>['removed_at','removed_email','removed_employee_id','removed_status'],24=>['is_final','passed_by'],25=>['rate_type','rate_amount']]; // columns a migration adds to an existing table
-$columnTable=[24=>'application_reviewers',25=>'offers']; // the table those columns belong to; users when not listed
+$userColumns=[20=>['password_enc','must_change_password','password_changed_at'],21=>['removed_at','removed_email','removed_employee_id','removed_status'],24=>['is_final','passed_by'],25=>['rate_type','rate_amount'],26=>['working_days'],27=>['ui_palette']]; // columns a migration adds to an existing table
+$columnTable=[24=>'application_reviewers',25=>'offers',26=>'offers']; // the table those columns belong to; users when not listed
 function stage_backup(string $source,string $label):array {
     global $folder;
     $p=slice15_connect($source);$before=slice15_snapshot($p);$stamp=date('Ymd_His');
