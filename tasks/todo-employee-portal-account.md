@@ -1,0 +1,34 @@
+# Todo: employee portal account (see tasks/plan-employee-portal-account.md)
+Write each test first (red), then code. Checkpoint after every 2 tasks: `php scripts/check.php task`.
+
+- [ ] **T1 Migration 020** `20261102_020_portal_account.sql` + `.down.sql`
+  - Adds `users.password_enc` (VARCHAR 255 NULL), `users.must_change_password` (TINYINT default 0), `users.password_changed_at` (DATETIME NULL); permissions `users.view_credentials`, `users.view_directory`, `ticket.file.portal_account`; grants to Human Resources (view_*), Employee + staff roles (file); ticket type `PORTAL_ACCOUNT_REQUEST` (HR_ONLY routing, copy 006_netsuite).
+  - Acceptance: up, re-run (idempotent), down, up clean; down refuses if any `password_enc` is set or tickets of the new type exist; existing role_permissions unchanged (diff).
+  - Verify: dump + restore check, scratch DB, row counts of users/roles/permissions before/after.
+  - Files: database/migrations (2), CONSTRAINTS.md if a floor changes.
+- [ ] **T2 EmployeeAccountService** (new `app/EmployeeAccountService.php`)
+  - `generatePassword()`, `emailFor(first,last,workCompany)` with `DOMAINS=['PMBSI'=>'pmbsi.com','2LOG'=>'2log.com']` (shortcut comment: move to a table when companies get a UI), `encrypt/decrypt` (AES-256-GCM, key from config, fail closed), `issue(employeeId,...)`.
+  - Acceptance: unit cases for accents, spaces, `Jr.`, empty name, collisions, round trip, tampered ciphertext rejected, missing key throws.
+  - Files: app/EmployeeAccountService.php, config/config.local.example.php, tests/employee_portal_account_test.php (+ scripts/check.php register).
+- [ ] **T3 Create Employee wiring**
+  - `create_employee` handler + `EmployeeRepository::create` run in one transaction: insert employee, create linked user (role from allow-list HR/Employee), set `company_email`, `must_change_password=1`, encrypted copy; audit without password. `createUser` returns the id.
+  - UI: Role field in Employment information, read-only email preview that follows Company; remove "User account / Link later" (index.php ~1319), edit form select (~1425?) and Phase 2C "Existing Employee account" (~1640) only where it links accounts at creation.
+  - Acceptance: scenarios 1-3 in the plan; forged `role_id` rejected; duplicate employee still rejected.
+  - Files: index.php, app/EmployeeRepository.php, app/FoundationRepository.php.
+- [ ] **T4 Change password + login gate**
+  - New `change-password` page (any logged-in user, from account menu / My Profile), POST+CSRF, verifies current password, policy, revokes other sessions, rewrites hash + copy, clears `must_change_password`. Gate in `Auth`/router: while `must_change_password=1` only this page, logout and assets are reachable.
+  - Acceptance: first login redirects to the page; after change normal landing; wrong current password rejected with generic message; rate-limited.
+  - Files: app/Auth.php, index.php, app/View.php (menu link), tests.
+- [ ] **T5 Reveal + HR view**
+  - `FoundationRepository::revealPassword($userId)` (needs `users.view_credentials`, POST+CSRF, audit `REVEAL_PASSWORD` no value, 10/min/user). Reset (Super Admin and HR-for-employees) rewrites the copy. Users & Access: `users.view_directory` gives HR a read-only list (no create/role/disable/link), eye calls the reveal endpoint and shows value with copy button, auto-masks after 30 s; rows without a copy show "Not available. Reset password to enable viewing."
+  - Acceptance: employee/Payroll/etc. cannot reveal (403); HR can reveal any account incl. Super Admin (D11); HR cannot change role/disable staff; audit row per reveal; page source never contains a password.
+  - Files: index.php (users page ~1760-1990), app/FoundationRepository.php, hris css if needed, tests.
+- [ ] **T6 Forgotten-password request**
+  - `config/ticket_types.php` `PORTAL_ACCOUNT_REQUEST` (name "Portal account / forgotten password", fields: concern select [Forgot password, Cannot log in, Other] + remarks), `TicketTypes::FILE_PERMISSIONS`, shown under HR Requests for employees; HR resolves via reveal/reset then completes the ticket.
+  - Acceptance: employee files it, HR sees it in queue, status flow like NETSUITE_CONCERN; no password ever written into ticket text (field helper text says so).
+  - Files: config/ticket_types.php, app/TicketTypes.php, tests/ticket_*.
+- [ ] **T7 Remove old UI/handlers + fix sweep**
+  - Delete Create New User card + `create_user` handler and its route map entry (index.php ~280, ~433, ~1784); `availableEmployeeUsers()`/`link_user_employee` stay for existing links (not removed). Recruitment hire path uses the new generator (no typed password). Re-grep: other typed "Temporary password" inputs, "Link later", dead JS for removed form.
+  - Acceptance: grep shows none of the removed strings; no PHP notice on Users & Access.
+- [ ] **T8 Tests, checks, vault**
+  - Register `employee_portal_account_test.php` (floor raised, never lowered), `php scripts/check.php task`, `full` with scratch DB, apply per standing rule, vault: Progress, Auth-and-RBAC (BR-117 exception + new BR), Employee-Records, Employee-Tickets, Data-Model (3 cols, 3 perms, type), Business-Rules, Screens/API-Surface (change-password, reveal), Decision-Log (D4/D11 risk), Open-Questions, CHANGELOG, Session-Log, plan status done.
