@@ -1739,7 +1739,8 @@ if ($page === 'client-reports') {
 if (str_starts_with($page,'admin-')) {
     need_db();
     if (!Auth::check()) redirect('login',['portal'=>'admin']);
-    Auth::requirePortal('admin');
+    // HR reaches the read-only Users & Access directory through users.view_directory; every other admin page stays admin-portal only.
+    if (!($page==='admin-users' && Auth::can('users.view_directory'))) Auth::requirePortal('admin');
 }
 
 if ($page === 'admin-dashboard') {

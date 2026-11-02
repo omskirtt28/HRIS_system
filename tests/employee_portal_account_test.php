@@ -194,6 +194,7 @@ act($hrUser);
 
 // --- T7 static: old creation paths removed ------------------------------------------------
 $idx=file_get_contents(dirname(__DIR__).'/index.php');$rec=file_get_contents(dirname(__DIR__).'/app/RecruitmentRepository.php');$css=file_get_contents(dirname(__DIR__).'/public/assets/hris-modern.css');
+check('admin gate: only admin-users opens to HR (users.view_directory); other admin pages keep requirePortal',str_contains($idx,"if (!(\$page==='admin-users' && Auth::can('users.view_directory'))) Auth::requirePortal('admin');"));
 check('removed: Create New User card',!str_contains($idx,'Create New User')&&!str_contains($idx,'id="createUserForm"'));
 check('removed: create_user action handler and route entry',!str_contains($idx,"'create_user'")&&!str_contains($idx,'value="create_user"'));
 check('removed: no typed Temporary-password create form left on Users & Access',substr_count($idx,'name="password"')===substr_count($idx,'type="password" name="password"'));
