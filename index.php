@@ -311,9 +311,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if ($action === 'create_employee') {
             Auth::requirePermission('employees.manage');
-            $id=EmployeeRepository::create([
+            require_once __DIR__.'/app/EmployeeAccountService.php';
+            // Employee + linked portal account in one transaction (spec D1/D2); posted user_id and company_email are ignored.
+            $created=EmployeeAccountService::createEmployee([
                 'employee_no'=>(string)($_POST['employee_no']??''),
-                'user_id'=>(int)($_POST['user_id']??0),
                 'first_name'=>(string)($_POST['first_name']??''),
                 'middle_name'=>(string)($_POST['middle_name']??''),
                 'last_name'=>(string)($_POST['last_name']??''),
@@ -333,8 +334,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'employment_type_id'=>(int)($_POST['employment_type_id']??0),'require_employee_status'=>true,
                 'hire_date'=>(string)($_POST['hire_date']??''),
                 'regularization_date'=>(string)($_POST['regularization_date']??''),
-            ]);
-            flash('success','Employee record created successfully.');
+            ],(string)($_POST['account_role']??''));
+            $id=$created['employee_id'];
+            flash('success','Employee record created. Portal account '.$created['email'].' was created; HR can view its password in Users & Access.');
             redirect('hr-employee',['id'=>$id]);
         }
         if ($action === 'update_employee_personal') {
@@ -1305,7 +1307,7 @@ if ($page === 'hr-employee-new') {
           <div class="field"><label>Civil status</label><select name="civil_status"><option value="">Not specified</option><option>Single</option><option>Married</option><option>Widowed</option><option>Separated</option></select></div>
           <div class="field"><label>Mobile number</label><input name="mobile_no" placeholder="+63 ..."></div>
           <div class="field"><label>Personal email</label><input type="email" name="personal_email"></div>
-          <div class="field"><label>Company email</label><input type="email" name="company_email"></div>
+          <div class="field"><label for="company_email_preview">Company email (portal login)</label><input id="company_email_preview" type="email" readonly tabindex="-1" placeholder="Generated from name and Company" aria-describedby="company_email_preview_note"><small id="company_email_preview_note" aria-live="polite">Created automatically with the employee. It cannot be edited.</small></div>
           <div class="field full"><label>Current address</label><input name="address_text" placeholder="House / street / city / province"></div>
         </div></section>
         <section class="panel employee-form-card"><div class="panel-head"><div><h2>Employment information</h2><p>Organization assignment and employment details.</p></div></div><div class="panel-body employee-form-grid">
@@ -1316,11 +1318,18 @@ if ($page === 'hr-employee-new') {
           <div class="field"><label>Employee Status <span class="req">*</span></label><select name="employment_type_id" required><option value="">Select Employee Status</option><?php foreach($masters['employment_types'] as $x): if(!$x['active']||in_array($x['code'],['RESIGN','MATERNITY_LEAVE'],true))continue;?><option value="<?=$x['id']?>" data-code="<?=e($x['code'])?>"><?=e($x['name'])?></option><?php endforeach;?></select></div>
           <div class="field"><label>Hire date <span class="req">*</span></label><input type="date" name="hire_date" required></div>
           <div class="field"><label>Regularization date</label><input type="date" name="regularization_date"><small>Automatic for Probationary: 6 months after the hire date. Seasonal has none.</small></div><?php employee_term_end_field();?>
-          <div class="field"><label>User account</label><select name="user_id"><option value="">Link later</option><?php foreach($masters['employee_users'] as $x):?><option value="<?=$x['id']?>"><?=e($x['full_name'].' · '.$x['email'].' · '.$x['role_name'])?></option><?php endforeach;?></select><small>Active, unlinked accounts are shown. HR and Admin accounts can be linked by a Super Admin.</small></div>
+          <div class="field"><label for="account_role_create">Role <span class="req">*</span></label><select id="account_role_create" name="account_role" required><option value="EMPLOYEE" selected>Employee</option><option value="HR">HR</option></select><small>Sets the portal account that is created with this employee.</small></div>
         </div></section>
       </div>
       <aside class="employee-form-aside"><section class="panel sticky-card"><div class="panel-head"><div><h2>Create record</h2><p>Phase 2A employee master</p></div></div><div class="panel-body"><div class="employee-save-note"><span class="qa-icon"><?=icon_svg('shield')?></span><div><strong>Audited action</strong><p>Creation is recorded in the HRIS audit log.</p></div></div><button class="btn primary block" type="submit"><?=icon_svg('plus')?> Create employee</button><a href="<?=url('hr-employees')?>" class="btn block" style="margin-top:8px">Cancel</a></div></section></aside>
     </form><?php endif;?>
+    <script>(function(){ // Read-only preview of the generated login email; the server builds the real one (adds a number if the address is taken).
+      var out=document.getElementById('company_email_preview');if(!out)return;var f=out.form,domains=<?php require_once __DIR__.'/app/EmployeeAccountService.php'; echo json_encode(EmployeeAccountService::DOMAINS,JSON_UNESCAPED_SLASHES);?>;
+      function clean(s){return s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z]/g,'');}
+      function show(){var fn=f.elements.first_name.value,ln=f.elements.last_name.value.replace(/[\s,]+(jr|sr|ii|iii|iv)\.?$/i,''),d=domains[f.elements.work_company.value];
+        out.value=(clean(fn)+clean(ln)&&d)?clean(fn)+clean(ln)+'@'+d:'';}
+      ['first_name','last_name','work_company'].forEach(function(n){f.elements[n].addEventListener('input',show);f.elements[n].addEventListener('change',show);});show();
+    })();</script>
     <script>(function(){
       var c=document.querySelector('select[name="work_company"]');if(!c)return;
       var f=c.form,d=f.querySelector('select[name="department_id"]'),b=f.querySelector('select[name="branch_id"]'),p=f.querySelector('select[name="position_id"]');if(!d||!b||!p)return;

@@ -94,6 +94,22 @@ final class EmployeeAccountService
         $st->execute([password_hash($plain,PASSWORD_DEFAULT),self::encrypt($plain),$mustChange?1:0,$userId]);
     }
 
+    /** Employee + login in ONE transaction: if either fails, neither is saved. The posted user_id/company_email are ignored (spec D1, D2). */
+    public static function createEmployee(array $data,string $roleKey): array
+    {
+        $roleKey=strtoupper(trim($roleKey));
+        if(!isset(self::ROLES[$roleKey])) throw new RuntimeException('Choose HR or Employee as the account role.');
+        self::key(); // fail closed before anything is written
+        $data['user_id']=0; $data['company_email']='';
+        $pdo=db(); $own=!$pdo->inTransaction(); if($own) $pdo->beginTransaction();
+        try {
+            $id=EmployeeRepository::create($data);
+            $account=self::issue($id,(string)($data['first_name']??''),(string)($data['last_name']??''),(string)($data['work_company']??''),$roleKey);
+            if($own) $pdo->commit();
+            return ['employee_id'=>$id]+$account;
+        } catch(Throwable $e) { if($own && $pdo->inTransaction()) $pdo->rollBack(); throw $e; }
+    }
+
     /** Creates the linked login for an employee row. Run inside the caller's transaction. Returns [user_id,email]. */
     public static function issue(int $employeeId,string $first,string $last,?string $workCompany,string $roleKey): array
     {

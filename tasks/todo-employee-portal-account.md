@@ -1,12 +1,12 @@
 # Todo: employee portal account (see tasks/plan-employee-portal-account.md)
 Write each test first (red), then code. Checkpoint after every 2 tasks: `php scripts/check.php task`.
 
-- [ ] **T1 Migration 020** `20261102_020_portal_account.sql` + `.down.sql`
+- [x] **T1 Migration 020** `20261102_020_portal_account.sql` + `.down.sql`
   - Adds `users.password_enc` (VARCHAR 255 NULL), `users.must_change_password` (TINYINT default 0), `users.password_changed_at` (DATETIME NULL); permissions `users.view_credentials`, `users.view_directory`, `ticket.file.portal_account`; grants to Human Resources (view_*), Employee + staff roles (file); ticket type `PORTAL_ACCOUNT_REQUEST` (HR_ONLY routing, copy 006_netsuite).
   - Acceptance: up, re-run (idempotent), down, up clean; down refuses if any `password_enc` is set or tickets of the new type exist; existing role_permissions unchanged (diff).
   - Verify: dump + restore check, scratch DB, row counts of users/roles/permissions before/after.
   - Files: database/migrations (2), CONSTRAINTS.md if a floor changes.
-- [ ] **T2 EmployeeAccountService** (new `app/EmployeeAccountService.php`)
+- [x] **T2 EmployeeAccountService** (new `app/EmployeeAccountService.php`)
   - `generatePassword()`, `emailFor(first,last,workCompany)` with `DOMAINS=['PMBSI'=>'pmbsi.com','2LOG'=>'2log.com']` (shortcut comment: move to a table when companies get a UI), `encrypt/decrypt` (AES-256-GCM, key from config, fail closed), `issue(employeeId,...)`.
   - Acceptance: unit cases for accents, spaces, `Jr.`, empty name, collisions, round trip, tampered ciphertext rejected, missing key throws.
   - Files: app/EmployeeAccountService.php, config/config.local.example.php, tests/employee_portal_account_test.php (+ scripts/check.php register).
