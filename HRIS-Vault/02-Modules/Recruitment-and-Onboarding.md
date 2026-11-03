@@ -234,3 +234,5 @@ Why: HR found the 8-dot tracker too long; Applied is wasted because the applican
 
 ## Addendum 2026-11-03 - hiring-review-pass-visibility
 - Pass-on and endorse lists now follow BR-885: RecruitmentRepository::targetsFor() (shared by the HR endorse card, the Pass to next interviewer card, endorseToReviewers and passOn). Job form has a Retail area and branches checklist (table job_opening_branches, migration 031). Spec: SPEC-hiring-review-pass-visibility.md. Tests: tests/hiring_review_visibility_test.php (21).
+
+- Job form branch picker (2026-11-03): fieldset #jf-branches appears only for Site type Retail; hidden+disabled for Head office, Other company and blank so no branch_ids post (server already ignores them, JobOpenings.php). Area cards, per-area All/Clear, Select/Clear all, filter, live counts. Spec: SPEC-job-form-branch-picker.md.

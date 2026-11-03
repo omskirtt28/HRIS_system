@@ -1,3 +1,6 @@
+## 2026-11-03 - Job form branch picker (local)
+- On a new or edited job, the Retail area and branches list now shows only when Site type is Retail. It lists every area as a card with All/Clear, a filter box and selected counts, with no inner scroll box.
+
 ## 2026-11-03 - Screening first, no Applied step (local)
 - New applicants now land in Screening right away, and the progress bar no longer shows Applied (7 steps, Screening to Deployed). HR continues straight to Interview. Old applicants who were still at Applied are shown as Screening. Database: Applied stage hidden (migration 029).
 

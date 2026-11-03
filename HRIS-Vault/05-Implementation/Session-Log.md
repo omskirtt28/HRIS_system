@@ -544,3 +544,5 @@ John: context ran out from subagents rereading code/vault. Added READ BUDGET to 
 - 2026-11-03 hiring-review-pass-visibility (Claude): John approved SPEC-hiring-review-pass-visibility.md (HO: HR->TC->Manager with direct-manager lock; Retail: area/branch set on Job Opening, ADL then OIC/MT/SC). Plan written (Plans/2026-11-03-hiring-review-pass-visibility.md, status draft). No code yet. Waiting John go; migration 031 needs his OK.
 
 - 2026-11-03 hiring-review-pass-visibility (Claude): built and applied to localhost (migration 031), see Plans/2026-11-03-hiring-review-pass-visibility.md (status done). John also asked to remove the codex-first hook (removed from ~/.claude/settings.json). Next: John tries a Retail job with branches in the browser; commit local.
+
+- 2026-11-03 job-form-branch-picker (Claude): John approved SPEC-job-form-branch-picker.md (hide when not Retail incl. blank/Other; always-expanded area cards, All/Clear, filter, counters). Built in app/JobOpeningsViews.php only (no migration). check.php task OK. Not browser-verified yet; John to try Head office <-> Retail toggle. Not committed.
