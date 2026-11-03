@@ -17,7 +17,7 @@ $mr=insert('INSERT INTO manpower_requests(request_no,client_id,position_title,re
 $job=insert('INSERT INTO job_openings(job_code,slug,title,description,client_id,manpower_request_id,openings,status,location_text,employment_type) VALUES(?,?,?,?,?,?,5,"OPEN","Synthetic branch","REGULAR")',['JOB-ZC-'.$sfx,'zzc-'.$sfx,'Synthetic clerk','x',$client,$mr]);
 function hired_app(string $first,string $last,int $mr,int $client,int $job): int {
     $applicant=insert('INSERT INTO applicants(applicant_no,first_name,last_name,email,mobile_no,source,consent_at,status) VALUES(?,?,?,?,?,"CAREERS_SITE",NOW(),"ACTIVE")',['APP-ZC-'.bin2hex(random_bytes(4)),$first,$last,'zz_'.bin2hex(random_bytes(4)).'@example.test','09170000000']);
-    $app=insert('INSERT INTO applications(application_no,applicant_id,job_opening_id,manpower_request_id,client_id,current_stage_id,applied_at,last_stage_changed_at,status) VALUES(?,?,?,?,?,(SELECT id FROM recruitment_stages WHERE code="DEPLOYED"),NOW(),NOW(),"ACTIVE")',['PMBSI-ZC-'.bin2hex(random_bytes(4)),$applicant,$job,$mr,$client]);
+    $app=insert('INSERT INTO applications(application_no,applicant_id,job_opening_id,manpower_request_id,client_id,current_stage_id,applied_at,last_stage_changed_at,status,screening_rating) VALUES(?,?,?,?,?,(SELECT id FROM recruitment_stages WHERE code="DEPLOYED"),NOW(),NOW(),"ACTIVE","FAIR")',['PMBSI-ZC-'.bin2hex(random_bytes(4)),$applicant,$job,$mr,$client]);
     insert('INSERT INTO deployments(application_id,deployment_no,status,actual_date) VALUES(?,?,"DEPLOYED",CURDATE())',[$app,'DEP-ZC-'.bin2hex(random_bytes(4))]);
     return $app;
 }

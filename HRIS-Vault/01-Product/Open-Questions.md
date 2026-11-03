@@ -150,3 +150,8 @@ Related: [[Decision-Log]] · [[Roadmap]] · [[Business-Rules]] · [[PH-Labor-and
 ## 2026-11-02 - hr-appearance-palettes
 - Q: Palette hex values are estimates from the reference images (NEEDS VERIFICATION). John to confirm the look after the browser check; adjust palettes.css only, the contrast test guards readability.
 - Q: Should Admin ever get the palettes? Closed for now: HR portal only (John, 2026-11-02).
+
+## 2026-11-03 - rec-screening-score
+- Q: Should the list show every scorer rating (HR vs ADL vs Manager) instead of only the latest? Not built; history is in screening_reviews.
+- Q: Walk-in HR jobs with no Site type are HR-only. John to confirm HR should always pick one.
+- Q: Old applicants rated before a later conversion rule: John Joshua (Converted) has no rating and stays locked; test on a new applicant.

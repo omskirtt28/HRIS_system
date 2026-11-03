@@ -69,3 +69,9 @@ function audit(string $module, string $action, ?string $recordType=null, ?int $r
     $stmt->execute([$uid,$module,$action,$recordType,$recordId,$details?json_encode($details,JSON_UNESCAPED_UNICODE):null,$_SERVER['REMOTE_ADDR'] ?? null]);
 }
 function require_post(): void { if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); exit('Method not allowed'); } }
+
+/** Screening rating badge: Negative red, Fair amber, Outstanding green; a dash when not rated yet. */
+function rating_badge(?string $rating): string {
+    $label=RecruitmentRepository::RATINGS[$rating??'']??null;
+    return $label===null?'<span class="badge gray">—</span>':'<span class="badge '.['NEGATIVE'=>'red','FAIR'=>'amber','OUTSTANDING'=>'green'][$rating].'">'.e($label).'</span>';
+}

@@ -158,3 +158,7 @@ John: remove the Account setup dropdown on Convert to Employee; generate the acc
 - 2026-11-02: Own-photo upload on My Profile uses the existing employees.profile_photo_* columns; no migration; the old HR-only upload on Employee 201 is unchanged.
 
 - 2026-11-02: Cropping is done in the browser (canvas, 512 px JPEG); the server still validates type and size, so a tampered upload gets the same checks.
+
+- 2026-11-03: Screening is a three-level rating (Negative/Fair/Outstanding), advice only; HR decides (John). Reviewer scoring depends on who the applicant went through and the job site type. MT becomes a real role.
+- 2026-11-03: Recruiter is auto-set to the first HR user who rates (no dropdown), because John did not need manual assignment.
+- 2026-11-03: A reviewer rating overwrites the latest rating (history kept); alternative of one rating per person not built.

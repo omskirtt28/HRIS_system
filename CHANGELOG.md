@@ -1,3 +1,7 @@
+## 2026-11-03 - Screening rating, Site type and MT role (local)
+- HR can now rate an applicant Negative, Fair or Outstanding on the applicant page; the Applicant Database shows the colour badge and the Recruiter (the first HR user who rates). A low rating never rejects anyone, HR decides.
+- Managers, TCs (head office) and ADLs, OICs, SCs, MTs (retail) can rate only applicants that went through them. Job Opening form has a new Site type choice. Convert to Employee now needs a rating. New role: MT (Management Trainee). Database migration 028 applied to localhost.
+
 
 ## 2026-11-02 - My Profile photo view and crop (local)
 - Click your avatar to view the photo large (soft edges, name, role), or pick a new one, drag and zoom it into a square crop, then save. Stylesheet version bumped so browsers load the new look.

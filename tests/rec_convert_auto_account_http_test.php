@@ -48,7 +48,7 @@ $pdo->prepare('INSERT INTO departments(code,name,active,work_company) VALUES(?,?
 $mkApp = function (string $first, string $last) use ($pdo, $mr, $client, $job): int {
     $pdo->prepare('INSERT INTO applicants(applicant_no,first_name,last_name,email,mobile_no,source,consent_at,status) VALUES(?,?,?,?,?,"CAREERS_SITE",NOW(),"ACTIVE")')->execute(['APP-ZH-'.bin2hex(random_bytes(4)), $first, $last, 'zz_'.bin2hex(random_bytes(4)).'@example.test', '09170000000']);
     $ap = (int)$pdo->lastInsertId();
-    $pdo->prepare('INSERT INTO applications(application_no,applicant_id,job_opening_id,manpower_request_id,client_id,current_stage_id,applied_at,last_stage_changed_at,status) VALUES(?,?,?,?,?,(SELECT id FROM recruitment_stages WHERE code="DEPLOYED"),NOW(),NOW(),"ACTIVE")')->execute(['PMBSI-ZH-'.bin2hex(random_bytes(4)), $ap, $job, $mr, $client]);
+    $pdo->prepare('INSERT INTO applications(application_no,applicant_id,job_opening_id,manpower_request_id,client_id,current_stage_id,applied_at,last_stage_changed_at,status,screening_rating) VALUES(?,?,?,?,?,(SELECT id FROM recruitment_stages WHERE code="DEPLOYED"),NOW(),NOW(),"ACTIVE","FAIR")')->execute(['PMBSI-ZH-'.bin2hex(random_bytes(4)), $ap, $job, $mr, $client]);
     $app = (int)$pdo->lastInsertId();
     $pdo->prepare('INSERT INTO deployments(application_id,deployment_no,status,actual_date) VALUES(?,?,"DEPLOYED",CURDATE())')->execute([$app, 'DEP-ZH-'.bin2hex(random_bytes(4))]);
     return $app;

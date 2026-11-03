@@ -407,3 +407,7 @@ New table `application_reviewers(id, application_id FK applications, reviewer_us
 
 ## 2026-11-02 - users.ui_palette (migration 027, applied to localhost 2026-11-02; all 27 existing users light)
 - `users.ui_palette VARCHAR(16) NOT NULL DEFAULT 'light'`: the palette an HR-portal user picked (light, dark, beige, earth, pastel). Allowed values enforced in app/UserPalette.php, not by a DB constraint. Existing rows get light. Down script refuses while any user has a non-light value. Spec: SPEC-hr-appearance-palettes.md.
+
+## 2026-11-03 - screening rating (migration 028, applied to localhost 2026-11-03)
+- `applications.screening_rating VARCHAR(12) NULL` (NEGATIVE/FAIR/OUTSTANDING, latest rating), `screening_reviews.rating VARCHAR(12) NULL` (history), `job_openings.site_type VARCHAR(12) NULL` (RETAIL/HEAD_OFFICE/OTHER; NULL = use the manpower request branch). Allowed values enforced in RecruitmentRepository, not by a DB constraint. `screening_score` stays unused.
+- New role MT (Management Trainee, employee portal) with the Sales Captain grants; recruitment.review granted to OIC and MT. Ledger table `screening_028_seed` records what the migration added; the down script removes only that and refuses while ratings, site types or MT users exist. Up, re-run, down, up verified on a scratch copy.

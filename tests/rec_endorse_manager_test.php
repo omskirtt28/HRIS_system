@@ -29,7 +29,7 @@ $plain=real_user('EMPLOYEE','plain');$gone=real_user('MANAGER','gone','INACTIVE'
 
 // --- migration / permission ---------------------------------------------------------------------------------
 $perm=db()->query('SELECT GROUP_CONCAT(r.code ORDER BY r.code) c FROM permissions p JOIN role_permissions rp ON rp.permission_id=p.id JOIN roles r ON r.id=rp.role_id WHERE p.code="recruitment.review" AND r.code NOT LIKE "T15\_%"')->fetchColumn();
-check('permission: recruitment.review is granted to MANAGER, ADL, SC and TC only',$perm==='ADL,MANAGER,SC,TC');
+check('permission: recruitment.review is granted to MANAGER, ADL, SC, TC, OIC and MT only (rec-screening-score added OIC and MT)',$perm==='ADL,MANAGER,MT,OIC,SC,TC');
 check('permission: HR_USER does not get recruitment.review (it is not an HR screen)',(int)row('SELECT COUNT(*) c FROM role_permissions rp JOIN roles r ON r.id=rp.role_id JOIN permissions p ON p.id=rp.permission_id WHERE r.code="HR_USER" AND p.code="recruitment.review"')['c']===0);
 
 // --- label ----------------------------------------------------------------------------------------------------

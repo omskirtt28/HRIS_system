@@ -282,3 +282,5 @@ Recorded Obsidian-only scope for main and all agents; exact task notes only, no 
 2026-11-02 My Profile photo upload: avatar on My Profile is now a file picker (auto-submits); server takes the employee from the session, so no one can change another person's photo. employee_profile_test 85 (floor raised from 84), check.php task OK. Not run: check.php full, browser check, commit, push, deploy.
 
 2026-11-02 My Profile photo dialog: view + client-side crop (employee-profile.js/css, EmployeeProfileViews::hero). Server rules unchanged. Only syntax/static checks; crop and drag are untested in a real browser.
+
+2026-11-03 rec-screening-score (Claude): Negative/Fair/Outstanding rating card, Site type on Job Opening, recruiter auto-set, convert gate, MT role + OIC/MT reviewers. Migration 028 applied to localhost after dump + restore check (122 tables) and up/re-run/down/up on scratch; business rows unchanged. Tests: screening_rating_db 18, screening_rating_http 14, full suite on fresh scratch passes except employee_profile_http_test (fails the same on HEAD). Not run: browser screenshots, live new applicant.

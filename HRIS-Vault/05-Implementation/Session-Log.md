@@ -520,3 +520,13 @@ John: context ran out from subagents rereading code/vault. Added READ BUDGET to 
 - 2026-11-02 my-profile-photo view+crop (Claude): avatar opens a dialog (view with feathered portrait, name, role; crop with drag/zoom/arrow keys, 512px JPEG made in the browser, then the same upload_own_photo POST). CSS/JS v9, footer note. Not run: real browser check, check.php full, commit, push, deploy, Graphify refresh.
 
 - 2026-11-02 My Profile hero photo is now a larger feathered portrait (CSS only, v10).
+
+- 2026-11-03 rec-screening-score (Claude): spec approved, plan written (Plans/2026-11-03-rec-screening-score.md). No code yet. Waiting John go + 2 decisions (MT recognition, walk-in jobs).
+
+- 2026-11-03 rec-screening-score: John approved a new MT role (+ OIC and MT as reviewer roles). Walk-in-job rule still pending.
+
+- 2026-11-03 rec-screening-score: Job Opening form will get a Retail/Head Office option; other-company jobs default HR-only (assistant default, John did not follow the question).
+
+- 2026-11-03 rec-screening-score: scoring is now Negative/Fair/Outstanding (John). Spec and plan updated, no code yet.
+
+- 2026-11-03 rec-screening-score (Claude): built and applied to localhost, see Plans/2026-11-03-rec-screening-score.md (status done). Next: John tries a new applicant; commit local.

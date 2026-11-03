@@ -62,7 +62,7 @@ final class RecruitmentRepository
         $hs=db()->prepare('SELECT h.*,IF(fs.code="CLIENT_REVIEW","Manager Review",fs.name) from_name,IF(ts.code="CLIENT_REVIEW","Manager Review",ts.name) to_name FROM application_stage_history h LEFT JOIN recruitment_stages fs ON fs.id=h.from_stage_id JOIN recruitment_stages ts ON ts.id=h.to_stage_id WHERE h.application_id=? ORDER BY h.changed_at'); $hs->execute([$row['id']]); $row['history']=$hs->fetchAll(); return $row;
     }
     public static function applications(array $filters=[]): array {
-        $sql='SELECT a.id,a.application_no,a.status application_status,a.screening_score,a.applied_at,a.last_stage_changed_at,ap.first_name,ap.last_name,ap.email,ap.mobile_no,j.title job_title,j.employment_type job_employment_type,j.location_text job_location,c.name client_name,s.code stage_code,IF(s.code="CLIENT_REVIEW","Manager Review",s.name) stage_name,u.full_name recruiter_name FROM applications a JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN clients c ON c.id=a.client_id JOIN recruitment_stages s ON s.id=a.current_stage_id LEFT JOIN users u ON u.id=a.assigned_recruiter_id WHERE 1=1'; $p=[];
+        $sql='SELECT a.id,a.application_no,a.status application_status,a.screening_score,'.(self::screeningReady()?'a.screening_rating,':'').'a.applied_at,a.last_stage_changed_at,ap.first_name,ap.last_name,ap.email,ap.mobile_no,j.title job_title,j.employment_type job_employment_type,j.location_text job_location,c.name client_name,s.code stage_code,IF(s.code="CLIENT_REVIEW","Manager Review",s.name) stage_name,u.full_name recruiter_name FROM applications a JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN clients c ON c.id=a.client_id JOIN recruitment_stages s ON s.id=a.current_stage_id LEFT JOIN users u ON u.id=a.assigned_recruiter_id WHERE 1=1'; $p=[];
         if (!empty($filters['client_id'])) { $sql.=' AND a.client_id=?'; $p[]=$filters['client_id']; }
         if (!empty($filters['client_portal'])) { $sql.=' AND EXISTS (SELECT 1 FROM endorsements e WHERE e.application_id=a.id AND e.client_id=a.client_id)'; }
         if (!empty($filters['stage'])) { $sql.=' AND s.code=?'; $p[]=$filters['stage']; }
@@ -185,10 +185,10 @@ final class RecruitmentRepository
         audit('Recruitment','ENDORSE','application',$applicationId,['client_id'=>$app['client_id']]);
     }
     // ---- rec-endorse-manager (SPEC-rec-endorse-manager.md): HR endorses to Manager / ADL / SC / TC reviewers, who answer in their own portal ----
-    public const REVIEWER_ROLES=['MANAGER','ADL','SC','TC'];
+    public const REVIEWER_ROLES=['MANAGER','ADL','SC','TC','OIC','MT'];
     public const ENDORSE_STAGES=['INTERVIEW','ENDORSED','CLIENT_REVIEW','RETURNED'];
     public const REVIEW_DECISIONS=['PROCEED'=>'Proceed','NOT_SUITABLE'=>'Not suitable','ANOTHER_INTERVIEW'=>'Needs another interview'];
-    /** Active Manager / ADL / SC / TC users HR may endorse to (a removed or inactive account is never offered). */
+    /** Active Manager / ADL / SC / TC / OIC / MT users HR may endorse to (a removed or inactive account is never offered). */
     public static function reviewerChoices(): array {
         $st=db()->prepare('SELECT u.id,u.full_name,r.code role_code,r.name role_name FROM users u JOIN roles r ON r.id=u.role_id WHERE u.status="ACTIVE" AND u.removed_at IS NULL AND r.code IN('.implode(',',array_fill(0,count(self::REVIEWER_ROLES),'?')).') ORDER BY u.full_name');
         $st->execute(self::REVIEWER_ROLES); return $st->fetchAll();
@@ -219,6 +219,47 @@ final class RecruitmentRepository
     }
     /** Resume access for a reviewer: only the candidates endorsed to them. */
     public static function isReviewerOf(int $applicationId,int $userId): bool { return self::reviewerRow($applicationId,$userId)!==null; }
+    // ---- rec-screening-score (SPEC-rec-screening-score.md): Negative / Fair / Outstanding, advice only; HR decides ----
+    /** True once migration 028 is applied (until then nothing is gated, so code can ship before the migration). */
+    public static function screeningReady(): bool {
+        static $ok=null; if($ok!==null) return $ok;
+        try { $ok=(int)db()->query('SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND ((table_name="applications" AND column_name="screening_rating") OR (table_name="job_openings" AND column_name="site_type"))')->fetchColumn()===2; } catch(Throwable $e) { $ok=false; }
+        return $ok;
+    }
+    public static function ratingOf(int $applicationId): ?string { if(!self::screeningReady()) return null; $st=db()->prepare("SELECT screening_rating FROM applications WHERE id=?"); $st->execute([$applicationId]); $v=(string)$st->fetchColumn(); return $v===""?null:$v; }
+    private static function hasRating(int $applicationId): bool { return self::ratingOf($applicationId)!==null; }
+    public const RATINGS=['NEGATIVE'=>'Negative','FAIR'=>'Fair','OUTSTANDING'=>'Outstanding'];
+    /** Roles (besides HR) that may rate, by site type; they must also be among the people the applicant was endorsed to. OTHER = HR only. */
+    public const SCORER_ROLES=['RETAIL'=>['ADL','OIC','SC','MT'],'HEAD_OFFICE'=>['MANAGER','TC'],'OTHER'=>[]];
+    /** RETAIL / HEAD_OFFICE / OTHER from the job, else from the manpower request branch; null when unknown (treated as HR only). */
+    public static function siteTypeOf(int $applicationId): ?string {
+        $st=db()->prepare('SELECT j.site_type,b.site_type branch_type FROM applications a JOIN job_openings j ON j.id=a.job_opening_id LEFT JOIN manpower_requests m ON m.id=j.manpower_request_id LEFT JOIN branches b ON b.id=m.branch_id WHERE a.id=?');
+        $st->execute([$applicationId]); $r=$st->fetch(); if(!$r) return null;
+        if(!empty($r['site_type'])) return (string)$r['site_type'];
+        return ['RETAIL_STORE'=>'RETAIL','HEAD_OFFICE'=>'HEAD_OFFICE'][(string)$r['branch_type']]??null;
+    }
+    /** HR always; a reviewer only when the applicant was endorsed to them and their role fits the site type. */
+    public static function canScore(int $applicationId): bool {
+        if(Auth::can('recruitment.manage')) return true;
+        $me=(int)(Auth::user()['id']??0); if($me<=0||!Auth::can('recruitment.review')||!self::isReviewerOf($applicationId,$me)) return false;
+        $site=self::siteTypeOf($applicationId);
+        return $site!==null&&in_array((string)(Auth::user()['role_code']??''),self::SCORER_ROLES[$site]??[],true);
+    }
+    public static function saveScreening(int $applicationId,string $rating,string $summary): void {
+        if(!self::canScore($applicationId)) throw new RuntimeException('You do not have permission to rate this candidate.');
+        if(!isset(self::RATINGS[$rating])) throw new RuntimeException('Choose a rating: Negative, Fair or Outstanding.');
+        self::assertApplicationMutable($applicationId);
+        $me=(int)Auth::user()['id'];
+        $pdo=db(); $own=!$pdo->inTransaction(); if($own) $pdo->beginTransaction(); // a caller (a test) may already hold one
+        try {
+            $pdo->prepare('INSERT INTO screening_reviews(application_id,reviewer_id,recommendation,rating,summary,completed_at) VALUES(?,?,?,?,?,NOW())')->execute([$applicationId,$me,$rating,$rating,mb_substr(trim($summary),0,2000)?:null]);
+            // The recruiter slot is the first HR user who rates; a reviewer's rating never takes it.
+            $pdo->prepare('UPDATE applications SET screening_rating=?,assigned_recruiter_id=IF(assigned_recruiter_id IS NULL AND ?=1,?,assigned_recruiter_id),updated_at=NOW() WHERE id=?')->execute([$rating,Auth::can('recruitment.manage')?1:0,$me,$applicationId]);
+            self::timelineNote($applicationId,'Screening rating: '.self::RATINGS[$rating].'.');
+            audit('Recruitment','SCREENING_RATED','application',$applicationId,['rating'=>$rating]);
+            if($own) $pdo->commit();
+        } catch(Throwable $e) { if($own && $pdo->inTransaction()) $pdo->rollBack(); throw $e; }
+    }
     public static function endorseToReviewers(int $applicationId,string $note,array $reviewerIds,array $finalIds=[]): void {
         if(!Auth::can('recruitment.manage')) throw new RuntimeException('You do not have permission to endorse candidates.');
         self::assertApplicationMutable($applicationId);
@@ -459,6 +500,7 @@ final class RecruitmentRepository
 
     public static function convertToEmployee(int $applicationId,array $data): int {
         if(!self::phase2CReady()) throw new RuntimeException('Import the Phase 2C recruitment-to-employee migration first.');
+        if(self::screeningReady()&&!self::hasRating($applicationId)) throw new RuntimeException('Add a screening rating (Negative, Fair or Outstanding) before converting this candidate.');
         $pdo=db();$copiedFiles=[];$pdo->beginTransaction();
         try {
             $lock=$pdo->prepare('SELECT a.id,a.applicant_id,a.current_stage_id,a.converted_employee_id,a.status,s.code stage_code FROM applications a JOIN recruitment_stages s ON s.id=a.current_stage_id WHERE a.id=? FOR UPDATE');

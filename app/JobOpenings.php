@@ -130,6 +130,11 @@ final class JobOpenings
                 if($bridge)$pdo->prepare('UPDATE manpower_requests SET request_no=? WHERE id=?')->execute(['MR-'.date('Ymd').'-H'.$id,$mrId]);
                 audit('Recruitment','CREATE_JOB','job_opening',$id,['manpower_request_id'=>$mrId]);
             }
+            if(RecruitmentRepository::screeningReady()){
+                $site=(string)($in['site_type']??'');
+                if($site!==''&&!isset(RecruitmentRepository::SCORER_ROLES[$site]))throw new RuntimeException('Choose Retail, Head office or Other company.');
+                $pdo->prepare('UPDATE job_openings SET site_type=? WHERE id=?')->execute([$site===''?null:$site,$id]);
+            }
             $pdo->commit();return $id;
         }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
     }

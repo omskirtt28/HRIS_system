@@ -46,7 +46,14 @@ function job_openings_form(array $f,array $clients,array $departments):void
         .'<div class="field"><label for="jf-type">Employment type</label><select id="jf-type" name="employment_type">';
     $cur=(string)($f['employment_type']??'REGULAR');if($cur==='FULL_TIME')$cur='REGULAR'; // older jobs saved before the new list
     foreach(JobOpenings::TYPES as $k=>$l)echo '<option value="'.$k.'"'.($cur===$k?' selected':'').'>'.e($l).'</option>';
-    echo '</select></div></div><div class="split"><div class="field"><label for="jf-open">Openings</label><input id="jf-open" name="openings" type="number" min="1" max="999" required value="'.e((string)($f['openings']??1)).'"></div>'
+    echo '</select></div></div>';
+    if(RecruitmentRepository::screeningReady()){ // decides who may rate the applicants (rec-screening-score)
+        $site=(string)($f['site_type']??'');
+        echo '<div class="field"><label for="jf-site">Site type</label><select id="jf-site" name="site_type"><option value="">Use the request branch</option>';
+        foreach(['RETAIL'=>'Retail','HEAD_OFFICE'=>'Head office','OTHER'=>'Other company'] as $k=>$l)echo '<option value="'.$k.'"'.($site===$k?' selected':'').'>'.e($l).'</option>';
+        echo '</select><div class="tiny muted">Decides who may rate the applicants. Other company: HR only.</div></div>';
+    }
+    echo '<div class="split"><div class="field"><label for="jf-open">Openings</label><input id="jf-open" name="openings" type="number" min="1" max="999" required value="'.e((string)($f['openings']??1)).'"></div>'
         .'<div class="field"><label for="jf-close">Closes on (optional)</label><input id="jf-close" name="closes_on" type="date" value="'.$v('closes_on').'"></div></div>'
         .'<div class="split"><div class="field"><label for="jf-min">Salary minimum (optional)</label><input id="jf-min" name="salary_min" type="number" min="0" step="0.01" value="'.$v('salary_min').'"></div>'
         .'<div class="field"><label for="jf-max">Salary maximum (optional)</label><input id="jf-max" name="salary_max" type="number" min="0" step="0.01" value="'.$v('salary_max').'"></div></div>'

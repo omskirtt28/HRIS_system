@@ -9,7 +9,7 @@ function review_decision_badge(?string $decision,array $waiting):array
     return match($decision){'PROCEED'=>['green','Proceed'],'NOT_SUITABLE'=>['red','Not suitable'],'ANOTHER_INTERVIEW'=>['amber','Another interview'],default=>$waiting};
 }
 
-/** HR applicant page: pick one or more Manager / ADL / SC / TC users, plus who was endorsed and what they answered. */
+/** HR applicant page: pick one or more Manager / ADL / SC / TC / OIC / MT users, plus who was endorsed and what they answered. */
 function applicant_reviewer_card(array $a):string
 {
     $answers=RecruitmentRepository::reviewersFor((int)$a['id']);
@@ -29,7 +29,7 @@ function applicant_reviewer_card(array $a):string
         $o.='<form method="post" class="card pad" style="margin-bottom:16px">'.csrf_field()
             .'<input type="hidden" name="action" value="endorse"><input type="hidden" name="application_id" value="'.(int)$a['id'].'"><input type="hidden" name="return_page" value="hr-applicant"><input type="hidden" name="return_id" value="'.(int)$a['id'].'">'
             .'<div class="section-t">Endorse to Manager review</div>';
-        if(!$choices)$o.='<p class="tiny muted">No active Manager, ADL, SC or TC accounts were found.</p>';
+        if(!$choices)$o.='<p class="tiny muted">No active Manager, ADL, SC, TC, OIC or MT accounts were found.</p>';
         else{
             $o.='<div class="field"><label for="rv-filter">Find a person</label><input id="rv-filter" type="search" autocomplete="off" placeholder="Type a name" aria-controls="rv-list"></div>'
                 .'<div id="rv-list" role="group" aria-label="People to endorse to" style="max-height:220px;overflow:auto;margin-bottom:12px">';
@@ -86,6 +86,7 @@ function review_candidate_detail(array $a):string
     if(!$a['interviews'])$o.='<div class="tiny muted">No interviews yet.</div>';
     foreach($a['interviews'] as $i)$o.='<div class="srow"><div style="flex:1"><div class="small" style="font-weight:600">'.e($i['interview_type']).'</div><div class="tiny muted">'.e(date('M j, Y g:i A',strtotime((string)$i['scheduled_at']))).' · '.e($i['location_or_link']?:'TBD').($i['interviewer_name']?' · '.e($i['interviewer_name']):'').'</div></div><span class="badge blue">'.e($i['status']).'</span></div>';
     $o.='</div></div><div>';
+    $o.=screening_card($id,'review-candidate');
     $hint='<div class="tiny muted" style="margin-bottom:10px">'.((int)$a['is_final']===1?'You are the final interviewer. Your Proceed tells HR the final interview is done.':'Your Proceed is recorded as your opinion. Pass the candidate to the next interviewer below, or HR continues.').'</div>';
     $mine=$a['decision']?'<div class="small" style="margin-bottom:10px">Your answer: <strong>'.e(RecruitmentRepository::REVIEW_DECISIONS[$a['decision']]??$a['decision']).'</strong>'.($a['decision_comment']?' - '.e($a['decision_comment']):'').'</div>':'';
     if($a['decision']==='PROCEED')$o.='<div class="card pad" style="margin-bottom:16px"><div class="section-t">Your decision <span class="badge green">Closed</span></div>'.$mine.'<div class="tiny muted">'.((int)$a['is_final']===1?'HR was told the final interview is done.':'Your Proceed is recorded. HR continues from here.').'</div></div>';
@@ -109,4 +110,17 @@ function review_candidate_detail(array $a):string
         else $o.='<div class="field" style="margin-top:10px"><label for="rv-pass-note">Note</label><textarea id="rv-pass-note" name="note" rows="2" maxlength="2000" placeholder="Short note for the next interviewer"></textarea></div><button class="btn primary">Pass candidate</button></form>';
     }
     return $o.'</div></div>';
+}
+
+/** Screening rating card (rec-screening-score). Shown only to people allowed to rate this candidate; read-only once converted. */
+function screening_card(int $applicationId,string $returnPage,bool $locked=false):string
+{
+    if(!RecruitmentRepository::screeningReady()||!RecruitmentRepository::canScore($applicationId))return '';
+    $cur=RecruitmentRepository::ratingOf($applicationId);
+    $o='<div class="card pad" style="margin-bottom:16px"><div class="section-t">Screening rating '.rating_badge($cur).'</div>';
+    if($locked)return $o.'<div class="tiny muted">This candidate is already an employee, so the rating is locked.</div></div>';
+    $o.='<form method="post">'.csrf_field().'<input type="hidden" name="action" value="save_screening"><input type="hidden" name="application_id" value="'.$applicationId.'"><input type="hidden" name="return_page" value="'.e($returnPage).'">'
+        .'<fieldset style="border:0;padding:0;margin:0 0 10px"><legend class="tiny muted">Rating (advice only; HR decides)</legend><div class="actions-inline">';
+    foreach(RecruitmentRepository::RATINGS as $code=>$label)$o.='<label style="display:inline-flex;gap:6px;align-items:center"><input type="radio" name="rating" value="'.e($code).'"'.($cur===$code?' checked':'').' required> '.e($label).'</label>';
+    return $o.'</div></fieldset><div class="field"><label for="sr-note">Note (optional)</label><textarea id="sr-note" name="summary" rows="2" maxlength="2000"></textarea></div><button class="btn primary">Save rating</button></form></div>';
 }
