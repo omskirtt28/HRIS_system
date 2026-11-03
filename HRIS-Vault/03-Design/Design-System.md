@@ -113,3 +113,12 @@ HR-portal-only palettes live in `public/assets/palettes.css` as token overrides 
 The sidebar text colours in hris-modern.css are hard-coded for a near-black sidebar, so palettes override nav, group label, brand sub, profile muted and Soon chip colours with the two lighter sidebar tokens. All text pairs are at least 4.5:1 (lowest 4.64, checked by tests/hr_palette_css_test.php).
 
 Added 2026-11-02 (John, from the circled #F8AADD pink column of the Soft Gradients image): palette **Soft Pink** (key `pink`, no migration). bg #fbeff6, surface #ffffff, surface-2 #fdf6fa, line #efd9e5, text #2e2230, muted #6a5668, brand-soft #fce7f1, sidebar #4a2540 / soft #5c3052, sidebar nav / label text #f2e6ee / #e0cbd9. Lowest text contrast 4.73:1 (checked by tests/hr_palette_css_test.php). Flat colours only; the gradient look is not used. NEEDS VERIFICATION in the browser.
+
+## 2026-11-03 - Modern UI standard (John: "lagi ganito, wag sa luma")
+Default for every new or touched screen. Reference implementation: `.ap-sec` collapsible sections in `public/assets/app.css` (applicant page).
+- Collapsible = one-row summary: title left, status pill right, round chevron chip at the end. No default browser triangle, no stacked title/subtitle.
+- Closed cards compact; hover = primary border + soft shadow; open = primary left accent.
+- Status text goes in a rounded pill, not plain muted text.
+- Visible focus, mobile wrap under 600px, honour prefers-reduced-motion, check dark mode.
+- Bump the `?v=` on `app.css` in `app/View.php` when CSS changes (no cache-busting otherwise = old UI shown).
+- When touching a screen, upgrade old-looking patterns in it (fix sweep). Swept 2026-11-03: Tickets (.tk-collapse, .hq-uniform, .tv-panel details, .tr-more, .tk-earlier) via app.css. Not yet swept: payroll, incidents, attendance, roster import, directory. Left alone: .hq-filters (button-style summary).

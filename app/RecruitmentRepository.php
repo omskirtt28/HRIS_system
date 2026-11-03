@@ -477,6 +477,7 @@ final class RecruitmentRepository
         self::assertApplicationMutable($applicationId);
         $app=self::application($applicationId); if(!$app) throw new RuntimeException('Application not found.');
         $st=db()->prepare('SELECT id FROM offers WHERE application_id=? ORDER BY id DESC LIMIT 1'); $st->execute([$applicationId]); $id=$st->fetchColumn();
+        if($id){$os=db()->prepare('SELECT status FROM offers WHERE id=?'); $os->execute([$id]); if($os->fetchColumn()==='ACCEPTED') throw new RuntimeException('This offer was accepted and is locked.');}
         if($id){
             db()->prepare('UPDATE offers SET offered_salary=?,rate_type=?,rate_amount=?,working_days=?,employment_type=?,start_date=?,status="SENT",sent_at=NOW(),updated_at=NOW() WHERE id=?')->execute([$d['offered_salary'],$d['rate_type'],$d['rate_amount'],$d['working_days'],$d['employment_type'],$d['start_date']?:null,$id]);
         } else {
@@ -501,6 +502,13 @@ final class RecruitmentRepository
             db()->prepare('INSERT INTO deployments(application_id,deployment_no,branch_id,scheduled_date,status,notes,created_by,created_at,updated_at) VALUES(?,?,?,?,"SCHEDULED",?,?,NOW(),NOW())')->execute([$applicationId,$no,$d['branch_id']?:null,$d['scheduled_date']?:null,$d['notes'],$_SESSION['user']['id']]);
         }
         self::moveStage($applicationId,'DEPLOYMENT','Deployment scheduled'); audit('Recruitment','DEPLOYMENT_SCHEDULED','application',$applicationId);
+    }
+    /** Branch ids the job opening points at: Retail list (job_opening_branches) when set, else the manpower request branch. */
+    public static function jobBranchIds(array $a): array {
+        $ids=[];
+        if(self::branchScopeReady()&&!empty($a["job_id"])){$q=db()->prepare("SELECT branch_id FROM job_opening_branches WHERE job_opening_id=?");$q->execute([(int)$a["job_id"]]);$ids=array_map("intval",$q->fetchAll(PDO::FETCH_COLUMN));}
+        if(!$ids&&!empty($a["request_branch_id"]))$ids=[(int)$a["request_branch_id"]];
+        return array_values(array_unique($ids));
     }
     public static function completeDeployment(int $applicationId): void {
         self::assertApplicationMutable($applicationId);
@@ -567,7 +575,8 @@ final class RecruitmentRepository
         $wanted=$map[$sourceType]??$sourceType;
         foreach($types as $t){if(!empty($t['active'])&&strtoupper((string)$t['code'])===$wanted){$employmentTypeId=(int)$t['id'];break;}}
         if(!$employmentTypeId){foreach($types as $t){if(!empty($t['active'])&&strtoupper((string)$t['code'])==='PROBATIONARY'){$employmentTypeId=(int)$t['id'];break;}}}
-        $hireDate=(string)($a['offer']['start_date']??'');
+        $hireDate=(string)($a['deployment']['scheduled_date']??'');
+        if($hireDate==='') $hireDate=(string)($a['offer']['start_date']??'');
         if($hireDate==='') $hireDate=(string)($a['deployment']['actual_date']??'');
         if($hireDate==='') $hireDate=date('Y-m-d');
         return [

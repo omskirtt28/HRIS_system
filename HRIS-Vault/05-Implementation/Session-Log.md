@@ -546,3 +546,8 @@ John: context ran out from subagents rereading code/vault. Added READ BUDGET to 
 - 2026-11-03 hiring-review-pass-visibility (Claude): built and applied to localhost (migration 031), see Plans/2026-11-03-hiring-review-pass-visibility.md (status done). John also asked to remove the codex-first hook (removed from ~/.claude/settings.json). Next: John tries a Retail job with branches in the browser; commit local.
 
 - 2026-11-03 job-form-branch-picker (Claude): John approved SPEC-job-form-branch-picker.md (hide when not Retail incl. blank/Other; always-expanded area cards, All/Clear, filter, counters). Built in app/JobOpeningsViews.php only (no migration). check.php task OK. Not browser-verified yet; John to try Head office <-> Retail toggle. Not committed.
+
+- 2026-11-03 applicant-page-declutter (Claude): John approved SPEC-applicant-page-declutter.md with all recommended answers. Built in index.php (hr-applicant), app/RecruitmentRepository.php (saveOffer lock, jobBranchIds), public/assets/app.css. check.php task OK. Not browser-verified yet; John to try an ACCEPTED candidate and a Retail job. Local only, not committed.
+
+- 2026-11-03: Applicant page collapsed sections (.ap-sec) compacted: one-row summary (title, status, arrow), tighter closed padding; app.css now cache-busted (?v=20261103-ap-sec) in app/View.php because the browser was serving the old CSS. UI only, no DB.
+- 2026-11-03: Tickets collapsibles swept to modern pattern (CSS only, app.css ?v=20261103-tk-sweep): service-view Approval chain/History, queue Uniform summary, Ticket Viewers problem rows, report "show more", earlier responses. Not browser-verified.

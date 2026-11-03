@@ -1,3 +1,6 @@
+## 2026-11-03 - Deployment hire date (local)
+- The Deployment "Scheduled date" is now labelled "Hire date" (defaults to the offer start date). Convert to Employee pre-fills Hire date from it, then offer start date. No schema change.
+
 ## 2026-11-03 - Job form branch picker (local)
 - On a new or edited job, the Retail area and branches list now shows only when Site type is Retail. It lists every area as a card with All/Clear, a filter box and selected counts, with no inner scroll box.
 
@@ -519,3 +522,6 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 
 ## 2026-11-03 - Pass to next interviewer follows Head Office / Retail (local)
 - Head Office candidates now go HR -> TC -> Manager only; Retail candidates go to the ADL, then the OIC, SC and MT of the area and branches HR sets on the job opening. Managers and TC never appear for Retail, and ADL, OIC, SC and MT never appear for Head Office. Database: new table job_opening_branches (migration 031).
+
+## 2026-11-03 - Applicant page declutter (local)
+- Sections collapse by stage; an accepted offer is locked; deployment branch is pre-filled from the job opening (other branches still selectable as an exception).

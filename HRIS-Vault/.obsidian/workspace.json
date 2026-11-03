@@ -79,8 +79,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 200,
-    "collapsed": true
+    "width": 200
   },
   "right": {
     "id": "59388aba94fc5ba7",
@@ -184,6 +183,7 @@
   },
   "active": "8cefdab65689b6fc",
   "lastOpenFiles": [
+    "Graphify/hris/004a38809a587a66/TicketServiceViews.php.md",
     "05-Implementation/2026-10-29-CEO-Patch-Report.md",
     "05-Implementation/Plans/2026-10-29-employee-account-linking.md",
     "00-Meta/Claude-Agents-and-Skills.md",

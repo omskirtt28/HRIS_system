@@ -162,3 +162,5 @@ Related: [[Decision-Log]] · [[Roadmap]] · [[Business-Rules]] · [[PH-Labor-and
 - Q: tests/employee_profile_http_test.php gives 54 PASS (floor 55) on the scratch copy, failing "A read-only note, no form or editable field in profile"; present before this patch. Needs its own look.
 - Q: existing Retail jobs have no branches until HR edits the job (migration 031 added none), so only HR can handle their applicants. Should HR be reminded on the job list?
 - Q: a Retail ADL is matched to an area through his employee branch's area. If ADLs are assigned to areas elsewhere, switch the match.
+
+- Applicant page: SENT offer shows a collapsed "Revise offer"; decided with John 2026-11-03 (assistant default accepted). Nothing open.

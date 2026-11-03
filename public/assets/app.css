@@ -204,3 +204,40 @@ table.tbl tbody tr:hover{background:var(--panel)}
 .toast.show{opacity:1}
 .previewbar{background:var(--amber);color:var(--ink);text-align:center;font-size:12.5px;font-weight:600;padding:7px 16px}
 .previewbar a{text-decoration:underline}
+/* Applicant page: collapsible sections (summary = title + one-line status) */
+.ap-sec>.ap-sum{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:44px;cursor:pointer;list-style:none}
+.ap-sec>.ap-sum::-webkit-details-marker{display:none}
+.ap-sec>.ap-sum::after{content:"\25B8";margin-left:auto;transition:transform .15s}
+.ap-sec[open]>.ap-sum::after{transform:rotate(90deg)}
+.ap-sec>.ap-sum .section-t{margin:0}
+.ap-sec>.ap-sum:focus-visible{outline:2px solid var(--primary,#f5a000);outline-offset:2px;border-radius:8px}
+.ap-sec[open]>.ap-sum{margin-bottom:12px}
+.ap-sec:not([open]){padding-top:8px;padding-bottom:8px}
+.ap-sec>.ap-sum .tiny{margin-left:auto}
+.ap-sec>.ap-sum::after{margin-left:0}
+/* Applicant sections: polish (hover, status pill, chevron chip, open accent) */
+.ap-sec{transition:border-color .15s,box-shadow .15s}
+.ap-sec:not([open]):hover{border-color:var(--primary,#f5a000);box-shadow:0 2px 10px rgba(0,0,0,.06)}
+.ap-sec[open]{border-left:3px solid var(--primary,#f5a000)}
+.ap-sec>.ap-sum .tiny{background:rgba(0,0,0,.05);padding:3px 10px;border-radius:999px;font-weight:500;white-space:nowrap}
+.ap-sec>.ap-sum::after{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.05);font-size:12px}
+.ap-sec>.ap-sum:hover::after{background:var(--primary,#f5a000);color:#fff}
+@media(max-width:600px){.ap-sec>.ap-sum{flex-wrap:wrap}.ap-sec>.ap-sum .tiny{order:3;margin-left:0}}
+@media(prefers-reduced-motion:reduce){.ap-sec,.ap-sec>.ap-sum::after{transition:none}}
+/* Modern collapsibles - Tickets module (same pattern as .ap-sec) */
+.panel.tk-collapse>summary,.panel.hq-uniform>summary,.tv-panel details>summary,.tr-more>summary,.tk-earlier>summary{list-style:none;display:flex;align-items:center;gap:10px;cursor:pointer}
+.panel.tk-collapse>summary::-webkit-details-marker,.panel.hq-uniform>summary::-webkit-details-marker,.tv-panel details>summary::-webkit-details-marker,.tr-more>summary::-webkit-details-marker,.tk-earlier>summary::-webkit-details-marker{display:none}
+.panel.tk-collapse>summary::after,.panel.hq-uniform>summary::after,.tv-panel details>summary::after,.tr-more>summary::after,.tk-earlier>summary::after{content:"\25B8";margin-left:auto;flex:none;display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.05);font-size:12px;transition:transform .15s,background .15s}
+:root[data-theme="dark"] .panel.tk-collapse>summary::after,:root[data-theme="dark"] .panel.hq-uniform>summary::after,:root[data-theme="dark"] .tv-panel details>summary::after,:root[data-theme="dark"] .tr-more>summary::after,:root[data-theme="dark"] .tk-earlier>summary::after{background:rgba(255,255,255,.1)}
+.tk-collapse[open]>summary::after,.hq-uniform[open]>summary::after,.tv-panel details[open]>summary::after,.tr-more[open]>summary::after,.tk-earlier[open]>summary::after{transform:rotate(90deg)}
+.panel.tk-collapse>summary:hover::after,.panel.hq-uniform>summary:hover::after,.tv-panel details>summary:hover::after,.tr-more>summary:hover::after,.tk-earlier>summary:hover::after{background:var(--primary,#f5a000);color:#fff}
+.panel.tk-collapse:not([open]):hover,.panel.hq-uniform:not([open]):hover{border-color:var(--primary,#f5a000)}
+.panel.tk-collapse[open],.panel.hq-uniform[open]{border-left:3px solid var(--primary,#f5a000)}
+.panel.hq-uniform>summary .hq-muted{margin-left:auto;margin-right:6px}
+.tv-panel details{border:1px solid var(--hris-line,#e5e1d6);border-radius:10px;padding:0 14px;margin:8px 0;transition:border-color .15s}
+.tv-panel details>summary{min-height:44px}
+.tv-panel details:not([open]):hover{border-color:var(--primary,#f5a000)}
+.tv-panel details[open]{border-left:3px solid var(--primary,#f5a000);padding-bottom:12px}
+.tr-more>summary,.tk-earlier>summary{display:inline-flex;gap:8px}
+.tr-more>summary::after,.tk-earlier>summary::after{margin-left:0;width:20px;height:20px}
+@media(prefers-reduced-motion:reduce){.panel.tk-collapse>summary::after,.tv-panel details,.tr-more>summary::after,.tk-earlier>summary::after{transition:none}}
