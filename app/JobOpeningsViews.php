@@ -52,6 +52,16 @@ function job_openings_form(array $f,array $clients,array $departments):void
         echo '<div class="field"><label for="jf-site">Site type</label><select id="jf-site" name="site_type"><option value="">Use the request branch</option>';
         foreach(['RETAIL'=>'Retail','HEAD_OFFICE'=>'Head office','OTHER'=>'Other company'] as $k=>$l)echo '<option value="'.$k.'"'.($site===$k?' selected':'').'>'.e($l).'</option>';
         echo '</select><div class="tiny muted">Decides who may rate the applicants. Other company: HR only.</div></div>';
+        if(RecruitmentRepository::branchScopeReady()){ // Retail: which areas and branches may review this job's applicants
+            $on=[];if($id>0){$q=db()->prepare('SELECT branch_id FROM job_opening_branches WHERE job_opening_id=?');$q->execute([$id]);$on=array_map('intval',$q->fetchAll(PDO::FETCH_COLUMN));}
+            $byArea=[];foreach(FoundationRepository::branches() as $b){if(!(int)$b['active']||($b['site_type']??'')==='HEAD_OFFICE')continue;$byArea[(string)($b['area_name']??'No area')][]=$b;}
+            echo '<fieldset class="field" style="border:0;padding:0"><legend>Retail area and branches</legend><div class="tiny muted" style="margin-bottom:6px">Retail jobs only. Applicants are passed to the area\'s ADL, then to the OIC, MT and SC of these branches. Until you choose at least one, only HR can pass Retail applicants on.</div><div style="max-height:220px;overflow:auto">';
+            foreach($byArea as $area=>$bs){
+                echo '<div style="margin:6px 0 2px;font-weight:600">'.e($area).'</div>';
+                foreach($bs as $b)echo '<label style="display:inline-flex;align-items:center;gap:6px;margin:0 14px 4px 0"><input type="checkbox" name="branch_ids[]" value="'.(int)$b['id'].'"'.(in_array((int)$b['id'],$on,true)?' checked':'').'> '.e($b['name']).'</label>';
+            }
+            echo '</div></fieldset>';
+        }
     }
     echo '<div class="split"><div class="field"><label for="jf-open">Openings</label><input id="jf-open" name="openings" type="number" min="1" max="999" required value="'.e((string)($f['openings']??1)).'"></div>'
         .'<div class="field"><label for="jf-close">Closes on (optional)</label><input id="jf-close" name="closes_on" type="date" value="'.$v('closes_on').'"></div></div>'

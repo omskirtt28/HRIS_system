@@ -23,13 +23,13 @@ function applicant_reviewer_card(array $a):string
     }
     $canEndorse=Auth::can('recruitment.manage')&&in_array($a['stage_code'],['INTERVIEW','ENDORSED','CLIENT_REVIEW','RETURNED'],true);
     if($canEndorse){
-        $choices=RecruitmentRepository::reviewerChoices();
+        $choices=RecruitmentRepository::targetsFor((int)$a['id'],null);
         $pre=RecruitmentRepository::defaultReviewers((int)$a['id']);
         $endorsed=array_column($answers,'reviewer_user_id');
         $o.='<form method="post" class="card pad" style="margin-bottom:16px">'.csrf_field()
             .'<input type="hidden" name="action" value="endorse"><input type="hidden" name="application_id" value="'.(int)$a['id'].'"><input type="hidden" name="return_page" value="hr-applicant"><input type="hidden" name="return_id" value="'.(int)$a['id'].'">'
             .'<div class="section-t">Endorse to Hiring review</div>';
-        if(!$choices)$o.='<p class="tiny muted">No active Manager, ADL, SC, TC, OIC or MT accounts were found.</p>';
+        if(!$choices)$o.='<p class="tiny muted">No one can be endorsed for this job yet. For a Retail job, set its area and branches on the job opening first.</p>';
         else{
             $o.='<div class="field"><label for="rv-filter">Find a person</label><input id="rv-filter" type="search" autocomplete="off" placeholder="Type a name" aria-controls="rv-list"></div>'
                 .'<div id="rv-list" role="group" aria-label="People to endorse to" style="max-height:220px;overflow:auto;margin-bottom:12px">';
@@ -102,7 +102,7 @@ function review_candidate_detail(array $a):string
         $me=(int)(Auth::user()['id']??0);$have=array_map('intval',array_column(RecruitmentRepository::reviewersFor($id),'reviewer_user_id'));
         $o.='<form method="post" class="card pad" style="margin-top:16px">'.$hidden.'<input type="hidden" name="action" value="review_pass_on"><div class="section-t">Pass to next interviewer</div>';
         $any=false;
-        foreach(RecruitmentRepository::reviewerChoices() as $c){
+        foreach(RecruitmentRepository::targetsFor($id,(string)(Auth::user()['role_code']??''),$me) as $c){
             if((int)$c['id']===$me||in_array((int)$c['id'],$have,true))continue;$any=true;
             $o.='<div class="srow"><label style="flex:1;display:flex;align-items:center;cursor:pointer"><input type="checkbox" name="to[]" value="'.(int)$c['id'].'"> <span class="small" style="flex:1;margin-left:8px">'.e($c['full_name']).'</span><span class="tiny muted">'.e($c['role_name']).'</span></label><label class="tiny" style="margin-left:12px;cursor:pointer"><input type="checkbox" name="final[]" value="'.(int)$c['id'].'"> Final</label></div>';
         }

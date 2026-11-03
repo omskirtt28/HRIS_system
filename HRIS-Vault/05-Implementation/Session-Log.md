@@ -540,3 +540,7 @@ John: context ran out from subagents rereading code/vault. Added READ BUDGET to 
 - 2026-11-03 applicant-profile-polish (Claude): T1 rename to Hiring Review and T2 two-column layout built and checked on a scratch DB, no schema change. T3 interview scorecard (migration 030) waits for John go.
 
 - 2026-11-03 applicant-profile-polish T3 (Claude): interview scorecard (1-5 per criterion + recommendation, BR-884), migration 030 applied to localhost. All three John requests are done; see Plans/2026-11-03-applicant-profile-polish.md (status done).
+
+- 2026-11-03 hiring-review-pass-visibility (Claude): John approved SPEC-hiring-review-pass-visibility.md (HO: HR->TC->Manager with direct-manager lock; Retail: area/branch set on Job Opening, ADL then OIC/MT/SC). Plan written (Plans/2026-11-03-hiring-review-pass-visibility.md, status draft). No code yet. Waiting John go; migration 031 needs his OK.
+
+- 2026-11-03 hiring-review-pass-visibility (Claude): built and applied to localhost (migration 031), see Plans/2026-11-03-hiring-review-pass-visibility.md (status done). John also asked to remove the codex-first hook (removed from ~/.claude/settings.json). Next: John tries a Retail job with branches in the browser; commit local.

@@ -190,8 +190,48 @@ final class RecruitmentRepository
     public const REVIEW_DECISIONS=['PROCEED'=>'Proceed','NOT_SUITABLE'=>'Not suitable','ANOTHER_INTERVIEW'=>'Needs another interview'];
     /** Active Manager / ADL / SC / TC / OIC / MT users HR may endorse to (a removed or inactive account is never offered). */
     public static function reviewerChoices(): array {
-        $st=db()->prepare('SELECT u.id,u.full_name,r.code role_code,r.name role_name FROM users u JOIN roles r ON r.id=u.role_id WHERE u.status="ACTIVE" AND u.removed_at IS NULL AND r.code IN('.implode(',',array_fill(0,count(self::REVIEWER_ROLES),'?')).') ORDER BY u.full_name');
-        $st->execute(self::REVIEWER_ROLES); return $st->fetchAll();
+        $st=db()->prepare('SELECT u.id,u.full_name,r.code role_code,r.name role_name,b.id branch_id,b.area_id FROM users u JOIN roles r ON r.id=u.role_id LEFT JOIN employees e ON e.user_id=u.id LEFT JOIN branches b ON b.id=e.branch_id WHERE u.status="ACTIVE" AND u.removed_at IS NULL AND r.code IN('.implode(',',array_fill(0,count(self::REVIEWER_ROLES),'?')).') ORDER BY u.full_name,u.id');
+        $st->execute(self::REVIEWER_ROLES); $out=[]; foreach($st->fetchAll() as $r) $out[(int)$r['id']]??=$r; return array_values($out); // one row per user
+    }
+    /** True once migration 031 is applied (until then a Retail job has no branch scope, so nobody but HR can act on it). */
+    public static function branchScopeReady(): bool {
+        static $ok=null; if($ok!==null) return $ok;
+        try { $ok=(int)db()->query('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name="job_opening_branches"')->fetchColumn()===1; } catch(Throwable $e) { $ok=false; }
+        return $ok;
+    }
+    /** branch_id => area_id for the branches HR set on the candidate's job opening (Retail). */
+    public static function scopeBranches(int $applicationId): array {
+        if(!self::branchScopeReady()) return [];
+        $st=db()->prepare('SELECT jb.branch_id,b.area_id FROM applications a JOIN job_opening_branches jb ON jb.job_opening_id=a.job_opening_id JOIN branches b ON b.id=jb.branch_id WHERE a.id=?');
+        $st->execute([$applicationId]); $o=[]; foreach($st->fetchAll() as $r) $o[(int)$r['branch_id']]=(int)$r['area_id']; return $o;
+    }
+    /** The Manpower Request requester, i.e. the department's direct manager; 0 for a walk-in job. */
+    public static function directManagerId(int $applicationId): int {
+        $st=db()->prepare('SELECT m.requested_by FROM applications a JOIN job_openings j ON j.id=a.job_opening_id JOIN manpower_requests m ON m.id=j.manpower_request_id WHERE a.id=?');
+        $st->execute([$applicationId]); return (int)$st->fetchColumn(); // an HR-posted job's bridge request is requested by HR, who is never a Manager, so it has no direct manager
+    }
+    /** Head Office pass-on chain: HR->TC/Manager, TC->Manager, Manager->Manager/TC (only the direct manager, see targetsFor). */
+    public const HO_ROLES=['HR'=>['TC','MANAGER'],'TC'=>['MANAGER'],'MANAGER'=>['MANAGER','TC']];
+    /** People the actor may endorse or pass this candidate to. $actorRole null = HR. Head Office: TC/Manager only. Retail: ADL of the job's areas, then OIC/MT/SC of its branches. Unknown or Other site: HR may pick anyone, nobody else may pass on. Callers still drop self and people who already have the candidate. */
+    public static function targetsFor(int $applicationId,?string $actorRole,int $actorId=0): array {
+        $all=self::reviewerChoices(); $site=self::siteTypeOf($applicationId);
+        if($site==='HEAD_OFFICE'){
+            $roles=self::HO_ROLES[$actorRole??'HR']??[];
+            if($actorRole==='MANAGER'&&($actorId<=0||self::directManagerId($applicationId)!==$actorId)) $roles=[]; // a Manager passed in by TC is the end of the chain
+            return array_values(array_filter($all,fn($c)=>in_array($c['role_code'],$roles,true)));
+        }
+        if($site==='RETAIL'){
+            if($actorRole!==null&&!in_array($actorRole,['ADL','OIC','SC','MT'],true)) return [];
+            $scope=self::scopeBranches($applicationId); if(!$scope) return [];
+            $areas=array_values(array_unique($scope));
+            $adlAreas=[]; foreach($all as $c) if($c['role_code']==='ADL'&&in_array((int)$c['area_id'],$areas,true)) $adlAreas[(int)$c['area_id']]=1;
+            return array_values(array_filter($all,function($c) use($actorRole,$scope,$areas,$adlAreas){
+                if($c['role_code']==='ADL') return $actorRole===null&&in_array((int)$c['area_id'],$areas,true);
+                if(!in_array($c['role_code'],['OIC','SC','MT'],true)||!isset($scope[(int)$c['branch_id']])) return false;
+                return $actorRole!==null||!isset($adlAreas[(int)$c['area_id']]); // HR goes to the area's ADL; to the branch's OIC/SC/MT only when the area has no ADL
+            }));
+        }
+        return $actorRole===null?$all:[];
     }
     /** The ticket requester, only when the request came from a Manpower Request ticket and they hold a reviewer role (walk-in requests have none). */
     public static function defaultReviewers(int $applicationId): array {
@@ -307,8 +347,8 @@ final class RecruitmentRepository
         $ids=array_values(array_unique(array_map('intval',$reviewerIds)));
         if(!$ids) throw new RuntimeException('Choose at least one person to endorse to.');
         if(count($ids)>10) throw new RuntimeException('Choose at most 10 people.');
-        $valid=array_column(self::reviewerChoices(),'full_name','id');
-        foreach($ids as $id) if(!isset($valid[$id])) throw new RuntimeException('One of the selected people cannot review candidates.');
+        $valid=array_column(self::targetsFor($applicationId,null),'full_name','id');
+        foreach($ids as $id) if(!isset($valid[$id])) throw new RuntimeException('One of the selected people cannot be endorsed this candidate.');
         $final=array_values(array_unique(array_map('intval',$finalIds))); if(array_diff($final,$ids)) throw new RuntimeException('The final interviewer must be one of the people you chose.');
         $note=mb_substr(trim($note),0,2000); $by=(int)$_SESSION['user']['id'];
         $pdo=db(); $pdo->beginTransaction(); try {
@@ -335,9 +375,10 @@ final class RecruitmentRepository
         if(!$ids) throw new RuntimeException('Choose at least one person to pass the candidate to.');
         if(count($ids)>10) throw new RuntimeException('Choose at most 10 people.');
         if(in_array($fromUserId,$ids,true)) throw new RuntimeException('You cannot pass a candidate to yourself.');
-        $valid=array_column(self::reviewerChoices(),'full_name','id');
+        $mine=self::reviewerRow($applicationId,$fromUserId); if($mine&&$mine['decision']==='PROCEED') throw new RuntimeException('You already answered Proceed, so you cannot pass this candidate on.');
+        $valid=array_column(self::targetsFor($applicationId,(string)(Auth::user()['role_code']??''),$fromUserId),'full_name','id');
         foreach($ids as $id){
-            if(!isset($valid[$id])) throw new RuntimeException('One of the selected people cannot review candidates.');
+            if(!isset($valid[$id])) throw new RuntimeException('One of the selected people cannot be passed this candidate.');
             if(self::reviewerRow($applicationId,$id)) throw new RuntimeException($valid[$id].' already has this candidate.');
         }
         $final=array_values(array_unique(array_map('intval',$finalIds)));

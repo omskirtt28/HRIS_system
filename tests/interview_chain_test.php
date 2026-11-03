@@ -25,7 +25,9 @@ function timeline(int $app,string $like): int { return (int)row('SELECT COUNT(*)
 $client=insert('INSERT INTO clients(code,name) VALUES(?,?)',['ZC'.$sfx,'Zzc '.$sfx.' Trading']);
 $mr=insert('INSERT INTO manpower_requests(request_no,client_id,position_title,requested_headcount,filled_headcount,employment_type,priority,status) VALUES(?,?,?,?,0,"REGULAR","NORMAL","APPROVED")',['MR-ZC-'.bin2hex(random_bytes(4)),$client,'Synthetic clerk',2]);
 $job=insert('INSERT INTO job_openings(job_code,slug,title,description,client_id,manpower_request_id,openings,status,location_text,employment_type) VALUES(?,?,?,?,?,?,1,"OPEN","Synthetic branch","REGULAR")',['JOB-ZC-'.$sfx,'zzc-'.$sfx,'Synthetic clerk','x',$client,$mr]);
-$mgr1=real_user('MANAGER','mgr1');$mgr2=real_user('MANAGER','mgr2');$adl=real_user('ADL','adl');$tc=real_user('TC','tc');$plain=real_user('EMPLOYEE','plain');$gone=real_user('MANAGER','gone','INACTIVE');
+$mgr1=real_user('MANAGER','mgr1');$mgr2=real_user('MANAGER','mgr2');$adl=real_user('TC','tc0');$tc=real_user('TC','tc');$plain=real_user('EMPLOYEE','plain');$gone=real_user('MANAGER','gone','INACTIVE');
+// Head Office job whose requester (direct manager) is mgr1: HR to TC/Manager, Manager to TC (hiring-review-pass-visibility)
+db()->prepare('UPDATE job_openings SET site_type="HEAD_OFFICE" WHERE id=?')->execute([$job]);db()->prepare('UPDATE manpower_requests SET requested_by=? WHERE id=?')->execute([$mgr1['id'],$mr]);
 
 // --- migration columns ------------------------------------------------------------------------------------------------
 $cols=db()->query('SELECT GROUP_CONCAT(column_name ORDER BY column_name) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name="application_reviewers" AND column_name IN("is_final","passed_by")')->fetchColumn();

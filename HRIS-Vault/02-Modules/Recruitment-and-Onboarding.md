@@ -231,3 +231,6 @@ Why: HR found the 8-dot tracker too long; Applied is wasted because the applican
 - 2026-11-03 Hiring Review rename: stage CLIENT_REVIEW now displays as Hiring Review (was Manager Review). Label only; see Decision-Log.
 
 - 2026-11-03 Interview scorecard: table interview_scorecards (migration 030), card on hr-applicant and review-candidate, BR-884.
+
+## Addendum 2026-11-03 - hiring-review-pass-visibility
+- Pass-on and endorse lists now follow BR-885: RecruitmentRepository::targetsFor() (shared by the HR endorse card, the Pass to next interviewer card, endorseToReviewers and passOn). Job form has a Retail area and branches checklist (table job_opening_branches, migration 031). Spec: SPEC-hiring-review-pass-visibility.md. Tests: tests/hiring_review_visibility_test.php (21).

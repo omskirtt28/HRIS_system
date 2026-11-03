@@ -134,6 +134,12 @@ final class JobOpenings
                 $site=(string)($in['site_type']??'');
                 if($site!==''&&!isset(RecruitmentRepository::SCORER_ROLES[$site]))throw new RuntimeException('Choose Retail, Head office or Other company.');
                 $pdo->prepare('UPDATE job_openings SET site_type=? WHERE id=?')->execute([$site===''?null:$site,$id]);
+                if(RecruitmentRepository::branchScopeReady()){ // Retail only: the branches (and so areas) whose OIC/MT/SC and ADL may review this job's applicants
+                    $ids=$site==='RETAIL'?array_values(array_unique(array_map('intval',is_array($in['branch_ids']??null)?$in['branch_ids']:[]))):[];
+                    if($ids){$q=$pdo->prepare('SELECT COUNT(*) FROM branches WHERE active=1 AND id IN('.implode(',',array_fill(0,count($ids),'?')).')');$q->execute($ids);if((int)$q->fetchColumn()!==count($ids))throw new RuntimeException('Choose active branches only.');}
+                    $pdo->prepare('DELETE FROM job_opening_branches WHERE job_opening_id=?')->execute([$id]);
+                    $ins=$pdo->prepare('INSERT INTO job_opening_branches(job_opening_id,branch_id) VALUES(?,?)');foreach($ids as $b)$ins->execute([$id,$b]);
+                }
             }
             $pdo->commit();return $id;
         }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}

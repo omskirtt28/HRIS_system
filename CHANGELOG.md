@@ -513,3 +513,6 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 - 2026-11-03 applicant-profile-polish T1+T2 (Claude): the stage label "Manager Review" is now "Hiring Review" (label only, code CLIENT_REVIEW unchanged); hr-applicant is a two-column layout (main + sticky side column with Screening rating, Endorse to Hiring review, Timeline). Scorecard (T3) waits for John OK on migration 030.
 
 - Interview scorecard: 1-5 per criterion (Communication, Job knowledge, Attitude, Culture fit, Overall impression) plus Proceed / Hold / Do not proceed, advice only. New table interview_scorecards (migration 030, applied to localhost). Tests interview_scorecard_test (21) and _http_test (15) added to the check floors.
+
+## 2026-11-03 - Pass to next interviewer follows Head Office / Retail (local)
+- Head Office candidates now go HR -> TC -> Manager only; Retail candidates go to the ADL, then the OIC, SC and MT of the area and branches HR sets on the job opening. Managers and TC never appear for Retail, and ADL, OIC, SC and MT never appear for Head Office. Database: new table job_opening_branches (migration 031).

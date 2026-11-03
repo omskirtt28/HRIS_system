@@ -417,3 +417,6 @@ New table `application_reviewers(id, application_id FK applications, reviewer_us
 
 ## 2026-11-03 - interview_scorecards (migration 030, applied to localhost 2026-11-03)
 - New table `interview_scorecards`: one row per scorer per application (UNIQUE application_id+scorer_id), five TINYINT criteria communication, job_knowledge, attitude, culture_fit, overall (CHECK 1-5), recommendation VARCHAR(12) PROCEED/HOLD/NO_PROCEED, note, timestamps. FKs to applications and users. No existing table changed. Down script refuses while any row exists.
+
+## 2026-11-03 - job_opening_branches (migration 031, applied to localhost 2026-11-03)
+- New table `job_opening_branches(job_opening_id, branch_id, created_at)`, PRIMARY KEY on the pair, FKs to job_openings and branches. Holds the branches HR chose on a Retail job; the area is branches.area_id (not stored twice). No existing table changed. Down script refuses while any row exists.
