@@ -224,3 +224,7 @@ Update 2026-11-02: the Appearance list now has 6 options (Light, Dark, Soft Beig
 Update 2026-11-02: My Profile avatar is clickable (camera badge) to change your own photo.
 
 Update 2026-11-02: My Profile avatar opens a photo dialog (view, or choose then crop to a square before upload).
+
+Update 2026-11-03: hr-applicant is two columns (.ap-grid): main = header, stage tracker, Stage & actions, Schedule interview, Offer/Deployment, Resume/Application/Interviews tabs; sticky side column (.ap-side) = Screening rating, Endorse to Hiring review, Activity timeline. Under 1100px it is one column. The stage formerly labelled Manager Review reads Hiring Review everywhere (label only).
+
+Update 2026-11-03 (T3): hr-applicant and review-candidate show an Interview scorecard card (5 criteria x 1-5, recommendation, note) below the Screening rating, only for scorers and only from the Interview stage. POST action save_scorecard (CSRF, permission, validation in RecruitmentRepository::saveScorecard). HR also sees one line per scorer with the average and a recommendation badge.

@@ -164,3 +164,7 @@ John: remove the Account setup dropdown on Convert to Employee; generate the acc
 - 2026-11-03: A reviewer rating overwrites the latest rating (history kept); alternative of one rating per person not built.
 
 - 2026-11-03: Recruitment starts at Screening; the Applied stage is hidden, not deleted (John, Option A). Legacy Applied rows are read as Screening in code, no business rows changed.
+
+- 2026-11-03 applicant-profile-polish: John chose "Hiring Review" as the label for the stage after Endorsed (reviewers are not only managers); label only, stage code CLIENT_REVIEW unchanged. hr-applicant now two columns: left main, right sticky side column (Screening rating, Endorse to Hiring review, Timeline); one column under 1100px. Interview scorecard decided as per-criteria 1-5 + Proceed/Hold/Do not proceed (pending build).
+
+- 2026-11-03 applicant-profile-polish: interview scorecard decided and built as 5 criteria 1-5 + Proceed/Hold/Do not proceed, advice only, same scorers as screening, optional (does not block Offer), one row per scorer. Migration 030 applied to localhost after John said go.

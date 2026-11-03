@@ -227,3 +227,7 @@ Why: the applicant list always showed Score "-" and Recruiter "Unassigned" becau
 
 ## Addendum 2026-11-03 - rec-screening-first
 Why: HR found the 8-dot tracker too long; Applied is wasted because the applicant already applied. Now new applications start at Screening and HR continues straight to Interview. Applied is hidden (migration 029), legacy Applied rows act as Screening. Code: RecruitmentRepository createApplication, application(), applications(), stageCounts(), nextStageCode(). Test: tests/rec_screening_first_test.php (11 checks, scratch DB, migration 029).
+
+- 2026-11-03 Hiring Review rename: stage CLIENT_REVIEW now displays as Hiring Review (was Manager Review). Label only; see Decision-Log.
+
+- 2026-11-03 Interview scorecard: table interview_scorecards (migration 030), card on hr-applicant and review-candidate, BR-884.

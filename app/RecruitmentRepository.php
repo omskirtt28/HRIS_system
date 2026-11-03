@@ -20,7 +20,7 @@ final class RecruitmentRepository
         $st=db()->prepare('SELECT j.*, "PMBSI" client_name, d.name department_name FROM job_openings j LEFT JOIN departments d ON d.id=j.department_id WHERE j.slug=? AND '.JobOpenings::PUBLIC_WHERE.' LIMIT 1');
         $st->execute([$slug]); return $st->fetch() ?: null;
     }
-    public static function stages(): array { return db()->query('SELECT id,code,IF(code="CLIENT_REVIEW","Manager Review",name) name,sequence_no,stage_type,client_visible,applicant_visible,active FROM recruitment_stages WHERE active=1 ORDER BY sequence_no')->fetchAll(); }
+    public static function stages(): array { return db()->query('SELECT id,code,IF(code="CLIENT_REVIEW","Hiring Review",name) name,sequence_no,stage_type,client_visible,applicant_visible,active FROM recruitment_stages WHERE active=1 ORDER BY sequence_no')->fetchAll(); }
     public static function clients(): array { return db()->query('SELECT * FROM clients WHERE status="ACTIVE" ORDER BY name')->fetchAll(); }
     public static function departments(): array { return db()->query('SELECT * FROM departments WHERE active=1 ORDER BY name')->fetchAll(); }
     public static function branches(): array { return db()->query('SELECT b.*,c.name client_name FROM branches b LEFT JOIN clients c ON c.id=b.client_id WHERE b.active=1 ORDER BY b.name')->fetchAll(); }
@@ -57,12 +57,12 @@ final class RecruitmentRepository
     }
     public static function jobById(int $id): ?array { $st=db()->prepare('SELECT j.* FROM job_openings j WHERE j.id=? AND '.JobOpenings::PUBLIC_WHERE); $st->execute([$id]); return $st->fetch()?:null; }
     public static function track(string $ref,string $email): ?array {
-        $st=db()->prepare('SELECT a.id,a.application_no,a.applied_at,j.title,"PMBSI" client_name,s.code stage_code,IF(s.code="CLIENT_REVIEW","Manager Review",s.name) stage_name FROM applications a JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN recruitment_stages s ON s.id=a.current_stage_id WHERE a.application_no=? AND LOWER(ap.email)=LOWER(?) LIMIT 1');
+        $st=db()->prepare('SELECT a.id,a.application_no,a.applied_at,j.title,"PMBSI" client_name,s.code stage_code,IF(s.code="CLIENT_REVIEW","Hiring Review",s.name) stage_name FROM applications a JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN recruitment_stages s ON s.id=a.current_stage_id WHERE a.application_no=? AND LOWER(ap.email)=LOWER(?) LIMIT 1');
         $st->execute([$ref,$email]); $row=$st->fetch(); if (!$row) return null;
-        $hs=db()->prepare('SELECT h.*,IF(fs.code="CLIENT_REVIEW","Manager Review",fs.name) from_name,IF(ts.code="CLIENT_REVIEW","Manager Review",ts.name) to_name FROM application_stage_history h LEFT JOIN recruitment_stages fs ON fs.id=h.from_stage_id JOIN recruitment_stages ts ON ts.id=h.to_stage_id WHERE h.application_id=? ORDER BY h.changed_at'); $hs->execute([$row['id']]); $row['history']=$hs->fetchAll(); return $row;
+        $hs=db()->prepare('SELECT h.*,IF(fs.code="CLIENT_REVIEW","Hiring Review",fs.name) from_name,IF(ts.code="CLIENT_REVIEW","Hiring Review",ts.name) to_name FROM application_stage_history h LEFT JOIN recruitment_stages fs ON fs.id=h.from_stage_id JOIN recruitment_stages ts ON ts.id=h.to_stage_id WHERE h.application_id=? ORDER BY h.changed_at'); $hs->execute([$row['id']]); $row['history']=$hs->fetchAll(); return $row;
     }
     public static function applications(array $filters=[]): array {
-        $sql='SELECT a.id,a.application_no,a.status application_status,a.screening_score,'.(self::screeningReady()?'a.screening_rating,':'').'a.applied_at,a.last_stage_changed_at,ap.first_name,ap.last_name,ap.email,ap.mobile_no,j.title job_title,j.employment_type job_employment_type,j.location_text job_location,c.name client_name,IF(s.code="APPLIED","SCREENING",s.code) stage_code,IF(s.code="APPLIED","Screening",IF(s.code="CLIENT_REVIEW","Manager Review",s.name)) stage_name,u.full_name recruiter_name FROM applications a JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN clients c ON c.id=a.client_id JOIN recruitment_stages s ON s.id=a.current_stage_id LEFT JOIN users u ON u.id=a.assigned_recruiter_id WHERE 1=1'; $p=[];
+        $sql='SELECT a.id,a.application_no,a.status application_status,a.screening_score,'.(self::screeningReady()?'a.screening_rating,':'').'a.applied_at,a.last_stage_changed_at,ap.first_name,ap.last_name,ap.email,ap.mobile_no,j.title job_title,j.employment_type job_employment_type,j.location_text job_location,c.name client_name,IF(s.code="APPLIED","SCREENING",s.code) stage_code,IF(s.code="APPLIED","Screening",IF(s.code="CLIENT_REVIEW","Hiring Review",s.name)) stage_name,u.full_name recruiter_name FROM applications a JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN clients c ON c.id=a.client_id JOIN recruitment_stages s ON s.id=a.current_stage_id LEFT JOIN users u ON u.id=a.assigned_recruiter_id WHERE 1=1'; $p=[];
         if (!empty($filters['client_id'])) { $sql.=' AND a.client_id=?'; $p[]=$filters['client_id']; }
         if (!empty($filters['client_portal'])) { $sql.=' AND EXISTS (SELECT 1 FROM endorsements e WHERE e.application_id=a.id AND e.client_id=a.client_id)'; }
         if (!empty($filters['stage'])) { $sql.=' AND IF(s.code="APPLIED","SCREENING",s.code)=?'; $p[]=$filters['stage']; }
@@ -75,10 +75,10 @@ final class RecruitmentRepository
         return $st->fetch()?:null;
     }
     public static function application(int $id, ?int $clientId=null): ?array {
-        $sql='SELECT a.*,ap.applicant_no,ap.first_name,ap.middle_name,ap.last_name,ap.suffix,ap.email,ap.mobile_no,j.title job_title,j.location_text,j.department_id job_department_id,j.employment_type job_employment_type,j.id job_id,j.job_code,j.status job_status,j.openings job_openings,j.salary_min,j.salary_max,j.closes_at,j.description job_description,j.requirements job_requirements,m.branch_id request_branch_id,m.department_id request_department_id,c.name client_name,IF(s.code="APPLIED","SCREENING",s.code) stage_code,IF(s.code="APPLIED","Screening",IF(s.code="CLIENT_REVIEW","Manager Review",s.name)) stage_name,u.full_name recruiter_name FROM applications a JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN manpower_requests m ON m.id=a.manpower_request_id JOIN clients c ON c.id=a.client_id JOIN recruitment_stages s ON s.id=a.current_stage_id LEFT JOIN users u ON u.id=a.assigned_recruiter_id WHERE a.id=?'; $p=[$id];
+        $sql='SELECT a.*,ap.applicant_no,ap.first_name,ap.middle_name,ap.last_name,ap.suffix,ap.email,ap.mobile_no,j.title job_title,j.location_text,j.department_id job_department_id,j.employment_type job_employment_type,j.id job_id,j.job_code,j.status job_status,j.openings job_openings,j.salary_min,j.salary_max,j.closes_at,j.description job_description,j.requirements job_requirements,m.branch_id request_branch_id,m.department_id request_department_id,c.name client_name,IF(s.code="APPLIED","SCREENING",s.code) stage_code,IF(s.code="APPLIED","Screening",IF(s.code="CLIENT_REVIEW","Hiring Review",s.name)) stage_name,u.full_name recruiter_name FROM applications a JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN manpower_requests m ON m.id=a.manpower_request_id JOIN clients c ON c.id=a.client_id JOIN recruitment_stages s ON s.id=a.current_stage_id LEFT JOIN users u ON u.id=a.assigned_recruiter_id WHERE a.id=?'; $p=[$id];
         if ($clientId) { $sql.=' AND a.client_id=? AND EXISTS (SELECT 1 FROM endorsements e WHERE e.application_id=a.id AND e.client_id=?)'; $p[]=$clientId; $p[]=$clientId; }
         $st=db()->prepare($sql); $st->execute($p); $a=$st->fetch(); if(!$a)return null;
-        $hs=db()->prepare('SELECT h.*,IF(fs.code="CLIENT_REVIEW","Manager Review",fs.name) from_name,IF(ts.code="CLIENT_REVIEW","Manager Review",ts.name) to_name,u.full_name changed_by_name FROM application_stage_history h LEFT JOIN recruitment_stages fs ON fs.id=h.from_stage_id JOIN recruitment_stages ts ON ts.id=h.to_stage_id LEFT JOIN users u ON u.id=h.changed_by WHERE h.application_id=? ORDER BY h.changed_at DESC'); $hs->execute([$id]); $a['history']=$hs->fetchAll();
+        $hs=db()->prepare('SELECT h.*,IF(fs.code="CLIENT_REVIEW","Hiring Review",fs.name) from_name,IF(ts.code="CLIENT_REVIEW","Hiring Review",ts.name) to_name,u.full_name changed_by_name FROM application_stage_history h LEFT JOIN recruitment_stages fs ON fs.id=h.from_stage_id JOIN recruitment_stages ts ON ts.id=h.to_stage_id LEFT JOIN users u ON u.id=h.changed_by WHERE h.application_id=? ORDER BY h.changed_at DESC'); $hs->execute([$id]); $a['history']=$hs->fetchAll();
         $iv=db()->prepare('SELECT i.*,u.full_name interviewer_name FROM interviews i LEFT JOIN users u ON u.id=i.interviewer_id WHERE i.application_id=? ORDER BY i.scheduled_at DESC'); $iv->execute([$id]); $a['interviews']=$iv->fetchAll();
         $of=db()->prepare('SELECT * FROM offers WHERE application_id=? ORDER BY id DESC LIMIT 1'); $of->execute([$id]); $a['offer']=$of->fetch()?:null;
         $dp=db()->prepare('SELECT d.*,b.name branch_name FROM deployments d LEFT JOIN branches b ON b.id=d.branch_id WHERE d.application_id=? ORDER BY d.id DESC LIMIT 1'); $dp->execute([$id]); $a['deployment']=$dp->fetch()?:null;
@@ -117,7 +117,7 @@ final class RecruitmentRepository
         audit('Recruitment','SCHEDULE_INTERVIEW','application',$id);
         self::inviteApplicant($id,$interviewId);
     }
-    /** An earlier stage advances to Interview; a candidate already at Interview or later (Manager Review, Offer, Deployment) only gets the timeline line and is never pushed back. */
+    /** An earlier stage advances to Interview; a candidate already at Interview or later (Hiring Review, Offer, Deployment) only gets the timeline line and is never pushed back. */
     private static function moveToInterviewOrNote(int $applicationId,string $line): void {
         $seq=(int)db()->query('SELECT s.sequence_no FROM applications a JOIN recruitment_stages s ON s.id=a.current_stage_id WHERE a.id='.(int)$applicationId)->fetchColumn();
         $interviewSeq=(int)db()->query('SELECT sequence_no FROM recruitment_stages WHERE code="INTERVIEW"')->fetchColumn();
@@ -146,7 +146,7 @@ final class RecruitmentRepository
         return db()->query('SELECT m.*,c.name client_name,b.name branch_name,d.name department_name,u.full_name requested_by_name FROM manpower_requests m JOIN clients c ON c.id=m.client_id LEFT JOIN branches b ON b.id=m.branch_id LEFT JOIN departments d ON d.id=m.department_id LEFT JOIN users u ON u.id=m.requested_by ORDER BY m.created_at DESC')->fetchAll();
     }
     public static function stageCounts(?int $clientId=null): array {
-        $sql='SELECT s.code,IF(s.code="CLIENT_REVIEW","Manager Review",s.name) name,COUNT(a.id) total FROM recruitment_stages s LEFT JOIN applications a ON (a.current_stage_id=s.id OR (s.code="SCREENING" AND a.current_stage_id=(SELECT id FROM recruitment_stages WHERE code="APPLIED")))'; $p=[];
+        $sql='SELECT s.code,IF(s.code="CLIENT_REVIEW","Hiring Review",s.name) name,COUNT(a.id) total FROM recruitment_stages s LEFT JOIN applications a ON (a.current_stage_id=s.id OR (s.code="SCREENING" AND a.current_stage_id=(SELECT id FROM recruitment_stages WHERE code="APPLIED")))'; $p=[];
         if($clientId){$sql.=' AND a.client_id=?';$p[]=$clientId;}
         $sql.=' WHERE s.active=1 GROUP BY s.id,s.code,s.name,s.sequence_no ORDER BY s.sequence_no'; $st=db()->prepare($sql);$st->execute($p);return $st->fetchAll();
     }
@@ -260,6 +260,45 @@ final class RecruitmentRepository
             if($own) $pdo->commit();
         } catch(Throwable $e) { if($own && $pdo->inTransaction()) $pdo->rollBack(); throw $e; }
     }
+    public const CRITERIA=['communication'=>'Communication','job_knowledge'=>'Job knowledge','attitude'=>'Attitude','culture_fit'=>'Culture fit','overall'=>'Overall impression'];
+    public const RECOMMENDATIONS=['PROCEED'=>'Proceed','HOLD'=>'Hold','NO_PROCEED'=>'Do not proceed'];
+    public static function scorecardReady(): bool {
+        static $ok=null; if($ok!==null) return $ok;
+        try { $ok=(int)db()->query('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name="interview_scorecards"')->fetchColumn()===1; } catch(Throwable $e) { $ok=false; }
+        return $ok;
+    }
+    /** True from the Interview stage onward (Hiring Review, Offer, ...). Same scorer rule as the screening rating (canScore). */
+    public static function atInterviewOrLater(int $applicationId): bool {
+        $st=db()->prepare('SELECT s.sequence_no>=(SELECT sequence_no FROM recruitment_stages WHERE code="INTERVIEW") FROM applications a JOIN recruitment_stages s ON s.id=a.current_stage_id WHERE a.id=?');
+        $st->execute([$applicationId]); return (bool)$st->fetchColumn();
+    }
+    public static function saveScorecard(int $applicationId,array $scores,string $recommendation,string $note): void {
+        if(!self::scorecardReady()) throw new RuntimeException('The interview scorecard is not available yet.');
+        if(!self::canScore($applicationId)) throw new RuntimeException('You do not have permission to score this candidate.');
+        $vals=[]; foreach(self::CRITERIA as $k=>$label){ $v=$scores[$k]??null; if(!is_string($v)&&!is_int($v)||!preg_match('/^[1-5]$/',(string)$v)) throw new RuntimeException('Score '.$label.' from 1 to 5.'); $vals[]=(int)$v; }
+        if(!isset(self::RECOMMENDATIONS[$recommendation])) throw new RuntimeException('Choose Proceed, Hold or Do not proceed.');
+        self::assertApplicationMutable($applicationId);
+        if(!self::atInterviewOrLater($applicationId)) throw new RuntimeException('A scorecard can be saved once the candidate reaches the Interview stage.');
+        $me=(int)Auth::user()['id'];
+        $pdo=db(); $own=!$pdo->inTransaction(); if($own) $pdo->beginTransaction();
+        try {
+            $pdo->prepare('INSERT INTO interview_scorecards(application_id,scorer_id,communication,job_knowledge,attitude,culture_fit,overall,recommendation,note) VALUES(?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE communication=VALUES(communication),job_knowledge=VALUES(job_knowledge),attitude=VALUES(attitude),culture_fit=VALUES(culture_fit),overall=VALUES(overall),recommendation=VALUES(recommendation),note=VALUES(note)')
+                ->execute(array_merge([$applicationId,$me],$vals,[$recommendation,mb_substr(trim($note),0,2000)?:null]));
+            self::timelineNote($applicationId,'Interview scorecard: '.self::RECOMMENDATIONS[$recommendation].', '.number_format(array_sum($vals)/count($vals),1).' / 5.');
+            audit('Recruitment','INTERVIEW_SCORED','application',$applicationId,['recommendation'=>$recommendation]);
+            if($own) $pdo->commit();
+        } catch(Throwable $e) { if($own && $pdo->inTransaction()) $pdo->rollBack(); throw $e; }
+    }
+    /** HR sees every scorecard; a reviewer sees only their own (BR-861). */
+    public static function scorecards(int $applicationId): array {
+        if(!self::scorecardReady()) return [];
+        $sql='SELECT c.*,u.full_name scorer_name FROM interview_scorecards c JOIN users u ON u.id=c.scorer_id WHERE c.application_id=?'; $p=[$applicationId];
+        if(!Auth::can('recruitment.manage')){ $sql.=' AND c.scorer_id=?'; $p[]=(int)(Auth::user()['id']??0); }
+        $st=db()->prepare($sql.' ORDER BY c.updated_at DESC'); $st->execute($p); return $st->fetchAll();
+    }
+    public static function scorecardAverage(array $cards): ?float {
+        if(!$cards) return null; $t=0; foreach($cards as $c) foreach(array_keys(self::CRITERIA) as $k) $t+=(int)$c[$k]; return $t/(count($cards)*count(self::CRITERIA));
+    }
     public static function endorseToReviewers(int $applicationId,string $note,array $reviewerIds,array $finalIds=[]): void {
         if(!Auth::can('recruitment.manage')) throw new RuntimeException('You do not have permission to endorse candidates.');
         self::assertApplicationMutable($applicationId);
@@ -284,14 +323,14 @@ final class RecruitmentRepository
         audit('Recruitment','ENDORSE_REVIEWERS','application',$applicationId,['reviewers'=>$ids]);
     }
     // ---- interview-chain (SPEC-interview-chain.md): a reviewer passes the candidate to the next interviewer; the final answer hands the candidate back to HR ----
-    /** A reviewer adds the next interviewer(s). The stage does not change. Only while the candidate is in Manager Review. */
+    /** A reviewer adds the next interviewer(s). The stage does not change. Only while the candidate is in Hiring Review. */
     public static function passOn(int $applicationId,int $fromUserId,array $toIds,array $finalIds,string $note): void {
         if(!Auth::can('recruitment.review')) throw new RuntimeException('You do not have permission to review candidates.');
         if((int)($_SESSION['user']['id']??0)!==$fromUserId) throw new RuntimeException('You can only pass a candidate on for yourself.');
         self::assertApplicationMutable($applicationId);
         if(!self::reviewerRow($applicationId,$fromUserId)) throw new RuntimeException('This candidate was not endorsed to you.');
         $app=self::application($applicationId); if(!$app) throw new RuntimeException('Application not found.');
-        if($app['stage_code']!=='CLIENT_REVIEW') throw new RuntimeException('This candidate is no longer in Manager Review.');
+        if($app['stage_code']!=='CLIENT_REVIEW') throw new RuntimeException('This candidate is no longer in Hiring Review.');
         $ids=array_values(array_unique(array_map('intval',$toIds)));
         if(!$ids) throw new RuntimeException('Choose at least one person to pass the candidate to.');
         if(count($ids)>10) throw new RuntimeException('Choose at most 10 people.');
@@ -327,7 +366,7 @@ final class RecruitmentRepository
         db()->prepare('UPDATE application_reviewers SET is_final=? WHERE application_id=? AND reviewer_user_id=?')->execute([$final?1:0,$applicationId,$reviewerUserId]);
         audit('Recruitment','MARK_FINAL','application',$applicationId,['reviewer'=>$reviewerUserId,'final'=>$final]);
     }
-    /** The reviewer whose Proceed hands the candidate back to HR (the final interviewer, or any reviewer when no final one was named). Null while nobody has finished. Only answers given in the current Manager Review round count. */
+    /** The reviewer whose Proceed hands the candidate back to HR (the final interviewer, or any reviewer when no final one was named). Null while nobody has finished. Only answers given in the current Hiring Review round count. */
     public static function finalDone(int $applicationId): ?array {
         $st=db()->prepare('SELECT u.full_name,r.decision_comment,r.decided_at FROM application_reviewers r JOIN users u ON u.id=r.reviewer_user_id JOIN applications a ON a.id=r.application_id JOIN recruitment_stages s ON s.id=a.current_stage_id WHERE r.application_id=? AND s.code="CLIENT_REVIEW" AND r.decision="PROCEED"
             AND r.decided_at>=(SELECT COALESCE(MAX(h.changed_at),"1970-01-01") FROM application_stage_history h JOIN recruitment_stages ts ON ts.id=h.to_stage_id WHERE h.application_id=r.application_id AND ts.code="CLIENT_REVIEW" AND h.from_stage_id<>h.to_stage_id)
@@ -335,18 +374,18 @@ final class RecruitmentRepository
         $st->execute([$applicationId]); return $st->fetch()?:null;
     }
     public static function reviewQueue(int $userId): array {
-        $st=db()->prepare('SELECT a.id,a.application_no,ap.first_name,ap.last_name,j.title job_title,j.location_text,s.code stage_code,IF(s.code="CLIENT_REVIEW","Manager Review",s.name) stage_name,r.endorsed_at,r.decision FROM application_reviewers r JOIN applications a ON a.id=r.application_id JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN recruitment_stages s ON s.id=a.current_stage_id WHERE r.reviewer_user_id=? ORDER BY (r.decision IS NULL) DESC,r.endorsed_at DESC');
+        $st=db()->prepare('SELECT a.id,a.application_no,ap.first_name,ap.last_name,j.title job_title,j.location_text,s.code stage_code,IF(s.code="CLIENT_REVIEW","Hiring Review",s.name) stage_name,r.endorsed_at,r.decision FROM application_reviewers r JOIN applications a ON a.id=r.application_id JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN recruitment_stages s ON s.id=a.current_stage_id WHERE r.reviewer_user_id=? ORDER BY (r.decision IS NULL) DESC,r.endorsed_at DESC');
         $st->execute([$userId]); return $st->fetchAll();
     }
     /** What a reviewer may see of a candidate endorsed to them: no email, phone or other applicants. Null when not endorsed to this user. */
     public static function reviewerApplication(int $applicationId,int $userId): ?array {
-        $st=db()->prepare('SELECT a.id,a.application_no,a.applied_at,a.why_fit,ap.first_name,ap.last_name,j.title job_title,j.location_text,s.code stage_code,IF(s.code="CLIENT_REVIEW","Manager Review",s.name) stage_name,r.note,r.endorsed_at,r.decision,r.decision_comment,r.decided_at,r.is_final,eb.full_name endorsed_by_name FROM application_reviewers r JOIN applications a ON a.id=r.application_id JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN recruitment_stages s ON s.id=a.current_stage_id LEFT JOIN users eb ON eb.id=r.endorsed_by WHERE r.application_id=? AND r.reviewer_user_id=?');
+        $st=db()->prepare('SELECT a.id,a.application_no,a.applied_at,a.why_fit,ap.first_name,ap.last_name,j.title job_title,j.location_text,s.code stage_code,IF(s.code="CLIENT_REVIEW","Hiring Review",s.name) stage_name,r.note,r.endorsed_at,r.decision,r.decision_comment,r.decided_at,r.is_final,eb.full_name endorsed_by_name FROM application_reviewers r JOIN applications a ON a.id=r.application_id JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN recruitment_stages s ON s.id=a.current_stage_id LEFT JOIN users eb ON eb.id=r.endorsed_by WHERE r.application_id=? AND r.reviewer_user_id=?');
         $st->execute([$applicationId,$userId]); $a=$st->fetch(); if(!$a) return null;
         $iv=db()->prepare('SELECT i.interview_type,i.scheduled_at,i.location_or_link,i.status,u.full_name interviewer_name FROM interviews i LEFT JOIN users u ON u.id=i.interviewer_id WHERE i.application_id=? ORDER BY i.scheduled_at DESC'); $iv->execute([$applicationId]); $a['interviews']=$iv->fetchAll();
         $a['resume']=self::resume($applicationId);
         return $a;
     }
-    /** True when nobody in the current round is still pending or in favour. A round starts when the candidate last entered Manager Review; an answer given before that belongs to an earlier round and is ignored (a pending row is always current).
+    /** True when nobody in the current round is still pending or in favour. A round starts when the candidate last entered Hiring Review; an answer given before that belongs to an earlier round and is ignored (a pending row is always current).
      *  shortcut: a recipient from an earlier round who never answered still counts as pending; HR can always move the stage by hand. */
     private static function everyCurrentReviewerDeclined(int $applicationId): bool {
         $st=db()->prepare('SELECT COUNT(*) FROM application_reviewers r WHERE r.application_id=? AND (r.decision IS NULL OR (r.decision<>"NOT_SUITABLE" AND r.decided_at>=(SELECT COALESCE(MAX(h.changed_at),"1970-01-01") FROM application_stage_history h JOIN recruitment_stages ts ON ts.id=h.to_stage_id WHERE h.application_id=r.application_id AND ts.code="CLIENT_REVIEW" AND h.from_stage_id<>h.to_stage_id)))');

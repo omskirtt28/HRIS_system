@@ -50,7 +50,7 @@ check('hr schedule: the interview row is saved',interview_count($a1)===1);
 // --- HR scheduling never pushes a later stage back ---
 $a0=make_app('CLIENT_REVIEW',$mr,$client,$job,$email);
 RecruitmentRepository::scheduleInterview($a0,$data);
-check('hr schedule: at Manager Review the stage is not pushed back to Interview',row('SELECT s.code FROM applications a JOIN recruitment_stages s ON s.id=a.current_stage_id WHERE a.id=?',[$a0])['code']==='CLIENT_REVIEW'&&note_count($a0,'Interview scheduled')===1);
+check('hr schedule: at Hiring Review the stage is not pushed back to Interview',row('SELECT s.code FROM applications a JOIN recruitment_stages s ON s.id=a.current_stage_id WHERE a.id=?',[$a0])['code']==='CLIENT_REVIEW'&&note_count($a0,'Interview scheduled')===1);
 
 // --- reviewer schedules ------------------------------------------------------------------------------------------
 $a2=make_app('INTERVIEW',$mr,$client,$job,$email);

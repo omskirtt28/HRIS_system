@@ -509,3 +509,7 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 - Scheduling an interview (HR or reviewer) emails the applicant the type, date/time and Meet link (off until `mail.send_interview_invites` is true); timeline note, Resend invite button; HR scheduling no longer pushes a later stage back.
 - Reviewers can pass a candidate to the next interviewer and name a Final interviewer; the final Proceed hands the candidate back to HR (Final interview done, next: Offer). Proceed no longer moves a candidate to Offer by itself.
 - Migration 024 (application_reviewers.is_final, passed_by) applied to localhost.
+
+- 2026-11-03 applicant-profile-polish T1+T2 (Claude): the stage label "Manager Review" is now "Hiring Review" (label only, code CLIENT_REVIEW unchanged); hr-applicant is a two-column layout (main + sticky side column with Screening rating, Endorse to Hiring review, Timeline). Scorecard (T3) waits for John OK on migration 030.
+
+- Interview scorecard: 1-5 per criterion (Communication, Job knowledge, Attitude, Culture fit, Overall impression) plus Proceed / Hold / Do not proceed, advice only. New table interview_scorecards (migration 030, applied to localhost). Tests interview_scorecard_test (21) and _http_test (15) added to the check floors.

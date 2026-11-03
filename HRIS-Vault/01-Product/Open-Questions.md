@@ -157,3 +157,6 @@ Related: [[Decision-Log]] · [[Roadmap]] · [[Business-Rules]] · [[PH-Labor-and
 - Q: Old applicants rated before a later conversion rule: John Joshua (Converted) has no rating and stays locked; test on a new applicant.
 
 - Q: Should the 3 old history rows that point at Applied (and any future legacy Applied application) ever be moved to Screening by a data fix (Option B)? Not done; none sit at Applied today.
+
+- Q (applicant-profile-polish): the five scorecard criteria and the scorer list were assistant defaults (John did not answer). Confirm or change; should retail and head office use different criteria? Should an Offer require a scorecard? (now optional)
+- Q: tests/employee_profile_http_test.php gives 54 PASS (floor 55) on the scratch copy, failing "A read-only note, no form or editable field in profile"; present before this patch. Needs its own look.

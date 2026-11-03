@@ -62,13 +62,13 @@ check('pass on: the new person sees the candidate; another manager still does no
 check('pass on: HR sees the whole chain, with who passed to whom and the final flag',(function() use ($app,$mgr1,$tc){ foreach(RecruitmentRepository::reviewersFor($app) as $r) if((int)$r['reviewer_user_id']===$tc['id']) return (int)$r['is_final']===1&&$r['passed_by_name']==='Zz mgr1'; return false; })());
 check('pass on: more than ten people at once is refused',(function() use ($app,$mgr1){ $many=[]; for($i=0;$i<11;$i++)$many[]=real_user('MANAGER','bulk'.$i)['id']; return rejects(fn()=>RecruitmentRepository::passOn($app,$mgr1['id'],$many,[],'')); })());
 $late=make_app('OFFER',$mr,$client,$job);db()->prepare('INSERT INTO application_reviewers(application_id,reviewer_user_id,endorsed_by,endorsed_at) VALUES(?,?,?,NOW())')->execute([$late,$mgr1['id'],$f['hr']['id']]);
-check('pass on: a candidate that is no longer in Manager Review cannot be passed on',rejects(fn()=>RecruitmentRepository::passOn($late,$mgr1['id'],[$tc['id']],[],''))&&rows_of($late)===1);
+check('pass on: a candidate that is no longer in Hiring Review cannot be passed on',rejects(fn()=>RecruitmentRepository::passOn($late,$mgr1['id'],[$tc['id']],[],''))&&rows_of($late)===1);
 
 // --- Proceed never moves a candidate to Offer; the final answer hands the candidate back to HR ------------------------------------
 check('ready: nobody has answered, so the candidate is not ready for HR',RecruitmentRepository::finalDone($app)===null);
 act($mgr1);
 RecruitmentRepository::decide($app,$mgr1['id'],'PROCEED','Good, pass to final');
-check('proceed (not final): only an opinion; the stage stays Manager Review and HR is not told it is ready',stage_of($app)==='CLIENT_REVIEW'&&RecruitmentRepository::finalDone($app)===null&&notes_for($f['hr']['id'],'CANDIDATE_DECISION','Ready for HR%')===0);
+check('proceed (not final): only an opinion; the stage stays Hiring Review and HR is not told it is ready',stage_of($app)==='CLIENT_REVIEW'&&RecruitmentRepository::finalDone($app)===null&&notes_for($f['hr']['id'],'CANDIDATE_DECISION','Ready for HR%')===0);
 act($tc);
 RecruitmentRepository::decide($app,$tc['id'],'PROCEED','Hire');
 $done=RecruitmentRepository::finalDone($app);
@@ -79,7 +79,7 @@ check('proceed (final): HR gets one Ready for HR notification and the timeline s
 $legacy=make_app('INTERVIEW',$mr,$client,$job);act($f['hr']);
 RecruitmentRepository::endorseToReviewers($legacy,'old style',[$mgr2['id']]);
 act($mgr2);RecruitmentRepository::decide($legacy,$mgr2['id'],'PROCEED','ok');
-check('legacy: with no final interviewer named, a Proceed is ready for HR and the stage stays Manager Review',stage_of($legacy)==='CLIENT_REVIEW'&&RecruitmentRepository::finalDone($legacy)!==null);
+check('legacy: with no final interviewer named, a Proceed is ready for HR and the stage stays Hiring Review',stage_of($legacy)==='CLIENT_REVIEW'&&RecruitmentRepository::finalDone($legacy)!==null);
 
 // --- mark final ------------------------------------------------------------------------------------------------------------------
 $mf=make_app('INTERVIEW',$mr,$client,$job);act($f['hr']);
@@ -114,7 +114,7 @@ check('stale final: after every recipient declined the candidate is Returned',st
 act($f['hr']);RecruitmentRepository::endorseToReviewers($st,'round 2',[$mgr2['id']]);
 check('stale final: a new round clears the earlier round\'s final flag, so nobody blocks the new round',(int)rv($st,$tc['id'])['is_final']===0&&(int)rv($st,$mgr2['id'])['is_final']===0);
 act($mgr2);RecruitmentRepository::decide($st,$mgr2['id'],'PROCEED','ok');
-check('stale final: the new round\'s only reviewer Proceed is Ready for HR and the stage stays Manager Review',RecruitmentRepository::finalDone($st)!==null&&stage_of($st)==='CLIENT_REVIEW');
+check('stale final: the new round\'s only reviewer Proceed is Ready for HR and the stage stays Hiring Review',RecruitmentRepository::finalDone($st)!==null&&stage_of($st)==='CLIENT_REVIEW');
 // adding people in the middle of a round keeps the final already named
 $mid=make_app('INTERVIEW',$mr,$client,$job);act($f['hr']);
 RecruitmentRepository::endorseToReviewers($mid,'x',[$mgr1['id'],$adl['id']],[$adl['id']]);

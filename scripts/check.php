@@ -95,6 +95,8 @@ $suites = [ // script => [minimum PASS count, needs scratch DB]
     'tests/interview_chain_test.php' => [29, true],
     'tests/screening_rating_db_test.php' => [18, true],
     'tests/screening_rating_http_test.php' => [14, true],
+    'tests/interview_scorecard_test.php' => [21, true],
+    'tests/interview_scorecard_http_test.php' => [15, true],
     'tests/interview_chain_http_test.php' => [19, true],
     'tests/hr_palette_test.php' => [32, true],
     'tests/hr_palette_http_test.php' => [21, true],

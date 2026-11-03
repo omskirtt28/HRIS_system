@@ -414,3 +414,6 @@ New table `application_reviewers(id, application_id FK applications, reviewer_us
 
 ## 2026-11-03 - recruitment_stages: Applied hidden (migration 029, applied to localhost 2026-11-03)
 - `recruitment_stages.active=0` for code APPLIED; no column or row added to business tables. Ledger table `stage_029_seed` records that this run hid it; the down script re-activates only that and drops the ledger. Applications and history keep pointing at the Applied row.
+
+## 2026-11-03 - interview_scorecards (migration 030, applied to localhost 2026-11-03)
+- New table `interview_scorecards`: one row per scorer per application (UNIQUE application_id+scorer_id), five TINYINT criteria communication, job_knowledge, attitude, culture_fit, overall (CHECK 1-5), recommendation VARCHAR(12) PROCEED/HOLD/NO_PROCEED, note, timestamps. FKs to applications and users. No existing table changed. Down script refuses while any row exists.

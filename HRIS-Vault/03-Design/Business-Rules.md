@@ -410,3 +410,5 @@ BR (2026-11-02, hr-appearance-palettes): Only users whose role portal is HR may 
 - BR-881: Convert to Employee needs a saved rating (any of the three). A converted application is locked, no further rating.
 - BR-882: the Recruiter column is the first HR user who rates; a reviewer rating never takes it. Later ratings replace the latest rating, every rating stays in screening_reviews.
 - BR-883: a new application starts at Screening (no Applied stage). An application still sitting at Applied is read as Screening (board, filter, counts, tracker) and its next step is Interview. Tracker shows 7 dots: Screening to Deployed.
+
+- BR-884 Interview scorecard: from the Interview stage onward (Interview, Hiring Review, Offer ...) a scorer rates Communication, Job knowledge, Attitude, Culture fit and Overall impression from 1 to 5 and picks Proceed / Hold / Do not proceed. Advice only: never moves a stage, never auto-rejects. Same scorers as the screening rating (HR; routed reviewers whose role fits the site type). One card per scorer, a second save updates it. HR sees every card; a reviewer sees only their own (BR-861). Locked once converted.

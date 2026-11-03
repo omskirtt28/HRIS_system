@@ -534,3 +534,9 @@ John: context ran out from subagents rereading code/vault. Added READ BUDGET to 
 - 2026-11-03 rec-screening-first (Claude): John approved Option A (hide APPLIED, legacy rows treated as Screening). Plan written (Plans/2026-11-03-rec-screening-first.md). No code yet. Waiting John go.
 
 - 2026-11-03 rec-screening-first (Claude): built and applied to localhost, see Plans/2026-11-03-rec-screening-first.md (status done). Next: John checks a new applicant in the browser; commit local.
+
+- 2026-11-03 applicant-profile-polish (Claude): John approved SPEC-applicant-profile-polish.md (Hiring Review rename, two-column layout, interview scorecard 1-5). Plan written (Plans/2026-11-03-applicant-profile-polish.md, status draft). No code yet. Waiting John go; migration 030 needs his OK.
+
+- 2026-11-03 applicant-profile-polish (Claude): T1 rename to Hiring Review and T2 two-column layout built and checked on a scratch DB, no schema change. T3 interview scorecard (migration 030) waits for John go.
+
+- 2026-11-03 applicant-profile-polish T3 (Claude): interview scorecard (1-5 per criterion + recommendation, BR-884), migration 030 applied to localhost. All three John requests are done; see Plans/2026-11-03-applicant-profile-polish.md (status done).

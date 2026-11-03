@@ -89,7 +89,7 @@ check('all fixture accounts sign in', $hr->login($uHr['email'], $pw) && $m1->log
 $page = $hr->req('GET', '/index.php?page=hr-applicant&id='.$appId); $tok = $csrfOf($page['body']);
 check('A the HR endorse card has a Final tick for each person', str_contains($page['body'], 'name="final[]" value="'.$uM1['id'].'"') && str_contains($page['body'], 'name="final[]" value="'.$uTc['id'].'"'));
 $hr->req('POST', '/index.php?page=hr-applicant', ['csrf' => $tok, 'action' => 'endorse', 'application_id' => (string)$appId, 'note' => 'Round 1', 'reviewers' => [(string)$uM1['id']], 'return_page' => 'hr-applicant', 'return_id' => (string)$appId]);
-check('A HR endorses to the first interviewer: stage Manager Review, one reviewer', $stageOf() === 'CLIENT_REVIEW' && $rows() === 1);
+check('A HR endorses to the first interviewer: stage Hiring Review, one reviewer', $stageOf() === 'CLIENT_REVIEW' && $rows() === 1);
 
 // The first interviewer passes the candidate on
 $det = $m1->req('GET', '/index.php?page=review-candidate&id='.$appId)['body']; $t1 = $csrfOf($det);

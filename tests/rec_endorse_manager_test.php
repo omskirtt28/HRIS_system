@@ -33,9 +33,9 @@ check('permission: recruitment.review is granted to MANAGER, ADL, SC, TC, OIC an
 check('permission: HR_USER does not get recruitment.review (it is not an HR screen)',(int)row('SELECT COUNT(*) c FROM role_permissions rp JOIN roles r ON r.id=rp.role_id JOIN permissions p ON p.id=rp.permission_id WHERE r.code="HR_USER" AND p.code="recruitment.review"')['c']===0);
 
 // --- label ----------------------------------------------------------------------------------------------------
-check('label: stage CLIENT_REVIEW reads Manager Review everywhere (label only, code unchanged)',stage_label('CLIENT_REVIEW')==='Manager Review'
-    &&array_values(array_filter(RecruitmentRepository::stages(),fn($s)=>$s['code']==='CLIENT_REVIEW'))[0]['name']==='Manager Review'
-    &&array_values(array_filter(RecruitmentRepository::stageCounts(),fn($s)=>$s['code']==='CLIENT_REVIEW'))[0]['name']==='Manager Review');
+check('label: stage CLIENT_REVIEW reads Hiring Review everywhere (label only, code unchanged)',stage_label('CLIENT_REVIEW')==='Hiring Review'
+    &&array_values(array_filter(RecruitmentRepository::stages(),fn($s)=>$s['code']==='CLIENT_REVIEW'))[0]['name']==='Hiring Review'
+    &&array_values(array_filter(RecruitmentRepository::stageCounts(),fn($s)=>$s['code']==='CLIENT_REVIEW'))[0]['name']==='Hiring Review');
 
 // --- who can be picked ----------------------------------------------------------------------------------------
 $ids=array_map('intval',array_column(RecruitmentRepository::reviewerChoices(),'id'));
@@ -68,7 +68,7 @@ check('endorse: a plain employee, an inactive manager or an unknown id is refuse
 $ap=make_app('REJECTED',$mr,$client,$job);
 check('endorse: a rejected application cannot be endorsed',rejects(fn()=>RecruitmentRepository::endorseToReviewers($ap,'x',[$mgr1['id']])));
 RecruitmentRepository::endorseToReviewers($app,'Strong candidate',[$mgr1['id'],$adl['id'],$mgr1['id']]);
-check('endorse: two recipients get one row each (a repeated id is not doubled) and the stage becomes Manager Review',
+check('endorse: two recipients get one row each (a repeated id is not doubled) and the stage becomes Hiring Review',
     (int)row('SELECT COUNT(*) c FROM application_reviewers WHERE application_id=?',[$app])['c']===2&&stage_of($app)==='CLIENT_REVIEW'&&reviewer_row($app,$mgr1['id'])['note']==='Strong candidate');
 check('endorse: each recipient is notified once',notes_for($mgr1['id'],'CANDIDATE_REVIEW')===1&&notes_for($adl['id'],'CANDIDATE_REVIEW')===1&&notes_for($tc['id'],'CANDIDATE_REVIEW')===0);
 check('endorse: the old client endorsements table is untouched',(int)row('SELECT COUNT(*) c FROM endorsements WHERE application_id=?',[$app])['c']===0);
@@ -97,11 +97,11 @@ RecruitmentRepository::decide($app,$adl['id'],'NOT_SUITABLE','Agree');
 check('decide: when every recipient says Not suitable the candidate goes back to HR (Returned)',stage_of($app)==='RETURNED');
 act($f['hr']);
 RecruitmentRepository::endorseToReviewers($app,'Try another',[$mgr2['id'],$adl['id']]);
-check('endorse: HR can endorse again after Returned; the old answer of a repeated recipient is reset, the stage is Manager Review',
+check('endorse: HR can endorse again after Returned; the old answer of a repeated recipient is reset, the stage is Hiring Review',
     stage_of($app)==='CLIENT_REVIEW'&&reviewer_row($app,$adl['id'])['decision']===null&&reviewer_row($app,$mgr2['id'])['decision']===null);
 act($mgr2);
 RecruitmentRepository::decide($app,$mgr2['id'],'PROCEED','Hire');
-check('decide: Proceed while in Manager Review never moves the candidate to Offer; it stays for HR (no final interviewer named)',stage_of($app)==='CLIENT_REVIEW'&&RecruitmentRepository::finalDone($app)!==null);
+check('decide: Proceed while in Hiring Review never moves the candidate to Offer; it stays for HR (no final interviewer named)',stage_of($app)==='CLIENT_REVIEW'&&RecruitmentRepository::finalDone($app)!==null);
 act($adl);
 RecruitmentRepository::decide($app,$adl['id'],'NOT_SUITABLE','Late answer');
 check('decide: a later answer is recorded on the timeline but does not move the stage',stage_of($app)==='CLIENT_REVIEW'&&reviewer_row($app,$adl['id'])['decision']==='NOT_SUITABLE');
@@ -118,12 +118,12 @@ act($f['hr']);
 RecruitmentRepository::endorseToReviewers($s2,'x',[$tc['id']]);
 act($tc);
 RecruitmentRepository::reviewerSchedule($s2,$tc['id'],['interview_type'=>'Final interview','scheduled_at'=>date('Y-m-d H:i:s',strtotime('+3 days')),'location_or_link'=>'Room 2','notes'=>'']);
-check('schedule: at Manager Review the stage is not pushed back to Interview',stage_of($s2)==='CLIENT_REVIEW');
+check('schedule: at Hiring Review the stage is not pushed back to Interview',stage_of($s2)==='CLIENT_REVIEW');
 check('schedule: someone who was not endorsed to cannot schedule',rejects(fn()=>RecruitmentRepository::reviewerSchedule($s2,$mgr2['id'],['interview_type'=>'x','scheduled_at'=>date('Y-m-d H:i:s'),'location_or_link'=>'','notes'=>''])));
 check('schedule: a missing time or type is refused',rejects(fn()=>RecruitmentRepository::reviewerSchedule($s2,$tc['id'],['interview_type'=>'','scheduled_at'=>'','location_or_link'=>'','notes'=>''])));
 // --- the server allows endorsing only where the card is shown ------------------------------------------------------
 $late=make_app('OFFER',$mr,$client,$job);act($f['hr']);
-check('endorse: a candidate already at Offer cannot be pulled back to Manager Review by a forged post, and nothing is saved',rejects(fn()=>RecruitmentRepository::endorseToReviewers($late,'x',[$mgr1['id']]))&&stage_of($late)==='OFFER'&&(int)row('SELECT COUNT(*) c FROM application_reviewers WHERE application_id=?',[$late])['c']===0);
+check('endorse: a candidate already at Offer cannot be pulled back to Hiring Review by a forged post, and nothing is saved',rejects(fn()=>RecruitmentRepository::endorseToReviewers($late,'x',[$mgr1['id']]))&&stage_of($late)==='OFFER'&&(int)row('SELECT COUNT(*) c FROM application_reviewers WHERE application_id=?',[$late])['c']===0);
 
 // --- a new round is not blocked by the answers of an old round ----------------------------------------------------------
 $rd=make_app('INTERVIEW',$mr,$client,$job);act($f['hr']);

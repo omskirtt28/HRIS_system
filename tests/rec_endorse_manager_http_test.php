@@ -93,7 +93,7 @@ check('all fixture accounts sign in', $hr->login($uHr['email'], $pw) && $m1->log
 // ===== A. HR card =====
 $page = $hr->req('GET', '/index.php?page=hr-applicant&id='.$appId);
 $tok = $csrfOf($page['body']);
-check('A the HR page has the Endorse to Manager review card with a name filter and reviewer checkboxes', str_contains($page['body'], 'Endorse to Manager review') && str_contains($page['body'], 'id="rv-filter"') && str_contains($page['body'], 'name="reviewers[]" value="'.$uM1['id'].'"') && str_contains($page['body'], 'name="reviewers[]" value="'.$uTc['id'].'"'));
+check('A the HR page has the Endorse to Hiring review card with a name filter and reviewer checkboxes', str_contains($page['body'], 'Endorse to Hiring review') && str_contains($page['body'], 'id="rv-filter"') && str_contains($page['body'], 'name="reviewers[]" value="'.$uM1['id'].'"') && str_contains($page['body'], 'name="reviewers[]" value="'.$uTc['id'].'"'));
 check('A a plain employee is not in the list and the old client endorsement card is gone', !str_contains($page['body'], 'name="reviewers[]" value="'.$uStaff['id'].'"') && !str_contains($page['body'], 'Client endorsement') && !str_contains($page['body'], 'Endorse to client'));
 check('A no reviewer is pre-checked for a request without a ticket', !preg_match('/name="reviewers\[\]" value="\d+" checked/', $page['body']));
 
@@ -107,9 +107,9 @@ check('B posting a user who is not a reviewer (forged id) changes nothing', $row
 $staff->req('POST', '/index.php?page=hr-applicant', array_replace($endorse, ['csrf' => $csrfOf($staff->req('GET', '/index.php?page=employee-dashboard')['body'])]) + ['reviewers' => [(string)$uM1['id']]]);
 check('B an Employee-role user cannot endorse', $rows() === 0);
 $r = $hr->req('POST', '/index.php?page=hr-applicant', $endorse + ['reviewers' => [(string)$uM1['id'], (string)$uTc['id']]]);
-check('B HR endorses to two people: two rows, stage Manager Review, back on the applicant page', $r['code'] === 302 && $rows() === 2 && $stageOf() === 'CLIENT_REVIEW' && str_contains($r['loc'], 'hr-applicant'));
+check('B HR endorses to two people: two rows, stage Hiring Review, back on the applicant page', $r['code'] === 302 && $rows() === 2 && $stageOf() === 'CLIENT_REVIEW' && str_contains($r['loc'], 'hr-applicant'));
 $page = $hr->req('GET', '/index.php?page=hr-applicant&id='.$appId)['body'];
-check('B the HR page now shows Manager Review, both names and Waiting; no Client Review wording', str_contains($page, 'Manager Review') && str_contains($page, 'Zz mgr1') && str_contains($page, 'Zz tc') && str_contains($page, 'Waiting') && !str_contains($page, 'Client Review'));
+check('B the HR page now shows Hiring Review, both names and Waiting; no Client Review wording', str_contains($page, 'Hiring Review') && str_contains($page, 'Zz mgr1') && str_contains($page, 'Zz tc') && str_contains($page, 'Waiting') && !str_contains($page, 'Client Review'));
 
 // ===== C. reviewers see only their own =====
 $list1 = $m1->req('GET', '/index.php?page=review-candidates');
@@ -157,7 +157,7 @@ check('F someone not endorsed to cannot schedule', (int)$pdo->query('SELECT COUN
 $tc->req('POST', '/index.php?page=review-candidate', array_replace($sched, ['scheduled_at' => '']));
 check('F a missing date is refused', (int)$pdo->query('SELECT COUNT(*) FROM interviews WHERE application_id='.$appId)->fetchColumn() === 0);
 $tc->req('POST', '/index.php?page=review-candidate', $sched);
-check('F an endorsed reviewer schedules an interview under their own name; Manager Review is not pushed back', (int)$pdo->query('SELECT COUNT(*) FROM interviews WHERE application_id='.$appId.' AND interviewer_id='.$uTc['id'])->fetchColumn() === 1 && $stageOf() === 'CLIENT_REVIEW');
+check('F an endorsed reviewer schedules an interview under their own name; Hiring Review is not pushed back', (int)$pdo->query('SELECT COUNT(*) FROM interviews WHERE application_id='.$appId.' AND interviewer_id='.$uTc['id'])->fetchColumn() === 1 && $stageOf() === 'CLIENT_REVIEW');
 check('F HR sees the interview the reviewer scheduled', str_contains($hr->req('GET', '/index.php?page=hr-applicant&id='.$appId)['body'], 'Final Interview'));
 
 exit($fail ? 1 : 0);
