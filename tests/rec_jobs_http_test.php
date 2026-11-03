@@ -146,7 +146,7 @@ check('D searching for the employer name finds nothing', !str_contains($anon->re
 check('D searching for the title still finds the job', str_contains($anon->req('GET', '/index.php?page=careers&q='.urlencode($tag))['body'], $title));
 $pdo->prepare('INSERT INTO applicants(applicant_no,first_name,last_name,email,mobile_no,source,consent_at,status) VALUES(?,?,?,?,?,"CAREERS_SITE",NOW(),"ACTIVE")')->execute(['APP-ZZ-'.$tag, 'Zz', 'Applicant', 'zz_'.$tag.'@example.test', '09170000000']);
 $applicant = (int)$pdo->lastInsertId();
-$pdo->prepare('INSERT INTO applications(application_no,applicant_id,job_opening_id,manpower_request_id,client_id,current_stage_id,applied_at,last_stage_changed_at,status) VALUES(?,?,?,?,?,(SELECT id FROM recruitment_stages WHERE code="APPLIED"),NOW(),NOW(),"ACTIVE")')->execute(['PMBSI-ZZ-'.$tag, $applicant, $job['id'], $mrId, $job['client_id']]);
+$pdo->prepare('INSERT INTO applications(application_no,applicant_id,job_opening_id,manpower_request_id,client_id,current_stage_id,applied_at,last_stage_changed_at,status) VALUES(?,?,?,?,?,(SELECT id FROM recruitment_stages WHERE code="SCREENING"),NOW(),NOW(),"ACTIVE")')->execute(['PMBSI-ZZ-'.$tag, $applicant, $job['id'], $mrId, $job['client_id']]);
 $track = $anon->req('GET', '/index.php?page=track&ref='.urlencode('PMBSI-ZZ-'.$tag).'&email='.urlencode('zz_'.$tag.'@example.test'))['body'];
 check('D the applicant tracker shows the position as PMBSI, never the employer', str_contains($track, $title) && !str_contains($track, $employer));
 $hrList = $hr->req('GET', '/index.php?page=hr-jobs')['body'];
@@ -212,9 +212,9 @@ check('G an unknown application gives 404, not a path', $hr->req('GET', '/index.
 $list = $hr->req('GET', '/index.php?page=hr-applicants')['body'];
 check('G the Applicants list shows the job type and location', str_contains($list, '<th>Type</th>') && str_contains($list, '<th>Location</th>') && str_contains($list, 'Regular') && str_contains($list, 'Synthetic branch'));
 
-check('G Stage & actions: Update continues to the next step by default, exceptions are optional, no manual jump to later stages', str_contains($prof, '<option value="NEXT" selected>Continue to Screening') && str_contains($prof, '<option value="REJECTED">') && !str_contains($prof, '<option value="DEPLOYMENT">'));
+check('G Stage & actions: Update continues to the next step by default, exceptions are optional, no manual jump to later stages', str_contains($prof, '<option value="NEXT" selected>Continue to Interview') && str_contains($prof, '<option value="REJECTED">') && !str_contains($prof, '<option value="DEPLOYMENT">'));
 $hr->req('POST', '/index.php?page=hr-applicant', ['csrf' => $tokJ, 'action' => 'move_stage', 'application_id' => (string)$appId, 'target_stage' => 'NEXT', 'comment' => 'zz pass', 'return_page' => 'hr-applicant', 'return_id' => (string)$appId]);
-check('G Update with the default moves Applied to Screening and keeps the note', (string)$pdo->query('SELECT s.code FROM applications a JOIN recruitment_stages s ON s.id=a.current_stage_id WHERE a.id='.$appId)->fetchColumn() === 'SCREENING' && (int)$pdo->query('SELECT COUNT(*) FROM application_stage_history WHERE application_id='.$appId.' AND comment="zz pass"')->fetchColumn() === 1);
+check('G Update with the default moves Screening to Interview and keeps the note', (string)$pdo->query('SELECT s.code FROM applications a JOIN recruitment_stages s ON s.id=a.current_stage_id WHERE a.id='.$appId)->fetchColumn() === 'INTERVIEW' && (int)$pdo->query('SELECT COUNT(*) FROM application_stage_history WHERE application_id='.$appId.' AND comment="zz pass"')->fetchColumn() === 1);
 $hr->req('POST', '/index.php?page=hr-applicant', ['csrf' => $tokJ, 'action' => 'move_stage', 'application_id' => (string)$appId, 'target_stage' => 'REJECTED', 'comment' => 'zz', 'return_page' => 'hr-applicant', 'return_id' => (string)$appId]);
 $prof2 = $hr->req('GET', '/index.php?page=hr-applicant&id='.$appId)['body'];
 check('G after a reject the page offers Resume at with the normal stages', str_contains($prof2, 'Resume at') && str_contains($prof2, '<option value="SCREENING">') && !str_contains($prof2, 'Continue to'));

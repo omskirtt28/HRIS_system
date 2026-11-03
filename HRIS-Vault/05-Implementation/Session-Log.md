@@ -530,3 +530,7 @@ John: context ran out from subagents rereading code/vault. Added READ BUDGET to 
 - 2026-11-03 rec-screening-score: scoring is now Negative/Fair/Outstanding (John). Spec and plan updated, no code yet.
 
 - 2026-11-03 rec-screening-score (Claude): built and applied to localhost, see Plans/2026-11-03-rec-screening-score.md (status done). Next: John tries a new applicant; commit local.
+
+- 2026-11-03 rec-screening-first (Claude): John approved Option A (hide APPLIED, legacy rows treated as Screening). Plan written (Plans/2026-11-03-rec-screening-first.md). No code yet. Waiting John go.
+
+- 2026-11-03 rec-screening-first (Claude): built and applied to localhost, see Plans/2026-11-03-rec-screening-first.md (status done). Next: John checks a new applicant in the browser; commit local.

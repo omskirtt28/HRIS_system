@@ -89,6 +89,7 @@ $suites = [ // script => [minimum PASS count, needs scratch DB]
     'tests/rec_convert_auto_account_http_test.php' => [22, true],
     'tests/rec_endorse_manager_test.php' => [43, true],
     'tests/rec_endorse_manager_http_test.php' => [33, true],
+    'tests/rec_screening_first_test.php' => [11, true],
     'tests/interview_invite_test.php' => [17, true],
     'tests/interview_invite_http_test.php' => [12, true],
     'tests/interview_chain_test.php' => [29, true],

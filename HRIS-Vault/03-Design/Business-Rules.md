@@ -409,3 +409,4 @@ BR (2026-11-02, hr-appearance-palettes): Only users whose role portal is HR may 
 - BR-880: who may rate = HR (recruitment.manage) always; a reviewer only when the applicant was endorsed to them AND their role fits the job site type: Retail = ADL, OIC, SC, MT; Head office = Manager, TC; Other company or unknown = HR only. Enforced on the server.
 - BR-881: Convert to Employee needs a saved rating (any of the three). A converted application is locked, no further rating.
 - BR-882: the Recruiter column is the first HR user who rates; a reviewer rating never takes it. Later ratings replace the latest rating, every rating stays in screening_reviews.
+- BR-883: a new application starts at Screening (no Applied stage). An application still sitting at Applied is read as Screening (board, filter, counts, tracker) and its next step is Interview. Tracker shows 7 dots: Screening to Deployed.

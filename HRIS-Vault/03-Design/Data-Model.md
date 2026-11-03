@@ -411,3 +411,6 @@ New table `application_reviewers(id, application_id FK applications, reviewer_us
 ## 2026-11-03 - screening rating (migration 028, applied to localhost 2026-11-03)
 - `applications.screening_rating VARCHAR(12) NULL` (NEGATIVE/FAIR/OUTSTANDING, latest rating), `screening_reviews.rating VARCHAR(12) NULL` (history), `job_openings.site_type VARCHAR(12) NULL` (RETAIL/HEAD_OFFICE/OTHER; NULL = use the manpower request branch). Allowed values enforced in RecruitmentRepository, not by a DB constraint. `screening_score` stays unused.
 - New role MT (Management Trainee, employee portal) with the Sales Captain grants; recruitment.review granted to OIC and MT. Ledger table `screening_028_seed` records what the migration added; the down script removes only that and refuses while ratings, site types or MT users exist. Up, re-run, down, up verified on a scratch copy.
+
+## 2026-11-03 - recruitment_stages: Applied hidden (migration 029, applied to localhost 2026-11-03)
+- `recruitment_stages.active=0` for code APPLIED; no column or row added to business tables. Ledger table `stage_029_seed` records that this run hid it; the down script re-activates only that and drops the ledger. Applications and history keep pointing at the Applied row.

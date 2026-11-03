@@ -36,7 +36,7 @@ final class RecruitmentRepository
             $job=self::jobById((int)$d['job_opening_id']); if (!$job) throw new RuntimeException('Selected job is no longer available.');
             $dup=$pdo->prepare('SELECT application_no FROM applications WHERE applicant_id=? AND job_opening_id=? AND status="ACTIVE" LIMIT 1'); $dup->execute([$applicantId,$job['id']]);
             if ($x=$dup->fetchColumn()) throw new RuntimeException('You already have an active application for this position. Reference: '.$x);
-            $stage=(int)$pdo->query('SELECT id FROM recruitment_stages WHERE code="APPLIED" LIMIT 1')->fetchColumn();
+            $stage=(int)$pdo->query('SELECT id FROM recruitment_stages WHERE code="SCREENING" LIMIT 1')->fetchColumn();
             $ref='PMBSI-'.date('Y').'-'.str_pad((string)random_int(1,999999),6,'0',STR_PAD_LEFT);
             $st=$pdo->prepare('INSERT INTO applications(application_no,applicant_id,job_opening_id,manpower_request_id,client_id,current_stage_id,why_fit,applied_at,last_stage_changed_at,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,NOW(),NOW(),"ACTIVE",NOW(),NOW())');
             $st->execute([$ref,$applicantId,$job['id'],$job['manpower_request_id'],$job['client_id'],$stage,$d['why_fit']]); $applicationId=(int)$pdo->lastInsertId();
@@ -62,10 +62,10 @@ final class RecruitmentRepository
         $hs=db()->prepare('SELECT h.*,IF(fs.code="CLIENT_REVIEW","Manager Review",fs.name) from_name,IF(ts.code="CLIENT_REVIEW","Manager Review",ts.name) to_name FROM application_stage_history h LEFT JOIN recruitment_stages fs ON fs.id=h.from_stage_id JOIN recruitment_stages ts ON ts.id=h.to_stage_id WHERE h.application_id=? ORDER BY h.changed_at'); $hs->execute([$row['id']]); $row['history']=$hs->fetchAll(); return $row;
     }
     public static function applications(array $filters=[]): array {
-        $sql='SELECT a.id,a.application_no,a.status application_status,a.screening_score,'.(self::screeningReady()?'a.screening_rating,':'').'a.applied_at,a.last_stage_changed_at,ap.first_name,ap.last_name,ap.email,ap.mobile_no,j.title job_title,j.employment_type job_employment_type,j.location_text job_location,c.name client_name,s.code stage_code,IF(s.code="CLIENT_REVIEW","Manager Review",s.name) stage_name,u.full_name recruiter_name FROM applications a JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN clients c ON c.id=a.client_id JOIN recruitment_stages s ON s.id=a.current_stage_id LEFT JOIN users u ON u.id=a.assigned_recruiter_id WHERE 1=1'; $p=[];
+        $sql='SELECT a.id,a.application_no,a.status application_status,a.screening_score,'.(self::screeningReady()?'a.screening_rating,':'').'a.applied_at,a.last_stage_changed_at,ap.first_name,ap.last_name,ap.email,ap.mobile_no,j.title job_title,j.employment_type job_employment_type,j.location_text job_location,c.name client_name,IF(s.code="APPLIED","SCREENING",s.code) stage_code,IF(s.code="APPLIED","Screening",IF(s.code="CLIENT_REVIEW","Manager Review",s.name)) stage_name,u.full_name recruiter_name FROM applications a JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN clients c ON c.id=a.client_id JOIN recruitment_stages s ON s.id=a.current_stage_id LEFT JOIN users u ON u.id=a.assigned_recruiter_id WHERE 1=1'; $p=[];
         if (!empty($filters['client_id'])) { $sql.=' AND a.client_id=?'; $p[]=$filters['client_id']; }
         if (!empty($filters['client_portal'])) { $sql.=' AND EXISTS (SELECT 1 FROM endorsements e WHERE e.application_id=a.id AND e.client_id=a.client_id)'; }
-        if (!empty($filters['stage'])) { $sql.=' AND s.code=?'; $p[]=$filters['stage']; }
+        if (!empty($filters['stage'])) { $sql.=' AND IF(s.code="APPLIED","SCREENING",s.code)=?'; $p[]=$filters['stage']; }
         if (!empty($filters['q'])) { $x='%'.$filters['q'].'%'; $sql.=' AND (ap.first_name LIKE ? OR ap.last_name LIKE ? OR ap.email LIKE ? OR a.application_no LIKE ?)'; array_push($p,$x,$x,$x,$x); }
         $sql.=' ORDER BY a.last_stage_changed_at DESC,a.id DESC'; $st=db()->prepare($sql); $st->execute($p); return $st->fetchAll();
     }
@@ -75,7 +75,7 @@ final class RecruitmentRepository
         return $st->fetch()?:null;
     }
     public static function application(int $id, ?int $clientId=null): ?array {
-        $sql='SELECT a.*,ap.applicant_no,ap.first_name,ap.middle_name,ap.last_name,ap.suffix,ap.email,ap.mobile_no,j.title job_title,j.location_text,j.department_id job_department_id,j.employment_type job_employment_type,j.id job_id,j.job_code,j.status job_status,j.openings job_openings,j.salary_min,j.salary_max,j.closes_at,j.description job_description,j.requirements job_requirements,m.branch_id request_branch_id,m.department_id request_department_id,c.name client_name,s.code stage_code,IF(s.code="CLIENT_REVIEW","Manager Review",s.name) stage_name,u.full_name recruiter_name FROM applications a JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN manpower_requests m ON m.id=a.manpower_request_id JOIN clients c ON c.id=a.client_id JOIN recruitment_stages s ON s.id=a.current_stage_id LEFT JOIN users u ON u.id=a.assigned_recruiter_id WHERE a.id=?'; $p=[$id];
+        $sql='SELECT a.*,ap.applicant_no,ap.first_name,ap.middle_name,ap.last_name,ap.suffix,ap.email,ap.mobile_no,j.title job_title,j.location_text,j.department_id job_department_id,j.employment_type job_employment_type,j.id job_id,j.job_code,j.status job_status,j.openings job_openings,j.salary_min,j.salary_max,j.closes_at,j.description job_description,j.requirements job_requirements,m.branch_id request_branch_id,m.department_id request_department_id,c.name client_name,IF(s.code="APPLIED","SCREENING",s.code) stage_code,IF(s.code="APPLIED","Screening",IF(s.code="CLIENT_REVIEW","Manager Review",s.name)) stage_name,u.full_name recruiter_name FROM applications a JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN manpower_requests m ON m.id=a.manpower_request_id JOIN clients c ON c.id=a.client_id JOIN recruitment_stages s ON s.id=a.current_stage_id LEFT JOIN users u ON u.id=a.assigned_recruiter_id WHERE a.id=?'; $p=[$id];
         if ($clientId) { $sql.=' AND a.client_id=? AND EXISTS (SELECT 1 FROM endorsements e WHERE e.application_id=a.id AND e.client_id=?)'; $p[]=$clientId; $p[]=$clientId; }
         $st=db()->prepare($sql); $st->execute($p); $a=$st->fetch(); if(!$a)return null;
         $hs=db()->prepare('SELECT h.*,IF(fs.code="CLIENT_REVIEW","Manager Review",fs.name) from_name,IF(ts.code="CLIENT_REVIEW","Manager Review",ts.name) to_name,u.full_name changed_by_name FROM application_stage_history h LEFT JOIN recruitment_stages fs ON fs.id=h.from_stage_id JOIN recruitment_stages ts ON ts.id=h.to_stage_id LEFT JOIN users u ON u.id=h.changed_by WHERE h.application_id=? ORDER BY h.changed_at DESC'); $hs->execute([$id]); $a['history']=$hs->fetchAll();
@@ -95,7 +95,7 @@ final class RecruitmentRepository
     public static function nextStageCode(int $id): ?string {
         $st=db()->prepare('SELECT s.code,s.sequence_no FROM applications a JOIN recruitment_stages s ON s.id=a.current_stage_id WHERE a.id=?');$st->execute([$id]);$cur=$st->fetch();
         if(!$cur||!in_array($cur['code'],['APPLIED','SCREENING','INTERVIEW','ENDORSED','CLIENT_REVIEW'],true))return null;
-        $n=db()->prepare('SELECT code FROM recruitment_stages WHERE active=1 AND sequence_no>? AND sequence_no<=80 ORDER BY sequence_no LIMIT 1');$n->execute([$cur['sequence_no']]);
+        $n=db()->prepare('SELECT code FROM recruitment_stages WHERE active=1 AND sequence_no>? AND sequence_no<=80 ORDER BY sequence_no LIMIT 1');$n->execute([$cur['code']==='APPLIED'?20:$cur['sequence_no']]); // a legacy Applied row counts as Screening, so its next step is Interview
         return $n->fetchColumn()?:null;
     }
     public static function moveStage(int $id,string $target,?string $comment=null): void {
@@ -146,7 +146,7 @@ final class RecruitmentRepository
         return db()->query('SELECT m.*,c.name client_name,b.name branch_name,d.name department_name,u.full_name requested_by_name FROM manpower_requests m JOIN clients c ON c.id=m.client_id LEFT JOIN branches b ON b.id=m.branch_id LEFT JOIN departments d ON d.id=m.department_id LEFT JOIN users u ON u.id=m.requested_by ORDER BY m.created_at DESC')->fetchAll();
     }
     public static function stageCounts(?int $clientId=null): array {
-        $sql='SELECT s.code,IF(s.code="CLIENT_REVIEW","Manager Review",s.name) name,COUNT(a.id) total FROM recruitment_stages s LEFT JOIN applications a ON a.current_stage_id=s.id'; $p=[];
+        $sql='SELECT s.code,IF(s.code="CLIENT_REVIEW","Manager Review",s.name) name,COUNT(a.id) total FROM recruitment_stages s LEFT JOIN applications a ON (a.current_stage_id=s.id OR (s.code="SCREENING" AND a.current_stage_id=(SELECT id FROM recruitment_stages WHERE code="APPLIED")))'; $p=[];
         if($clientId){$sql.=' AND a.client_id=?';$p[]=$clientId;}
         $sql.=' WHERE s.active=1 GROUP BY s.id,s.code,s.name,s.sequence_no ORDER BY s.sequence_no'; $st=db()->prepare($sql);$st->execute($p);return $st->fetchAll();
     }

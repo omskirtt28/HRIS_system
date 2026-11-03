@@ -155,3 +155,5 @@ Related: [[Decision-Log]] · [[Roadmap]] · [[Business-Rules]] · [[PH-Labor-and
 - Q: Should the list show every scorer rating (HR vs ADL vs Manager) instead of only the latest? Not built; history is in screening_reviews.
 - Q: Walk-in HR jobs with no Site type are HR-only. John to confirm HR should always pick one.
 - Q: Old applicants rated before a later conversion rule: John Joshua (Converted) has no rating and stays locked; test on a new applicant.
+
+- Q: Should the 3 old history rows that point at Applied (and any future legacy Applied application) ever be moved to Screening by a data fix (Option B)? Not done; none sit at Applied today.

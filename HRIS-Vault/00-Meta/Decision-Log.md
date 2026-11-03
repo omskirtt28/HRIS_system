@@ -162,3 +162,5 @@ John: remove the Account setup dropdown on Convert to Employee; generate the acc
 - 2026-11-03: Screening is a three-level rating (Negative/Fair/Outstanding), advice only; HR decides (John). Reviewer scoring depends on who the applicant went through and the job site type. MT becomes a real role.
 - 2026-11-03: Recruiter is auto-set to the first HR user who rates (no dropdown), because John did not need manual assignment.
 - 2026-11-03: A reviewer rating overwrites the latest rating (history kept); alternative of one rating per person not built.
+
+- 2026-11-03: Recruitment starts at Screening; the Applied stage is hidden, not deleted (John, Option A). Legacy Applied rows are read as Screening in code, no business rows changed.

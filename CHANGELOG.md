@@ -1,3 +1,6 @@
+## 2026-11-03 - Screening first, no Applied step (local)
+- New applicants now land in Screening right away, and the progress bar no longer shows Applied (7 steps, Screening to Deployed). HR continues straight to Interview. Old applicants who were still at Applied are shown as Screening. Database: Applied stage hidden (migration 029).
+
 ## 2026-11-03 - Screening rating, Site type and MT role (local)
 - HR can now rate an applicant Negative, Fair or Outstanding on the applicant page; the Applicant Database shows the colour badge and the Recruiter (the first HR user who rates). A low rating never rejects anyone, HR decides.
 - Managers, TCs (head office) and ADLs, OICs, SCs, MTs (retail) can rate only applicants that went through them. Job Opening form has a new Site type choice. Convert to Employee now needs a rating. New role: MT (Management Trainee). Database migration 028 applied to localhost.
