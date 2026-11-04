@@ -230,3 +230,11 @@ EmployeeAccountService::pending, issueForExisting and issueMissing (spec SPEC-em
 
 ## Addendum 2026-11-02 - Remove portal account
 FoundationRepository::removeUser, restoreUser, removedUsers, canRemove (spec SPEC-remove-portal-account.md, migration 021). Removing frees the email, unlinks the employee and clears a matching company_email, so HR can fix the 201 (for example Company) and click Generate account again. Users and Access shows Remove account in the row menu and a Removed accounts panel with Restore.
+
+## Addendum 2026-11-04 - ADL head is a Retail Manager
+- In Employee 201, an ADL's "Reporting To" lists Retail Managers only (position "Retail Manager", role RETAIL_MANAGER). Retail staff still report to an ADL; Head Office staff still to a Manager. See BR-887.
+
+- Employee Status: 2026-11-04 Consultant added (migration 033).
+
+## Addendum 2026-11-04 - Department picker
+- Add Employee, Employee 201 (employment tab) and Convert to Employee use one shared Department + Position picker (app/DepartmentPicker.php). See BR-888 and SPEC-department-picker.md. Employees whose department is in no group (e.g. the inactive PMBSI Office) keep it as 'Name (current)'.

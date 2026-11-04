@@ -767,3 +767,11 @@ table.tbl tbody tr:hover{background:var(--hris-surface-2)}
 .stage-track li.cur{color:var(--ink,#0f172a);font-weight:600}
 #apptabs .tabs .t[aria-selected="true"]{border-bottom-color:var(--amber,#f59e0b);color:var(--ink,#0f172a);font-weight:600}
 #apptabs .tabs .t:focus-visible{outline:2px solid var(--amber,#f59e0b);outline-offset:-2px}
+
+/* Login: show/hide password eye */
+.login-pw{position:relative;display:block;width:100%}
+.login-card .field .login-pw input{width:100%;box-sizing:border-box;padding-right:56px !important}
+.login-pw .users-eye-btn{position:absolute;right:12px;top:50%;transform:translateY(-50%);width:34px;height:34px}
+.login-pw .eye-slash{display:none}
+.login-pw .users-eye-btn.active .eye-slash{display:inline}
+.login-pw .users-eye-btn.active{color:#9a6500;border-color:#d4a443;background:#fffaf0}

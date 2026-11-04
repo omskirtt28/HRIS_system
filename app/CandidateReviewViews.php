@@ -29,8 +29,26 @@ function applicant_reviewer_card(array $a):string
         $o.='<form method="post" class="card pad" style="margin-bottom:16px">'.csrf_field()
             .'<input type="hidden" name="action" value="endorse"><input type="hidden" name="application_id" value="'.(int)$a['id'].'"><input type="hidden" name="return_page" value="hr-applicant"><input type="hidden" name="return_id" value="'.(int)$a['id'].'">'
             .'<div class="section-t">Endorse to Hiring review</div>';
-        if(!$choices)$o.='<p class="tiny muted">No one can be endorsed for this job yet. For a Retail job, set its area and branches on the job opening first.</p>';
+        $noAcctHtml='';
+        $noAcct=RecruitmentRepository::scopeStaffWithoutAccount((int)$a['id']);
+        if($noAcct){
+            $noAcctHtml='<div class="tiny muted" style="margin:0 0 12px"><strong>Cannot be endorsed yet</strong> (they hold a reviewer position):<ul style="margin:4px 0 0 18px">';
+            $roleLabel=['SC'=>'Sales Captain','OIC'=>'OIC','MT'=>'Management Trainee']; $canFix=Auth::can('recruitment.set_reviewer_role'); $fixForms='';
+            foreach($noAcct as $n){
+                $noAcctHtml.='<li>'.e($n['name']).' ('.e($n['position']).', '.e($n['branch']).'): ';
+                if($canFix&&$n['suggested_role']){
+                    $fid='fixrole-'.(int)$n['user_id'];
+                    $noAcctHtml.='portal account role is '.e($n['role_name']).'. <button class="btn" form="'.$fid.'" style="margin-left:4px" title="Signs this account out so the new access applies">Set role to '.e($roleLabel[$n['suggested_role']]??$n['suggested_role']).'</button></li>';
+                    // outside the endorse form: HTML does not allow a form inside a form
+                    $fixForms.='<form id="'.$fid.'" method="post" hidden>'.csrf_field().'<input type="hidden" name="action" value="endorse_fix_role"><input type="hidden" name="application_id" value="'.(int)$a['id'].'"><input type="hidden" name="user_id" value="'.(int)$n['user_id'].'"><input type="hidden" name="return_page" value="hr-applicant"><input type="hidden" name="return_id" value="'.(int)$a['id'].'"></form>';
+                } else $noAcctHtml.=e($n['reason']).'.</li>';
+            }
+            $noAcctHtml.='</ul>'.($fixForms!==''?'<div class="tiny muted" style="margin-top:4px">Setting the role signs that account out once. It keeps its Employee portal and gains Candidates for review.</div>':'').'</div>';
+        }
+        $scoped=RecruitmentRepository::scopeBranches((int)$a['id'])||RecruitmentRepository::siteTypeOf((int)$a['id'])!=='RETAIL';
+        if(!$choices)$o.='<p class="tiny muted">'.($scoped?'No one with a portal account can be endorsed for this job yet.':'No one can be endorsed for this job yet. For a Retail job, set its area and branches on the job opening first.').'</p>'.$noAcctHtml;
         else{
+            $o.=$noAcctHtml;
             $o.='<div class="field"><label for="rv-filter">Find a person</label><input id="rv-filter" type="search" autocomplete="off" placeholder="Type a name" aria-controls="rv-list"></div>'
                 .'<div id="rv-list" role="group" aria-label="People to endorse to" style="max-height:220px;overflow:auto;margin-bottom:12px">';
             foreach($choices as $c){
@@ -42,7 +60,7 @@ function applicant_reviewer_card(array $a):string
                 .'<button class="btn primary">Endorse →</button>'
                 .'<script>(function(){var f=document.getElementById("rv-filter"),items=document.querySelectorAll(".rv-item"),none=document.getElementById("rv-empty");if(!f)return;f.addEventListener("input",function(){var q=f.value.trim().toLowerCase(),n=0;items.forEach(function(i){var s=i.dataset.name.indexOf(q)>-1;i.hidden=!s;if(s)n++});none.hidden=n>0})})();</script>';
         }
-        $o.='</form>';
+        $o.='</form>'.($fixForms??'');
     }
     if($answers){
         $o.='<div class="card pad" style="margin-bottom:16px"><div class="section-t">Hiring review</div>';
@@ -134,6 +152,9 @@ function interview_scorecard_card(int $applicationId,string $returnPage,bool $lo
     $avg=RecruitmentRepository::scorecardAverage($cards);
     $o='<div class="card pad" style="margin-bottom:16px"><div class="section-t">Interview scorecard'.($avg!==null?' <span class="badge blue">'.e(number_format($avg,1)).' / 5</span>':'').'</div>';
     if(!$locked){
+        if($mine){ // saved: show it locked, editing is one click away
+            $o.='<div class="small" style="margin-bottom:8px"><span class="badge green">Saved</span> Your scorecard: '.e(number_format((float)RecruitmentRepository::scorecardAverage([$mine]),1)).' / 5 · '.e(RecruitmentRepository::RECOMMENDATIONS[$mine['recommendation']]??'').'</div><details><summary class="tiny" style="cursor:pointer;font-weight:600">Edit my scorecard</summary><div style="margin-top:10px">';
+        }
         $o.='<form method="post">'.csrf_field().'<input type="hidden" name="action" value="save_scorecard"><input type="hidden" name="application_id" value="'.$applicationId.'"><input type="hidden" name="return_page" value="'.e($returnPage).'">';
         foreach(RecruitmentRepository::CRITERIA as $k=>$label){
             $o.='<fieldset style="border:0;padding:0;margin:0 0 8px"><legend class="tiny muted">'.e($label).' (1 poor, 5 excellent)</legend><div class="actions-inline">';
@@ -143,6 +164,7 @@ function interview_scorecard_card(int $applicationId,string $returnPage,bool $lo
         $o.='<fieldset style="border:0;padding:0;margin:10px 0"><legend class="tiny muted">Recommendation (advice only; HR decides)</legend><div class="actions-inline">';
         foreach(RecruitmentRepository::RECOMMENDATIONS as $code=>$label)$o.='<label style="display:inline-flex;gap:6px;align-items:center"><input type="radio" name="recommendation" value="'.e($code).'"'.(($mine['recommendation']??'')===$code?' checked':'').' required> '.e($label).'</label>';
         $o.='</div></fieldset><div class="field"><label for="isc-note">Note (optional)</label><textarea id="isc-note" name="note" rows="2" maxlength="2000">'.e((string)($mine['note']??'')).'</textarea></div><button class="btn primary">Save scorecard</button></form>';
+        if($mine)$o.='</div></details>';
     }else $o.='<div class="tiny muted">This candidate is already an employee, so scorecards are locked.</div>';
     if(Auth::can('recruitment.manage')&&$cards){
         $o.='<div style="margin-top:14px">';

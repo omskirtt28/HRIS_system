@@ -164,3 +164,8 @@ Related: [[Decision-Log]] · [[Roadmap]] · [[Business-Rules]] · [[PH-Labor-and
 - Q: a Retail ADL is matched to an area through his employee branch's area. If ADLs are assigned to areas elsewhere, switch the match.
 
 - Applicant page: SENT offer shows a collapsed "Revise offer"; decided with John 2026-11-03 (assistant default accepted). Nothing open.
+- 2026-11-04 retail-manager: split Retail Managers by area (when a second one exists) is not built; ADLs still need a hand-assigned head in Employee 201. Pre-existing stale role-list assertions in ticket_viewers_test and oic_authorization_test fail with or without migration 032.
+
+- Open: do Consultants need payroll, leave or attendance rules different from Regular? Currently treated as ACTIVE like Regular.
+
+- 2026-11-04 department-picker: (1) A new department created in Organization Setup is not selectable on employee forms until it is mapped to a main department in code; consider adding a Main department field in Organization Setup (not built). (2) HR assumed = PMBSI HR only; 'Human Resources Assistant' still sits under Admin/Manpower. (3) Duplicate positions (ADL x3, Billing and Collection Staff x3) and position id 25 with no department are untouched. (4) SPEC-form-keep-input.md Module 2 (keep typed input after an error or refresh) is the next slice, not started.

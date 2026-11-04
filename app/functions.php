@@ -75,3 +75,14 @@ function rating_badge(?string $rating): string {
     $label=RecruitmentRepository::RATINGS[$rating??'']??null;
     return $label===null?'<span class="badge gray">—</span>':'<span class="badge '.['NEGATIVE'=>'red','FAIR'=>'amber','OUTSTANDING'=>'green'][$rating].'">'.e($label).'</span>';
 }
+
+/** Prev / Next pager for server-side lists. $params are the active filters; the page number goes in `p`. Empty when there is only one page. */
+function pager_html(int $total,int $page,int $per,string $route,array $params=[]): string {
+    $pages=max(1,(int)ceil($total/$per)); if($pages<2)return '';
+    $from=($page-1)*$per+1; $to=min($total,$page*$per);
+    $link=fn(int $p,string $label,string $aria)=>'<a class="btn sm" href="'.e(url($route,$params+['p'=>$p])).'" aria-label="'.e($aria).'">'.$label.'</a>';
+    return '<nav class="pager" aria-label="Pagination"><span class="tiny muted" role="status">Showing '.$from.'-'.$to.' of '.$total.'</span><span class="pager-btns">'
+        .($page>1?$link($page-1,'‹ Previous','Previous page'):'<span class="btn sm" aria-disabled="true">‹ Previous</span>')
+        .'<span class="tiny muted">Page '.$page.' of '.$pages.'</span>'
+        .($page<$pages?$link($page+1,'Next ›','Next page'):'<span class="btn sm" aria-disabled="true">Next ›</span>').'</span></nav>';
+}

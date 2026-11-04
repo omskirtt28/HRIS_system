@@ -184,3 +184,9 @@ Hub for HR requests: [[Employee-Tickets]] · UI rules: [[Design-System]]
 ## 2026-10-29 - Organization Setup side-by-side UI/UX
 
 - Organization Setup UI/UX implemented: desktop cards stay paired (Branches & Sites keeps its wide card), records show name/status then metadata and a dedicated action row. All Add controls have visible labels, Position name spans its form, and the native department editor opens below the actions. Deactivate/Reactivate use distinct treatments; existing POST payloads, CSRF, manage gates and company eligibility are preserved.
+
+## Addendum 2026-11-04 - Retail Manager
+- The Retail Manager sits above the ADLs (any number allowed). The position is in the Retail department and appears under Department Managers in the Directory. ADL areas (`directory_area_ids`) are unchanged.
+
+## Addendum 2026-11-04 - Departments in the employee form
+- The long department list stays in Organization Setup unchanged. The employee forms show only the 7 main departments; a new department added here appears in the form only after it is mapped in DepartmentPicker::groupOf (tests/department_picker_test.php fails to flag an unmapped active department). 'Online Shop' was renamed 'Online' (migration 034).

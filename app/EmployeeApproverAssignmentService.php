@@ -23,11 +23,11 @@ final class EmployeeApproverAssignmentService
         return ($employee['site_type'] ?: (($employee['branch_code'] === 'HEAD_OFFICE' || $employee['workplace'] === 'HEAD_OFFICE') ? 'HEAD_OFFICE' : 'BRANCH')) === 'HEAD_OFFICE' ? 'MANAGER' : 'ADL';
     }
 
-    /** A Manager files straight to HR and has no viewer above them: the employee's own account holds the MANAGER role. */
+    /** A Manager files straight to HR and has no viewer above them: the employee's own account holds the MANAGER or RETAIL_MANAGER role. */
     public static function isManagerFiler(array $employee): bool
     {
         if (empty($employee['user_id'])) return false;
-        $q=db()->prepare('SELECT 1 FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=? AND r.code="MANAGER"');
+        $q=db()->prepare('SELECT 1 FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=? AND r.code IN ("MANAGER","RETAIL_MANAGER")');
         $q->execute([(int)$employee['user_id']]);return (bool)$q->fetchColumn();
     }
 

@@ -122,3 +122,5 @@ Default for every new or touched screen. Reference implementation: `.ap-sec` col
 - Visible focus, mobile wrap under 600px, honour prefers-reduced-motion, check dark mode.
 - Bump the `?v=` on `app.css` in `app/View.php` when CSS changes (no cache-busting otherwise = old UI shown).
 - When touching a screen, upgrade old-looking patterns in it (fix sweep). Swept 2026-11-03: Tickets (.tk-collapse, .hq-uniform, .tv-panel details, .tr-more, .tk-earlier) via app.css. Not yet swept: payroll, incidents, attendance, roster import, directory. Left alone: .hq-filters (button-style summary).
+
+- Pipeline kanban (.kanban/.kcol/.kcard/.kempty) swept to this standard 2026-11-03.

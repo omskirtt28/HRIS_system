@@ -93,7 +93,7 @@ final class TicketViewerService
         $q=db()->prepare('SELECT e.id FROM employees e JOIN branches b ON b.id=e.branch_id
             LEFT JOIN users eu ON eu.id=e.user_id LEFT JOIN roles er ON er.id=eu.role_id
             WHERE e.status IN '.self::ACTIVE.' AND b.site_type="HEAD_OFFICE" AND e.manager_employee_id IN ('.implode(',',array_fill(0,count($mineIds),'?')).')
-            AND e.id NOT IN ('.implode(',',array_fill(0,count($mineIds),'?')).') AND COALESCE(er.code,"")<>"MANAGER"');
+            AND e.id NOT IN ('.implode(',',array_fill(0,count($mineIds),'?')).') AND COALESCE(er.code,"") NOT IN ("MANAGER","RETAIL_MANAGER")');
         $q->execute(array_merge($mineIds,$mineIds));
         return array_map('intval',$q->fetchAll(PDO::FETCH_COLUMN));
     }

@@ -1,3 +1,43 @@
+## 2026-11-04 - Pipeline scale, paging and board filters (local)
+- Board reads counts plus 8 newest cards per stage from SQL; Applicants list paged 25/page; board search, job and recruiter filters, Hiring flow / Parked groups, days-in-stage chip. No migration.
+
+## 2026-11-04 - Pipeline board polish (local)
+- Deployed candidates leave the Pipeline board (button opens them in Applicants), 5x2 stage grid, accent colour per stage, "+N more" link for long columns. UI only, no migration.
+
+
+## 2026-11-04 - Endorse card: set reviewer role (local)
+- HR can set a listed Sales Captain / Management Trainee account to its role from the Endorse card (new permission recruitment.set_reviewer_role, migration 035). OIC stays Super Admin only. Needs migration 035 on hosting.
+## 2026-11-04 - Endorse card explains who cannot be endorsed (local)
+- Hiring review Endorse card now lists staff in a reviewer position (Sales Captain, OIC, MT, ADL) at the job's branches who still cannot be picked, with the reason: no portal account, inactive account, or account role is not a reviewer role. Nothing saved changes.
+
+## 2026-11-04 - Login: show/hide password eye (local)
+- index.php login form: eye button on Password (aria-pressed, Show/Hide label); hris-modern.css `.login-pw`.
+- Fix: stale CSS cache version bumped (View.php); .login-pw full width.
+
+## 2026-11-04 - Forms keep typed values on refresh (local)
+- public/assets/hris-app.js: sessionStorage draft for POST forms; cleared on successful save or Cancel. View.php asset version bumped.
+
+## 2026-11-04 - Department and Position pickers (local)
+- Add Employee, Employee 201 and Convert to Employee now show only Manpower Planning, Inventory Management, Finance, HR, Retail, Marketing & Creatives and Online as Department, and Position lists only that department's positions grouped by team (like the Directory). A mismatch such as Retail Manager under another department can no longer be picked. 'Online Shop' is now called 'Online'. Nothing already saved changes.
+
+## 2026-11-04 - Consultant status (local)
+- Employee Status now includes Consultant (Employee 201 and anywhere the status list is used). Treated like Regular: no probation or term dates.
+
+## 2026-11-04 - Retail Manager heads the ADLs (local)
+- HR can now create a Retail Manager (new position and role). In Employee 201 an ADL's "Reporting To" lists Retail Managers only, and the Retail Manager approves for and sees the tickets of their ADLs. The Retail Manager has no recruitment access. Existing ADLs stay Unassigned until HR picks their Retail Manager.
+
+## 2026-11-04 - Retail endorse list and scorecard (local)
+- The Endorse card now names Retail staff (Sales Captain, OIC, MT, ADL) who have no portal account, and no longer tells HR to set branches when they are already set. A saved interview scorecard shows as Saved and is edited through "Edit my scorecard".
+
+## 2026-11-04 - Public pages stay light (local)
+- The public website (home, careers, about, contact, track application) always shows in the light look, even if someone chose Dark in the employee portal on the same computer.
+
+## 2026-11-03 - Pipeline board redesign (local)
+- The Recruitment Pipeline board now fits the screen without a scrollbar, with a colour accent per stage, rounded counts and a clear empty state.
+
+## 2026-11-04 - Public pages stay light (local)
+- The public website (home, careers, about, contact, track application) always shows in the light look, even if someone chose Dark in the employee portal on the same computer.
+
 ## 2026-11-03 - Deployment hire date (local)
 - The Deployment "Scheduled date" is now labelled "Hire date" (defaults to the offer start date). Convert to Employee pre-fills Hire date from it, then offer start date. No schema change.
 
@@ -525,3 +565,15 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 
 ## 2026-11-03 - Applicant page declutter (local)
 - Sections collapse by stage; an accepted offer is locked; deployment branch is pre-filled from the job opening (other branches still selectable as an exception).
+
+## 2026-11-04 - Reporting To box removed (local)
+- Employee 201 employment form no longer shows "Reporting To / Manager or ADL". Existing assignments are kept.
+
+## 2026-11-04 - Reporting To hidden for Consultant (local)
+- Employee 201 form hides "Reporting To / Manager or ADL" only when Employee Status is Consultant.
+
+## 2026-11-04 - ADL Reporting To lists the Retail Manager (local)
+- Retail Manager account now has the Retail Manager role, so ADLs can pick them in Employee 201. A Retail Manager with the wrong account role shows disabled with the reason.
+
+## 2026-11-04 - Pipeline split by Head Office / Retail (local)
+- The Recruitment Pipeline now shows Head Office or Retail, never mixed. Each HR has a saved view and can switch; Retail can be limited to chosen branches. Migration 036 (two small tables). Applicants opened from the board follows the same filter.

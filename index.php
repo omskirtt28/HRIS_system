@@ -16,6 +16,7 @@ require_once __DIR__ . '/app/JobOpeningsViews.php';
 require_once __DIR__ . '/app/CandidateReviewViews.php';
 
 $page = (string)($_GET['page'] ?? 'home');
+require_once __DIR__.'/app/DepartmentPicker.php';
 require_once __DIR__.'/app/AccountPasswordModule.php';
 account_password_handle($page);
 // Backward-compatible alias for early Phase 3A links/bookmarks.
@@ -139,6 +140,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             RecruitmentRepository::endorseToReviewers((int)$_POST['application_id'],trim((string)($_POST['note']??'')),is_array($_POST['reviewers']??null)?$_POST['reviewers']:[],is_array($_POST['final']??null)?$_POST['final']:[]);
             flash('success','Candidate endorsed and moved to Hiring Review.'); redirect('hr-applicant',['id'=>(int)$_POST['application_id']]);
         }
+        if ($action === 'endorse_fix_role') {
+            Auth::requirePermission('recruitment.manage'); Auth::requirePermission('recruitment.set_reviewer_role');
+            $aid=(int)($_POST['application_id']??0);
+            $roleName=RecruitmentRepository::fixReviewerRole($aid,(int)($_POST['user_id']??0));
+            flash('success','Role changed to '.$roleName.'. The account was signed out so the new access applies.'); redirect('hr-applicant',['id'=>$aid]);
+        }
+        if ($action === 'pipeline_save_view') { // HR's own default Pipeline view; a default, not a permission
+            Auth::requirePermission('recruitment.view');
+            $site=($_POST['site']??'')==='RETAIL'?'RETAIL':'HEAD_OFFICE'; $branches=null;
+            if (isset($_POST['branches_form'])) { // branch picker posted: every branch ticked = no branch filter
+                $branches=array_map('intval',(array)($_POST['branch']??[])); if (count(array_unique($branches))>=count(RecruitmentRepository::retailBranches())) { $branches=[]; }
+            }
+            RecruitmentRepository::savePipelineView((int)Auth::user()['id'],$site,$branches); redirect('hr-pipeline');
+        }
         if ($action === 'save_scorecard') {
             $rp=($_POST['return_page']??'')==='review-candidate'?'review-candidate':'hr-applicant'; $aid=(int)($_POST['application_id']??0);
             $sc=[]; foreach(array_keys(RecruitmentRepository::CRITERIA) as $k)$sc[$k]=$_POST['score_'.$k]??null;
@@ -199,7 +214,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'personal_email'=>trim((string)($_POST['personal_email']??'')),
                 'mobile_no'=>trim((string)($_POST['mobile_no']??'')),
                 'work_company'=>(string)($_POST['work_company']??''),
-                'department_id'=>(int)($_POST['department_id']??0),
+                'department_id'=>DepartmentPicker::departmentId($_POST),
                 'position_id'=>(int)($_POST['position_id']??0),
                 'branch_id'=>(int)($_POST['branch_id']??0),
                 'employment_type_id'=>(int)($_POST['employment_type_id']??0),'require_employee_status'=>true,
@@ -399,7 +414,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'civil_status'=>(string)($_POST['civil_status']??''),
                 'address_text'=>(string)($_POST['address_text']??''),
                 'work_company'=>(string)($_POST['work_company']??''),'require_work_company'=>true,
-                'department_id'=>(int)($_POST['department_id']??0),
+                'department_id'=>DepartmentPicker::departmentId($_POST),
                 'position_id'=>(int)($_POST['position_id']??0),
                 'branch_id'=>(int)($_POST['branch_id']??0),
                 'employment_type_id'=>(int)($_POST['employment_type_id']??0),'require_employee_status'=>true,
@@ -434,7 +449,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             EmployeeRepository::updateEmployment($id,[
                 'work_company'=>(string)($_POST['work_company']??''),
                 ...(array_key_exists('lee_code',$_POST)?['lee_code'=>(string)$_POST['lee_code']]:[]),
-                'employee_no'=>(string)($_POST['employee_no']??''),'department_id'=>(int)($_POST['department_id']??0),
+                'employee_no'=>(string)($_POST['employee_no']??''),'department_id'=>DepartmentPicker::departmentId($_POST,EmployeeRepository::find($id)),
                 'position_id'=>(int)($_POST['position_id']??0),'branch_id'=>(int)($_POST['branch_id']??0),'employment_type_id'=>$postedType,'manager_employee_id'=>(int)($_POST['manager_employee_id']??0),
                 'business_unit_id'=>(int)($_POST['business_unit_id']??0),'legal_entity_id'=>(int)($_POST['legal_entity_id']??0),
                 'directory_fields_present'=>!empty($_POST['directory_fields_present']),
@@ -721,13 +736,15 @@ if ($page === 'login') {
       <div class="login-form"><form class="login-card" method="post"><?=csrf_field()?><input type="hidden" name="action" value="login"><?php if($portal!==''):?><input type="hidden" name="portal" value="<?=e($portal)?>"><?php endif;?>
         <div><h2>Welcome back</h2><div class="login-sub"><?=e($meta[1])?></div></div>
         <div class="field"><label>Email address</label><input type="email" name="email" required value="<?=e($meta[2])?>" autocomplete="username"></div>
-        <div class="field"><label>Password</label><input type="password" name="password" required value="" autocomplete="current-password"></div>
+        <div class="field"><label for="loginPassword">Password</label><div class="login-pw"><input id="loginPassword" type="password" name="password" required value="" autocomplete="current-password"><button class="users-eye-btn" type="button" aria-label="Show password" aria-pressed="false" data-login-pw-toggle><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path class="eye-slash" d="M4 4l16 16"/></svg></button></div></div>
         <button class="btn primary block" style="height:44px;justify-content:center">Sign in <?=icon_svg('arrow')?></button>
         <p class="tiny" style="margin:0;text-align:center">Forgot your password? Ask HR to reset it.</p>
         <div class="login-footnote">Your dashboard is selected automatically based on your account role.</div>
         <div style="text-align:center;margin-top:14px"><a href="<?=url('home')?>" class="small muted">← Back to PMBSI Careers</a></div>
       </form></div>
-    </div></body></html>
+    </div>
+    <script>document.querySelectorAll('[data-login-pw-toggle]').forEach(function(b){b.addEventListener('click',function(){var i=document.getElementById('loginPassword'),show=i.type==='password';i.type=show?'text':'password';b.classList.toggle('active',show);b.setAttribute('aria-pressed',show?'true':'false');b.setAttribute('aria-label',show?'Hide password':'Show password');});});</script>
+    </body></html>
     <?php exit;
 }
 
@@ -1409,8 +1426,7 @@ if ($page === 'hr-employee-new') {
         </div></section>
         <section class="panel employee-form-card"><div class="panel-head"><div><h2>Employment information</h2><p>Organization assignment and employment details.</p></div></div><div class="panel-body employee-form-grid">
           <div class="field"><label for="work_company_create">Company <span class="req">*</span></label><select id="work_company_create" name="work_company" required><option value="">Select Company</option><option value="2LOG">2LOG</option><option value="PMBSI">PMBSI</option></select></div>
-          <div class="field"><label>Department</label><select name="department_id"><option value="">Unassigned</option><?php foreach($masters['departments'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>" data-company="<?=e($x['work_company']??'2LOG')?>"><?=e($x['name'])?></option><?php endforeach;?></select></div>
-          <div class="field"><label>Position</label><select name="position_id"<?=Auth::can('organization.manage')?' data-org-url="'.e(url('admin-organization')).'"':''?>><option value="">Unassigned</option><?php foreach($masters['positions'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>" data-pmbsi-position="<?=EmployeeRepository::positionAllowedForWorkCompany((string)$x['name'],'PMBSI')?'1':'0'?>" data-2log-position="<?=EmployeeRepository::positionAllowedForWorkCompany((string)$x['name'],'2LOG')?'1':'0'?>" data-active="<?=(int)$x['active']?>"><?=e($x['name'])?><?=!empty($x['department_name'])?' · '.e($x['department_name']):''?></option><?php endforeach;?></select></div>
+          <?=DepartmentPicker::fields(null,null,Auth::can('organization.manage'))?>
           <div class="field"><label>Branch / Site</label><select name="branch_id"><option value="">Unassigned</option><?php foreach($masters['branches'] as $x): if(!$x['active'])continue;?><option value="<?=$x['id']?>"><?=e($x['name'])?></option><?php endforeach;?></select></div>
           <div class="field"><label>Employee Status <span class="req">*</span></label><select name="employment_type_id" required><option value="">Select Employee Status</option><?php foreach($masters['employment_types'] as $x): if(!$x['active']||in_array($x['code'],['RESIGN','MATERNITY_LEAVE'],true))continue;?><option value="<?=$x['id']?>" data-code="<?=e($x['code'])?>"><?=e($x['name'])?></option><?php endforeach;?></select></div>
           <div class="field"><label>Hire date <span class="req">*</span></label><input type="date" name="hire_date" required></div>
@@ -1429,7 +1445,7 @@ if ($page === 'hr-employee-new') {
     })();</script>
     <script>(function(){
       var c=document.querySelector('select[name="work_company"]');if(!c)return;
-      var f=c.form,d=f.querySelector('select[name="department_id"]'),b=f.querySelector('select[name="branch_id"]'),p=f.querySelector('select[name="position_id"]');if(!d||!b||!p)return;
+      var f=c.form,d=f.querySelector('select[name="department_group"]'),b=f.querySelector('select[name="branch_id"]'),p=f.querySelector('select[name="position_id"]');if(!d||!b||!p)return;
       var note=document.createElement('small');note.id=c.id+'_position_note';note.setAttribute('aria-live','polite');p.parentNode.appendChild(note);p.setAttribute('aria-describedby',note.id);
       function apply(changed){
         var pm=c.value==='PMBSI',two=c.value==='2LOG',hasHr=false;
@@ -1439,9 +1455,10 @@ if ($page === 'hr-employee-new') {
         Array.prototype.forEach.call(p.options,function(o){
           var hr=o.getAttribute('data-pmbsi-position')==='1';
           if(hr&&o.getAttribute('data-active')==='1')hasHr=true;
-          var excluded=!!o.value&&((pm&&!hr)||(two&&o.getAttribute('data-2log-position')!=='1'));
+          var gs=d.value,excluded=!!o.value&&((pm&&!hr)||(two&&o.getAttribute('data-2log-position')!=='1')||(gs?o.getAttribute('data-group')!==gs:!o.selected));
           o.hidden=excluded;o.disabled=excluded;
         });
+        Array.prototype.forEach.call(p.querySelectorAll('optgroup'),function(g){g.hidden=!Array.prototype.some.call(g.querySelectorAll('option'),function(o){return !o.hidden;});});
         var invalid=p.selectedOptions.length&&p.selectedOptions[0].disabled;
         if(changed&&invalid){p.value='';invalid=false;}
         var message=invalid?'The saved position is not available for this company. Choose a listed position or Unassigned.':'';
@@ -1449,7 +1466,7 @@ if ($page === 'hr-employee-new') {
         note.textContent=message||(pm?(hasHr?'PMBSI currently offers Human Resource only.':'No active Human Resource position yet. Leave Unassigned for now.'):'');if(!message&&pm&&!hasHr&&p.getAttribute('data-org-url')){var a=document.createElement('a');a.href=p.getAttribute('data-org-url');a.textContent=' Add it in Organization Setup > Positions.';note.appendChild(a);}
         note.hidden=!note.textContent;
       }
-      c.addEventListener('change',function(){apply(true);});p.addEventListener('change',function(){apply(false);});apply(false);
+      c.addEventListener('change',function(){apply(true);});d.addEventListener('change',function(){apply(true);});p.addEventListener('change',function(){apply(false);});apply(false);
     })();</script>
     <?php employee_regularization_script();?>
     <?php render_portal_footer(); exit;
@@ -1529,10 +1546,10 @@ if ($page === 'hr-employee') {
       <?php employee_maternity_panel($e);?>
       <?php if($canManage && empty($e['user_id'])):?><form id="genAccountForm" method="post" action="<?=url('hr-employee',['id'=>(int)$e['id'],'tab'=>'employment'])?>"><?=csrf_field()?><input type="hidden" name="action" value="generate_employee_account"><input type="hidden" name="employee_id" value="<?=(int)$e['id']?>"></form><?php endif;?>
       <section class="panel phase2b-form-panel"><div class="panel-head"><div><h2>Employment information</h2><p>Assignment, status, portal linkage and effective-date history.</p></div><span class="badge gray">Changes are audited</span></div><?php if(!$canManage):?><div class="panel-body"><div class="alert">You have view-only access.</div></div><?php else:?><form method="post" class="panel-body employee-form-grid"><?=csrf_field()?><input type="hidden" name="action" value="update_employee_employment"><input type="hidden" name="employee_id" value="<?=$id?>"><input type="hidden" name="return_page" value="hr-employee"><input type="hidden" name="return_id" value="<?=$id?>"><input type="hidden" name="return_tab" value="employment">
-        <div class="field"><label>Employee number</label><input name="employee_no" value="<?=e($e['employee_no'])?>" <?=empty($e['employee_no']) && !empty($e['roster_needs_details'])?'':'required'?>></div><div class="field"><?php if(!empty($e['user_id'])):?><label for="portalAccountEmail">Portal account</label><input id="portalAccountEmail" value="<?=e((string)($e['company_email']??'Linked'))?>" readonly aria-readonly="true"><small>Linked. View or manage it in Users &amp; Access.</small><?php elseif(in_array((string)$e['status'],EmployeeRepository::ARCHIVED_STATUSES,true)):?><label>Portal account</label><input value="No account" readonly aria-readonly="true"><small>Archived employees do not get a new account.</small><?php else:?><label for="genAccountRole">Portal account</label><div class="account-generate"><select id="genAccountRole" name="account_role" form="genAccountForm"><option value="EMPLOYEE">Employee</option><?php if(Auth::can('users.view_credentials')):?><option value="HR">HR</option><?php endif;?></select><button class="btn" type="submit" form="genAccountForm">Generate account</button></div><small>No account yet. The email and a temporary password are created for you. The employee must change the password at first sign in.</small><?php endif;?></div>
+        <div class="field"><label>Employee number</label><input name="employee_no" value="<?=e($e['employee_no'])?>" <?=empty($e['employee_no']) && !empty($e['roster_needs_details'])?'':'required'?>></div><div class="field"><?php if(!empty($e['user_id'])):?><label for="portalAccountEmail">Portal account</label><input id="portalAccountEmail" value="<?=e((string)($e['company_email']??'Linked'))?>" readonly aria-readonly="true"><small>Linked. View or manage it in Users &amp; Access.</small><?php elseif(in_array((string)$e['status'],EmployeeRepository::ARCHIVED_STATUSES,true)):?><label>Portal account</label><input value="No account" readonly aria-readonly="true"><small>Archived employees do not get a new account.</small><?php else:?><label for="genAccountRole">Portal account</label><div class="account-generate"><select id="genAccountRole" name="account_role" form="genAccountForm"><option value="EMPLOYEE">Employee</option><?php if(Auth::can('users.view_credentials')):?><option value="HR">HR</option><?php endif;?></select><button class="btn primary" type="submit" form="genAccountForm">Generate account</button></div><small>No account yet. The email and a temporary password are created for you. The employee must change the password at first sign in.</small><?php endif;?></div>
         <?php if(array_key_exists('lee_code',$e)):?><div class="field"><label for="lee_code">Lee code</label><input id="lee_code" name="lee_code" value="<?=e($e['lee_code']??'')?>" maxlength="30" autocomplete="off"><small>Payroll code used by Lee. Leave blank if none.</small></div><?php endif;?>
         <div class="field"><label for="work_company_edit">Company</label><select id="work_company_edit" name="work_company"><option value="">Not set</option><?php foreach(['2LOG','PMBSI'] as $wc):?><option value="<?=e($wc)?>" <?=($e['work_company']??'')===$wc?'selected':''?>><?=e($wc)?></option><?php endforeach;?></select><small>Choose the work assignment company.</small></div>
-        <div class="field"><label>Department</label><select name="department_id"><option value="">Unassigned</option><?php foreach($masters['departments'] as $x): $isSelected=((int)($e['department_id']??0)===(int)$x['id']); if(!$x['active']&&!$isSelected)continue;?><option value="<?=$x['id']?>" data-company="<?=e($x['work_company']??'2LOG')?>" data-active="<?=(int)$x['active']?>" data-retail="<?=strtoupper((string)($x['code']??''))==='RETAIL'?'1':'0'?>" <?=$isSelected?'selected':''?>><?=e($x['name'])?><?=!$x['active']?' · Retired':''?></option><?php endforeach;?></select></div><div class="field"><label>Position</label><select name="position_id"<?=Auth::can('organization.manage')?' data-org-url="'.e(url('admin-organization')).'"':''?>><option value="">Unassigned</option><?php foreach($masters['positions'] as $x): $isSelected=((int)($e['position_id']??0)===(int)$x['id']); if(!$x['active']&&!$isSelected)continue;?><option value="<?=$x['id']?>" data-pmbsi-position="<?=EmployeeRepository::positionAllowedForWorkCompany((string)$x['name'],'PMBSI')?'1':'0'?>" data-2log-position="<?=EmployeeRepository::positionAllowedForWorkCompany((string)$x['name'],'2LOG')?'1':'0'?>" data-active="<?=(int)$x['active']?>" <?=$isSelected?'selected':''?>><?=e($x['name'])?><?=!empty($x['department_name'])?' · '.e($x['department_name']):''?><?=!$x['active']?' · Retired':''?></option><?php endforeach;?></select></div>
+        <?=DepartmentPicker::fields((int)($e['department_id']??0)?:null,(int)($e['position_id']??0)?:null,Auth::can('organization.manage'))?>
         <div class="field"><label>Branch / Site</label><select name="branch_id"><option value="">Unassigned</option><?php foreach($masters['branches'] as $x): $isSelected=((int)($e['branch_id']??0)===(int)$x['id']); if(!$x['active']&&!$isSelected)continue;?><option value="<?=$x['id']?>" data-companies="<?=e(json_encode(FoundationRepository::branchCompanyMap()[(int)$x['id']]??[],JSON_FORCE_OBJECT))?>" <?=$isSelected?'selected':''?>><?=e($x['name'])?><?=!$x['active']?' · Retired':''?></option><?php endforeach;?></select></div><div class="field"><label>Employee Status</label><?php $onMaternity=MaternityService::ready()&&(bool)MaternityService::active((int)$e['id']); $typeLocked=in_array($e['status'],EmployeeRepository::ARCHIVED_STATUSES,true)||$onMaternity;if($typeLocked):?><input type="hidden" name="employment_type_id" value="<?=e((string)($e['employment_type_id']??''))?>"><?php endif;?><select name="employment_type_id" <?=$typeLocked?'disabled':''?>><option value="">Unassigned</option><?php foreach($masters['employment_types'] as $x): if(!$x['active']&&(int)($e['employment_type_id']??0)!==(int)$x['id'])continue;?><option value="<?=$x['id']?>" data-code="<?=e($x['code'])?>" <?=((int)($e['employment_type_id']??0)===(int)$x['id'])?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select><small><?=$typeLocked?($onMaternity?'On maternity leave. Use Return to work in the Maternity leave box.':'In the Employee Archive. Use Restore to change it.'):'Resign moves the employee to the Employee Archive (needs the effective date and remarks below).'?></small></div>
         <?php employee_maternity_fields($e);?>
         <?php if($e['status']==='PROBATIONARY' || !empty($e['probation_end_date']) || EmployeeStatusPolicy::isSeasonal(EmployeeStatusPolicy::code(isset($e['employment_type_id'])?(int)$e['employment_type_id']:null))): ?><?php $termCode=EmployeeStatusPolicy::code(isset($e['employment_type_id'])?(int)$e['employment_type_id']:null); $termLabel=EmployeeStatusPolicy::termLabel($termCode); $termMonths=EmployeeStatusPolicy::termMonths($termCode); ?><div class="field probation-note"><label><?=e($termLabel)?> (automatic)</label><?php if(!empty($e['probation_end_date'])): $pd=(int)(new DateTimeImmutable('today'))->diff(new DateTimeImmutable($e['probation_end_date']))->format('%r%a'); ?><div class="probation-box"><strong><?=e(date('M j, Y',strtotime($e['probation_start_date'])))?> → <?=e(date('M j, Y',strtotime($e['probation_end_date'])))?></strong><span class="badge <?=$pd<0?'red':($pd<=30?'amber':'gray')?>"><?=$pd<0?abs($pd).' days overdue':($pd===0?'Ends today':$pd.' days left')?></span></div><small><?=(int)$termMonths?> months from the hire date, counted automatically. The ADL / Manager is reminded one month before the end; HR and the employee at the end.</small><?php else:?><div class="probation-box"><strong>Not counting yet</strong></div><small>Enter the hire date and save. The <?=(int)$termMonths?> months are counted automatically.</small><?php endif;?></div><?php endif;?>
@@ -1550,14 +1567,14 @@ if ($page === 'hr-employee') {
         <?=DirectorySectionViews::field($e)?>
         <fieldset class="field full directory-assigned-areas"><legend>Assigned areas for ADL</legend><small>Choose all areas handled by this ADL.</small><div class="directory-area-options"><?php foreach($directoryAreas as $area):$areaId=(int)$area['id'];if(empty($area['active'])&&!in_array($areaId,$assignedDirectoryAreas,true))continue;?><label><input type="checkbox" name="directory_area_ids[]" value="<?=$areaId?>" <?=in_array($areaId,$assignedDirectoryAreas,true)?'checked':''?>><?=e($area['name'])?></label><?php endforeach;?></div></fieldset>
         <?php endif;?>
-        <div class="field full reporting-manager-field">
+        <div class="field full reporting-manager-field" id="reporting_manager_field"<?=EmployeeStatusPolicy::code(isset($e['employment_type_id'])?(int)$e['employment_type_id']:null)==='CONSULTANT'?' style="display:none"':''?>>
           <div class="reporting-manager-label"><label for="manager_employee_id">Reporting To / Manager or ADL</label><span class="badge amber">Assigned by HR</span></div>
           <?php $ocamposAdlId=EmployeeRepository::adlIdForArea('OCAMPOS',(int)$e['id']); ?>
           <select id="manager_employee_id" name="manager_employee_id" data-ocampos-adl="<?=(int)$ocamposAdlId?>">
             <option value="">Unassigned</option>
             <optgroup label="Available for approval routing">
             <?php foreach($masters['manager_candidates'] as $m): if((int)($m['manager_ready']??0)!==1 || ($m['user_status']??'')!=='ACTIVE')continue; $mn=EmployeeRepository::fullName($m);?>
-              <option value="<?=$m['id']?>" data-adl="<?=(int)($m['is_adl']??0)?>" data-ready="1" <?=((int)($e['manager_employee_id']??0)===(int)$m['id'])?'selected':''?>><?=e($mn)?> · <?=e($m['employee_no'])?><?=!empty($m['position_name'])?' · '.e($m['position_name']):''?><?=!empty($m['role_name'])?' · '.e($m['role_name']):''?></option>
+              <option value="<?=$m['id']?>" data-adl="<?=(int)($m['is_adl']??0)?>" data-rm="<?=(int)($m['is_retail_manager']??0)?>" data-ready="1"<?=((int)($e['manager_employee_id']??0)===(int)$m['id'])?'selected':''?>><?=e($mn)?> · <?=e($m['employee_no'])?><?=!empty($m['position_name'])?' · '.e($m['position_name']):''?><?=(!empty($m['role_name']) && strcasecmp((string)$m['role_name'],(string)($m['position_name']??''))!==0)?' · '.e($m['role_name']):''?></option>
             <?php endforeach;?>
             </optgroup>
             <?php /* ADLs without an approval account yet: only offered for Retail employees (script below). */
@@ -1572,16 +1589,18 @@ if ($page === 'hr-employee') {
             <?php $hasUnavailable=false; foreach($masters['manager_candidates'] as $m){if((int)($m['is_adl']??0)===1)continue;if((int)($m['manager_ready']??0)!==1 || ($m['user_status']??'')!=='ACTIVE'){$hasUnavailable=true;break;}} if($hasUnavailable):?>
             <optgroup label="Not ready — account/approval access required">
             <?php foreach($masters['manager_candidates'] as $m): if((int)($m['is_adl']??0)===1)continue; if((int)($m['manager_ready']??0)===1 && ($m['user_status']??'')==='ACTIVE')continue; $mn=EmployeeRepository::fullName($m);?>
-              <option value="<?=$m['id']?>" disabled><?=e($mn)?> · <?=e($m['employee_no'])?> · <?=empty($m['user_email'])?'No linked account':'Approval access required'?></option>
+              <?php $rmPos=($m['position_name']??'')==='Retail Manager'; /* Shown (disabled) to ADLs so HR sees why a Retail Manager cannot be picked. */?>
+              <option value="<?=$m['id']?>" <?=$rmPos?'data-rm="1" ':''?>disabled><?=e($mn)?> · <?=e($m['employee_no'])?> · <?=empty($m['user_email'])?'No linked account':($rmPos?'Account role must be Retail Manager with approval access':'Approval access required')?></option>
             <?php endforeach;?>
             </optgroup>
             <?php endif;?>
           </select>
           <div class="reporting-manager-help">
             <span><?=icon_svg('shield')?></span>
-            <div><strong>HR controls the reporting line.</strong><small>Head Office payroll tickets use the assigned Manager; branch tickets use the assigned ADL. Select an active linked account with the matching approval permission. Leave retains its separate approval requirements.</small><small data-retail-note hidden><b>Retail employees report to an Area Development Leader (ADL).</b> Only ADLs are listed. For Ocampo's, the ADL who holds the Ocampos area is filled in for you; HR can choose another ADL. An ADL needs a linked account with approval access before payroll tickets can be routed to them.</small></div>
+            <div><strong>HR controls the reporting line.</strong><small>Head Office payroll tickets use the assigned Manager; branch tickets use the assigned ADL. Select an active linked account with the matching approval permission. Leave retains its separate approval requirements.</small><small data-retail-note hidden><b>Retail employees report to an Area Development Leader (ADL).</b> Only ADLs are listed. For Ocampo's, the ADL who holds the Ocampos area is filled in for you; HR can choose another ADL. An ADL needs a linked account with approval access before payroll tickets can be routed to them.</small><small data-adl-note hidden><b>ADLs report to a Retail Manager.</b> Only Retail Managers with an active HRIS account are listed. Leave Unassigned until one is assigned.</small></div>
           </div>
-          <script>(function(){var m=document.getElementById('manager_employee_id'),d=document.querySelector('select[name="department_id"]'),g=document.querySelector('[data-company-group]'),note=document.querySelector('[data-retail-note]');if(!m||!d)return;var staticDisabled=[];Array.prototype.forEach.call(m.options,function(o){if(o.value&&o.disabled&&!o.getAttribute('data-adl'))staticDisabled.push(o);});function retail(){var o=d.options[d.selectedIndex];return !!o&&o.getAttribute('data-retail')==='1';}function apply(auto){var r=retail();Array.prototype.forEach.call(m.options,function(o){if(!o.value)return;var adl=o.getAttribute('data-adl')==='1',only=o.getAttribute('data-adl-only')==='1',show=r?adl:!only;o.hidden=!show;o.disabled=!show||staticDisabled.indexOf(o)>-1;});Array.prototype.forEach.call(m.querySelectorAll('optgroup'),function(og){var any=false;Array.prototype.forEach.call(og.options,function(o){if(!o.hidden)any=true;});og.hidden=!any;});var cur=m.options[m.selectedIndex];if(cur&&cur.value&&cur.hidden)m.value='';if(note)note.hidden=!r;var oc=m.getAttribute('data-ocampos-adl');if(auto&&r&&!m.value&&oc&&oc!=='0'&&g&&g.value==='OC'){var t=m.querySelector('option[value="'+oc+'"]');if(t&&!t.hidden){m.value=oc;}}}d.addEventListener('change',function(){apply(true);});if(g)g.addEventListener('change',function(){apply(true);});apply(false);})();</script>
+          <script>(function(){var m=document.getElementById('manager_employee_id'),d=document.querySelector('select[name="department_group"]'),g=document.querySelector('[data-company-group]'),note=document.querySelector('[data-retail-note]'),anote=document.querySelector('[data-adl-note]'),p=document.querySelector('select[name="position_id"]');if(!m||!d)return;var staticDisabled=[];Array.prototype.forEach.call(m.options,function(o){if(o.value&&o.disabled&&!o.getAttribute('data-adl'))staticDisabled.push(o);});function retail(){var po=p&&p.options[p.selectedIndex];if(po&&po.value)return po.getAttribute('data-retail')==='1';var o=d.options[d.selectedIndex];return !!o&&o.getAttribute('data-retail')==='1';}function kind(){var o=p&&p.options[p.selectedIndex],t=o?o.text:'';return /retail manager/i.test(t)?'rm':(/area development leader|\bADL\b/i.test(t)?'adl':'');}function apply(auto){var k=kind(),r=retail()&&k==='';Array.prototype.forEach.call(m.options,function(o){if(!o.value)return;var adl=o.getAttribute('data-adl')==='1',only=o.getAttribute('data-adl-only')==='1',show=k==='adl'?o.getAttribute('data-rm')==='1':(r?adl:!only);o.hidden=!show;o.disabled=!show||staticDisabled.indexOf(o)>-1;});Array.prototype.forEach.call(m.querySelectorAll('optgroup'),function(og){var any=false;Array.prototype.forEach.call(og.querySelectorAll('option'),function(o){if(!o.hidden)any=true;});og.hidden=!any;});var cur=m.options[m.selectedIndex];if(cur&&cur.value&&cur.hidden)m.value='';if(note)note.hidden=!r;if(anote)anote.hidden=k!=='adl';var oc=m.getAttribute('data-ocampos-adl');if(auto&&r&&!m.value&&oc&&oc!=='0'&&g&&g.value==='OC'){var t=m.querySelector('option[value="'+oc+'"]');if(t&&!t.hidden){m.value=oc;}}}d.addEventListener('change',function(){apply(true);});if(p)p.addEventListener('change',function(){apply(true);});if(g)g.addEventListener('change',function(){apply(true);});apply(false);})();</script>
+          <script>(function(){var box=document.getElementById('reporting_manager_field'),t=document.querySelector('select[name="employment_type_id"]');if(!box||!t)return;function sync(){var o=t.options[t.selectedIndex];box.style.display=o&&o.getAttribute('data-code')==='CONSULTANT'?'none':'';}t.addEventListener('change',sync);sync();})();</script>
         </div>
         <div class="field"><label>Hire date</label><input type="date" name="hire_date" value="<?=e($e['hire_date'])?>" <?=!empty($e['roster_needs_details'])?'':'required'?>></div><div class="field"><label>Regularization date</label><input type="date" name="regularization_date" value="<?=e($e['regularization_date']??'')?>"><small>Automatic while Probationary (6 months after the hire date).</small></div><?php employee_term_end_field($e['probation_end_date']??'',EmployeeStatusPolicy::isSeasonal(EmployeeStatusPolicy::code(isset($e['employment_type_id'])?(int)$e['employment_type_id']:null))?'End of contract (Seasonal, 3 months)':'End of probation (6 months)');?><div class="field"><label>Effective date of this change</label><input type="date" name="effective_date" value="<?=e(date('Y-m-d'))?>"></div><div class="field full"><label>Change remarks</label><textarea name="remarks" rows="3" placeholder="Example: Transferred to Makati HQ; promoted to HR Associate."></textarea><small>When department, position, branch, employment type, or status changes, HRIS creates an employment history entry automatically.</small></div>
         <div class="phase2b-form-actions full"><button class="btn primary" type="submit">Save employment changes</button></div>
@@ -1589,7 +1608,7 @@ if ($page === 'hr-employee') {
 
       <script>(function(){
       var c=document.querySelector('select[name="work_company"]');if(!c)return;var initialCompany=c.value;
-      var f=c.form,d=f.querySelector('select[name="department_id"]'),b=f.querySelector('select[name="branch_id"]'),p=f.querySelector('select[name="position_id"]');if(!d||!b||!p)return;
+      var f=c.form,d=f.querySelector('select[name="department_group"]'),b=f.querySelector('select[name="branch_id"]'),p=f.querySelector('select[name="position_id"]');if(!d||!b||!p)return;
       var note=document.createElement('small');note.id=c.id+'_position_note';note.setAttribute('aria-live','polite');p.parentNode.appendChild(note);p.setAttribute('aria-describedby',note.id);
       function apply(changed){
         var pm=c.value==='PMBSI',two=c.value==='2LOG',hasHr=false;
@@ -1599,9 +1618,10 @@ if ($page === 'hr-employee') {
         Array.prototype.forEach.call(p.options,function(o){
           var hr=o.getAttribute('data-pmbsi-position')==='1';
           if(hr&&o.getAttribute('data-active')==='1')hasHr=true;
-          var excluded=!!o.value&&((pm&&!hr)||(two&&o.getAttribute('data-2log-position')!=='1'));
+          var gs=d.value,excluded=!!o.value&&((pm&&!hr)||(two&&o.getAttribute('data-2log-position')!=='1')||(gs?o.getAttribute('data-group')!==gs:!o.selected));
           o.hidden=excluded;o.disabled=excluded;
         });
+        Array.prototype.forEach.call(p.querySelectorAll('optgroup'),function(g){g.hidden=!Array.prototype.some.call(g.querySelectorAll('option'),function(o){return !o.hidden;});});
         var invalid=p.selectedOptions.length&&p.selectedOptions[0].disabled;
         if(changed&&invalid){p.value='';invalid=false;}
         var message=invalid?'The saved position is not available for this company. Choose a listed position or Unassigned.':'';
@@ -1609,7 +1629,7 @@ if ($page === 'hr-employee') {
         note.textContent=message||(pm?(hasHr?'PMBSI currently offers Human Resource only.':'No active Human Resource position yet. Leave Unassigned for now.'):'');if(!message&&pm&&!hasHr&&p.getAttribute('data-org-url')){var a=document.createElement('a');a.href=p.getAttribute('data-org-url');a.textContent=' Add it in Organization Setup > Positions.';note.appendChild(a);}
         note.hidden=!note.textContent;
       }
-      c.addEventListener('change',function(){apply(true);});d.addEventListener('change',function(){apply(false);});p.addEventListener('change',function(){apply(false);});apply(false);
+      c.addEventListener('change',function(){apply(true);});d.addEventListener('change',function(){apply(true);});p.addEventListener('change',function(){apply(false);});apply(false);
     })();</script>
       <?php employee_regularization_script();?>
     <?php elseif($tab==='government'):?>
@@ -1663,17 +1683,54 @@ if ($page === 'hr-manpower') {
 }
 
 if ($page === 'hr-applicants') {
-    $filters=['q'=>trim((string)($_GET['q']??'')),'stage'=>trim((string)($_GET['stage']??''))]; $apps=RecruitmentRepository::applications($filters); $stages=RecruitmentRepository::stages();
+    $filters=['q'=>trim((string)($_GET['q']??'')),'stage'=>trim((string)($_GET['stage']??'')),'job_id'=>(int)($_GET['job_id']??0),'recruiter_id'=>(int)($_GET['recruiter_id']??0),'site'=>in_array($_GET['site']??'',['HEAD_OFFICE','RETAIL','UNASSIGNED'],true)?$_GET['site']:'','branch_ids'=>array_map('intval',(array)($_GET['branch']??[]))]; // site/branch come from the Pipeline links
+    $keepQ=array_filter(array_diff_key($filters,['branch_ids'=>1]))+($filters['branch_ids']?['branch'=>$filters['branch_ids']]:[]);
+    $perPage=25; $total=RecruitmentRepository::applicationsCount($filters); $pageNo=max(1,min((int)($_GET['p']??1),max(1,(int)ceil($total/$perPage))));
+    $apps=RecruitmentRepository::applications($filters+['limit'=>$perPage,'offset'=>($pageNo-1)*$perPage]); $stages=RecruitmentRepository::stages();
     render_portal_header('hr',$page,'Applicant Database'); page_head('HR Portal / Applicants','Applicant Database'); ?>
-    <form style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap"><input type="hidden" name="page" value="hr-applicants"><div class="search" style="flex:1;min-width:220px;max-width:340px;border:1px solid var(--border)">🔍<input name="q" value="<?=e($filters['q'])?>" placeholder="Search by name, ref, email…"></div><select class="btn" name="stage"><option value="">All stages</option><?php foreach($stages as $s):?><option value="<?=e($s['code'])?>" <?=$filters['stage']===$s['code']?'selected':''?>><?=e($s['name'])?></option><?php endforeach;?></select><button class="btn primary">Filter</button></form>
+    <?php if($filters['site']):?><p class="tiny muted" role="status">Showing <?=e(['HEAD_OFFICE'=>'Head Office','RETAIL'=>'Retail','UNASSIGNED'=>'no-site'][$filters['site']])?> candidates only<?=$filters['branch_ids']?', '.count($filters['branch_ids']).' branch'.(count($filters['branch_ids'])===1?'':'es'):''?>. <a href="<?=e(url('hr-applicants',array_filter(array_diff_key($filters,['site'=>1,'branch_ids'=>1]))))?>">Show all sites</a></p><?php endif;?>
+    <form style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap"><input type="hidden" name="page" value="hr-applicants"><?php foreach(['job_id','recruiter_id','site'] as $hk)if($filters[$hk]):?><input type="hidden" name="<?=$hk?>" value="<?=e((string)$filters[$hk])?>"><?php endif;foreach($filters['branch_ids'] as $hb):?><input type="hidden" name="branch[]" value="<?=$hb?>"><?php endforeach;?><div class="search" style="flex:1;min-width:220px;max-width:340px;border:1px solid var(--border)">🔍<input name="q" value="<?=e($filters['q'])?>" placeholder="Search by name, ref, email…"></div><select class="btn" name="stage"><option value="">All stages</option><?php foreach($stages as $s):?><option value="<?=e($s['code'])?>" <?=$filters['stage']===$s['code']?'selected':''?>><?=e($s['name'])?></option><?php endforeach;?></select><button class="btn primary">Filter</button></form>
     <div class="card" style="overflow-x:auto"><table class="tbl"><thead><tr><th>Applicant</th><th>Reference</th><th>Position</th><th>Type</th><th>Location</th><th>Client</th><th>Stage</th><th>Rating</th><th>Recruiter</th><th></th></tr></thead><tbody><?php foreach($apps as $a):$name=$a['first_name'].' '.$a['last_name'];?><tr><td><div style="display:flex;gap:9px;align-items:center"><span class="avatar"><?=e(initials($name))?></span><div><div style="font-weight:600"><?=e($name)?></div><div class="tiny muted"><?=e($a['email'])?></div></div></div></td><td class="mono tiny"><?=e($a['application_no'])?></td><td><?=e($a['job_title'])?></td><td><?=e(JobOpenings::TYPES[$a['job_employment_type']]??stage_label($a['job_employment_type']))?></td><td><?=e((string)($a['job_location']?:'-'))?></td><td><?=e($a['client_name'])?></td><td><?=($a['application_status']??'')==='CONVERTED'?'<span class="badge green">Converted</span>':stage_badge($a['stage_code'])?></td><td><?=rating_badge($a['screening_rating']??null)?></td><td class="small"><?=e($a['recruiter_name']??'Unassigned')?></td><td><a href="<?=url('hr-applicant',['id'=>$a['id']])?>" class="btn sm">View</a></td></tr><?php endforeach;?></tbody></table><?php if(!$apps):?><div class="empty">No applicants found.</div><?php endif;?></div>
+    <?=pager_html($total,$pageNo,$perPage,'hr-applicants',$keepQ)?>
     <?php render_portal_footer(); exit;
 }
 
 if ($page === 'hr-pipeline') {
-    $apps=RecruitmentRepository::applications(); $stages=RecruitmentRepository::stages(); $by=[]; foreach($apps as $a)$by[$a['stage_code']][]=$a;
-    render_portal_header('hr',$page,'Recruitment Pipeline'); page_head('HR Portal / Pipeline','Recruitment Pipeline','<a href="'.url('hr-jobs',['new'=>1]).'" class="btn primary sm">+ New job</a>'); ?>
-    <div class="kanban"><?php foreach($stages as $s):$items=$by[$s['code']]??[];?><div class="kcol"><div class="kh"><span><span class="kdot" style="background:var(--amber)"></span> <?=e($s['name'])?></span><span class="badge gray"><?=count($items)?></span></div><?php foreach(array_slice($items,0,8) as $a):$name=$a['first_name'].' '.$a['last_name'];?><a href="<?=url('hr-applicant',['id'=>$a['id']])?>" class="kcard" style="display:block"><div class="nm"><?=e($name)?></div><div class="tiny muted" style="margin:3px 0 7px"><?=e($a['job_title'])?></div><div style="display:flex;justify-content:space-between"><span class="tiny mono muted"><?=e(substr($a['application_no'],-6))?></span><?=rating_badge($a['screening_rating']??null)?></div></a><?php endforeach;if(!$items):?><div class="tiny muted" style="text-align:center;padding:16px 0">No candidates</div><?php endif;?></div><?php endforeach;?></div>
+    $view=RecruitmentRepository::pipelineView((int)Auth::user()['id']); // saved default; ?site= / ?branch[]= from a link override it. Never a mixed board: Head Office or Retail
+    if(isset($_GET['site'])){$view['site']=$_GET['site']==='RETAIL'?'RETAIL':'HEAD_OFFICE'; if(isset($_GET['branch']))$view['branch_ids']=array_map('intval',(array)$_GET['branch']);}
+    $isRetail=$view['site']==='RETAIL'; $vf=['site'=>$view['site']]+($isRetail?['branch_ids'=>$view['branch_ids']]:[]);
+    $f=['q'=>trim((string)($_GET['q']??'')),'job_id'=>(int)($_GET['job_id']??0),'recruiter_id'=>(int)($_GET['recruiter_id']??0)]; $opt=RecruitmentRepository::boardFilterOptions($vf);
+    $cols=RecruitmentRepository::boardColumns($f+$vf,8); $deployedN=RecruitmentRepository::boardStageCounts($f+$vf)['DEPLOYED']??0;
+    $siteN=[]; foreach(['HEAD_OFFICE','RETAIL'] as $sk){$c=RecruitmentRepository::boardStageCounts(['site'=>$sk]); unset($c['DEPLOYED']); $siteN[$sk]=array_sum($c);} $unassignedN=RecruitmentRepository::applicationsCount(['site'=>'UNASSIGNED']);
+    $retailBranches=$isRetail?RecruitmentRepository::retailBranches():[]; $picked=array_flip($view['branch_ids']); // Deployed people are employees now: off the board, still listed under Applicants
+    $parkedCodes=['REJECTED','WITHDRAWN','ON_HOLD','RETURNED']; $groups=['flow'=>[],'parked'=>[]]; $onBoard=0;
+    foreach($cols as $c){$groups[in_array($c['code'],$parkedCodes,true)?'parked':'flow'][]=$c;$onBoard+=$c['total'];}
+    $filtered=(bool)array_filter($f); $listQ=array_filter($f)+['site'=>$view['site']]+($isRetail&&$view['branch_ids']?['branch'=>$view['branch_ids']]:[]); // Applicants links carry the same site and branches
+    $actions=($deployedN?'<a href="'.e(url('hr-applicants',['stage'=>'DEPLOYED']+$listQ)).'" class="btn sm">Deployed ('.$deployedN.')</a> ':'').'<a href="'.url('hr-jobs',['new'=>1]).'" class="btn primary sm">+ New job</a>';
+    render_portal_header('hr',$page,'Recruitment Pipeline'); page_head('HR Portal / Pipeline','Recruitment Pipeline',$actions); ?>
+    <div class="pv" aria-label="Pipeline site">
+      <form method="post" class="pv-seg" role="group" aria-label="Show candidates for"><?=csrf_field()?><input type="hidden" name="action" value="pipeline_save_view"><?php foreach(['HEAD_OFFICE'=>'Head Office','RETAIL'=>'Retail'] as $sk=>$sl):?><button name="site" value="<?=$sk?>" class="pv-tab<?=$view['site']===$sk?' on':''?>" aria-pressed="<?=$view['site']===$sk?'true':'false'?>"><?=e($sl)?> <span class="pv-n"><?=(int)$siteN[$sk]?></span></button><?php endforeach;?></form>
+      <?php if($isRetail):?><form method="post" class="pv-pick"><?=csrf_field()?><input type="hidden" name="action" value="pipeline_save_view"><input type="hidden" name="site" value="RETAIL"><input type="hidden" name="branches_form" value="1">
+        <details><summary class="btn sm">Branches: <strong><?=$view['branch_ids']?count($view['branch_ids']).' selected':'All Retail branches'?></strong></summary>
+          <div class="pv-pop"><input type="search" class="pv-find" placeholder="Find a branch…" aria-label="Find a branch"><div class="pv-acts"><button type="button" class="btn sm" data-pv="all">All</button><button type="button" class="btn sm" data-pv="clear">Clear</button></div>
+            <div class="pv-list"><?php foreach($retailBranches as $b):?><label><input type="checkbox" name="branch[]" value="<?=(int)$b['id']?>" <?=isset($picked[(int)$b['id']])?'checked':''?>> <?=e($b['name'])?></label><?php endforeach;?></div>
+            <button class="btn primary sm">Apply</button></div></details></form><?php endif;?>
+      <?php if($unassignedN):?><a class="tiny pv-un" href="<?=e(url('hr-applicants',['site'=>'UNASSIGNED']))?>"><?=$unassignedN?> candidate<?=$unassignedN===1?' is':'s are'?> on jobs with no site (neither Head Office nor Retail). View</a><?php endif;?>
+    </div>
+    <script>(function(){var d=document.querySelector('.pv-pick');if(!d)return;var l=d.querySelector('.pv-list'),q=d.querySelector('.pv-find');function vis(){return [].filter.call(l.querySelectorAll('label'),function(x){return x.style.display!=='none'})}
+    q.addEventListener('input',function(){var t=q.value.toLowerCase();[].forEach.call(l.querySelectorAll('label'),function(x){x.style.display=x.textContent.toLowerCase().indexOf(t)<0?'none':''})});
+    d.addEventListener('click',function(e){var a=e.target.getAttribute&&e.target.getAttribute('data-pv');if(!a)return;vis().forEach(function(x){x.querySelector('input').checked=a==='all'})})})();</script>
+    <form class="ktools" method="get" role="search" aria-label="Filter the pipeline"><input type="hidden" name="page" value="hr-pipeline">
+      <div class="search"><span aria-hidden="true">🔍</span><input name="q" value="<?=e($f['q'])?>" placeholder="Search name, ref or email…" aria-label="Search candidates"></div>
+      <select class="btn" name="job_id" aria-label="Job opening" onchange="this.form.submit()"><option value="">All job openings</option><?php foreach($opt['jobs'] as $j):?><option value="<?=(int)$j['id']?>" <?=$f['job_id']===(int)$j['id']?'selected':''?>><?=e($j['title'])?></option><?php endforeach;?></select>
+      <select class="btn" name="recruiter_id" aria-label="Recruiter" onchange="this.form.submit()"><option value="">All recruiters</option><?php foreach($opt['recruiters'] as $r):?><option value="<?=(int)$r['id']?>" <?=$f['recruiter_id']===(int)$r['id']?'selected':''?>><?=e($r['full_name'])?></option><?php endforeach;?></select>
+      <button class="btn primary">Apply</button><?php if($filtered):?><a class="btn" href="<?=e(url('hr-pipeline'))?>">Clear</a><?php endif;?>
+      <span class="tiny muted kcount" role="status"><?=$onBoard?> candidate<?=$onBoard===1?'':'s'?> on the board<?=$filtered?' (filtered)':''?></span>
+    </form>
+    <?php foreach(['flow'=>['Hiring flow','Active candidates, in order'],'parked'=>['Parked','Set aside for now. Rejected, Withdrawn, On Hold and Returned candidates can be pulled back into a job later.']] as $gk=>[$gt,$gh]):if(!$groups[$gk])continue;?>
+    <h2 class="kgroup"><?=e($gt)?> <span class="tiny muted"><?=e($gh)?></span></h2>
+    <div class="kanban k-<?=$gk?>"><?php foreach($groups[$gk] as $c):$items=$c['items'];?><section class="kcol k-<?=e(strtolower(str_replace('_','-',$c['code'])))?>" aria-label="<?=e($c['name'])?>"><div class="kh"><span><span class="kdot"></span> <?=e($c['name'])?></span><span class="badge gray" title="<?=$c['total']?> in this stage"><?=$c['total']?></span></div><?php foreach($items as $a):$name=$a['first_name'].' '.$a['last_name'];$days=max(0,(int)floor((time()-strtotime((string)$a['last_stage_changed_at']))/86400));$age=$gk==='flow'?($days>=14?' hot':($days>=7?' warn':'')):'';?><a href="<?=url('hr-applicant',['id'=>$a['id']])?>" class="kcard"><div class="khead"><span class="avatar" aria-hidden="true"><?=e(initials($name))?></span><div class="kwho"><div class="nm"><?=e($name)?></div><div class="tiny muted kjob"><?=e($a['job_title'])?></div></div></div><div class="kfoot"><span class="tiny mono muted"><?=e(substr($a['application_no'],-6))?></span><span class="kage<?=$age?>" title="<?=$days?> day<?=$days===1?'':'s'?> in this stage"><?=$days===0?'Today':$days.'d'?><?php if($age):?><span class="sr-only"> in this stage, <?=$age===' hot'?'overdue':'getting old'?></span><?php endif;?></span><?=!empty($a['screening_rating'])?rating_badge($a['screening_rating']):''?></div></a><?php endforeach;if($c['total']>count($items)):?><a class="kmore" href="<?=e(url('hr-applicants',['stage'=>$c['code']]+$listQ))?>">+<?=$c['total']-count($items)?> more · View all</a><?php endif;if(!$c['total']):?><div class="kempty"><?=$filtered?'No match':'No candidates'?></div><?php endif;?></section><?php endforeach;?></div>
+    <?php endforeach;?>
     <?php render_portal_footer(); exit;
 }
 
@@ -1774,8 +1831,7 @@ if ($page === 'hr-convert-employee') {
           <div class="panel-body employee-form-grid">
             <div class="field"><label>Employer</label><input value="PMBSI" readonly aria-readonly="true"></div>
             <div class="field"><label for="phase2cCompany">Company <span class="req">*</span></label><select name="work_company" id="phase2cCompany" required><option value="">Select Company</option><option value="2LOG">2LOG</option><option value="PMBSI">PMBSI</option></select><small>Filled from the Department. Decides the email domain.</small></div>
-            <div class="field"><label>Department</label><select name="department_id" id="phase2cDepartment"><option value="">Unassigned</option><?php foreach($masters['departments'] as $x):if(!$x['active'])continue;?><option value="<?=$x['id']?>" data-company="<?=e($x['work_company']??'2LOG')?>" <?=((int)$defaults['department_id']===(int)$x['id'])?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select></div>
-            <div class="field"><label>Position</label><select name="position_id" id="phase2cPosition"><option value="">Unassigned</option><?php foreach($masters['positions'] as $x):if(!$x['active'])continue;?><option value="<?=$x['id']?>" data-department="<?=e((string)($x['department_id']??''))?>" <?=((int)$defaults['position_id']===(int)$x['id'])?'selected':''?>><?=e($x['name'])?><?=!empty($x['department_name'])?' · '.e($x['department_name']):''?></option><?php endforeach;?></select><small>If the recruitment title has no exact Position master match, select the correct position here.</small></div>
+            <?=DepartmentPicker::fields((int)($defaults['department_id']??0)?:null,(int)($defaults['position_id']??0)?:null,false,'If the recruitment title has no exact Position master match, select the correct position here.')?>
             <div class="field"><label>Branch / Site</label><select name="branch_id"><option value="">Unassigned</option><?php foreach($masters['branches'] as $x):if(!$x['active'])continue;?><option value="<?=$x['id']?>" <?=((int)$defaults['branch_id']===(int)$x['id'])?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select></div>
             <div class="field"><label>Employee Status</label><select name="employment_type_id" required><option value="">Select Employee Status</option><?php foreach($masters['employment_types'] as $x):if(!$x['active']||in_array($x['code'],['RESIGN','MATERNITY_LEAVE'],true))continue;?><option value="<?=$x['id']?>" data-code="<?=e($x['code'])?>" <?=((int)$defaults['employment_type_id']===(int)$x['id'])?'selected':''?>><?=e($x['name'])?></option><?php endforeach;?></select></div>
             <div class="field"><label>Hire date</label><input type="date" name="hire_date" value="<?=e($defaults['hire_date'])?>" required></div>
@@ -1804,8 +1860,8 @@ if ($page === 'hr-convert-employee') {
     </form>
     <script>
     (()=>{
-      const department=document.getElementById('phase2cDepartment'),position=document.getElementById('phase2cPosition');
-      const syncPositions=()=>{if(!department||!position)return;const dep=department.value;Array.from(position.options).forEach((o,i)=>{if(i===0)return;const match=!dep||!o.dataset.department||o.dataset.department===dep;o.hidden=!match;if(!match&&o.selected)position.value='';});};department?.addEventListener('change',syncPositions);syncPositions();
+      const department=document.querySelector('select[name="department_group"]'),position=document.querySelector('select[name="position_id"]');
+      const syncPositions=()=>{if(!department||!position)return;const dep=department.value;Array.from(position.options).forEach((o,i)=>{if(i===0)return;const match=dep?o.dataset.group===dep:o.selected;o.hidden=!match;o.disabled=!match;if(!match&&o.selected)position.value='';});Array.from(position.querySelectorAll('optgroup')).forEach(g=>{g.hidden=!Array.from(g.querySelectorAll('option')).some(o=>!o.hidden);});};department?.addEventListener('change',syncPositions);syncPositions();
       const company=document.getElementById('phase2cCompany'),mail=document.getElementById('phase2cCompanyEmail'),form=company?.form;
       const domains=<?php require_once __DIR__.'/app/EmployeeAccountService.php'; echo json_encode(EmployeeAccountService::DOMAINS,JSON_UNESCAPED_SLASHES);?>;
       const clean=s=>s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z]/g,'');

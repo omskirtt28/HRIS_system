@@ -420,3 +420,18 @@ New table `application_reviewers(id, application_id FK applications, reviewer_us
 
 ## 2026-11-03 - job_opening_branches (migration 031, applied to localhost 2026-11-03)
 - New table `job_opening_branches(job_opening_id, branch_id, created_at)`, PRIMARY KEY on the pair, FKs to job_openings and branches. Holds the branches HR chose on a Retail job; the area is branches.area_id (not stored twice). No existing table changed. Down script refuses while any row exists.
+
+## 2026-11-04 - retail_manager_seed (migration 032, applied to localhost 2026-11-04)
+- New ledger table `retail_manager_seed(item ENUM(ROLE,POSITION) PK, ref_id)` records what the migration created. Data added: role `RETAIL_MANAGER` ("Retail Manager", portal employee, is_system 0) with MANAGER's grants minus `recruitment.*` (20 grants, no new permission), and position `RETAIL_MANAGER` ("Retail Manager", Retail department). An existing role/position with the same code is left alone and not owned. Down removes only what it created and refuses while an account holds the role or an employee holds the position.
+
+## 2026-11-04 - consultant_status (migration 033, applied to localhost 2026-11-04)
+`employment_types` gets one row: `CONSULTANT` / Consultant, active, sort_order 120. Ledger `employment_type_033_seed` records that the migration inserted it; the down script deletes the row only if the ledger says so and no employee uses it. Internal status for Consultant is ACTIVE (EmployeeStatusPolicy default for custom codes).
+
+## 2026-11-04 - department_picker (migration 034, applied to localhost 2026-11-04)
+No new table for the feature: employees.department_id still stores the team row; the 7 main departments are derived in code (app/DepartmentPicker.php, same mapping as the Directory). Migration 034 renames departments.code ONLINE_SHOP from 'Online Shop' to 'Online' (name only). Ledger department_034_rename records the old name; the down script restores it only if the row still says 'Online', and is re-runnable.
+
+## 2026-11-04 - hr_role_assignment_035 (migration 035, applied to localhost 2026-11-04)
+Adds permission `recruitment.set_reviewer_role` and grants it to HR_USER. Ledger table hr_role_assignment_035_seed records the grant it added; down removes that grant, the permission and the ledger. No existing business row changed.
+
+## 2026-11-04 - pipeline_view_036 (migration 036, applied to localhost 2026-11-04)
+Adds user_pipeline_view(user_id PK FK users, site HEAD_OFFICE|RETAIL, updated_at) and user_pipeline_view_branches(user_id FK cascade, branch_id FK branches, PK both). Additive, empty on apply; no existing row changed. Down refuses while any saved view exists (SIGNAL 45000), else drops both tables. Backup before apply: storage/slice15-private/before_stageb_apply_36_20261104_213434.sql.

@@ -62,12 +62,81 @@ final class RecruitmentRepository
         $hs=db()->prepare('SELECT h.*,IF(fs.code="CLIENT_REVIEW","Hiring Review",fs.name) from_name,IF(ts.code="CLIENT_REVIEW","Hiring Review",ts.name) to_name FROM application_stage_history h LEFT JOIN recruitment_stages fs ON fs.id=h.from_stage_id JOIN recruitment_stages ts ON ts.id=h.to_stage_id WHERE h.application_id=? ORDER BY h.changed_at'); $hs->execute([$row['id']]); $row['history']=$hs->fetchAll(); return $row;
     }
     public static function applications(array $filters=[]): array {
-        $sql='SELECT a.id,a.application_no,a.status application_status,a.screening_score,'.(self::screeningReady()?'a.screening_rating,':'').'a.applied_at,a.last_stage_changed_at,ap.first_name,ap.last_name,ap.email,ap.mobile_no,j.title job_title,j.employment_type job_employment_type,j.location_text job_location,c.name client_name,IF(s.code="APPLIED","SCREENING",s.code) stage_code,IF(s.code="APPLIED","Screening",IF(s.code="CLIENT_REVIEW","Hiring Review",s.name)) stage_name,u.full_name recruiter_name FROM applications a JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN clients c ON c.id=a.client_id JOIN recruitment_stages s ON s.id=a.current_stage_id LEFT JOIN users u ON u.id=a.assigned_recruiter_id WHERE 1=1'; $p=[];
+        [$where,$p]=self::applicationFilter($filters);
+        $sql='SELECT a.id,a.application_no,a.status application_status,a.screening_score,'.(self::screeningReady()?'a.screening_rating,':'').'a.applied_at,a.last_stage_changed_at,ap.first_name,ap.last_name,ap.email,ap.mobile_no,j.title job_title,j.employment_type job_employment_type,j.location_text job_location,c.name client_name,IF(s.code="APPLIED","SCREENING",s.code) stage_code,IF(s.code="APPLIED","Screening",IF(s.code="CLIENT_REVIEW","Hiring Review",s.name)) stage_name,u.full_name recruiter_name'.self::APP_FROM.$where.' ORDER BY a.last_stage_changed_at DESC,a.id DESC';
+        if (isset($filters['limit'])) { $sql.=' LIMIT '.max(1,(int)$filters['limit']).' OFFSET '.max(0,(int)($filters['offset']??0)); } // ints only: cast above, never the raw value
+        $st=db()->prepare($sql); $st->execute($p); return $st->fetchAll();
+    }
+    private const APP_FROM=' FROM applications a JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN clients c ON c.id=a.client_id JOIN recruitment_stages s ON s.id=a.current_stage_id LEFT JOIN users u ON u.id=a.assigned_recruiter_id LEFT JOIN manpower_requests m ON m.id=j.manpower_request_id LEFT JOIN branches mb ON mb.id=m.branch_id';
+    /** RETAIL / HEAD_OFFICE / OTHER / NULL for a job: the job's own site, else the manpower request branch type (same rule as siteTypeOf). */
+    private const SITE_SQL='COALESCE(NULLIF(j.site_type,""),CASE mb.site_type WHEN "RETAIL_STORE" THEN "RETAIL" WHEN "HEAD_OFFICE" THEN "HEAD_OFFICE" END)';
+    /** WHERE clause + params shared by the list, the count and the board. Keys: client_id, client_portal, stage, q, job_id, recruiter_id. */
+    private static function applicationFilter(array $filters): array {
+        $sql=' WHERE 1=1'; $p=[];
         if (!empty($filters['client_id'])) { $sql.=' AND a.client_id=?'; $p[]=$filters['client_id']; }
         if (!empty($filters['client_portal'])) { $sql.=' AND EXISTS (SELECT 1 FROM endorsements e WHERE e.application_id=a.id AND e.client_id=a.client_id)'; }
         if (!empty($filters['stage'])) { $sql.=' AND IF(s.code="APPLIED","SCREENING",s.code)=?'; $p[]=$filters['stage']; }
+        if (!empty($filters['job_id'])) { $sql.=' AND a.job_opening_id=?'; $p[]=(int)$filters['job_id']; }
+        if (!empty($filters['recruiter_id'])) { $sql.=' AND a.assigned_recruiter_id=?'; $p[]=(int)$filters['recruiter_id']; }
+        if (!empty($filters['site'])) { // HEAD_OFFICE | RETAIL | UNASSIGNED (neither); any other value is ignored
+            if ($filters['site']==='UNASSIGNED') { $sql.=' AND ('.self::SITE_SQL.' IS NULL OR '.self::SITE_SQL.' NOT IN ("HEAD_OFFICE","RETAIL"))'; }
+            elseif (in_array($filters['site'],['HEAD_OFFICE','RETAIL'],true)) { $sql.=' AND '.self::SITE_SQL.'=?'; $p[]=$filters['site']; }
+        }
+        $ids=array_values(array_filter(array_map('intval',(array)($filters['branch_ids']??[])),fn($i)=>$i>0)); // Retail branches: the job's own list, else the request branch
+        if ($ids) { $in=implode(',',array_fill(0,count($ids),'?')); $sql.=' AND (EXISTS (SELECT 1 FROM job_opening_branches jb WHERE jb.job_opening_id=j.id AND jb.branch_id IN ('.$in.')) OR (NOT EXISTS (SELECT 1 FROM job_opening_branches jb0 WHERE jb0.job_opening_id=j.id) AND m.branch_id IN ('.$in.')))'; array_push($p,...$ids,...$ids); }
         if (!empty($filters['q'])) { $x='%'.$filters['q'].'%'; $sql.=' AND (ap.first_name LIKE ? OR ap.last_name LIKE ? OR ap.email LIKE ? OR a.application_no LIKE ?)'; array_push($p,$x,$x,$x,$x); }
-        $sql.=' ORDER BY a.last_stage_changed_at DESC,a.id DESC'; $st=db()->prepare($sql); $st->execute($p); return $st->fetchAll();
+        return [$sql,$p];
+    }
+    public static function applicationsCount(array $filters=[]): int {
+        [$where,$p]=self::applicationFilter($filters); $st=db()->prepare('SELECT COUNT(*)'.self::APP_FROM.$where); $st->execute($p); return (int)$st->fetchColumn();
+    }
+    /** stage code => total for the same filters (APPLIED counts as SCREENING). Used by the Pipeline board so it never loads every row. */
+    public static function boardStageCounts(array $filters=[]): array {
+        unset($filters['stage']); [$where,$p]=self::applicationFilter($filters);
+        $st=db()->prepare('SELECT IF(s.code="APPLIED","SCREENING",s.code) code,COUNT(*) total'.self::APP_FROM.$where.' GROUP BY 1'); $st->execute($p);
+        return array_map('intval',array_column($st->fetchAll(),'total','code'));
+    }
+    /** Options for the board filters: only jobs that have applications, only recruiters who have candidates assigned. */
+    public static function boardFilterOptions(array $filters=[]): array {
+        [$where,$p]=self::applicationFilter(array_intersect_key($filters,['site'=>1,'branch_ids'=>1])); // only the site view narrows the dropdowns
+        $jobs=db()->prepare('SELECT DISTINCT j.id,j.title'.self::APP_FROM.$where.' ORDER BY j.title'); $jobs->execute($p);
+        $rec=db()->prepare('SELECT DISTINCT u.id,u.full_name'.self::APP_FROM.$where.' AND u.id IS NOT NULL ORDER BY u.full_name'); $rec->execute($p);
+        return ['jobs'=>$jobs->fetchAll(),'recruiters'=>$rec->fetchAll()];
+    }
+    /** The saved Pipeline view of an HR user: first time (nothing saved) = Head Office. Only a default, HR can switch site any time. */
+    public static function pipelineView(int $userId): array {
+        $st=db()->prepare('SELECT site FROM user_pipeline_view WHERE user_id=?'); $st->execute([$userId]); $site=$st->fetchColumn();
+        $b=db()->prepare('SELECT branch_id FROM user_pipeline_view_branches WHERE user_id=? ORDER BY branch_id'); $b->execute([$userId]);
+        return ['site'=>$site==='RETAIL'?'RETAIL':'HEAD_OFFICE','branch_ids'=>array_map('intval',$b->fetchAll(PDO::FETCH_COLUMN))]; // branches are kept while on Head Office so the way back is one click
+    }
+    /** Saves the view. $branchIds null = leave the saved branches alone (a plain site switch); only real Retail branches are kept. */
+    public static function savePipelineView(int $userId,string $site,?array $branchIds=null): void {
+        if (!in_array($site,['HEAD_OFFICE','RETAIL'],true)) { throw new InvalidArgumentException('Unknown site'); }
+        $ids=array_values(array_unique(array_filter(array_map('intval',$branchIds??[]),fn($i)=>$i>0)));
+        if ($ids) { $q=db()->prepare('SELECT id FROM branches WHERE site_type="RETAIL_STORE" AND id IN ('.implode(',',array_fill(0,count($ids),'?')).')'); $q->execute($ids); $ids=array_map('intval',$q->fetchAll(PDO::FETCH_COLUMN)); }
+        $pdo=db(); $pdo->beginTransaction();
+        try {
+            $pdo->prepare('INSERT INTO user_pipeline_view(user_id,site) VALUES(?,?) ON DUPLICATE KEY UPDATE site=VALUES(site)')->execute([$userId,$site]);
+            if ($branchIds!==null) {
+                $pdo->prepare('DELETE FROM user_pipeline_view_branches WHERE user_id=?')->execute([$userId]);
+                $ins=$pdo->prepare('INSERT INTO user_pipeline_view_branches(user_id,branch_id) VALUES(?,?)'); foreach ($ids as $i) { $ins->execute([$userId,$i]); }
+            }
+            $pdo->commit();
+        } catch (Throwable $e) { $pdo->rollBack(); throw $e; }
+    }
+    /** Active Retail branches for the Pipeline branch picker. */
+    public static function retailBranches(): array {
+        return db()->query('SELECT id,name FROM branches WHERE site_type="RETAIL_STORE" AND active=1 ORDER BY name,id')->fetchAll();
+    }
+    /** Pipeline board: every active stage except Deployed (those people are employees) with its true total and only the newest $perStage cards. */
+    public static function boardColumns(array $filters=[],int $perStage=8): array {
+        $counts=self::boardStageCounts($filters); $cols=[];
+        foreach(self::stages() as $s){
+            if($s['code']==='DEPLOYED')continue;
+            $total=$counts[$s['code']]??0;
+            $cols[]=['code'=>$s['code'],'name'=>$s['name'],'total'=>$total,'items'=>$total?self::applications(['stage'=>$s['code'],'limit'=>$perStage]+$filters):[]];
+        }
+        return $cols;
     }
     /** The applicant's latest uploaded resume (row only). HR opens it through the hr-application-resume route; the file is found by application id, never by a posted path. */
     public static function resume(int $applicationId): ?array {
@@ -232,6 +301,43 @@ final class RecruitmentRepository
             }));
         }
         return $actorRole===null?$all:[];
+    }
+    /** Retail: active staff at the job's branches in a reviewer position (Sales Captain, OIC, MT, ADL) who still cannot be endorsed, with the reason (no account, account not active, or account role is not a reviewer role), so HR sees why they are not offered. */
+    public static function scopeStaffWithoutAccount(int $applicationId): array {
+        $scope=self::scopeBranches($applicationId); if(!$scope) return [];
+        $in=implode(',',array_fill(0,count($scope),'?')); $roles=implode(',',array_fill(0,count(self::REVIEWER_ROLES),'?'));
+        $st=db()->prepare('SELECT CONCAT(e.first_name," ",e.last_name) name,p.name position,b.name branch,e.user_id,u.status user_status,u.removed_at,r.name role_name,r.code role_code FROM employees e JOIN positions p ON p.id=e.position_id JOIN branches b ON b.id=e.branch_id LEFT JOIN users u ON u.id=e.user_id LEFT JOIN roles r ON r.id=u.role_id WHERE e.status="ACTIVE" AND e.branch_id IN('.$in.') AND (p.name IN("Sales Captain","Officer In Charge","Management Trainee","Area Development Leader") OR p.name LIKE "%OIC%") AND (u.id IS NULL OR u.status<>"ACTIVE" OR u.removed_at IS NOT NULL OR r.code NOT IN('.$roles.')) ORDER BY b.name,e.last_name LIMIT 20');
+        $st->execute(array_merge(array_keys($scope),self::REVIEWER_ROLES)); $out=[];
+        foreach($st->fetchAll() as $r){
+            $r['reason']=$r['user_id']===null?'has no portal account, create one in Users & Access':($r['user_status']!=='ACTIVE'||$r['removed_at']!==null?'portal account is not active':'portal account role is '.$r['role_name'].', change it to a reviewer role in Users & Access');
+            $code=$r['user_id']!==null&&$r['user_status']==='ACTIVE'&&$r['removed_at']===null?self::suggestedRole((string)$r['position']):null; // only the "account role is not a reviewer role" case is fixable inline
+            $r['suggested_role']=$code!==null&&self::roleAssignable($code)?$code:null; // not offered when the viewer could not assign it in Users & Access anyway (e.g. OIC for HR)
+            $out[]=$r;
+        }
+        return $out;
+    }
+    /** Position -> reviewer role code; ADL is left out on purpose (it also needs an area). */
+    public const POSITION_ROLE=['Sales Captain'=>'SC','Officer In Charge'=>'OIC','Management Trainee'=>'MT'];
+    public static function suggestedRole(string $position): ?string {
+        return self::POSITION_ROLE[$position]??(stripos($position,'OIC')!==false?'OIC':null);
+    }
+    /** Roles the Endorse card may set. OIC is left out on purpose: it carries payroll.approve_manager and is date-bound by an OIC Authorization (BR-734/735), so only Super Admin sets it in Users & Access. */
+    public const NARROW_ROLES=['SC','MT'];
+    private static function roleAssignable(string $code): bool {
+        if(!in_array($code,self::NARROW_ROLES,true)||!Auth::can('recruitment.set_reviewer_role')) return false;
+        $st=db()->prepare('SELECT id,code,name,portal FROM roles WHERE code=?'); $st->execute([$code]); $role=$st->fetch();
+        return $role&&FoundationRepository::roleAssignmentError($role,true)===null;
+    }
+    /** HR sets the role of a reviewer-position account from the Endorse card. Only people the card lists, and only to the role their position maps to; all Users & Access guards still apply (changeUserRole). Returns the new role name. */
+    public static function fixReviewerRole(int $applicationId,int $userId): string {
+        foreach(self::scopeStaffWithoutAccount($applicationId) as $r){
+            if((int)$r['user_id']!==$userId||empty($r['suggested_role'])) continue;
+            $st=db()->prepare('SELECT id,name FROM roles WHERE code=?'); $st->execute([$r['suggested_role']]); $role=$st->fetch();
+            if(!$role) throw new RuntimeException('Role not found.');
+            FoundationRepository::changeUserRole($userId,(int)$role['id'],true); // narrow action: the listed person, the role their position maps to, nothing else
+            return (string)$role['name'];
+        }
+        throw new RuntimeException('This person cannot be set up as a reviewer from here.');
     }
     /** The ticket requester, only when the request came from a Manpower Request ticket and they hold a reviewer role (walk-in requests have none). */
     public static function defaultReviewers(int $applicationId): array {

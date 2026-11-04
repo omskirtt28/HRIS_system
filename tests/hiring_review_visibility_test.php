@@ -75,6 +75,39 @@ RecruitmentRepository::endorseToReviewers($appR,'Round 1',[$adlA['id']]);
 act($adlA);
 check('Retail: the ADL cannot pass to a Manager, a TC or an out-of-scope OIC, but can pass to an OIC in scope',rejects(fn()=>RecruitmentRepository::passOn($appR,$adlA['id'],[$mgr1['id']],[],''))&&rejects(fn()=>RecruitmentRepository::passOn($appR,$adlA['id'],[$tc['id']],[],''))&&rejects(fn()=>RecruitmentRepository::passOn($appR,$adlA['id'],[$oicOut['id']],[],''))&&(function() use($appR,$adlA,$oicA1){RecruitmentRepository::passOn($appR,$adlA['id'],[$oicA1['id']],[],'');return true;})());
 
+// --- Reviewer position but not endorsable: HR is told why ---------------------------------------------------------
+$brD=insert('INSERT INTO branches(area_id,code,name,site_type,active) VALUES(?,?,?,"RETAIL_STORE",1)',[$areaB,'ZD1'.$sfx,'Zz Branch D1']);
+[$mrD,$jobD]=make_job($client,'RETAIL',$sfx);$appD=make_app($mrD,$client,$jobD);insert('INSERT INTO job_opening_branches(job_opening_id,branch_id) VALUES(?,?)',[$jobD,$brD]);
+$scEmp=real_user('EMPLOYEE','scEmp'); // a Sales Captain by position whose portal account is still a plain Employee
+$posSc=(int)row('SELECT id FROM positions WHERE name="Sales Captain" LIMIT 1')['id'];
+insert('INSERT INTO employees(employee_no,first_name,last_name,branch_id,position_id,user_id,status,hire_date) VALUES(?,?,?,?,?,?,"ACTIVE","2020-01-01")',['ZV'.bin2hex(random_bytes(4)),'Zz','scEmp',$brD,$posSc,$scEmp['id']]);
+insert('INSERT INTO employees(employee_no,first_name,last_name,branch_id,position_id,status,hire_date) VALUES(?,?,?,?,?,"ACTIVE","2020-01-01")',['ZV'.bin2hex(random_bytes(4)),'Zz','scNone',$brD,$posSc]);
+$why=array_column(RecruitmentRepository::scopeStaffWithoutAccount($appD),'reason','name');
+check('Retail: not offered, and HR is told: Sales Captain with an Employee-role account, and one with no account',RecruitmentRepository::targetsFor($appD,null)===[]&&count($why)===2&&str_contains($why['Zz scNone'],'no portal account')&&str_contains($why['Zz scEmp'],'role is'));
+// --- Inline role fix on the Endorse card (SPEC-endorse-inline-role-fix.md) ---
+act($f['hr']);
+check('inline fix: without recruitment.set_reviewer_role there is no suggested role and the fix is refused',array_filter(array_column(RecruitmentRepository::scopeStaffWithoutAccount($appD),'suggested_role'))===[]&&rejects(fn()=>RecruitmentRepository::fixReviewerRole($appD,$scEmp['id'])));
+// what migration 035 gives HR_USER: only the narrow permission (no users.manage, no SC permissions)
+db()->prepare('INSERT IGNORE INTO role_permissions(role_id,permission_id) SELECT ?,id FROM permissions WHERE code="recruitment.set_reviewer_role"')->execute([$f['hr']['role_id']]);
+Auth::clearPermissionCache();
+$sug=array_column(RecruitmentRepository::scopeStaffWithoutAccount($appD),'suggested_role','name');
+check('inline fix: the Sales Captain with an Employee account gets SC suggested; the no-account one gets nothing',($sug['Zz scEmp']??null)==='SC'&&$sug['Zz scNone']===null);
+require_once __DIR__.'/../app/CandidateReviewViews.php';
+$card=applicant_reviewer_card(['id'=>$appD,'stage_code'=>'INTERVIEW']);
+check('inline fix: the card shows a Set role to Sales Captain button wired to a form outside the endorse form (no nested forms)',str_contains($card,'Set role to Sales Captain')&&str_contains($card,'name="action" value="endorse_fix_role"')&&preg_match('~</form>\s*<form id="fixrole-~',$card)===1);
+$oicEmp=real_user('EMPLOYEE','oicEmp'); $posOic=(int)(row('SELECT id FROM positions WHERE name="Officer In Charge" LIMIT 1')['id']??0);
+if($posOic>0){insert('INSERT INTO employees(employee_no,first_name,last_name,branch_id,position_id,user_id,status,hire_date) VALUES(?,?,?,?,?,?,"ACTIVE","2020-01-01")',['ZV'.bin2hex(random_bytes(4)),'Zz','oicEmp',$brD,$posOic,$oicEmp['id']]);
+    $sug=array_column(RecruitmentRepository::scopeStaffWithoutAccount($appD),'suggested_role','name');
+    check('inline fix: OIC is not offered to HR (it carries payroll.approve_manager; Super Admin only)',array_key_exists('Zz oicEmp',$sug)&&$sug['Zz oicEmp']===null&&rejects(fn()=>RecruitmentRepository::fixReviewerRole($appD,$oicEmp['id'])));}
+    db()->prepare("DELETE FROM employees WHERE user_id=?")->execute([$oicEmp["id"]]); // synthetic row, keeps the later "only the no-account one" check exact
+check('inline fix: a user who is not listed on this card cannot be changed',rejects(fn()=>RecruitmentRepository::fixReviewerRole($appD,$f['employee']['id']))&&(int)row('SELECT role_id FROM users WHERE id=?',[$f['employee']['id']])['role_id']===(int)$f['employee']['role_id']);
+$audits=(int)row('SELECT COUNT(*) c FROM audit_logs WHERE action="CHANGE_USER_ROLE" AND record_type="user" AND record_id=?',[$scEmp['id']])['c'];
+check('inline fix: sets the account to Sales Captain',RecruitmentRepository::fixReviewerRole($appD,$scEmp['id'])==='Sales Captain'&&(string)row('SELECT r.code c FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=?',[$scEmp['id']])['c']==='SC');
+check('inline fix: the role change is audited',(int)row('SELECT COUNT(*) c FROM audit_logs WHERE action="CHANGE_USER_ROLE" AND record_type="user" AND record_id=?',[$scEmp['id']])['c']===$audits+1);
+check('inline fix: the narrow permission does not widen Users & Access: HR still cannot assign the Manager role',rejects(fn()=>FoundationRepository::changeUserRole($f['employee']['id'],(int)row('SELECT id FROM roles WHERE code="MANAGER"')['id'])));
+check('inline fix: asking again for the same person is refused (no longer listed)',rejects(fn()=>RecruitmentRepository::fixReviewerRole($appD,$scEmp['id'])));
+check('Retail: once the account role is SC, the Sales Captain is offered and only the no-account one is still listed',ids(RecruitmentRepository::targetsFor($appD,null))===sorted($scEmp['id'])&&array_keys(array_column(RecruitmentRepository::scopeStaffWithoutAccount($appD),'reason','name'))===['Zz scNone']);
+
 // --- Other / unknown site ------------------------------------------------------------------------------------------
 [$mrO,$jobO]=make_job($client,'OTHER',$sfx);$appO=make_app($mrO,$client,$jobO);
 check('Other company: nobody can pass on; HR keeps the full list',RecruitmentRepository::targetsFor($appO,'TC',$tc['id'])===[]&&count(RecruitmentRepository::targetsFor($appO,null))>=5);

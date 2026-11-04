@@ -132,8 +132,10 @@ window.toggleTheme = () => {
   try { localStorage.setItem('hris-theme', theme); } catch (_) { /* Storage can be disabled. */ }
 };
 // HR users get their palette from the server (data-palette-user on <html>); everyone else keeps the browser's Light/Dark choice.
+// Public site pages (.pubnav) are always light, so a portal Dark choice saved on a shared PC must not leak into them.
 const hrPalette = document.documentElement.hasAttribute('data-palette-user');
-if (!hrPalette) try {
+const publicPage = !!document.querySelector('.pubnav');
+if (!hrPalette && !publicPage) try {
   const saved = localStorage.getItem('hris-theme');
   if (saved === 'dark' || saved === 'light') document.documentElement.dataset.theme = saved;
 } catch (_) { /* Use the default theme. */ }
@@ -298,4 +300,41 @@ if (hrisClock) {
   readAll?.addEventListener('click', async () => { if (await mark(0)) load(); });
   document.addEventListener('click', event => { if (!event.target.closest('.notify-wrap')) { panel.hidden = true; toggle.setAttribute('aria-expanded', 'false'); } });
   document.addEventListener('keydown', event => { if (event.key === 'Escape') { panel.hidden = true; toggle.setAttribute('aria-expanded', 'false'); } });
+})();
+
+// Unsaved-form draft: a refresh or accidental close keeps what HR typed (per tab, sessionStorage). Cleared after a successful save or Cancel; kept after a failed save.
+(() => {
+  const P = 'hris-draft:';
+  const skip = el => !el.name || /^(csrf|action|return_page)/i.test(el.name) || /password|token|secret/i.test(el.name) || ['password', 'file', 'hidden', 'submit', 'button', 'reset'].includes(el.type) || el.disabled || el.dataset.noDraft !== undefined;
+  const get = k => { try { return JSON.parse(sessionStorage.getItem(k)); } catch (_) { return null; } };
+  const put = (k, v) => { try { sessionStorage.setItem(k, JSON.stringify(v)); } catch (_) { /* Storage can be disabled. */ } };
+  const drop = k => { try { sessionStorage.removeItem(k); } catch (_) { /* ignore */ } };
+  const forms = [...document.querySelectorAll('form')].filter(f => /post/i.test(f.method) && !f.querySelector('input[type=password]'));
+  const keyOf = (f, i) => P + location.pathname + location.search + '#' + (f.querySelector('input[name=action]')?.value || i);
+  const hasError = !!document.querySelector('.alert.error');
+  let stale = [];
+  try { stale = Object.keys(sessionStorage).filter(k => k.startsWith(P)); } catch (_) { /* ignore */ }
+  // A submitted draft survives only on a page that came back with an error; anywhere else the save worked.
+  const here = new Set(forms.map(keyOf));
+  stale.forEach(k => { const d = get(k); if (d && d.sent && !(hasError && here.has(k))) drop(k); });
+  forms.forEach((f, i) => {
+    const key = keyOf(f, i);
+    const fields = () => [...f.elements].map((el, n) => [el, n]).filter(([el]) => !skip(el));
+    const d = get(key);
+    if (d && d.v) {
+      fields().forEach(([el, n]) => { // DOM order, so Company -> Department -> Position filters run before their value is set.
+        const s = d.v[n + ':' + el.name];
+        if (s === undefined) return;
+        if (el.type === 'checkbox' || el.type === 'radio') el.checked = !!s;
+        else if (el.value !== s) el.value = s;
+        else return;
+        el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      if (d.sent) put(key, { v: d.v });
+    }
+    const save = () => { const v = {}; fields().forEach(([el, n]) => { v[n + ':' + el.name] = (el.type === 'checkbox' || el.type === 'radio') ? el.checked : el.value; }); put(key, { v }); };
+    f.addEventListener('input', save); f.addEventListener('change', save);
+    f.addEventListener('submit', () => { const c = get(key); if (c) put(key, { v: c.v, sent: 1 }); });
+  });
+  document.addEventListener('click', e => { if (e.target.closest('a')?.textContent.trim() === 'Cancel') forms.forEach((f, i) => drop(keyOf(f, i))); });
 })();

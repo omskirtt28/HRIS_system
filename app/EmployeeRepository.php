@@ -178,7 +178,8 @@ final class EmployeeRepository
         $sql="SELECT e.id,e.employee_no,e.first_name,e.middle_name,e.last_name,p.name position_name,
                      u.email user_email,u.status user_status,r.code role_code,r.name role_name,
                      MAX(CASE WHEN r.code='SUPER_ADMIN' OR pm.code IN ('payroll.approve_manager','payroll.approve_adl') THEN 1 ELSE 0 END) manager_ready,
-                     MAX(CASE WHEN {$adl} THEN 1 ELSE 0 END) is_adl
+                     MAX(CASE WHEN {$adl} THEN 1 ELSE 0 END) is_adl,
+                     MAX(CASE WHEN r.code='RETAIL_MANAGER' AND u.status='ACTIVE' THEN 1 ELSE 0 END) is_retail_manager
               FROM employees e
               LEFT JOIN positions p ON p.id=e.position_id
               LEFT JOIN users u ON u.id=e.user_id
@@ -192,10 +193,32 @@ final class EmployeeRepository
         $st=db()->prepare($sql);$st->execute($params);return $st->fetchAll();
     }
 
-    private static function validateImmediateManager(?int $managerEmployeeId,int $employeeId,bool $retail=false): void
+    /** Is this employee an ADL once $positionId is saved? Same rule as isAdl()/the directory (Directory role first, then the position). */
+    private static function isAdlAfter(int $employeeId,?int $positionId): bool
+    {
+        $st=db()->prepare('SELECT COUNT(*) FROM employees e LEFT JOIN positions p ON p.id=? WHERE e.id=? AND '.EmployeeDirectoryPlacement::isAdlSql());
+        $st->execute([$positionId,$employeeId]);return (int)$st->fetchColumn()>0;
+    }
+
+    private static function isRetailManagerPosition(?int $positionId): bool
+    {
+        if(!$positionId)return false;
+        $st=db()->prepare('SELECT COUNT(*) FROM positions WHERE id=? AND code="RETAIL_MANAGER"');$st->execute([$positionId]);return (int)$st->fetchColumn()>0;
+    }
+
+    private static function validateImmediateManager(?int $managerEmployeeId,int $employeeId,bool $retail=false,bool $adl=false): void
     {
         if(!$managerEmployeeId)return;
         if($managerEmployeeId===$employeeId)throw new RuntimeException('An employee cannot be their own Reporting To approver.');
+        if($adl) {
+            // An ADL reports to a Retail Manager (role RETAIL_MANAGER, any number of them) with an active employee record and account.
+            $st=db()->prepare('SELECT e.status,u.status user_status,r.code role_code FROM employees e LEFT JOIN users u ON u.id=e.user_id LEFT JOIN roles r ON r.id=u.role_id WHERE e.id=?');
+            $st->execute([$managerEmployeeId]);$row=$st->fetch();
+            if(!$row)throw new RuntimeException('Selected Reporting To approver was not found.');
+            if(!in_array((string)$row['status'],['ACTIVE','PROBATIONARY','ON_LEAVE'],true)||(string)$row['user_status']!=='ACTIVE'||(string)$row['role_code']!=='RETAIL_MANAGER')
+                throw new RuntimeException('ADLs report to a Retail Manager. Choose a Retail Manager with an active HRIS account.');
+            return;
+        }
         if($retail) {
             // Retail staff report to an ADL. The ADL's login is only needed when a ticket is routed to them (checked there).
             $st=db()->prepare('SELECT e.status FROM employees e WHERE e.id=?');$st->execute([$managerEmployeeId]);$status=$st->fetchColumn();
@@ -409,7 +432,9 @@ final class EmployeeRepository
         ];
         $hasManagerColumn=self::columnExists('employees','manager_employee_id');
         $managerEmployeeId=$hasManagerColumn ? ((int)($data['manager_employee_id']??($old['manager_employee_id']??0))?:null) : null;
-        $retail=$hasManagerColumn && self::isRetailDepartment($departmentId);
+        // ADLs (head: a Retail Manager) and Retail Managers sit in the Retail department but are not "Retail staff".
+        $adl=$hasManagerColumn && self::isAdlAfter($id,$positionId);
+        $retail=$hasManagerColumn && self::isRetailDepartment($departmentId) && !$adl && !self::isRetailManagerPosition($positionId);
         // HR saved the form with Reporting To empty: a Retail employee in Ocampo's gets the ADL who holds the Ocampos area.
         if($retail && !$managerEmployeeId && array_key_exists('manager_employee_id',$data)) {
             $managerEmployeeId=self::defaultAdlId($departmentId,(string)($data['directory_company_group']??$old['directory_company_group']??''),$branchId,$id);
@@ -419,7 +444,8 @@ final class EmployeeRepository
         // A Retail employee's Reporting To must be an ADL. It is checked when it changes or when the employee moves into Retail.
         // An unchanged assignment is left alone, so an unrelated edit (maternity leave, status, an ADL who has no account yet)
         // is never blocked by it.
-        if(!$retail) self::validateImmediateManager($managerEmployeeId,$id);
+        if($adl) { if($managerChanged || $positionId!==$before['position_id']) self::validateImmediateManager($managerEmployeeId,$id,false,true); }
+        elseif(!$retail) self::validateImmediateManager($managerEmployeeId,$id);
         elseif($managerChanged || $departmentId!==$before['department_id']) self::validateImmediateManager($managerEmployeeId,$id,true);
         $after=['department_id'=>$departmentId,'position_id'=>$positionId,'branch_id'=>$branchId,'employment_type_id'=>$employmentTypeId,'manager_employee_id'=>$managerEmployeeId,'status'=>$status];
         if($workCompany!==($old['work_company']??null)) { $before['work_company']=$old['work_company']??null; $after['work_company']=$workCompany; }

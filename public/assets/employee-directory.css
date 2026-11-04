@@ -188,5 +188,5 @@ html[data-theme=dark] .employee-directory-grouped .directory-card-icon,body.dark
 .employee-directory-grouped .account-notice form{flex:none}
 .employee-directory-grouped .account-result{display:block}
 @media(max-width:600px){.employee-directory-grouped .account-notice{flex-direction:column;align-items:stretch;padding:16px}.employee-directory-grouped .account-notice form,.employee-directory-grouped .account-notice .btn{width:100%;justify-content:center}}
-.account-generate{display:flex;gap:8px;align-items:stretch}.account-generate select{flex:1 1 auto;min-width:0}.account-generate .btn{flex:none;white-space:nowrap}
+.account-generate{display:flex;gap:8px;align-items:stretch}.account-generate select{flex:1 1 auto;min-width:0}.account-generate .btn{flex:none;white-space:nowrap;padding-inline:18px;box-shadow:0 1px 2px rgba(0,0,0,.12)}.account-generate .btn.primary:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 @media(max-width:480px){.account-generate{flex-direction:column}.account-generate .btn{width:100%}}

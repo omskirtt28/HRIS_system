@@ -350,11 +350,13 @@ final class FoundationRepository
 
     // Escalation guards: nobody assigns Super Admin from the UI; HR/Admin-portal roles need Super Admin;
     // everyone else may only hand out a role whose permissions they hold themselves.
-    public static function roleAssignmentError(array $role): ?string
+    /** $ignoreSubset is only for the Endorse card's narrow action (recruitment.set_reviewer_role, SC/MT); every other path keeps the "permissions you do not hold" guard. */
+    public static function roleAssignmentError(array $role,bool $ignoreSubset=false): ?string
     {
         if($role['code']==='SUPER_ADMIN') return 'The Super Admin role cannot be assigned from this screen.';
         if(Auth::is('SUPER_ADMIN')) return null;
         if(in_array($role['portal'],['hr','admin'],true)) return 'Only a Super Admin can assign HR or Admin portal roles.';
+        if($ignoreSubset) return null;
         $missing=array_diff(self::permissionsForRole((int)$role['id']),Auth::permissionCodes());
         return $missing ? 'You cannot assign a role with permissions you do not hold: '.implode(', ',$missing).'.' : null;
     }
@@ -424,11 +426,11 @@ final class FoundationRepository
         return $user;
     }
 
-    public static function changeUserRole(int $userId,int $roleId): void
+    public static function changeUserRole(int $userId,int $roleId,bool $ignoreSubset=false): void
     {
         $user=self::managedUser($userId); $role=self::role($roleId);
         if($user['role_code']==='SUPER_ADMIN') throw new RuntimeException('Super Admin accounts cannot be changed from this screen.');
-        if($error=self::roleAssignmentError($role)) throw new RuntimeException($error);
+        if($error=self::roleAssignmentError($role,$ignoreSubset)) throw new RuntimeException($error);
         if((int)$user['role_id']===$roleId) return;
         db()->prepare('UPDATE users SET role_id=? WHERE id=?')->execute([$roleId,$userId]);
         // The role lives in the session, so sign the account out everywhere.

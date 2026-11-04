@@ -314,3 +314,8 @@ Hub for HR requests: [[Employee-Tickets]] · UI rules: [[Design-System]]
 - users.view_directory opens a read-only Users and Access to HR. HR may reset only employee-portal accounts; Super Admin resets any. A reset or the employee's own change rewrites the copy; a reset sets must_change_password.
 - First sign-in with must_change_password=1 redirects every page to the change-password page (only it and logout stay open). Own change needs the current password, 10+ chars with a letter and a number, locks 15 minutes after 5 misses, and revokes other sessions.
 - Accounts that existed before migration 020 have no copy: the eye tells HR to reset the password.
+
+## Addendum 2026-11-04 - Retail Manager role
+- Role `RETAIL_MANAGER` (employee portal) = MANAGER grants without `recruitment.*`. It is the approver and ticket viewer for ADLs (Reporting To), treated as a Manager filer, and listed under Department Managers. See BR-887 and `Plans/2026-11-04-retail-manager.md`.
+
+- 2026-11-04 New permission `recruitment.set_reviewer_role` (HR_USER only). It lets the Endorse card set SC/MT without users.manage; the "permissions you do not hold" guard still applies everywhere else. OIC is not covered by it (Super Admin only).
