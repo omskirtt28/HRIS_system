@@ -353,8 +353,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('success','Role permissions updated.'); redirect('admin-roles',['role'=>(int)($_POST['role_id']??0)]);
         }
         if ($action === 'change_user_role') {
-            Auth::requirePermission('users.manage');
-            FoundationRepository::changeUserRole((int)($_POST['user_id']??0),(int)($_POST['role_id']??0));
+            if(Auth::can('users.manage')) FoundationRepository::changeUserRole((int)($_POST['user_id']??0),(int)($_POST['role_id']??0));
+            else { Auth::requirePermission('users.assign_employee_role'); FoundationRepository::changeEmployeeUserRole((int)($_POST['user_id']??0),(int)($_POST['role_id']??0)); }
             flash('success','User role changed. The account was signed out so the new access applies.'); redirect('admin-users');
         }
         if ($action === 'generate_employee_account') {
@@ -964,7 +964,7 @@ if ($page === 'employee-dashboard') {
 
     $attendanceHome=$employee && Auth::can('attendance.view_self') && PayrollAttendanceService::ready()?EmployeeAttendanceService::current():null;
     render_portal_header('employee',$page,'Employee Home');
-    dashboard_hero('Employee self-service','Good morning, '.explode(' ',trim((string)$u['name']))[0].'.','Here is your personal HR workspace for today.'); ?>
+    dashboard_hero('Employee self-service','Good morning, '.explode(' ',trim((string)$u['name']))[0].'.','View your attendance, leave balances, and requests in one place.'); ?>
     <div class="employee-focus">
       <?php if(Auth::can('attendance.view_self')): employee_attendance_home($attendanceHome); else:?><section class="panel today-card"><div class="panel-head"><div><h2>Today</h2><p><?=e(date('l · F j, Y'))?></p></div></div><div class="panel-body"><p>Assigned workplace: <?=e($employee['branch_name']??'Not assigned')?></p></div></section><?php endif;?>
       <section class="panel"><div class="panel-head"><div><h2>Leave balance</h2><p>Available credits</p></div><a class="panel-link" href="<?=url('employee-leave')?>">View details</a></div><div class="panel-body"><?php if(!$employee):?><div class="empty phase3a-dashboard-empty">Link your Employee 201 File to view leave credits.</div><?php elseif(!$displayBalances):?><div class="empty phase3a-dashboard-empty">No leave credits have been assigned yet.</div><?php else:?><div class="balance-grid"><?php foreach($displayBalances as $b):?><div class="balance-card"><strong><?=number_format((float)$b['balance'],2)?></strong><span><?=e($b['name'])?></span><?php if((float)$b['pending']>0):?><small><?=number_format((float)$b['pending'],2)?> pending</small><?php endif;?></div><?php endforeach;?></div><?php endif;?></div></section>
@@ -1249,6 +1249,26 @@ if ($page === 'profile-download-file') {
     if(!is_file($path)){http_response_code(404);exit('File missing');}
     $name=(string)$file['original_name'];
     EmployeeProfileService::stream($path,(string)$file['mime_type']?:'application/octet-stream','attachment; filename="'.preg_replace('/[^\x20-\x7E]|["\\\\;]/','_',$name).'"; filename*=UTF-8\'\''.rawurlencode($name));
+}
+
+if ($page === 'employee-team') {
+    Auth::requirePermission('employees.view_team');
+    require_once __DIR__.'/app/EmployeeTeamService.php';
+    $teamSearch=trim((string)($_GET['q']??'')); $perPage=25;
+    $team=EmployeeTeamService::roster((int)(Auth::user()['id']??0),$teamSearch,max(1,(int)($_GET['p']??1)),$perPage);
+    $pageNo=max(1,min((int)($_GET['p']??1),max(1,(int)ceil($team['total']/$perPage))));
+    if($pageNo!==max(1,(int)($_GET['p']??1))) $team=EmployeeTeamService::roster((int)(Auth::user()['id']??0),$teamSearch,$pageNo,$perPage);
+    render_portal_header('employee',$page,'My Team');
+    page_head('Employee Self-Service / My Team','My Team'); ?>
+    <section class="panel"><div class="panel-head"><div><h2>My team (<?=$team['total']?>)</h2><p>People assigned to you. This list is read-only.</p></div></div>
+      <form method="get" class="field" role="search"><input type="hidden" name="page" value="employee-team"><label for="teamSearch">Search by name or employee code</label><input id="teamSearch" type="search" name="q" value="<?=e($teamSearch)?>" maxlength="60"> <button class="btn sm" type="submit">Search</button></form>
+      <div class="phase3a-table-wrap"><table class="phase3a-table"><thead><tr><th>Employee code</th><th>Name</th><th>Position</th><th>Area / Branch</th><th>Reporting to</th></tr></thead><tbody>
+      <?php foreach($team['rows'] as $m):?><tr><td><?=e((string)$m['employee_no'])?></td><td><?=e(trim($m['first_name'].' '.$m['last_name']))?></td><td><?=e((string)($m['position_name']??''))?></td><td><?=e(implode(' / ',array_filter([(string)($m['area_name']??''),(string)($m['branch_name']??'')])))?></td><td><?=e((string)$m['reporting_to'])?></td></tr>
+      <?php endforeach; if(!$team['rows']):?><tr><td colspan="5"><?=$teamSearch!==''?'No team members match your search.':'No people are assigned to you yet. HR sets Reporting To and area or branch assignments in Employee 201.'?></td></tr><?php endif;?>
+      </tbody></table></div>
+      <?=pager_html($team['total'],$pageNo,$perPage,'employee-team',$teamSearch!==''?['q'=>$teamSearch]:[])?>
+    </section>
+    <?php render_portal_footer(); exit;
 }
 
 if ($page === 'manager-approvals') {
@@ -2042,7 +2062,9 @@ if ($page === 'admin-users') {
                       <div class="users-row-menu" hidden><?php $canToggle=Auth::can('users.manage'); $canRemove=Auth::can('users.remove') && !$isCurrent && FoundationRepository::canRemove($u['role_code'],$u['portal']);
                         if($canToggle):?><form method="post"><?=csrf_field()?><input type="hidden" name="action" value="toggle_user_status"><input type="hidden" name="user_id" value="<?=$u['id']?>"><button type="submit" <?=$isCurrent?'disabled':''?>><?=$u['status']==='ACTIVE'?'Deactivate account':'Activate account'?></button></form><?php endif;
                         if($canRemove):?><form method="post" onsubmit="return confirm(<?=e(json_encode('Remove the account of '.$u['full_name'].'? They will no longer be able to sign in. The employee record is kept, and you can generate a new account afterwards.'))?>)"><?=csrf_field()?><input type="hidden" name="action" value="remove_user"><input type="hidden" name="user_id" value="<?=$u['id']?>"><button type="submit" class="users-menu-danger">Remove account</button></form><?php endif;
-                        if(!$canToggle && !$canRemove):?><span>No available actions</span><?php endif;?></div>
+                        $canAssign=!$canToggle && FoundationRepository::canAssignEmployeeRole($u);
+                        if($canAssign):?><button type="button" data-assign-role data-user-id="<?=(int)$u['id']?>" data-user-name="<?=e($u['full_name'])?>" data-user-email="<?=e($u['email'])?>" data-role-id="<?=(int)$u['role_id']?>" data-role-name="<?=e($u['role_name'])?>">Change role</button><?php endif;
+                        if(!$canToggle && !$canRemove && !$canAssign):?><span>No available actions</span><?php endif;?></div>
                     </div>
                   </div>
                 </td>
@@ -2087,6 +2109,29 @@ if ($page === 'admin-users') {
         </form>
       </div>
     </section>
+    <?php endif;?>
+
+    <?php if(!Auth::can('users.manage') && ($hrRoles=FoundationRepository::employeeAssignableRoles())):?>
+    <dialog id="assignRoleDialog" class="users-modal" aria-labelledby="assignRoleTitle">
+      <form method="post"><?=csrf_field()?><input type="hidden" name="action" value="change_user_role"><input type="hidden" name="user_id" id="assignRoleUser">
+        <div class="users-modal-head"><div><h2 id="assignRoleTitle">Change role</h2><p>Employee portal roles only.</p></div><button class="users-modal-close" type="button" aria-label="Close change role dialog" data-assign-cancel>×</button></div>
+        <div class="users-modal-user"><div><strong id="assignRoleName">User</strong><span id="assignRoleEmail"></span></div></div>
+        <div class="field"><span>Current role</span><strong id="assignRoleCurrent"></strong></div>
+        <div class="field"><label for="assignRoleSelect">New role</label><select id="assignRoleSelect" name="role_id" required><?php foreach($hrRoles as $r):?><option value="<?=(int)$r['id']?>"><?=e($r['name'])?></option><?php endforeach;?></select></div>
+        <p class="muted">Saving signs this account out so the new access applies.</p>
+        <div class="users-modal-actions"><button class="btn" type="button" data-assign-cancel>Cancel</button><button class="btn primary" type="submit" id="assignRoleSave">Save role</button></div>
+      </form>
+    </dialog>
+    <script>
+    (()=>{const d=document.getElementById('assignRoleDialog'),sel=document.getElementById('assignRoleSelect'),save=document.getElementById('assignRoleSave');if(!d||!d.showModal)return;let opener=null;
+      const sync=()=>{save.disabled=sel.value===d.dataset.current;};
+      document.querySelectorAll('[data-assign-role]').forEach(b=>b.addEventListener('click',()=>{opener=b.closest('.users-action-menu-slot')?.querySelector('[data-user-menu-button]')||b;
+        document.getElementById('assignRoleUser').value=b.dataset.userId;document.getElementById('assignRoleName').textContent=b.dataset.userName;document.getElementById('assignRoleEmail').textContent=b.dataset.userEmail;document.getElementById('assignRoleCurrent').textContent=b.dataset.roleName;
+        d.dataset.current=b.dataset.roleId;sel.value=b.dataset.roleId;sync();d.showModal();sel.focus();}));
+      sel.addEventListener('change',sync);
+      d.querySelectorAll('[data-assign-cancel]').forEach(b=>b.addEventListener('click',()=>d.close()));
+      d.addEventListener('close',()=>opener&&opener.focus());})();
+    </script>
     <?php endif;?>
 
     <?php if($canReveal):?>

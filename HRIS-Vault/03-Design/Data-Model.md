@@ -435,3 +435,12 @@ Adds permission `recruitment.set_reviewer_role` and grants it to HR_USER. Ledger
 
 ## 2026-11-04 - pipeline_view_036 (migration 036, applied to localhost 2026-11-04)
 Adds user_pipeline_view(user_id PK FK users, site HEAD_OFFICE|RETAIL, updated_at) and user_pipeline_view_branches(user_id FK cascade, branch_id FK branches, PK both). Additive, empty on apply; no existing row changed. Down refuses while any saved view exists (SIGNAL 45000), else drops both tables. Backup before apply: storage/slice15-private/before_stageb_apply_36_20261104_213434.sql.
+
+- 2026-11-05 (Codex): SPEC ONLY, SPEC-hr-user-role-change.md draft. John confirmed existing employee-portal role options in Users & Access. Narrow HR assignment authority proposed; no permission/code/data change. Spec approval pending; latest app patch remains pipeline-site-split / migration 036 (local per recorded evidence). Static source inspection only; no runtime checks. Graphify note extraction/refresh/export pending.
+
+- 2026-11-05 (Codex), spec addendum only: John confirmed Retail Manager = Manager workspace/team tools and approvals, excluding Recruitment/Hiring Review. Preserve RETAIL_MANAGER role, ADL hierarchy and assigned-team scope. Added independent slice/map to SPEC-hr-user-role-change.md; combined approval pending. No code/schema/grants/data changes or runtime checks; screenshot's My Workspace is collapsed, actual account grants unverified. Latest app patch still pipeline-site-split / 036 local. Graph semantic refresh/export pending.
+
+- 2026-11-05 (Codex), SDD subtitle addendum only: John requested replacing the circled employee-dashboard subtitle. Recommendation pending review: View your attendance, leave balances, and requests in one place. Source index.php:967; preserve shared hero styling and natural wrapping. One exact occurrence found. Hardcoded Good morning at 6:23 PM recorded separately, left outside scope. SPEC-hr-user-role-change.md still draft; no app/DB changes or runtime checks. Graph note extraction/refresh/export pending.
+
+## Migration 037 (authored and applied to localhost 2026-11-05; hosting not deployed)
+permissions: users.assign_employee_role (HR_USER), employees.view_team (MANAGER, RETAIL_MANAGER, ADL, SC, OIC, TC, MT). Ledger table hr_employee_role_assignment_037_seed records only grants it adds; down removes exactly those plus both permissions.

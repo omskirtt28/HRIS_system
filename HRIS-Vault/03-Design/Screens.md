@@ -235,3 +235,5 @@ Update 2026-11-03 (declutter): hr-applicant sections Schedule interview, Offer, 
 - Pipeline (`hr-pipeline`) 2026-11-04: 10 stage columns (Deployed hidden), header button "Deployed (N)" -> `hr-applicants&stage=DEPLOYED`; "+N more" per column -> `hr-applicants&stage=<CODE>`.
 - Pipeline 2026-11-04: toolbar (search, Job opening, Recruiter, Clear), groups Hiring flow / Parked; Applicants list `p` page param, 25 per page, Prev/Next pager.
 - Pipeline (hr-pipeline) 2026-11-04 site split: segmented control Head Office | Retail (each with a candidate count, no All), Retail-only Branches picker (search, All, Clear, Apply; label All Retail branches or N selected), unassigned notice when a job has no site. Opens on the HR own saved view. Applicants (hr-applicants) shows Showing Head Office/Retail candidates only plus Show all sites when opened with site/branch. CSS .pv* in app.css (v20261104-pipeline-v6).
+
+- 2026-11-05: employee-team (My Team, employee portal, employees.view_team): read-only roster. Users & Access row menu Change role dialog for HR.

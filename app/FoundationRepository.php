@@ -431,11 +431,46 @@ final class FoundationRepository
         $user=self::managedUser($userId); $role=self::role($roleId);
         if($user['role_code']==='SUPER_ADMIN') throw new RuntimeException('Super Admin accounts cannot be changed from this screen.');
         if($error=self::roleAssignmentError($role,$ignoreSubset)) throw new RuntimeException($error);
+        self::applyRoleChange($user,$role);
+    }
+
+    /** HR delegation (users.assign_employee_role): employee-portal roles an HR user may hand out. Empty without the permission; never HR/Admin/Super Admin. */
+    public static function employeeAssignableRoles(): array
+    {
+        if(!Auth::can('users.assign_employee_role')) return [];
+        return array_values(array_filter(self::roles(),fn($r)=>$r['portal']==='employee' && $r['code']!=='SUPER_ADMIN'));
+    }
+
+    /** Whether the signed-in HR user may change this listed account (UI and POST share it). Own/removed/Super Admin/non-employee targets are refused. */
+    public static function canAssignEmployeeRole(array $listedUser): bool
+    {
+        return Auth::can('users.assign_employee_role') && ($listedUser['portal']??'')==='employee' && ($listedUser['role_code']??'')!=='SUPER_ADMIN'
+            && (int)$listedUser['id']!==(int)(Auth::user()['id']??0) && empty($listedUser['removed_at']);
+    }
+
+    /** Same checks as changeUserRole, but for the narrow permission: skips the permissions-you-hold subset guard only after employee-portal target AND destination are proven. No posted bypass flag exists. */
+    public static function changeEmployeeUserRole(int $userId,int $roleId): void
+    {
+        if(!Auth::can('users.assign_employee_role')) throw new RuntimeException('You are not allowed to change account roles.');
+        $user=self::managedUser($userId); $role=self::role($roleId);
+        if($user['role_code']==='SUPER_ADMIN' || $user['portal']!=='employee') throw new RuntimeException('Only Employee portal accounts can be changed from here.');
+        if($role['code']==='SUPER_ADMIN' || $role['portal']!=='employee') throw new RuntimeException('Choose an Employee portal role.');
+        self::applyRoleChange($user,$role);
+    }
+
+    private static function applyRoleChange(array $user,array $role): void
+    {
+        $userId=(int)$user['id']; $roleId=(int)$role['id'];
         if((int)$user['role_id']===$roleId) return;
-        db()->prepare('UPDATE users SET role_id=? WHERE id=?')->execute([$roleId,$userId]);
-        // The role lives in the session, so sign the account out everywhere.
-        if(self::tableExists('user_sessions')) db()->prepare('UPDATE user_sessions SET revoked_at=NOW() WHERE user_id=? AND revoked_at IS NULL')->execute([$userId]);
-        audit('Access Control','CHANGE_USER_ROLE','user',$userId,['from_role_id'=>(int)$user['role_id'],'from_role'=>$user['role_code'],'to_role_id'=>$roleId,'to_role'=>$role['code']]);
+        $own=!db()->inTransaction();
+        if($own) db()->beginTransaction();
+        try {
+            db()->prepare('UPDATE users SET role_id=? WHERE id=?')->execute([$roleId,$userId]);
+            // The role lives in the session, so sign the account out everywhere.
+            if(self::tableExists('user_sessions')) db()->prepare('UPDATE user_sessions SET revoked_at=NOW() WHERE user_id=? AND revoked_at IS NULL')->execute([$userId]);
+            audit('Access Control','CHANGE_USER_ROLE','user',$userId,['from_role_id'=>(int)$user['role_id'],'from_role'=>$user['role_code'],'to_role_id'=>$roleId,'to_role'=>$role['code']]);
+            if($own) db()->commit();
+        } catch(Throwable $e) { if($own && db()->inTransaction()) db()->rollBack(); throw $e; }
     }
 
     public static function linkUserEmployee(int $userId,int $employeeId): void

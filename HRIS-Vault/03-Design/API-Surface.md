@@ -249,3 +249,5 @@ POST resend_interview_invite (recruitment.manage; interview_id, application_id; 
 Update 2026-11-02: POST action upload_own_photo (page employee-profile): any internal account with My Profile access; own employee row only (employee_id never read from the form); same 3 MB JPG/PNG/WEBP rules as upload_employee_photo; errors flash back to My Profile.
 - `hr-pipeline` GET q, job_id, recruiter_id; `hr-applicants` GET q, stage, job_id, recruiter_id, p (page, 25 per page). Read-only, permission unchanged.
 - 2026-11-04 POST action pipeline_save_view (page hr-pipeline): recruitment.view, CSRF; fields site (HEAD_OFFICE|RETAIL, anything else = HEAD_OFFICE), optional branches_form + branch[] (all branches ticked = no filter). GET hr-pipeline accepts site and branch[] (override of the saved view); GET hr-applicants accepts site (HEAD_OFFICE|RETAIL|UNASSIGNED, else ignored) and branch[].
+
+- 2026-11-05: GET index.php?page=employee-team&q=&p= (employees.view_team). POST change_user_role: users.manage -> changeUserRole, else users.assign_employee_role -> changeEmployeeUserRole (CSRF global).

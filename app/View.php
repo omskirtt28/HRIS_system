@@ -126,6 +126,7 @@ function nav_config(string $kind): array {
     foreach (['employee','hr','admin'] as $portal) {
         $items=[['HR Concerns','hr-requests-my','clipboard',false,Auth::can('ticket.file_for_others')?null:'tickets.request_self']];
         if(Auth::can('payroll.approve_manager') || Auth::can('payroll.approve_adl'))$items[]=['HR Request Inbox','hr-request-inbox','check-square',false,null];
+        if($portal==='employee' && Auth::can('employees.view_team'))$items[]=['My Team','employee-team','users',false,null];
         if(Auth::can('ticket.view_team') && TicketViewerService::ready())$items[]=['Team Requests','hr-request-team','users',false,null];
         if($portal!=='employee')$items[]=['HR Request Queue','hr-service-requests','clipboard',false,'tickets.review_hr'];
         if($portal!=='employee')$items[]=['Payroll Concerns','hr-payroll-concerns','clipboard',false,'tickets.review_hr'];
