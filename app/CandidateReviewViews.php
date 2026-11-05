@@ -137,6 +137,11 @@ function screening_card(int $applicationId,string $returnPage,bool $locked=false
     $cur=RecruitmentRepository::ratingOf($applicationId);
     $o='<div class="card pad" style="margin-bottom:16px"><div class="section-t">Screening rating '.rating_badge($cur).'</div>';
     if($locked)return $o.'<div class="tiny muted">This candidate is already an employee, so the rating is locked.</div></div>';
+    if($mine=RecruitmentRepository::myScreening($applicationId)){
+        $o.='<div class="small">Your rating: '.rating_badge((string)$mine['rating']).'</div>';
+        if(!empty($mine['summary']))$o.='<div class="small" style="margin-top:6px;white-space:pre-wrap">'.e((string)$mine['summary']).'</div>';
+        return $o.'<div class="tiny muted" style="margin-top:6px">Saved '.e(date('M j, Y g:i A',strtotime((string)$mine['completed_at']))).'. The rating is final.</div></div>';
+    }
     $o.='<form method="post">'.csrf_field().'<input type="hidden" name="action" value="save_screening"><input type="hidden" name="application_id" value="'.$applicationId.'"><input type="hidden" name="return_page" value="'.e($returnPage).'">'
         .'<fieldset style="border:0;padding:0;margin:0 0 10px"><legend class="tiny muted">Rating (advice only; HR decides)</legend><div class="actions-inline">';
     foreach(RecruitmentRepository::RATINGS as $code=>$label)$o.='<label style="display:inline-flex;gap:6px;align-items:center"><input type="radio" name="rating" value="'.e($code).'"'.($cur===$code?' checked':'').' required> '.e($label).'</label>';

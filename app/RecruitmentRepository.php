@@ -56,10 +56,13 @@ final class RecruitmentRepository
         $st->execute([$applicationId,$file['name'],$stored,$mime,$file['size']]);
     }
     public static function jobById(int $id): ?array { $st=db()->prepare('SELECT j.* FROM job_openings j WHERE j.id=? AND '.JobOpenings::PUBLIC_WHERE); $st->execute([$id]); return $st->fetch()?:null; }
-    public static function track(string $ref,string $email): ?array {
-        $st=db()->prepare('SELECT a.id,a.application_no,a.applied_at,j.title,"PMBSI" client_name,s.code stage_code,IF(s.code="CLIENT_REVIEW","Hiring Review",s.name) stage_name FROM applications a JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN recruitment_stages s ON s.id=a.current_stage_id WHERE a.application_no=? AND LOWER(ap.email)=LOWER(?) LIMIT 1');
-        $st->execute([$ref,$email]); $row=$st->fetch(); if (!$row) return null;
-        $hs=db()->prepare('SELECT h.*,IF(fs.code="CLIENT_REVIEW","Hiring Review",fs.name) from_name,IF(ts.code="CLIENT_REVIEW","Hiring Review",ts.name) to_name FROM application_stage_history h LEFT JOIN recruitment_stages fs ON fs.id=h.from_stage_id JOIN recruitment_stages ts ON ts.id=h.to_stage_id WHERE h.application_id=? ORDER BY h.changed_at'); $hs->execute([$row['id']]); $row['history']=$hs->fetchAll(); return $row;
+    public static function track(string $ref,string $email): ?array { return self::trackRow('a.application_no=? AND LOWER(ap.email)=LOWER(?)',[$ref,$email]); }
+    /** Private tracking link entry (ApplicantTracking::find gives the id). Same row shape as track(). */
+    public static function trackById(int $id): ?array { return self::trackRow('a.id=?',[$id]); }
+    private static function trackRow(string $where,array $p): ?array {
+        $st=db()->prepare('SELECT a.id,a.application_no,a.applied_at,j.title,"PMBSI" client_name,s.code stage_code,IF(s.code="CLIENT_REVIEW","Hiring Review",s.name) stage_name FROM applications a JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN recruitment_stages s ON s.id=a.current_stage_id WHERE '.$where.' LIMIT 1');
+        $st->execute($p); $row=$st->fetch(); if (!$row) return null;
+        $hs=db()->prepare('SELECT h.*,ts.code to_code,IF(fs.code="CLIENT_REVIEW","Hiring Review",fs.name) from_name,IF(ts.code="CLIENT_REVIEW","Hiring Review",ts.name) to_name FROM application_stage_history h LEFT JOIN recruitment_stages fs ON fs.id=h.from_stage_id JOIN recruitment_stages ts ON ts.id=h.to_stage_id WHERE h.application_id=? ORDER BY h.changed_at,h.id'); $hs->execute([$row['id']]); $row['history']=$hs->fetchAll(); return $row;
     }
     public static function applications(array $filters=[]): array {
         [$where,$p]=self::applicationFilter($filters);
@@ -391,6 +394,11 @@ final class RecruitmentRepository
         $site=self::siteTypeOf($applicationId);
         return $site!==null&&in_array((string)(Auth::user()['role_code']??''),self::SCORER_ROLES[$site]??[],true);
     }
+    /** The signed-in user's own screening rating for this application (one per rater; final once saved). */
+    public static function myScreening(int $applicationId): ?array {
+        $st=db()->prepare('SELECT rating,summary,completed_at FROM screening_reviews WHERE application_id=? AND reviewer_id=? AND rating IS NOT NULL ORDER BY id DESC LIMIT 1');
+        $st->execute([$applicationId,(int)(Auth::user()['id']??0)]); return $st->fetch()?:null;
+    }
     public static function saveScreening(int $applicationId,string $rating,string $summary): void {
         if(!self::canScore($applicationId)) throw new RuntimeException('You do not have permission to rate this candidate.');
         if(!isset(self::RATINGS[$rating])) throw new RuntimeException('Choose a rating: Negative, Fair or Outstanding.');
@@ -398,6 +406,8 @@ final class RecruitmentRepository
         $me=(int)Auth::user()['id'];
         $pdo=db(); $own=!$pdo->inTransaction(); if($own) $pdo->beginTransaction(); // a caller (a test) may already hold one
         try {
+            $pdo->prepare('SELECT id FROM applications WHERE id=? FOR UPDATE')->execute([$applicationId]); // serialise a double-click
+            if(self::myScreening($applicationId)) throw new RuntimeException('You already rated this candidate. The rating is final.');
             $pdo->prepare('INSERT INTO screening_reviews(application_id,reviewer_id,recommendation,rating,summary,completed_at) VALUES(?,?,?,?,?,NOW())')->execute([$applicationId,$me,$rating,$rating,mb_substr(trim($summary),0,2000)?:null]);
             // The recruiter slot is the first HR user who rates; a reviewer's rating never takes it.
             $pdo->prepare('UPDATE applications SET screening_rating=?,assigned_recruiter_id=IF(assigned_recruiter_id IS NULL AND ?=1,?,assigned_recruiter_id),updated_at=NOW() WHERE id=?')->execute([$rating,Auth::can('recruitment.manage')?1:0,$me,$applicationId]);

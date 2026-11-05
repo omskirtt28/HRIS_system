@@ -444,3 +444,13 @@ Adds user_pipeline_view(user_id PK FK users, site HEAD_OFFICE|RETAIL, updated_at
 
 ## Migration 037 (authored and applied to localhost 2026-11-05; hosting not deployed)
 permissions: users.assign_employee_role (HR_USER), employees.view_team (MANAGER, RETAIL_MANAGER, ADL, SC, OIC, TC, MT). Ledger table hr_employee_role_assignment_037_seed records only grants it adds; down removes exactly those plus both permissions.
+
+- 2026-11-05 (Codex): SPEC-my-team-ui.md UI-only draft; no schema/data/permission/service contract change proposed. Migration 037 remains recorded local baseline.
+
+- 2026-11-05 (Codex): SPEC-applicant-tracking-link.md DRAFT proposes hashed per-application tracking credentials, expiry and revocation. Storage shape/migration number and access/recovery policy pending approved Plan; no schema/data change authorized or executed. Existing migration 037 baseline unchanged.
+
+- 2026-11-05 (Codex), docs-only scope extension: SPEC-applicant-access-map.md proposes offer-response following tracking-access. Existing offers SENT and HR acceptance are not email delivery/applicant-origin proof. Exact issued-offer response identity/version/audit/storage pending module spec and Plan; no schema/offer data changed.
+
+- 2026-11-05 (Codex), confirmed applicant-display requirement only: Screening -> Interview -> Offer -> Deployment -> Deployed; HR INTERVIEW/ENDORSED/CLIENT_REVIEW project to Interview. See SPEC-applicant-tracking-link.md and SPEC-applicant-access-map.md. Internal stages unchanged; unlisted outcome wording/full spec approval pending. Docs only, no schema/data/code edits or runtime tests; Graphify refresh pending.
+
+- 2026-11-05 migration 038 `applicant_tracking_links` (applied localhost): id, application_id FK applications, token_hash CHAR(64) UNIQUE (SHA-256 of a 32-byte random token; raw token never stored), expires_at (issue + 90 days), revoked_at NULL (reserved; no revoke UI yet), created_at. Down refuses while any row exists.

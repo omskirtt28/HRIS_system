@@ -124,3 +124,9 @@ Default for every new or touched screen. Reference implementation: `.ap-sec` col
 - When touching a screen, upgrade old-looking patterns in it (fix sweep). Swept 2026-11-03: Tickets (.tk-collapse, .hq-uniform, .tv-panel details, .tr-more, .tk-earlier) via app.css. Not yet swept: payroll, incidents, attendance, roster import, directory. Left alone: .hq-filters (button-style summary).
 
 - Pipeline kanban (.kanban/.kcol/.kcard/.kempty) swept to this standard 2026-11-03.
+
+## 2026-11-05 - UI/UX included in authorized screen updates (John)
+Every future authorized HRIS screen/module update includes scoped UI/UX inspection and cleanup of the touched screen: spacing, hierarchy, readable forms/tables, responsiveness, accessibility and truthful states, using this design system. Include in each plan without a separate request; unrelated redesign remains separate. Preserve security/data/approval boundaries. Current My Team proposal: SPEC-my-team-ui.md (DRAFT); no code changed.
+
+### My Team pattern (2026-11-05)
+Toolbar = visible label + icon input + primary Search + conditional Clear link (44px targets); count badge states "matching results" when filtered; roster table keeps ARIA table roles and stacks as labeled rows (decorative aria-hidden labels) at <=720px; blanks show a dash. Scoped under `.myteam`; shared `.field`/`.phase3a-table` untouched.

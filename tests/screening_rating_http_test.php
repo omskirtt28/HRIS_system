@@ -90,6 +90,10 @@ $hr->req('POST', '/index.php?page=hr-applicant', array_replace($post, ['rating' 
 check('B a forged rating changes nothing', $ratingOf() === null);
 $r = $hr->req('POST', '/index.php?page=hr-applicant', $post);
 check('B HR saves Outstanding and returns to the applicant', $r['code'] === 302 && str_contains($r['loc'], 'hr-applicant') && $ratingOf() === 'OUTSTANDING');
+$after = $hr->req('GET', '/index.php?page=hr-applicant&id='.$appId)['body'];
+check('B after saving, the card is read-only (no form) and says the rating is final', str_contains($after, 'The rating is final') && !str_contains($after, 'value="save_screening"'));
+$hr->req('POST', '/index.php?page=hr-applicant', array_replace($post, ['rating' => 'NEGATIVE']));
+check('B a second POST from the same HR user changes nothing', $ratingOf() === 'OUTSTANDING');
 $list = $hr->req('GET', '/index.php?page=hr-applicants');
 check('B the applicant list shows the Outstanding badge and the HR user as recruiter', str_contains($list['body'], '>Outstanding<') && str_contains($list['body'], 'Zz hr'));
 

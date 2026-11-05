@@ -27,6 +27,7 @@ require_once __DIR__ . '/FoundationRepository.php';
 require_once __DIR__ . '/EmployeeRepository.php';
 require_once __DIR__ . '/Auth.php';
 require_once __DIR__ . '/RecruitmentRepository.php';
+require_once __DIR__ . '/ApplicantTracking.php';
 require_once __DIR__ . '/PayrollRepository.php';
 require_once __DIR__ . '/ProbationService.php';
 require_once __DIR__ . '/MaternityService.php';

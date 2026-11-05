@@ -1,3 +1,18 @@
+## 2026-11-05 - Pipeline card no longer overflows (local)
+- Kanban card footer wraps, so the screening rating badge (e.g. Outstanding) drops to its own line instead of spilling past the card in narrow columns. Job title shows up to 2 lines; name and job title have hover tooltips. No migration.
+
+## 2026-11-05 - Client Interview removed from Schedule interview (local)
+- Interview type dropdown now offers Initial, Final and Technical Interview only. Old interviews already saved as Client Interview keep their label. No migration.
+
+## 2026-11-05 - Screening rating is final once saved (local)
+- After Save rating, the Screening rating card shows your rating read-only ("The rating is final."); the same rater cannot rate again. No migration.
+
+## 2026-11-05 - Applicant private tracking link (local, migration 038)
+- After applying, the applicant gets a private 90-day tracking link with Copy link (emailed when mail and base_url are set). Track Application shows only Screening / Interview / Offer / Deployment / Deployed, outcome notes, and no HR comments.
+
+## 2026-11-05 - Sidebar My Team group (local)
+- My Team and Team Requests moved out of the Requests sidebar group into their own My Team group. Same permissions and routes.
+
 ## 2026-11-04 - Pipeline scale, paging and board filters (local)
 - Board reads counts plus 8 newest cards per stage from SQL; Applicants list paged 25/page; board search, job and recruiter filters, Hiring flow / Parked groups, days-in-stage chip. No migration.
 
@@ -590,3 +605,27 @@ The supplied `pmbsi-hrsd-handover.zip` is an HR Service Desk/ticketing backend, 
 
 ## 2026-11-05 (Claude)
 - Added: Users & Access row menu "Change role" dialog for HR (users.assign_employee_role); My Team roster page employee-team (employees.view_team, read-only, searchable, paged); employee dashboard subtitle now "View your attendance, leave balances, and requests in one place." Migration 037 authored, not applied. Not committed.
+
+## 2026-11-05 - My Team modern UI/UX spec (Codex, docs only)
+John requested modern My Team and scoped UI/UX cleanup in future authorized touched-screen updates. SPEC-my-team-ui.md DRAFT: compact Search/Clear toolbar, truthful count, readable five-field roster, mobile labeled rows and accessible states. Existing scope/search/paging retained. Awaiting spec approval; no technical Plan/tasks/code/DB/runtime checks/package/dependency. Source inspection only. Latest actual application patch remains Claude 2026-11-05 HR assignment + Retail Manager parity/My Team, migration 037 recorded applied localhost in Progress/Session-Log; hosting not deployed; browser and Rom setup unverified. Older 036-only handoff records are superseded by that newer evidence; no DB revalidation now. Continue: spec, index.php employee-team, hris-modern.css, app/View.php asset URL, EmployeeTeamService.php. Next: John spec review, then Plan in a later turn. Graph query stale/pending; selected-note registration/current-session semantic extraction/refresh/export pending outside writable workspace, no freshness claim.
+
+## 2026-11-05 - My Team modern UI (local, uncommitted)
+My Team roster restyled per SPEC-my-team-ui.md: labeled Search/Clear toolbar, count badge ("matching results" while searching), readable five-field table, stacked labeled rows at phone width, distinct empty states, dash for missing fields. Scoped `.myteam` CSS only; no backend, schema or permission change. New static test tests/my_team_ui_test.php (30). Not browser-verified, not deployed.
+
+## 2026-11-05 - My Team UI v3 (local, uncommitted)
+Swiss-minimal restyle via /ui-ux-pro-max: initials avatar, employee-code chip, ghost Clear, soft search bar, sentence-case header, 56px rows with hover accent, card rows on mobile, reduced-motion guard. Files: index.php, public/assets/hris-modern.css, app/View.php, tests/my_team_ui_test.php.
+
+- 2026-11-05: My Team roster compact density (smaller header, inline search without card, 44px rows, 28px avatars); stylesheet v=20261105-my-team-ui4.
+
+## 2026-11-05 - Applicant saved tracking link spec (Codex, docs only)
+Draft SPEC-applicant-tracking-link.md: proposed Copy/save private application tracker, existing manual fallback, privacy-limited public status; access choice/expiry/recovery/email pending approval. No application patch or schema/auth/data change; continuity notes synced. Graph refresh pending.
+
+- 2026-11-05 (Codex), latest John clarification for SPEC-applicant-tracking-link.md: Gmail is the intended tracking-link delivery channel, currently localhost; needs two entry routes. Proposed interpretation awaiting review: Gmail private link when configured + existing public Track Application ref/email lookup now, same safe status view; submission confirmation offers View status/Copy link. No temporary account selected, no Gmail send/setup/public deployment or code authorized. Localhost URLs are local-reachability only; public/cross-device use needs a reachable configured host. This supersedes the earlier copy-only delivery assumption, not latest actual My Team v4/sidebar app patch or migration 037 baseline. Spec still DRAFT/Phase 1; no Plan/tasks/code/schema/DB/app/browser checks. Docs diff check only; Graphify selected-note registration/extraction/refresh/export pending. Next: John approves/revises the two-entry spec.
+
+## 2026-11-05 - Applicant offer response capability map (Codex, docs only)
+Proposed tracking-access -> offer-response per John's clarification: acceptance originates from applicant. Tracking spec addendum and vault/checkpoint synced. Map review pending; no code/schema/auth/data change, mail or runtime tests. Graph semantic refresh/export pending.
+
+- 2026-11-05 (Codex), confirmed applicant-display requirement only: Screening -> Interview -> Offer -> Deployment -> Deployed; HR INTERVIEW/ENDORSED/CLIENT_REVIEW project to Interview. See SPEC-applicant-tracking-link.md and SPEC-applicant-access-map.md. Internal stages unchanged; unlisted outcome wording/full spec approval pending. Docs only, no schema/data/code edits or runtime tests; Graphify refresh pending.
+
+## 2026-11-05 - Pipeline "No site" tab (Claude)
+Pipeline now has a third tab, No site, for candidates on jobs with site Other/blank (shown when any exist), so every active applicant is on a board. Replaces the unassigned notice. Files: index.php hr-pipeline, public/assets/app.css (.pv-tab link, .pv-un removed), app/View.php css v7. No migration/data change.

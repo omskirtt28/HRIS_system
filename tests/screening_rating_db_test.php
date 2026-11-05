@@ -40,9 +40,9 @@ try {
     check('1 HR rating is saved on the application', $row['screening_rating'] === 'OUTSTANDING');
     check('1 recruiter is set to the HR user who scored first', (int)$row['assigned_recruiter_id'] === $hr);
     check('1 history row is kept', (int)db()->query("SELECT COUNT(*) FROM screening_reviews WHERE application_id=$app AND rating='OUTSTANDING'")->fetchColumn() === 1);
-    RecruitmentRepository::saveScreening($app, 'NEGATIVE', '');
-    check('1 a later rating replaces the latest but history grows', db()->query("SELECT screening_rating FROM applications WHERE id=$app")->fetchColumn() === 'NEGATIVE' && (int)db()->query("SELECT COUNT(*) FROM screening_reviews WHERE application_id=$app")->fetchColumn() === 2);
-    check('1 recruiter does not change on a later rating', (int)db()->query("SELECT assigned_recruiter_id FROM applications WHERE id=$app")->fetchColumn() === $hr);
+    check('1 a saved rating is final: the same rater cannot rate again', throws(fn() => RecruitmentRepository::saveScreening($app, 'NEGATIVE', ''), 'final'));
+    check('1 and nothing changed', db()->query("SELECT screening_rating FROM applications WHERE id=$app")->fetchColumn() === 'OUTSTANDING' && (int)db()->query("SELECT COUNT(*) FROM screening_reviews WHERE application_id=$app")->fetchColumn() === 1);
+    check('1 myScreening returns the rater\'s own rating', (RecruitmentRepository::myScreening($app)['rating'] ?? null) === 'OUTSTANDING');
 
     // 2. Validation
     check('2 an unknown rating is refused', throws(fn() => RecruitmentRepository::saveScreening($app, 'GREAT', ''), 'rating'));

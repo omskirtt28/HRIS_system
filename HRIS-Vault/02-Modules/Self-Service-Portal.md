@@ -259,3 +259,13 @@ Hub for HR requests: [[Employee-Tickets]] · UI rules: [[Design-System]]
 - Read-only own-profile page in the Employee portal (and Profile menu for HR/admin). Reads employees, emergency contacts, employment history, government IDs (masked), documents, current payroll rate and leave balances; no new table. Files: app/EmployeeProfileService.php, app/EmployeeProfileViews.php, public/assets/employee-profile.css/js. Tests: tests/employee_profile_test.php (pure), tests/employee_profile_db_test.php (scratch DB). Plan and spec: tasks/plan.md, SPEC-my-profile.md.
 
 - 2026-11-02: My Profile avatar is now a self-service photo upload (own record only, action upload_own_photo). Topbar/sidebar avatars still show initials.
+
+## 2026-11-05 - My Team modern UI/UX spec (Codex, docs only)
+John requested modern My Team and scoped UI/UX cleanup in future authorized touched-screen updates. SPEC-my-team-ui.md DRAFT: compact Search/Clear toolbar, truthful count, readable five-field roster, mobile labeled rows and accessible states. Existing scope/search/paging retained. Awaiting spec approval; no technical Plan/tasks/code/DB/runtime checks/package/dependency. Source inspection only. Latest actual application patch remains Claude 2026-11-05 HR assignment + Retail Manager parity/My Team, migration 037 recorded applied localhost in Progress/Session-Log; hosting not deployed; browser and Rom setup unverified. Older 036-only handoff records are superseded by that newer evidence; no DB revalidation now. Continue: spec, index.php employee-team, hris-modern.css, app/View.php asset URL, EmployeeTeamService.php. Next: John spec review, then Plan in a later turn. Graph query stale/pending; selected-note registration/current-session semantic extraction/refresh/export pending outside writable workspace, no freshness claim.
+
+### My Team roster UI (2026-11-05, built local, static-checked)
+Route `employee-team` now uses `.myteam` (panel, toolbar, table that stacks at <=720px). Data, own-team scope, search, 25-row paging and `employees.view_team` guard unchanged. Spec: SPEC-my-team-ui.md; test: tests/my_team_ui_test.php.
+
+v3 (2026-11-05): Swiss-minimal pass per SPEC addendum v3: initials avatar (decorative), code chip, ghost Clear, soft search bar, sentence-case header, mobile cards, reduced-motion. Presentation only; data/scope/paging unchanged.
+
+- 2026-11-05 My Team v4 compact: inline search (hidden label + placeholder), 44px rows/controls, 28px avatar. CSS ver my-team-ui4.

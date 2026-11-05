@@ -170,9 +170,10 @@ table.tbl tbody tr:hover{background:var(--panel)}
 .kdot{width:7px;height:7px;border-radius:50%;display:inline-block}
 .kcol .kh{position:sticky;top:0;background:var(--panel);z-index:1}
 .kcard{display:block;text-decoration:none;color:inherit}.kcard .khead{display:flex;gap:9px;align-items:center;min-width:0}.kcard .avatar{flex:none;width:30px;height:30px;font-size:11px}
-.kcard .kwho{min-width:0}.kcard .nm,.kcard .kjob{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.kcard .kjob{margin-top:1px;text-transform:uppercase;letter-spacing:.02em}
-.kcard .kfoot{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:9px}
-.kage{font-size:11px;font-weight:600;color:var(--slate);padding:1px 7px;border-radius:999px;border:1px solid var(--border)}
+.kcard .kwho{min-width:0}.kcard .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.kcard .kjob{margin-top:1px;text-transform:uppercase;letter-spacing:.02em;line-height:1.35;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
+/* wrap so the rating badge drops to its own line instead of spilling out of narrow columns */
+.kcard .kfoot{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:9px;min-width:0}.kcard .kfoot>.badge{white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.kage{font-size:11px;font-weight:600;color:var(--slate);padding:1px 7px;border-radius:999px;border:1px solid var(--border);white-space:nowrap}
 .kage.warn{color:#8A5A00;border-color:var(--amber);background:rgba(253,174,4,.14)}.kage.hot{color:var(--red);border-color:var(--red);background:rgba(192,57,43,.10)}
 .kage.warn::before,.kage.hot::before{content:"\25CF";margin-right:4px;font-size:8px;vertical-align:1px}
 .kcard .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -269,11 +270,10 @@ table.tbl tbody tr:hover{background:var(--panel)}
 /* pipeline-site-split: Head Office | Retail control + Retail branch picker (SPEC-pipeline-head-office-retail.md) */
 .pv{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 0 12px}.pv form{margin:0}
 .pv-seg{display:inline-flex;padding:3px;gap:2px;border:1px solid var(--border);border-radius:10px;background:var(--panel)}
-.pv-tab{border:0;background:transparent;color:var(--slate);font:inherit;font-size:13px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer;display:inline-flex;gap:8px;align-items:center}
+.pv-tab{border:0;background:transparent;color:var(--slate);font:inherit;font-size:13px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer;display:inline-flex;gap:8px;align-items:center;text-decoration:none}
 .pv-tab:hover{color:var(--ink)}.pv-tab:focus-visible{outline:2px solid var(--amber);outline-offset:1px}
 .pv-tab.on{background:var(--amber);color:var(--ink)}.pv-n{font-size:11px;font-weight:600;padding:1px 7px;border-radius:99px;background:var(--panel-2);color:var(--slate)}.pv-tab.on .pv-n{background:rgba(0,0,0,.12);color:var(--ink)}
 .pv-pick{position:relative}.pv-pick summary{cursor:pointer;list-style:none}.pv-pick summary::-webkit-details-marker{display:none}
 .pv-pop{position:absolute;z-index:20;top:calc(100% + 6px);left:0;width:min(320px,86vw);padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--bg);box-shadow:0 12px 32px rgba(0,0,0,.14);display:flex;flex-direction:column;gap:10px}
 .pv-find{height:34px;padding:0 10px;border:1px solid var(--border);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;font-size:13px}.pv-find:focus{outline:0;border-color:var(--amber);box-shadow:0 0 0 3px rgba(253,174,4,.22)}
 .pv-acts{display:flex;gap:6px}.pv-list{max-height:240px;overflow:auto;display:flex;flex-direction:column;gap:2px}.pv-list label{display:flex;gap:8px;align-items:center;padding:6px 8px;border-radius:7px;font-size:13px;cursor:pointer}.pv-list label:hover{background:var(--panel-2)}
-.pv-un{color:var(--slate)}

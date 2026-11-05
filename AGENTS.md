@@ -35,25 +35,7 @@ John explicitly requested a clean, GitHub-verified dev setup for BOTH Codex and 
 
 Codex canonical Ponytail source is the installed ponytail@ponytail plugin; duplicate ~/.codex/skills/ponytail* copies are retired. Addy UI/debug remain under ~/.codex/skills/.
 
-<!-- GRAPHIFY-SCOPED-20261030 -->
-## Scoped Graphify workflow - 30 October 2026
-Read relevant vault/project instructions first. Use the mapped graph through `C:\Users\John Joshua\Documents\Brain\00-Inbox\Graphify-Setup\Graphify.ps1` with `-Action query`, default `-Budget 1000`, then inspect exact sources before editing.
-After authorized meaningful decisions or patch batches, save authored Markdown, refresh changed code and selected notes, then export. Changed notes require current-session semantic extraction, source hashes and complete coverage; never fake freshness. Read-only Plan Mode cannot save/refresh. No watcher, paid API credentials or whole-root indexing.
-Manifest/checkpoint: `C:/Users/John Joshua/Documents/Brain/00-Inbox/Graphify-Setup/`. Separate code/semantic freshness is in each `Documents/Graphify-Data/<project>/status.json`; stale/missing graphs require exact sources. These scoped rules take priority over generic full-root Graphify instructions. Preserve provider separation and all security/check/deploy restrictions.
-Project ID: `hris`. Codex uses its own global Graphify skill. Brain Office managed-run adapters and paused cleanup remain unchanged.
-
-For each relevant new decision/patch note, add its exact approved path to the project noteScopes in the manifest before current-session semantic extraction and refresh. Unlisted notes are intentionally outside the graph.
-
-<!-- SHARED-PROJECT-HANDOFF-20261031 -->
-## Automatic shared project continuity - John, 31 October 2026
-Use shared project vault facts automatically so John can switch Codex/Claude when usage runs out; no separate handoff request is needed. This supersedes earlier explicit-request-only wording for shared documentation and reading. Never launch the other provider or read its private configuration, memory, credentials or chat history.
-At session start, read the current checkpoint and relevant rules. Search all dated/version headings in NEXT.md (or the project status/log equivalent), then read the referenced task note before identifying the latest patch. The first entry is not proof of recency. Preserve conflicting evidence.
-After authorized meaningful decisions/patch batches, update the current checkpoint and index: evidenced assistant author, date/version, request/decisions, exact files, package/dependencies, checks/limits, local versus owner-reported/verified live status, blockers and next action. Unknown author/deployment stays unknown; backup names and ZIPs are not proof.
-Keep history and one clearly identified current checkpoint. Follow project security, backup, checks, scoped Graphify and manual deployment rules. Brain Office paused work and manual provider-run gates remain unchanged.
+## Shared context and Graphify
+Follow global Codex AGENTS.md for shared checkpoint, scoped Graphify and context-budget rules. Project ID: `hris`.
 Project rule/current handoff: `C:/xampp/htdocs/HRIS_system/HRIS-Vault/00-Meta/Shared Project Handoff.md`; startup index: `C:/xampp/htdocs/HRIS_system/HRIS-Vault/05-Implementation/Progress.md`.
 
-<!-- PROMPT-CONTINUITY-20261031 -->
-## Prompt-by-prompt shared checkpoint - John, 31 October 2026
-Before every project-related final response, persist the compact current checkpoint in the project's shared vault: latest actual patch/version, request and newly learned facts, approved decisions versus pending/unapproved requests, exact continuation files, package/dependencies, actual checks/limits, local versus owner-reported/verified live status, blockers and next step. Do this even when the prompt changes context but produces no patch; no reminder from John is needed. Never replace the latest application patch with a docs-only task, infer approval/deployment/authorship, copy secrets or store the raw conversation.
-At a new session, provider switch or context loss, automatically read that checkpoint and its exact latest task note before answering or working; locate newer dated/version evidence throughout NEXT/status logs. State the recorded version/status when relevant instead of asking John to repeat the last patch. Within an unchanged active task, reuse the verified read/check ledger.
-After changed notes are saved, perform genuine current-session semantic extraction of the approved selected notes, then Graphify refresh/export. If checkpoint content is unchanged, verify it still covers the current state and avoid duplicate entries/rewrites/refreshes. Read-only restrictions still apply; report pending save/graph work and failures explicitly. These are assistant-executed steps, not a background watcher or a guarantee against an interrupted session. Preserve all project safety rules and Brain Office pause/manual-run gates.
