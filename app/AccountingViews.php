@@ -6,13 +6,13 @@ function accounting_open(string $page,string $title,string $actions=''): void
     $u=Auth::user(); $kind=(($u['role_portal']??'')==='admin' || in_array((string)($u['role_code']??''),['SUPER_ADMIN','HRIS_ADMIN'],true))?'admin':'hr';
     render_portal_header($kind,$page,$title);
     page_head('Accounting',$title,$actions); ?>
-    <link rel="stylesheet" href="public/assets/accounting.css?v=20261117c"><div class="acct"><?php
+    <link rel="stylesheet" href="public/assets/accounting.css?v=20261117p3a"><div class="acct"><?php
 }
 
 function accounting_close(bool $script=false): void
 {
     echo '</div>';
-    if($script) echo '<script src="public/assets/accounting.js?v=20261117d"></script>';
+    if($script) echo '<script src="public/assets/accounting.js?v=20261117p3a"></script>';
     render_portal_footer();
 }
 
@@ -40,7 +40,7 @@ function accounting_coa_page(array $accounts): void
     <div class="panel-body"><?php if(!$accounts):?><div class="empty">No accounts yet. Add the first one above.</div><?php else:?>
     <div class="ac-scroll" role="region" aria-label="Chart of accounts" tabindex="0"><table class="tbl"><thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Status</th><th class="ac-num">Lines</th><?php if($canEdit):?><th>Edit</th><?php endif;?></tr></thead><tbody>
     <?php $last=''; foreach($accounts as $a): if($a['type']!==$last): $last=$a['type'];?><tr class="ac-group"><td colspan="<?=$canEdit?6:5?>"><?=e(Accounting::TYPES[$a['type']])?></td></tr><?php endif;?>
-      <tr><td><?=e($a['code'])?></td><td><?=e($a['name'])?></td><td><?=e(Accounting::TYPES[$a['type']])?></td>
+      <tr><td><?=e($a['code'])?></td><td><a href="<?=url('accounting-ledger',['account'=>(int)$a['id']])?>"><?=e($a['name'])?></a></td><td><?=e(Accounting::TYPES[$a['type']])?></td>
         <td><?=$a['is_active']?'<span class="badge green">Active</span>':'<span class="badge gray">Inactive</span>'?></td><td class="ac-num"><?=(int)$a['used']?></td>
         <?php if($canEdit):?><td><details class="ac-edit"><summary class="btn sm">Edit</summary>
           <form method="post" class="ac-form-grid ac-pop"><?=csrf_field()?><input type="hidden" name="action" value="acct_account_save"><input type="hidden" name="id" value="<?=(int)$a['id']?>">
@@ -97,7 +97,7 @@ function accounting_entry_page(?array $e,bool $editing,array $accounts,?array $f
       </form>
       <?php accounting_close(true); return;
     }
-    $canEntry=Auth::can('accounting.entry'); $canApprove=Auth::can('accounting.approve'); $own=(int)$e['created_by_user_id']===$uid; ?>
+    $canEntry=Auth::can('accounting.entry'); $canApprove=Auth::can('accounting.approve'); $own=(int)$e['created_by_user_id']===$uid; $depMonth=FixedAssets::entryMonth((int)$e['id']); ?>
     <?php if($e['return_note'] && $e['status']==='DRAFT'):?><div class="ac-msg err">Returned by the approver: <?=e($e['return_note'])?></div><?php endif;?>
     <section class="panel"><div class="panel-head"><div><h2><?=e($e['memo'])?></h2><p><?=e(date('F j, Y',strtotime($e['entry_date'])))?> · Prepared by <?=e($e['created_by_name']??'')?><?php if($e['approved_by_name']):?> · Posted by <?=e($e['approved_by_name'])?><?php endif;?></p></div><?=accounting_status_badge($e['status'])?></div>
       <div class="panel-body">
@@ -107,6 +107,7 @@ function accounting_entry_page(?array $e,bool $editing,array $accounts,?array $f
       <?php if($e['invoice_id']):?><p class="ac-muted">Created from invoice <a href="<?=url('accounting-invoice',['id'=>$e['invoice_id']])?>"><?=e($e['invoice_no'])?></a>. Its lines are edited on the invoice.</p><?php endif;?>
       <?php if($e['payment_id']):?><p class="ac-muted">Created from payment <a href="<?=url('accounting-payment',['id'=>$e['payment_id']])?>"><?=e($e['payment_no'])?></a>. Its lines are edited on the payment.</p><?php endif;?>
       <?php if($e['remittance_id']):?><p class="ac-muted">Created from remittance <a href="<?=url('accounting-remittance',['id'=>$e['remittance_id']])?>"><?=e($e['remittance_no'])?></a>. Its lines are edited on the remittance.</p><?php endif;?>
+      <?php if($depMonth):?><p class="ac-muted">Depreciation run for <a href="<?=url('accounting-assets')?>"><?=e(date('F Y',strtotime($depMonth)))?></a>. Its lines come from the asset register; void it and run the month again to change it.</p><?php endif;?>
       <?php if($e['reverses_no']):?><p class="ac-muted">Reverses <a href="<?=url('accounting-entry',['id'=>$e['reverses_entry_id']])?>"><?=e($e['reverses_no'])?></a>.</p><?php endif;?>
       <?php if($e['reversed_by_no']):?><p class="ac-muted">Reversed by <a href="<?=url('accounting-entry',['id'=>$e['reversed_by_id']])?>"><?=e($e['reversed_by_no'])?></a>.</p><?php endif;?>
       <div class="ac-scroll"><table class="tbl"><thead><tr><th>Account</th><th>Description</th><th class="ac-num">Debit</th><th class="ac-num">Credit</th></tr></thead><tbody>
@@ -119,7 +120,7 @@ function accounting_entry_page(?array $e,bool $editing,array $accounts,?array $f
         <?php elseif($e['invoice_id']):?><a class="btn" href="<?=url('accounting-invoice',['id'=>$e['invoice_id'],'edit'=>1])?>">Edit invoice</a>
         <?php elseif($e['payment_id']):?><a class="btn" href="<?=url('accounting-payment',['id'=>$e['payment_id'],'edit'=>1])?>">Edit payment</a>
         <?php elseif($e['remittance_id']):?><a class="btn" href="<?=url('accounting-remittance',['id'=>$e['remittance_id'],'edit'=>1])?>">Edit remittance</a>
-        <?php elseif($e['entry_kind']!=='CLOSING'):?><a class="btn" href="<?=url('accounting-entry',['id'=>$e['id'],'edit'=>1])?>">Edit</a><?php endif;?>
+        <?php elseif($e['entry_kind']!=='CLOSING' && !$depMonth):?><a class="btn" href="<?=url('accounting-entry',['id'=>$e['id'],'edit'=>1])?>">Edit</a><?php endif;?>
         <form method="post"><?=csrf_field()?><input type="hidden" name="action" value="acct_journal_submit"><input type="hidden" name="id" value="<?=(int)$e['id']?>"><button class="btn primary" type="submit">Submit for approval</button></form>
         <span class="ac-spacer"></span>
         <form method="post" class="ac-row"><?=csrf_field()?><input type="hidden" name="action" value="acct_journal_void"><input type="hidden" name="id" value="<?=(int)$e['id']?>">
@@ -167,9 +168,9 @@ function accounting_periods_page(array $periods,array $equity=[]): void
     <?php accounting_close();
 }
 
-function accounting_report_rows(array $rows): string
+function accounting_report_rows(array $rows,string $from='',string $to=''): string
 {
-    $h=''; foreach($rows as $r) $h.='<tr><td class="ac-indent">'.e($r['code'].' '.$r['name']).'</td><td class="ac-num">'.Accounting::money($r['balance']).'</td></tr>';
+    $h=''; foreach($rows as $r) $h.='<tr><td class="ac-indent">'.accounting_ledger_link($r,$from,$to).'</td><td class="ac-num">'.Accounting::money($r['balance']).'</td></tr>';
     return $h;
 }
 
@@ -177,7 +178,7 @@ function accounting_reports_page(string $report,array $d,string $from,string $to
 {
     $names=['tb'=>'Trial Balance','is'=>'Income Statement','bs'=>'Balance Sheet'];
     accounting_open('accounting-reports','Financial Reports'); ?>
-    <nav class="ac-tabs" aria-label="Report"><?php foreach($names as $k=>$v):?><a href="<?=url('accounting-reports',['report'=>$k,'from'=>$from,'to'=>$to])?>" <?=$report===$k?'aria-current="page"':''?>><?=e($v)?></a><?php endforeach;?></nav>
+    <nav class="ac-tabs" aria-label="Report"><?php foreach($names as $k=>$v):?><a href="<?=url('accounting-reports',['report'=>$k,'from'=>$from,'to'=>$to])?>" <?=$report===$k?'aria-current="page"':''?>><?=e($v)?></a><?php endforeach;?><a href="<?=url('accounting-ledger',['to'=>$to])?>">General ledger</a></nav>
     <section class="panel"><form method="get" class="panel-body ac-row"><input type="hidden" name="page" value="accounting-reports"><input type="hidden" name="report" value="<?=e($report)?>">
       <?php if($report==='is'):?><label class="ac-field">From<input type="date" name="from" value="<?=e($from)?>"></label><?php endif;?>
       <label class="ac-field"><?=$report==='is'?'To':'As of'?><input type="date" name="to" value="<?=e($to)?>"></label>
@@ -188,16 +189,16 @@ function accounting_reports_page(string $report,array $d,string $from,string $to
     <?php if($report==='tb'):?>
       <thead><tr><th>Account</th><th class="ac-num">Debit</th><th class="ac-num">Credit</th></tr></thead><tbody>
       <?php if(!$d['rows']):?><tr><td colspan="3" class="ac-muted">No posted entries up to this date.</td></tr><?php endif;?>
-      <?php foreach($d['rows'] as $r):?><tr><td><?=e($r['code'].' '.$r['name'])?></td><td class="ac-num"><?=$r['dr']?Accounting::money($r['dr']):''?></td><td class="ac-num"><?=$r['cr']?Accounting::money($r['cr']):''?></td></tr><?php endforeach;?>
+      <?php foreach($d['rows'] as $r):?><tr><td><?=accounting_ledger_link($r,'',$to)?></td><td class="ac-num"><?=$r['dr']?Accounting::money($r['dr']):''?></td><td class="ac-num"><?=$r['cr']?Accounting::money($r['cr']):''?></td></tr><?php endforeach;?>
       <tr class="ac-total"><td>Total <?=$d['debit']===$d['credit']?'<span class="ac-good">Balanced</span>':'<span class="ac-bad">Not balanced</span>'?></td><td class="ac-num"><?=Accounting::money($d['debit'])?></td><td class="ac-num"><?=Accounting::money($d['credit'])?></td></tr></tbody>
     <?php elseif($report==='is'):?>
-      <tbody><tr class="ac-group"><td colspan="2">Income</td></tr><?=accounting_report_rows($d['income'])?><tr class="ac-total"><td>Total income</td><td class="ac-num"><?=Accounting::money($d['total_income'])?></td></tr>
-      <tr class="ac-group"><td colspan="2">Expenses</td></tr><?=accounting_report_rows($d['expense'])?><tr class="ac-total"><td>Total expenses</td><td class="ac-num"><?=Accounting::money($d['total_expense'])?></td></tr>
+      <tbody><tr class="ac-group"><td colspan="2">Income</td></tr><?=accounting_report_rows($d['income'],$from,$to)?><tr class="ac-total"><td>Total income</td><td class="ac-num"><?=Accounting::money($d['total_income'])?></td></tr>
+      <tr class="ac-group"><td colspan="2">Expenses</td></tr><?=accounting_report_rows($d['expense'],$from,$to)?><tr class="ac-total"><td>Total expenses</td><td class="ac-num"><?=Accounting::money($d['total_expense'])?></td></tr>
       <tr class="ac-total"><td>Net income</td><td class="ac-num <?=$d['net']<0?'ac-bad':'ac-good'?>"><?=Accounting::money($d['net'])?></td></tr></tbody>
     <?php else:?>
-      <tbody><tr class="ac-group"><td colspan="2">Assets</td></tr><?=accounting_report_rows($d['assets'])?><tr class="ac-total"><td>Total assets</td><td class="ac-num"><?=Accounting::money($d['total_assets'])?></td></tr>
-      <tr class="ac-group"><td colspan="2">Liabilities</td></tr><?=accounting_report_rows($d['liabilities'])?><tr class="ac-total"><td>Total liabilities</td><td class="ac-num"><?=Accounting::money($d['total_liabilities'])?></td></tr>
-      <tr class="ac-group"><td colspan="2">Equity</td></tr><?=accounting_report_rows($d['equity'])?><tr><td class="ac-indent">Current earnings (income less expenses to date)</td><td class="ac-num"><?=Accounting::money($d['earnings'])?></td></tr>
+      <tbody><tr class="ac-group"><td colspan="2">Assets</td></tr><?=accounting_report_rows($d['assets'],'',$to)?><tr class="ac-total"><td>Total assets</td><td class="ac-num"><?=Accounting::money($d['total_assets'])?></td></tr>
+      <tr class="ac-group"><td colspan="2">Liabilities</td></tr><?=accounting_report_rows($d['liabilities'],'',$to)?><tr class="ac-total"><td>Total liabilities</td><td class="ac-num"><?=Accounting::money($d['total_liabilities'])?></td></tr>
+      <tr class="ac-group"><td colspan="2">Equity</td></tr><?=accounting_report_rows($d['equity'],'',$to)?><tr><td class="ac-indent">Current earnings (income less expenses to date)</td><td class="ac-num"><?=Accounting::money($d['earnings'])?></td></tr>
       <tr class="ac-total"><td>Total equity</td><td class="ac-num"><?=Accounting::money($d['total_equity'])?></td></tr>
       <tr class="ac-total"><td>Liabilities and equity <?=$d['total_assets']===$d['total_liabilities']+$d['total_equity']?'<span class="ac-good">Balanced</span>':'<span class="ac-bad">Not balanced</span>'?></td><td class="ac-num"><?=Accounting::money($d['total_liabilities']+$d['total_equity'])?></td></tr></tbody>
     <?php endif;?></table></div></div></section>
@@ -220,5 +221,46 @@ function accounting_report_csv(string $report,array $d,string $from,string $to):
         if($report==='is') $row(['','','Net income ('.$from.' to '.$to.')',$n($d['net'])]);
         else { $row(['Equity','','Current earnings',$n($d['earnings'])]); $row(['','','Total assets',$n($d['total_assets'])]); $row(['','','Total liabilities and equity',$n($d['total_liabilities']+$d['total_equity'])]); }
     }
+    fclose($out);
+}
+
+/** Account name linking to its general ledger. Blank $from = January 1 of the $to year (balance-type reports). */
+function accounting_ledger_link(array $r,string $from,string $to): string
+{
+    $to=$to!==''?$to:date('Y-m-d'); $from=$from!==''?$from:substr($to,0,4).'-01-01';
+    return '<a href="'.e(url('accounting-ledger',['account'=>(int)$r['id'],'from'=>$from,'to'=>$to])).'">'.e($r['code'].' '.$r['name']).'</a>';
+}
+
+/** Phase 3 B2: general ledger of one account with opening and running balance. */
+function accounting_ledger_page(array $l,array $accounts,string $from,string $to): void
+{
+    $a=$l['account']; $q=['account'=>(int)$a['id'],'from'=>$from,'to'=>$to];
+    accounting_open('accounting-reports','General Ledger'); ?>
+    <section class="panel"><form method="get" action="index.php" class="panel-body ac-row"><input type="hidden" name="page" value="accounting-ledger">
+      <label class="ac-field">Account<select name="account"><?php foreach($accounts as $x):?><option value="<?=(int)$x['id']?>" <?=(int)$x['id']===(int)$a['id']?'selected':''?>><?=e($x['code'].' '.$x['name'])?></option><?php endforeach;?></select></label>
+      <label class="ac-field">From<input type="date" name="from" value="<?=e($from)?>"></label><label class="ac-field">To<input type="date" name="to" value="<?=e($to)?>"></label>
+      <button class="btn" type="submit">Show</button><span class="ac-spacer"></span><a class="btn" href="<?=url('accounting-ledger',$q+['csv'=>1])?>">Download CSV</a></form>
+    <div class="panel-body"><p class="ac-muted"><?=e($a['code'].' '.$a['name'])?> · <?=e(Accounting::TYPES[$a['type']])?> · <?=e(date('M j, Y',strtotime($from)).' to '.date('M j, Y',strtotime($to)))?> · posted entries only<?=$a['is_active']?'':' · inactive account'?></p>
+    <div class="ac-scroll"><table class="tbl"><thead><tr><th>Date</th><th>Entry</th><th>Description</th><th class="ac-num">Debit</th><th class="ac-num">Credit</th><th class="ac-num">Balance</th></tr></thead><tbody>
+      <tr class="ac-group"><td colspan="5">Opening balance</td><td class="ac-num"><?=Accounting::money($l['opening'])?></td></tr>
+      <?php if(!$l['rows']):?><tr><td colspan="6" class="ac-muted">No posted lines in this range.</td></tr><?php endif;?>
+      <?php foreach($l['rows'] as $r):?><tr><td><?=e(date('M j, Y',strtotime($r['entry_date'])))?></td><td><a href="<?=url('accounting-entry',['id'=>(int)$r['entry_id']])?>"><?=e($r['entry_no'])?></a></td>
+        <td><?=e($r['description']!==''&&$r['description']!==null?$r['description']:$r['memo'])?></td><td class="ac-num"><?=$r['dr']?Accounting::money($r['dr']):''?></td><td class="ac-num"><?=$r['cr']?Accounting::money($r['cr']):''?></td><td class="ac-num"><?=Accounting::money($r['balance'])?></td></tr><?php endforeach;?>
+      <tr class="ac-total"><td colspan="3">Totals and closing balance</td><td class="ac-num"><?=Accounting::money($l['debit'])?></td><td class="ac-num"><?=Accounting::money($l['credit'])?></td><td class="ac-num"><?=Accounting::money($l['closing'])?></td></tr>
+    </tbody></table></div></div></section>
+    <?php accounting_close();
+}
+
+function accounting_ledger_csv(array $l,string $from,string $to): void
+{
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="ledger-'.preg_replace('/[^A-Za-z0-9-]/','',$l['account']['code']).'-'.$from.'-'.$to.'.csv"');
+    $out=fopen('php://output','w'); $n=fn(int $c)=>number_format($c/100,2,'.','');
+    $safe=fn($s)=>is_string($s)&&preg_match('/^[=+\-@\t\r]/',$s)?"'".$s:$s; // user text never runs as an Excel formula
+    $row=fn(array $r)=>fputcsv($out,array_map($safe,$r));
+    $row(['Account',$l['account']['code'].' '.$l['account']['name']]); $row(['From',$from]); $row(['To',$to]);
+    $row(['Date','Entry','Description','Debit','Credit','Balance']); $row(['','','Opening balance','','',$n($l['opening'])]);
+    foreach($l['rows'] as $r) $row([$r['entry_date'],$r['entry_no'],(string)($r['description']?:$r['memo']),$r['dr']?$n($r['dr']):'',$r['cr']?$n($r['cr']):'',$n($r['balance'])]);
+    $row(['','','Totals',$n($l['debit']),$n($l['credit']),$n($l['closing'])]);
     fclose($out);
 }

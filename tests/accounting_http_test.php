@@ -169,5 +169,7 @@ check('save and submit creates a submitted remittance',$rm && $rm['status']==='F
 $rv=req($a,'GET','/index.php?page=accounting-remittance&id='.(int)($rm['id']??0))['body'];
 check('remittance page escapes the reference',str_contains($rv,'&lt;b&gt;PRN-') && !str_contains($rv,'<b>PRN-'));
 check('entry page says it came from the remittance',str_contains(req($b,'GET','/index.php?page=accounting-entry&id='.(int)($rm['entry_id']??0))['body'],'Created from remittance'));
-check('old demo screen redirects',str_contains(req($a,'GET','/index.php?page=accounting-dashboard')['loc'],'accounting-journal'));
+check('unknown screen redirects to the journal',str_contains(req($a,'GET','/index.php?page=accounting-nope')['loc'],'accounting-journal'));
+$dash=req($a,'GET','/index.php?page=accounting-dashboard')['body'];
+check('dashboard (Phase 3 B1) shows the income and expenses card with a period picker',str_contains($dash,'Income and expenses') && str_contains($dash,'name="periods[]"') && str_contains($dash,'data-ac-select="all"'));
 echo $fail?"\n$fail FAIL\n":"\nALL PASS\n"; exit($fail?1:0);

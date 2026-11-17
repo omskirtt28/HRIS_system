@@ -10,6 +10,10 @@ require_once __DIR__.'/CashBank.php';
 require_once __DIR__.'/CashBankViews.php';
 require_once __DIR__.'/Remittances.php';
 require_once __DIR__.'/RemittancesViews.php';
+require_once __DIR__.'/HrDashboard.php';
+require_once __DIR__.'/AccountingDashboard.php';
+require_once __DIR__.'/FixedAssets.php';
+require_once __DIR__.'/FixedAssetsViews.php';
 
 /** Accounting Phase 1 routes: accounting-coa | journal | entry | periods | reports. */
 function accounting_handle(string $page): void
@@ -122,18 +126,44 @@ function accounting_handle(string $page): void
                     if($action==='acct_period_close') { Accounting::closeMonth($m,$uid); flash('success',date('F Y',strtotime($m)).' is closed.'); }
                     else { Accounting::reopenMonth($m); flash('success',date('F Y',strtotime($m)).' is open again.'); }
                     break;
+                case 'acct_asset_save':
+                    Auth::requirePermission('accounting.entry'); if(!FixedAssets::ready()) throw new RuntimeException('Fixed assets are not installed yet (migration 048).');
+                    $back=['accounting-assets',$id>0?['edit'=>$id]:[]];
+                    FixedAssets::save($id,$_POST,$uid); flash('success','Asset saved.'); $back=['accounting-assets',[]]; break;
+                case 'acct_depreciation_run':
+                    Auth::requirePermission('accounting.entry'); if(!FixedAssets::ready()) throw new RuntimeException('Fixed assets are not installed yet (migration 048).');
+                    $back=['accounting-assets',[]];
+                    $new=FixedAssets::run((string)($_POST['month']??''),$uid);
+                    flash('success','Depreciation entry created as a draft. Submit it for approval to post it.'); $back=['accounting-entry',['id'=>$new]]; break;
                 default: throw new RuntimeException('Unknown action.');
             }
         } catch(Throwable $error) {
             if(!$error instanceof RuntimeException) error_log('Accounting action failed: '.$error->getMessage());
             flash('error',$error instanceof RuntimeException?$error->getMessage():'The change could not be saved. Try again.');
-            if(in_array($action,['acct_journal_save','acct_bill_save','acct_invoice_save','acct_payment_save','acct_remittance_save','acct_recon_finish'],true)) $_SESSION['acct_form']=$_POST; // keep what was typed
+            if(in_array($action,['acct_journal_save','acct_bill_save','acct_invoice_save','acct_payment_save','acct_remittance_save','acct_recon_finish','acct_asset_save'],true)) $_SESSION['acct_form']=$_POST; // keep what was typed
         }
         redirect($back[0],$back[1]);
     }
 
     $screen=substr($page,11);
     switch($screen) {
+        case 'dashboard':
+            $p=HrDashboard::filters($_GET); $today=date('Y-m-d'); $k=AccountingDashboard::kpis($today); $rows=AccountingDashboard::series($p,$today);
+            if(!empty($_GET['csv'])) { accounting_dashboard_csv($k,$p,$rows); exit; }
+            accounting_dashboard_page($k,$p,$rows); break;
+        case 'ledger':
+            $to=accounting_date((string)($_GET['to']??''),date('Y-m-d')); $from=accounting_date((string)($_GET['from']??''),substr($to,0,4).'-01-01');
+            if($from>$to) [$from,$to]=[$to,$from];
+            $accounts=Accounting::accounts(); $aid=(int)($_GET['account']??($accounts[0]['id']??0));
+            $l=Accounting::ledger($aid,$from,$to); if(!$l) { flash('error','Account not found.'); redirect('accounting-coa'); }
+            if(!empty($_GET['csv'])) { accounting_ledger_csv($l,$from,$to); exit; }
+            accounting_ledger_page($l,$accounts,$from,$to); break;
+        case 'assets':
+            if(!FixedAssets::ready()) { flash('error','Fixed assets are not installed yet (migration 048).'); redirect('accounting-dashboard'); }
+            $form=$_SESSION['acct_form']??null; unset($_SESSION['acct_form']);
+            $edit=isset($_GET['edit'])?FixedAssets::asset((int)$_GET['edit']):null;
+            if(!Auth::can('accounting.entry')) { $edit=null; $form=null; }
+            accounting_assets_page(FixedAssets::assets(),FixedAssets::runs(),$edit,is_array($form)?$form:null); break;
         case 'coa': accounting_coa_page(Accounting::accounts()); break;
         case 'journal':
             $st=strtoupper((string)($_GET['status']??''));
@@ -142,7 +172,7 @@ function accounting_handle(string $page): void
             $id=(int)($_GET['id']??0); $e=$id>0?Accounting::entry($id):null;
             if($id>0 && !$e) { flash('error','Journal entry not found.'); redirect('accounting-journal'); }
             $form=$_SESSION['acct_form']??null; unset($_SESSION['acct_form']);
-            $editing=(!$e || !empty($_GET['edit'])) && Auth::can('accounting.entry') && (!$e || ($e['status']==='DRAFT' && $e['entry_kind']!=='CLOSING' && !$e['bill_id'] && !$e['invoice_id'] && !$e['payment_id'] && !$e['remittance_id']));
+            $editing=(!$e || !empty($_GET['edit'])) && Auth::can('accounting.entry') && (!$e || ($e['status']==='DRAFT' && $e['entry_kind']!=='CLOSING' && !$e['bill_id'] && !$e['invoice_id'] && !$e['payment_id'] && !$e['remittance_id'] && !FixedAssets::entryMonth($id)));
             if(!$e && !$editing) redirect('accounting-journal');
             accounting_entry_page($e,$editing,Accounting::accounts(true),is_array($form)?$form:null,$uid); break;
         case 'vendors': accounting_vendors_page(AccountsPayable::vendors()); break;

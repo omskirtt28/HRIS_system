@@ -201,6 +201,7 @@ final class Accounting
                 if($no=$b->fetchColumn()) throw new RuntimeException("This entry belongs to payment $no. Edit the payment instead so its amounts stay in step.");
                 $b=$pdo->prepare('SELECT remittance_no FROM acct_remittances WHERE entry_id=?'); $b->execute([$id]);
                 if($no=$b->fetchColumn()) throw new RuntimeException("This entry belongs to remittance $no. Edit the remittance instead so its total stays in step.");
+                if(class_exists('FixedAssets') && FixedAssets::entryMonth($id)) throw new RuntimeException('This is a depreciation run built from the asset register. Void it and run the month again instead of editing it.');
                 $pdo->prepare('UPDATE acct_journal_entries SET entry_date=?,memo=? WHERE id=?')->execute([$date,$memo,$id]);
                 $pdo->prepare('DELETE FROM acct_journal_lines WHERE entry_id=?')->execute([$id]);
             } else {
@@ -409,5 +410,23 @@ final class Accounting
         $a=$pick('A'); $l=$pick('L'); $e=$pick('E');
         $ta=array_sum(array_column($a,'balance')); $tl=array_sum(array_column($l,'balance')); $te=array_sum(array_column($e,'balance'))+$earn;
         return ['assets'=>$a,'liabilities'=>$l,'equity'=>$e,'earnings'=>$earn,'total_assets'=>$ta,'total_liabilities'=>$tl,'total_equity'=>$te];
+    }
+    /**
+     * General ledger of one account (Phase 3 B2): natural-side opening balance before $from, then every posted line in [from,to]
+     * with a running balance, oldest first. Amounts in centavos.
+     */
+    public static function ledger(int $accountId,string $from,string $to): ?array
+    {
+        $a=db()->prepare("SELECT id,code,name,type,is_active FROM acct_accounts WHERE id=?"); $a->execute([$accountId]); $a=$a->fetch();
+        if(!$a) return null;
+        $sign=self::debitNormal($a["type"])?1:-1;
+        $o=db()->prepare("SELECT COALESCE(SUM(l.debit-l.credit),0) FROM acct_journal_lines l JOIN acct_journal_entries e ON e.id=l.entry_id WHERE l.account_id=? AND e.status=\"POSTED\" AND e.entry_date<?");
+        $o->execute([$accountId,$from]); $open=$sign*self::toCents($o->fetchColumn());
+        $q=db()->prepare("SELECT l.id,l.description,l.debit,l.credit,e.id AS entry_id,e.entry_no,e.entry_date,e.memo,e.entry_kind FROM acct_journal_lines l JOIN acct_journal_entries e ON e.id=l.entry_id
+            WHERE l.account_id=? AND e.status=\"POSTED\" AND e.entry_date BETWEEN ? AND ? ORDER BY e.entry_date,e.id,l.line_no");
+        $q->execute([$accountId,$from,$to]);
+        $run=$open; $rows=[]; $td=0; $tc=0;
+        foreach($q as $r) { $d=self::toCents($r["debit"]); $c=self::toCents($r["credit"]); $td+=$d; $tc+=$c; $run+=$sign*($d-$c); $rows[]=$r+["dr"=>$d,"cr"=>$c,"balance"=>$run]; }
+        return ["account"=>$a,"opening"=>$open,"rows"=>$rows,"debit"=>$td,"credit"=>$tc,"closing"=>$run];
     }
 }

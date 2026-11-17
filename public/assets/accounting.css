@@ -21,3 +21,26 @@ table.tbl tr.ac-group td{font-weight:650;color:var(--hris-muted);background:var(
 @media(max-width:640px){.ac-wide{grid-column:auto}.ac-lines thead{display:none}.ac-lines tr{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:8px 0;border-bottom:1px solid var(--hris-line)}.ac-lines td{display:block}.ac-lines td:first-child,.ac-lines td:nth-child(2){grid-column:span 2}.ac-lines tfoot td{grid-column:auto!important}}
 .ac-checklist{list-style:none;margin:0;padding:0;display:grid;gap:2px;font-size:13px;white-space:nowrap}.ac-checklist .ac-good,.ac-checklist .ac-muted{font-weight:500}
 .ac-checklist .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+/* Phase 3 B1 dashboard: KPI strip + Income and expenses card (3D extruded bars by default, Bar style option). */
+.ac-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px}
+.ac-kpi{display:flex;flex-direction:column;gap:4px;padding:16px;border:1px solid var(--hris-line);border-radius:var(--hris-radius);background:var(--hris-surface);color:var(--hris-text);text-decoration:none;min-height:44px}
+.ac-kpi span{font-size:12.5px;color:var(--hris-muted);font-weight:600}.ac-kpi strong{font-size:22px;font-variant-numeric:tabular-nums}.ac-kpi small{color:var(--hris-muted);font-size:12px}
+.ac-kpi:hover{border-color:var(--hris-brand)}.ac-kpi:focus-visible,.ac-options summary:focus-visible,.ac-values summary:focus-visible{outline:2px solid var(--hris-brand);outline-offset:2px}
+.ac-options{border-top:1px solid var(--hris-line)}.ac-options summary,.ac-values summary{cursor:pointer;padding:10px 18px;font-size:13px;font-weight:600;color:var(--hris-brand);min-height:24px}
+.ac-options-body{padding:4px 18px 16px;display:grid;gap:12px}.ac-periods{border:1px solid var(--hris-line);border-radius:10px;padding:10px 12px;margin:0;display:grid;gap:8px}
+.ac-periods legend{font-size:12.5px;font-weight:600;color:var(--hris-muted);padding:0 4px}.ac-period-options{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px}
+.ac-period-options label{display:flex;align-items:center;gap:6px;min-height:32px}
+.ac-metric{display:flex;flex-wrap:wrap;gap:8px 22px;margin:0 0 8px;font-size:13px;color:var(--hris-muted)}.ac-metric strong{margin-left:4px;font-variant-numeric:tabular-nums;color:var(--hris-text)}
+.ac-legend{display:flex;gap:16px;list-style:none;margin:0 0 6px;padding:0;font-size:12.5px;color:var(--hris-muted)}.ac-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.ac-legend .ac-s-inc{background:var(--hris-success)}.ac-legend .ac-s-exp{background:var(--hris-warning)}
+.ac-chart{display:block;min-width:520px;width:100%;height:auto;max-height:320px}
+.ac-chart .ac-axis{stroke:var(--hris-line);stroke-width:1}.ac-chart .ac-xlab{font:600 12px Inter,sans-serif;fill:var(--hris-muted)}
+.ac-chart .ac-s-inc{--c:var(--hris-success)}.ac-chart .ac-s-exp{--c:var(--hris-warning)}
+.ac-chart .ac-front{fill:var(--c)}.ac-chart .ac-top{fill:var(--c);filter:brightness(1.25)}.ac-chart .ac-side{fill:var(--c);filter:brightness(.72)}
+.ac-chart .ac-floor{fill:var(--hris-text);opacity:0}
+.ac-chart .ac-val{font:700 11.5px Inter,sans-serif;fill:var(--c);paint-order:stroke;stroke:var(--hris-surface);stroke-width:3.5px;stroke-linejoin:round}
+[data-style="deep"] .ac-side{filter:brightness(.55)}[data-style="deep"] .ac-top{filter:brightness(1.4)}
+[data-style="floor"] .ac-floor{opacity:.12}
+[data-style="flat"] .ac-top,[data-style="flat"] .ac-side{display:none}
+.ac-values{margin-top:8px;border-top:1px solid var(--hris-line)}.ac-values summary{padding-left:0}
+.ac-metric strong.ac-good{color:var(--hris-success)}.ac-metric strong.ac-bad{color:var(--hris-danger)}

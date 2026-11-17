@@ -410,7 +410,6 @@ step('accounting journals', function () use ($users, $admin) {
             ['2130', 0, '21600', 'Withholding tax'], ['1030', 0, '269500', 'Net pay released']], $b === 0 ? 'FOR_APPROVAL' : 'POSTED');
     }
     $je($m(1, 18), 'Office supplies', [['5120', '7820.50', 0], ['1010', 0, '7820.50']]);
-    $je($m(1, 28), 'Depreciation of office equipment', [['5130', '3083.33', 0], ['1510', 0, '3083.33']]);
     $bad = $je($m(1, 20), 'Transportation reimbursements', [['5140', '4600', 0], ['1010', 0, '4600']]);
     act_as($admin); Accounting::reverse($bad, $m(1, 22), $admin); // recorded twice by mistake; reversal waits for approval
     $je($m(0, 8), 'Office supplies (receipt pending)', [['5120', '3150', 0], ['1010', 0, '3150']], 'RETURNED', 'Attach the official receipt number in the memo.');
@@ -463,6 +462,19 @@ step('accounting AP/AR/cash/remittances', function () use ($users, $admin) {
     $data = CashBank::reconData(CashBank::bank($savings), $m(2, 1));
     $sum = array_sum(array_map(fn($l) => (int)round($l['debit'] * 100) - (int)round($l['credit'] * 100), $data['lines']));
     CashBank::finishRecon($savings, substr($m(2, 1), 0, 7), number_format($sum / 100, 2, '.', ''), array_column($data['lines'], 'id'), $prep);
+});
+
+/* ---------- Accounting Phase 3: fixed assets (048) ---------- */
+step('accounting fixed assets', function () use ($users, $admin) {
+    $acc = q('SELECT code,id FROM acct_accounts')->fetchAll(PDO::FETCH_KEY_PAIR);
+    $prep = $users['pay'];
+    $m = fn(int $back, int $day) => date('Y-m-', strtotime(date('Y-m-01')." -$back month")).sprintf('%02d', $day);
+    $gl = ['asset_account_id' => $acc['1500'], 'accum_account_id' => $acc['1510'], 'expense_account_id' => $acc['5130'], 'salvage' => '0'];
+    act_as($prep);
+    FixedAssets::save(0, ['name' => 'Laptops (12 units)', 'acquired_on' => $m(2, 3), 'cost' => '150000', 'life_months' => '36'] + $gl, $prep);
+    FixedAssets::save(0, ['name' => 'Office printers', 'acquired_on' => $m(2, 3), 'cost' => '35000', 'life_months' => '60', 'salvage' => '5000'] + $gl, $prep);
+    $run = FixedAssets::run(substr($m(1, 1), 0, 7), $prep); // last month; this month is left for the demo button
+    Accounting::submit($run); act_as($admin); Accounting::approve($run, $admin);
 });
 
 act_as($admin);

@@ -34,3 +34,17 @@ if(rec){const base=parseInt(rec.dataset.cleared,10)||0,cl=rec.querySelector('[da
   const s=signed(st.value);if(s===null){df.textContent='-';df.className='ac-num';return}df.textContent=s===c?'0.00 Balanced':fmt(s-c);df.className='ac-num '+(s===c?'ac-good':'ac-bad')};
  rec.addEventListener('input',upd);rec.addEventListener('change',upd);upd();}
 })();
+/* Dashboard card: period All/Clear, mode change reloads, Bar style remembered per browser. */
+(()=>{
+const f=document.querySelector('[data-ac-period]'); if(!f) return;
+const boxes=[...f.querySelectorAll('input[name="periods[]"]')],count=f.querySelector('legend span');
+const upd=()=>{count.textContent=`(${boxes.filter(b=>b.checked).length} selected)`};
+f.querySelectorAll('[data-ac-select]').forEach(b=>b.addEventListener('click',()=>{boxes.forEach(x=>x.checked=b.dataset.acSelect==='all');upd()}));
+boxes.forEach(b=>b.addEventListener('change',upd));
+f.querySelector('[data-ac-mode]').addEventListener('change',()=>{f.querySelector('[name=selection_mode]').value='';f.requestSubmit()});
+const sel=f.querySelector('[data-ac-barstyle]'),chart=document.querySelector('[data-ac-chart]');
+let style='extruded';try{style=localStorage.getItem('acBarStyle')||style}catch(e){}
+if(!['extruded','deep','floor','flat'].includes(style))style='extruded';
+sel.value=style;if(chart)chart.dataset.style=style;
+sel.addEventListener('change',()=>{if(chart)chart.dataset.style=sel.value;try{localStorage.setItem('acBarStyle',sel.value)}catch(e){}});
+})();
