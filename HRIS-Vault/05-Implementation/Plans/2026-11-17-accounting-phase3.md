@@ -3,7 +3,7 @@ tags: [plan, accounting]
 ---
 # Accounting Phase 3: dashboard, ledger, tax books, fixed assets
 
-Status: in progress (John 2026-11-17: "go sa step 0 muna tapos tapusin natin hanggang phase 3, sa live hindi pa")
+Status: done 2026-11-17 - B1, B2, B6 (048), B3-B5 (049) applied hris_clean + hris_demo; local commits; walang pmbsi_hris/deploy (John: "go sa step 0 muna tapos tapusin natin hanggang phase 3, sa live hindi pa")
 
 ## Context
 Phase 1-2 tapos (039-044) + payroll engine (045-047), committed 9c5d36e. Phase 3 = huling bahagi ng [[Accounting]] scope. Local lang (hris_clean + hris_demo), walang pmbsi_hris/deploy.

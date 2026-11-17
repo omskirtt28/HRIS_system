@@ -1,3 +1,11 @@
+## 2026-11-17 - Accounting Phase 3: dashboard, general ledger, fixed assets, VAT/EWT, settings (Claude, local)
+- Accounting Dashboard: live bank, receivable, payable and approval figures; Income and expenses chart with Monthly/Quarterly/Yearly periods and Download report.
+- General Ledger per account with running balance; account names in the financial reports open their ledger.
+- Fixed Assets (migration 048): asset register and monthly straight-line depreciation entries that go through the normal approval.
+- Accounting Settings and Tax Reports (migration 049): payroll posting accounts with optional Salaries Payable, VAT and withholding codes typed in by the client, VAT on bills/invoices, withholding on bills, VAT summary and withholding list. Nothing is preset.
+- Fix: Fiscal Periods no longer scrolls sideways on phones.
+- Files: app/AccountingDashboard.php, app/FixedAssets.php, app/FixedAssetsViews.php, app/AccountingSetup.php, app/AccountingSetupViews.php, app/Accounting.php, app/AccountingModule.php, app/AccountingViews.php, app/AccountsPayable(.php|Views.php), app/AccountsReceivable(.php|Views.php), app/PayrollRun.php, app/View.php, public/assets/accounting.css/.js, database/migrations/20261117_048_*, 20261117_049_*, tests/accounting_phase3_db_test.php, tests/accounting_test.php, tests/accounting_http_test.php, scripts/check.php, scripts/demo_seed.php.
+
 ## 2026-11-17 - Payroll follow-up: pay method, paid leave, carry-forward (Claude, local)
 - Migration 047: each salary rate has a pay method, Per hour worked or Fixed monthly (half the monthly salary per cutoff less absences, late and undertime).
 - Approved leave of a paid leave type is paid. Holidays and rest days are now classified from the holiday calendar and site workdays.
