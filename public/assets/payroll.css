@@ -88,7 +88,7 @@
 .cutoff-work-steps>span{display:flex;gap:10px;align-items:center;background:var(--hris-surface);border:1px solid var(--hris-line);padding:13px 15px;border-radius:11px;font-size:13px;font-weight:600;color:var(--hris-muted)}
 .cutoff-work-steps b{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--hris-surface-2);flex-shrink:0;font-size:12px}
 .cutoff-work-steps .is-current{background:var(--hris-brand-soft);border-color:var(--hris-brand);color:var(--hris-text)}
-.cutoff-work-steps .is-current b{background:var(--hris-brand);color:#17191c}
+.cutoff-work-steps .is-current b{background:var(--hris-brand);color:var(--hris-on-brand,#fff)}
 .cutoff-work-steps .is-done b{color:var(--hris-success);background:var(--hris-success-soft)}
 .cutoff-friendly-panel>.panel-head{gap:16px;align-items:center;flex-wrap:wrap;border-bottom:0;padding-bottom:6px}
 .cutoff-friendly-panel>.panel-head h2{font-size:19px}.cutoff-friendly-panel>.panel-head p{line-height:1.65;font-size:13px}

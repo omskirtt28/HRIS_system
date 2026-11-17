@@ -33,15 +33,15 @@
 /* Foldable nav groups · 2026-10-31 · only the group holding the current page starts open */
 .nav-group .gl-toggle{display:flex;align-items:center;gap:8px;width:100%;border:0;background:transparent;font:inherit;font-size:10px;text-transform:uppercase;letter-spacing:.1em;font-weight:600;color:#7b8290;padding:7px 11px;border-radius:8px;cursor:pointer;text-align:left;transition:background .16s ease,color .16s ease}
 .nav-group .gl-toggle:hover{background:var(--hris-sidebar-soft,#24272e);color:#fff}
-.nav-group .gl-toggle:focus-visible{outline:2px solid var(--hris-brand,#fdae04);outline-offset:1px}
+.nav-group .gl-toggle:focus-visible{outline:2px solid var(--hris-brand,#2563eb);outline-offset:1px}
 .nav-group .gl-text{flex:1;min-width:0}
 .nav-group .gl-toggle svg{width:16px;height:16px;flex:0 0 auto;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .16s ease}
 .nav-group .gl-toggle>svg{width:14px;height:14px}
 .nav-group.is-collapsed .gl-toggle>svg{transform:rotate(-90deg)}
 .nav-group .gl-ico{display:grid;place-items:center;width:26px;height:26px;border-radius:8px;background:rgba(255,255,255,.06);transition:background .16s ease,color .16s ease,transform .16s ease}
-.nav-group .gl-toggle:hover .gl-ico{background:rgba(253,174,4,.18);color:var(--hris-brand,#fdae04);transform:scale(1.08)}
+.nav-group .gl-toggle:hover .gl-ico{background:rgba(37,99,235,.18);color:var(--hris-brand,#2563eb);transform:scale(1.08)}
 .nav-group.has-active .gl-toggle{color:#fff}
-.nav-group.has-active .gl-ico{background:var(--hris-brand,#fdae04);color:#111318}
+.nav-group.has-active .gl-ico{background:var(--hris-brand,#2563eb);color:#111318}
 .nav-group:not(.is-collapsed) .nav-items{animation:navIn .18s ease}
 .nav-group .nav-item{transition:transform .14s ease,background .16s ease}
 .nav-group .nav-item:hover{transform:translateX(2px)}
@@ -62,5 +62,5 @@
   html[data-side=folded] .side .gl-toggle>svg{display:none}
   html[data-side=folded] .side .gl-toggle .gl-ico{width:34px;height:34px}
   html[data-side=folded] .side .gl-toggle .gl-count{position:absolute;top:1px;right:8px;min-width:16px;padding:0 4px;line-height:16px;box-shadow:0 0 0 2px var(--hris-sidebar,#16181d)}
-  html[data-side=folded] .side .nav-group.has-active .gl-toggle{box-shadow:inset 3px 0 0 var(--hris-brand,#fdae04)}
+  html[data-side=folded] .side .nav-group.has-active .gl-toggle{box-shadow:inset 3px 0 0 var(--hris-brand,#2563eb)}
 }

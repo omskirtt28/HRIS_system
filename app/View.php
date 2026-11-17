@@ -58,26 +58,25 @@ function icon_svg(string $name, string $class=''): string {
 
 function render_head(string $title): void { $pu=Auth::user(); $hrPal=$pu&&UserPalette::canChoose($pu); ?>
 <!doctype html><html lang="en"<?=$hrPal?UserPalette::htmlAttrs((string)($pu['ui_palette']??'')):''?>><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title><?=e($title)?> · PMBSI HRIS</title>
-<link rel="shortcut icon" href="favicon.ico?v=20260924-logo-transparency-fix-v2" type="image/x-icon">
-<link rel="icon" href="favicon.ico?v=20260924-logo-transparency-fix-v2" sizes="any">
-<link rel="icon" type="image/png" sizes="32x32" href="public/assets/branding/favicon-32x32.png?v=20260924-logo-transparency-fix-v2">
-<link rel="icon" type="image/png" sizes="16x16" href="public/assets/branding/favicon-16x16.png?v=20260924-logo-transparency-fix-v2">
-<link rel="apple-touch-icon" sizes="180x180" href="public/assets/branding/apple-touch-icon.png?v=20260924-logo-transparency-fix-v2">
+<title><?=e($title)?> · <?=e(brand('product'))?></title>
+<link rel="icon" href="favicon.ico?v=20261117-rebrand" sizes="any">
+<link rel="icon" type="image/svg+xml" href="public/assets/branding/hris-mark.svg?v=20261117-rebrand">
+<link rel="apple-touch-icon" sizes="180x180" href="public/assets/branding/apple-touch-icon.png?v=20261117-rebrand">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="public/assets/app.css?v=20261105-pipeline-v7"><link rel="stylesheet" href="public/assets/hris-modern.css?v=20261105-my-team-ui4"><link rel="stylesheet" href="public/assets/phase2b.css?v=20260924-phase2b-201file"><link rel="stylesheet" href="public/assets/employee-directory.css?v=20261102-account-notice-v1"><link rel="stylesheet" href="public/assets/sidebar-logout.css?v=20260924-sidebar-logout"><link rel="stylesheet" href="public/assets/payroll.css?v=20261011-hr-payroll-friendly-v2"><script src="public/assets/payroll.js?v=20261011-hr-payroll-friendly-v2" defer></script>
+<link rel="stylesheet" href="public/assets/app.css?v=20261105-pipeline-v7"><link rel="stylesheet" href="public/assets/hris-modern.css?v=20261106-shell-polish-v1"><link rel="stylesheet" href="public/assets/phase2b.css?v=20260924-phase2b-201file"><link rel="stylesheet" href="public/assets/employee-directory.css?v=20261102-account-notice-v1"><link rel="stylesheet" href="public/assets/sidebar-logout.css?v=20260924-sidebar-logout"><link rel="stylesheet" href="public/assets/payroll.css?v=20261011-hr-payroll-friendly-v2"><script src="public/assets/payroll.js?v=20261011-hr-payroll-friendly-v2" defer></script>
 <link rel="stylesheet" href="public/assets/attendance-export.css?v=20261011-export-all-logs-v2"><script src="public/assets/attendance-export.js?v=20261011-export-all-logs-v2" defer></script>
 <link rel="stylesheet" href="public/assets/employee-delete.css?v=20261010-v1"><link rel="stylesheet" href="public/assets/employee-archive.css?v=20261012-v1"><link rel="stylesheet" href="public/assets/notifications.css?v=20261029-sidebar"><link rel="stylesheet" href="public/assets/sidebar-fold.css?v=20261031-v6"><?php if($hrPal):?><link rel="stylesheet" href="public/assets/palettes.css?v=20261102-pal-v2"><link rel="stylesheet" href="public/assets/palette-menu.css?v=20261102-pal-v2"><?php endif;?><?php if(str_starts_with((string)($GLOBALS["page"]??""),"employee-profile")):?><link rel="stylesheet" href="public/assets/employee-profile.css?v=20261031-my-profile-v11"><script src="public/assets/employee-profile.js?v=20261031-my-profile-v11" defer></script><?php endif;?><script>try{if(localStorage.getItem('hris-side')==='folded')document.documentElement.dataset.side='folded'}catch(e){}</script>
+<?php if(($GLOBALS['page']??'')==='employee-team'):?><link rel="stylesheet" href="public/assets/tailwind.css?v=20261106-myteam-pilot-v1"><?php endif;?>
 <style>.alert{padding:11px 14px;border-radius:10px;margin-bottom:14px;font-size:12.5px}.req{color:var(--red)}.actions-inline{display:flex;gap:6px;flex-wrap:wrap}.nowrap{white-space:nowrap}.empty{padding:36px;text-align:center;color:var(--hris-muted)}form.inline{display:inline}.status-select{min-width:150px}</style>
-</head><body><div id="toast" class="toast"></div>
+<?=brand_style()?></head><body><div id="toast" class="toast"></div>
 <?php }
 
 function render_flashes(): void { $f=pull_flashes(); if(!$f)return; echo '<div class="flash-wrap">'; foreach($f as $x) echo '<div class="alert '.e($x['type']).'">'.e($x['message']).'</div>'; echo '</div>'; }
 
 function render_public_header(string $active=''): void { ?>
 <nav class="pubnav"><div class="in">
-<a href="<?=url('home')?>" class="brand brand-official brand-official-public" aria-label="Prime Mover Business Solutions, Inc."><img src="public/assets/branding/pmbsi-logo-transparent-v2.png" alt="Prime Mover Business Solutions, Inc." class="brand-full-logo"></a>
+<a href="<?=url('home')?>" class="brand brand-official brand-official-public" aria-label="<?=e(brand('company'))?> home"><?=brand_lockup()?></a>
 <div class="links">
 <?php foreach([['Home','home'],['Careers','careers'],['About Us','about'],['Contact','contact']] as [$label,$page]): ?>
 <a href="<?=url($page)?>" class="<?=$active===$page?'active':''?>"><?=e($label)?></a>
@@ -88,37 +87,37 @@ function render_public_header(string $active=''): void { ?>
 
 function render_public_footer(): void { ?>
 <footer class="foot"><div class="in">
-<div><div class="brand brand-official brand-official-footer"><img src="public/assets/branding/pmbsi-logo-transparent-v2.png" alt="Prime Mover Business Solutions, Inc." class="brand-full-logo"></div><p style="max-width:280px;margin-top:12px">Connecting Filipino talent with meaningful careers through trusted workforce management.</p></div>
+<div><div class="brand brand-official brand-official-footer"><?=brand_lockup()?></div><p style="max-width:280px;margin-top:12px">Careers, employee self-service and HR operations for <?=e(brand('company'))?>.</p></div>
 <div><div style="color:#fff;font-weight:600;margin-bottom:8px">Careers</div><a href="<?=url('careers')?>">Browse jobs</a><a href="<?=url('careers')?>">Apply now</a><a href="<?=url('track')?>">Track application</a></div>
 <div><div style="color:#fff;font-weight:600;margin-bottom:8px">Company</div><a href="<?=url('about')?>">About us</a><a href="<?=url('contact')?>">Contact</a></div>
 <div><div style="color:#fff;font-weight:600;margin-bottom:8px">HRIS</div><a href="<?=url('login')?>">Employee / HR Login</a><a href="<?=url('login',['portal'=>'client'])?>">Client Portal</a><a href="<?=url('login',['portal'=>'admin'])?>">Administration</a></div>
-</div><div class="in" style="border-top:1px solid #333;margin-top:28px;padding-top:18px;font-size:12px">© 2026 Prime Mover Business Solutions, Inc. · HRIS</div></footer>
+</div><div class="in" style="border-top:1px solid #333;margin-top:28px;padding-top:18px;font-size:12px">© <?=date('Y')?> <?=e(brand('company'))?> · <?=e(brand('product'))?></div></footer>
 <script src="public/assets/hris-app.js?v=20261104-draft-v1"></script></body></html><?php }
 
 function nav_config(string $kind): array {
     $base=[
-      'employee'=>['title'=>'PMBSI HRIS','sub'=>'Employee Self-Service','groups'=>[
+      'employee'=>['title'=>brand('company'),'sub'=>'Employee Self-Service','groups'=>[
         ['Overview',[['Home','employee-dashboard','home',false,'dashboard.employee.view']]],
         ['My Workspace',[['My Profile','employee-profile','user',false,'employees.view_self'],['Attendance','employee-attendance','clock',false,'attendance.view_self'],['Leave','employee-leave','calendar',false,'leave.view_self'],['Requests','employee-requests','clipboard',false,'payroll.request_self'],['Team Approvals','manager-approvals','check-square',false,'payroll.approve_manager'],['Candidates for review','review-candidates','user-plus',false,'recruitment.review']]],
         ['Growth',[['Performance','#','chart',true,null],['Training','#','book',true,null]]]
       ]],
-      'hr'=>['title'=>'PMBSI HRIS','sub'=>'Human Resources','groups'=>[
+      'hr'=>['title'=>brand('company'),'sub'=>'Human Resources','groups'=>[
         ['Overview',[['Dashboard','hr-dashboard','home',false,'dashboard.hr.view']]],
         ['People',[['Employees','hr-employees','users',false,'employees.view_all'],['Employee Archive','hr-employee-archive','file',false,'employees.view_all'],['Probation & Seasonal','hr-probation','clock',false,'employees.view_all'],['Users & Access','admin-users','shield',false,'users.view_directory']]],
-        ['Payroll & Timekeeping',[['Payroll Ticket Review','hr-timekeeping','clipboard',false,'payroll.approve_hr'],['Import Logs','payroll-import','files',false,'payroll.biometric_import'],['Attendance Export','payroll-cutoff','file',false,'payroll.process'],['Leave Approvals','hr-leave','calendar',false,'leave.approve_hr'],['Team Approvals','manager-approvals','check-square',false,'payroll.approve_manager']]],
+        ['Payroll & Timekeeping',[['Payroll Ticket Review','hr-timekeeping','clipboard',false,'payroll.approve_hr'],['Import Logs','payroll-import','files',false,'payroll.biometric_import'],['Attendance Export','payroll-cutoff','file',false,'payroll.process'],['Payroll Runs','payroll-runs','wallet',false,'payroll.process'],['Statutory Tables','payroll-statutory','book',false,'payroll.configure'],['Leave Approvals','hr-leave','calendar',false,'leave.approve_hr'],['Team Approvals','manager-approvals','check-square',false,'payroll.approve_manager']]],
         ['Recruitment',[['Manpower Requests','hr-manpower','briefcase',false,'recruitment.view'],['Job Openings','hr-jobs','megaphone',false,'recruitment.view'],['Applicants','hr-applicants','user-plus',false,'recruitment.view'],['Pipeline','hr-pipeline','pipeline',false,'recruitment.view'],['Endorsements','hr-endorsements','check-square',false,'recruitment.view']]],
         ['HR Operations',[['Employee Relations','#','shield',true,null],['Performance','#','chart',true,null],['Training','#','book',true,null],['Offboarding','#','file',true,null]]],
         ['Insights',[['Reports','hr-reports','chart',false,'reports.view']]]
       ]],
-      'client'=>['title'=>'PMBSI HRIS','sub'=>Auth::user()['client_name'] ?? 'Client Portal','groups'=>[
+      'client'=>['title'=>brand('company'),'sub'=>Auth::user()['client_name'] ?? 'Client Portal','groups'=>[
         ['Workspace',[['Dashboard','client-dashboard','home',false,null],['Candidates','client-candidates','users',false,null],['Approvals','client-approvals','check-square',false,null]]],
         ['Account',[['Reports','client-reports','chart',false,null]]]
       ]],
-      'admin'=>['title'=>'PMBSI HRIS','sub'=>'HR Administration','groups'=>[
+      'admin'=>['title'=>brand('company'),'sub'=>'HR Administration','groups'=>[
         ['Overview',[['Dashboard','admin-dashboard','home',false,'dashboard.admin.view']]],
         ['Access Control',[['Users','admin-users','users',false,'users.view'],['Roles & Permissions','admin-roles','shield',false,'roles.view'],['Security & Sessions','admin-security','shield',false,'audit.view']]],
         ['Organization',[['Employees','hr-employees','users',false,'employees.view_all'],['Employee Archive','hr-employee-archive','file',false,'employees.view_all'],['Probation & Seasonal','hr-probation','clock',false,'employees.view_all'],['Organization Setup','admin-organization','building',false,'organization.view']]],
-        ['Payroll',[['Payroll Ticket Review','hr-timekeeping','clipboard',false,'payroll.approve_hr'],['Import Logs','payroll-import','files',false,'payroll.biometric_import'],['Attendance Export','payroll-cutoff','file',false,'payroll.process'],['Leave Approvals','hr-leave','calendar',false,'leave.approve_hr']]],
+        ['Payroll',[['Payroll Ticket Review','hr-timekeeping','clipboard',false,'payroll.approve_hr'],['Import Logs','payroll-import','files',false,'payroll.biometric_import'],['Attendance Export','payroll-cutoff','file',false,'payroll.process'],['Payroll Runs','payroll-runs','wallet',false,'payroll.process'],['Statutory Tables','payroll-statutory','book',false,'payroll.configure'],['Leave Approvals','hr-leave','calendar',false,'leave.approve_hr']]],
         ['Operations',[['Audit Logs','admin-audit','audit',false,'audit.view'],['Clear Test Data','admin-clear-data','shield',false,'system.test_data.clear']]]
       ]]
     ];
@@ -151,6 +150,10 @@ function nav_config(string $kind): array {
             ['Portal Downloads','profile-downloads','file',false,'employees.manage'],
             ['Portal FAQs','profile-faqs','file',false,'employees.manage'],
         ]]]);
+        // Accounting Phase 1 (migration 039) + payables (041), receivables (042), cash and bank (043); see HRIS-Vault/02-Modules/Accounting.md. Phase 2/3 screens stay hidden until built.
+        $base[$portal]['groups'][]=['Accounting',array_map(fn($x)=>[$x[0],'accounting-'.$x[1],$x[2],false,'accounting.view'],[
+            ['Journal Entries','journal','file'],['Bills','bills','receipt'],['Vendors','vendors','users'],['Invoices','invoices','receipt'],['Customers','customers','users'],['Payments','payments','wallet'],['Bank Accounts','banks','book'],['Bank Reconciliation','recon','check'],['Remittances','remittances','wallet'],['Chart of Accounts','coa','book'],['Fiscal Periods','periods','calendar'],['Financial Reports','reports','chart'],
+        ])];
     }
     return $base[$kind] ?? $base['employee'];
 }
@@ -168,7 +171,7 @@ function render_portal_header(string $kind,string $active,string $title): void {
     $c=nav_config($kind); render_head($title);
     $notificationSummary=NotificationService::unreadSummary((int)($u['id']??0));
     $unread=$notificationSummary['unread']; ?>
-<div class="shell"><aside class="side" id="side" data-scroll-key="<?=e('hris-sidebar:'.(int)($u['id']??0).':'.$kind)?>"><a href="<?=url($kind.'-dashboard')?>" class="brand brand-portal" aria-label="Prime Mover Business Solutions, Inc."><img src="public/assets/branding/pmbsi-logo-transparent-v2.png" alt="Prime Mover Business Solutions, Inc." class="brand-full-logo"><span class="brand-portal-meta"><strong><?=e($c['title'])?></strong><span class="sub brand-portal-sub"><?=e($c['sub'])?></span></span></a>
+<div class="shell"><aside class="side" id="side" data-scroll-key="<?=e('hris-sidebar:'.(int)($u['id']??0).':'.$kind)?>"><a href="<?=url($kind.'-dashboard')?>" class="brand brand-portal" aria-label="<?=e(brand('company'))?> dashboard"><?=brand_lockup(false)?><span class="brand-portal-meta"><strong><?=e($c['title'])?></strong><span class="sub brand-portal-sub"><?=e($c['sub'])?></span></span></a>
 <div class="navs"><?php foreach($c['groups'] as $gi=>[$group,$items]):
     // Same visibility rules as before, resolved first so a group knows its size and whether it holds the current page.
     $visible=[];
@@ -179,7 +182,7 @@ function render_portal_header(string $kind,string $active,string $title): void {
     $groupCount=0; foreach($visible as $item) $groupCount+=(int)($notificationSummary['sidebar_counts'][$item[1]]??0);
     $gid='navg-'.$gi;
     // One icon per group: it is the whole group in the collapsed rail. Unknown groups fall back to their first item's icon.
-    $gicon=['People'=>'users','HR Request Setup'=>'settings','Payroll & Timekeeping'=>'clock','Payroll'=>'clock','Recruitment'=>'briefcase','HR Operations'=>'boxes','Requests'=>'clipboard','My Team'=>'users','Incident Reports'=>'alert','My Workspace'=>'user','Growth'=>'chart','Access Control'=>'shield','Organization'=>'building','Operations'=>'settings','Workspace'=>'home','Account'=>'user'][$group]??$visible[0][2]; ?>
+    $gicon=['People'=>'users','HR Request Setup'=>'settings','Payroll & Timekeeping'=>'clock','Payroll'=>'clock','Recruitment'=>'briefcase','HR Operations'=>'boxes','Requests'=>'clipboard','My Team'=>'users','Incident Reports'=>'alert','My Workspace'=>'user','Growth'=>'chart','Access Control'=>'shield','Organization'=>'building','Operations'=>'settings','Workspace'=>'home','Account'=>'user','Accounting'=>'wallet'][$group]??$visible[0][2]; ?>
 <div class="nav-group<?=$fold?' foldable':''?><?=$open?'':' is-collapsed'?><?=$holdsActive?' has-active':''?>"<?=$fold?' data-nav-group="'.e($group).'"':''?>><?php if($fold): ?><button type="button" class="gl gl-toggle" aria-expanded="<?=$open?'true':'false'?>" aria-controls="<?=e($gid)?>" aria-label="<?=e($group)?>"><span class="gl-ico"><?=icon_svg($gicon)?></span><span class="gl-text"><?=e($group)?></span><span class="gl-count" data-group-count <?=$groupCount?'':'hidden'?>><?=$groupCount>99?'99+':$groupCount?></span><?=icon_svg('chevron')?></button><?php else: ?><div class="gl"><?=e($group)?></div><?php endif;?><div class="nav-items" id="<?=e($gid)?>" data-title="<?=e($group)?>">
 <?php foreach($visible as $item): [$label,$page,$icon,$disabled]=array_pad($item,5,null); ?>
 <a href="<?=$disabled?'#':url($page)?>" class="nav-item <?=$active===$page?'active':''?> <?=$disabled?'disabled':''?>"><span class="ni"><?=icon_svg($icon)?></span><span class="nl"><?=e($label)?></span><?php $count=$notificationSummary['sidebar_counts'][$page]??0; if(!$disabled): ?><span class="sidebar-notify-badge" role="img" data-sidebar-count="<?=e($page)?>" aria-label="<?=e($count.' unread notifications')?>" <?=$count?'':'hidden'?>><?=$count>99?'99+':$count?></span><?php endif;?><?=$disabled?'<span class="soon">Soon</span>':''?></a>

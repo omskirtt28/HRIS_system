@@ -544,13 +544,18 @@ final class PayrollAttendanceService
         $basis=(string)($data['salary_basis']??''); if(!in_array($basis,['HOURLY','DAILY','MONTHLY'],true)) throw new RuntimeException('Choose a salary basis.');
         $salary=self::number($data['salary_amount']??'',0.0001,100000000); $divisor=self::number($data['hourly_divisor']??'',0.0001,10000);
         if($basis==='HOURLY' && $divisor!==1.0) throw new RuntimeException('Hourly salary basis must use divisor 1.');
+        $method=(string)($data['pay_method']??'PER_HOUR'); if(!in_array($method,['PER_HOUR','FIXED'],true)) throw new RuntimeException('Choose a pay method.');
+        if($method==='FIXED' && $basis!=='MONTHLY') throw new RuntimeException('Fixed monthly pay needs a monthly salary basis.');
+        $hasMethod=FoundationRepository::columnExists('payroll_employee_rates','pay_method'); // migration 047
+        if($method==='FIXED' && !$hasMethod) throw new RuntimeException('Fixed monthly pay needs database migration 047.');
         db()->beginTransaction();
         try {
             db()->prepare('SELECT id FROM employees WHERE id=? FOR UPDATE')->execute([$employee]);
             $st=db()->prepare('SELECT COUNT(*) FROM payroll_employee_rates WHERE employee_id=? AND effective_from<=COALESCE(?,"9999-12-31") AND COALESCE(effective_to,"9999-12-31")>=?'); $st->execute([$employee,$to,$from]);
             if((int)$st->fetchColumn()) throw new RuntimeException('Salary effective dates overlap. End the previous rate before adding the next one.');
-            db()->prepare('INSERT INTO payroll_employee_rates(employee_id,effective_from,effective_to,salary_basis,salary_amount,hourly_divisor,created_by) VALUES(?,?,?,?,?,?,?)')->execute([$employee,$from,$to,$basis,$salary,$divisor,(int)Auth::user()['id']]);
-            audit('Payroll','EMPLOYEE_RATE','employee',$employee,['effective_from'=>$from,'salary_basis'=>$basis]); db()->commit();
+            if($hasMethod) db()->prepare('INSERT INTO payroll_employee_rates(employee_id,effective_from,effective_to,salary_basis,salary_amount,hourly_divisor,pay_method,created_by) VALUES(?,?,?,?,?,?,?,?)')->execute([$employee,$from,$to,$basis,$salary,$divisor,$method,(int)Auth::user()['id']]);
+            else db()->prepare('INSERT INTO payroll_employee_rates(employee_id,effective_from,effective_to,salary_basis,salary_amount,hourly_divisor,created_by) VALUES(?,?,?,?,?,?,?)')->execute([$employee,$from,$to,$basis,$salary,$divisor,(int)Auth::user()['id']]);
+            audit('Payroll','EMPLOYEE_RATE','employee',$employee,['effective_from'=>$from,'salary_basis'=>$basis,'pay_method'=>$method]); db()->commit();
         } catch(Throwable $e) { if(db()->inTransaction()) db()->rollBack(); throw $e; }
     }
 

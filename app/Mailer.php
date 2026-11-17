@@ -33,7 +33,7 @@ final class Mailer
         if(!self::configured()) throw new RuntimeException('Email is not set up. Add the mail settings to config/config.local.php.');
         $m=self::settings();
         $host=(string)$m['host']; $port=(int)($m['port'] ?? 465); $user=(string)$m['username']; $pass=(string)$m['password'];
-        $from=self::clean((string)($m['from_email'] ?? $user)); $fromName=self::clean((string)($m['from_name'] ?? 'PMBSI HRIS'));
+        $from=self::clean((string)($m['from_email'] ?? $user)); $fromName=self::clean((string)($m['from_name'] ?? brand('product')));
         $context=stream_context_create(['ssl'=>array_filter(['verify_peer'=>true,'verify_peer_name'=>true,'cafile'=>$m['cafile'] ?? null])]);
         $socket=@stream_socket_client('ssl://'.$host.':'.$port,$errno,$error,15,STREAM_CLIENT_CONNECT,$context);
         if(!$socket) throw new RuntimeException('Could not connect to the mail server ('.($error?:'check host / port / internet').').');

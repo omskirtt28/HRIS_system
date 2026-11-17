@@ -16,7 +16,7 @@ function job_openings_view(array $rows,string $filter,string $search,bool $canMa
     foreach($rows as $r){
         $status=JobOpenings::displayStatus($r);[$cls,$label]=$badge($status);
         echo '<tr><td class="mono tiny">'.e($r['job_code']).'</td><td><strong>'.e($r['title']).'</strong>'.($r['location_text']?'<div class="tiny muted">'.e($r['location_text']).'</div>':'').($r['is_featured']?' <span class="badge amber">Featured</span>':'').'</td>'
-            .'<td>'.e($r['employer']).'<div class="tiny muted">Shown to the public as PMBSI</div></td><td>'.e(stage_label($r['employment_type'])).'</td><td>'.(int)$r['openings'].'</td><td>'.(int)$r['applications'].'</td>'
+            .'<td>'.e($r['employer']).'<div class="tiny muted">Shown to the public as '.e(brand('company')).'</div></td><td>'.e(stage_label($r['employment_type'])).'</td><td>'.(int)$r['openings'].'</td><td>'.(int)$r['applications'].'</td>'
             .'<td><span class="badge '.$cls.'">'.e($label).'</span></td><td>'.e($r['closes_at']?date('M j, Y',strtotime((string)$r['closes_at'])):'-').'</td>';
         if($canManage){
             $post=fn(string $action,string $text,string $cls='')=>'<form method="post" action="'.e(url('hr-jobs')).'" style="display:inline">'.csrf_field().'<input type="hidden" name="action" value="'.$action.'"><input type="hidden" name="job_id" value="'.(int)$r['id'].'"><button class="btn sm'.$cls.'" aria-label="'.$text.' '.e($r['title']).'">'.$text.'</button></form> ';
@@ -40,7 +40,7 @@ function job_openings_form(array $f,array $clients,array $departments):void
     $token=bin2hex(random_bytes(16));$_SESSION['job_form_tokens']=array_slice([$token=>1]+($_SESSION['job_form_tokens']??[]),0,10,true);
     $id=(int)($f['job_id']??0);$fromRequest=(int)($f['manpower_request_id']??0)>0;$v=fn(string $k)=>e((string)($f[$k]??''));
     echo '<form class="card pad" method="post" action="'.e(url('hr-jobs')).'" style="margin-bottom:18px">'.csrf_field().'<input type="hidden" name="action" value="save_job"><input type="hidden" name="form_token" value="'.$token.'"><input type="hidden" name="job_id" value="'.$id.'"><input type="hidden" name="manpower_request_id" value="'.($fromRequest?(int)$f['manpower_request_id']:'').'">'
-        .'<h2 style="margin:0 0 4px;font-size:17px">'.($id?'Edit job':($fromRequest?'Post job from manpower request':'New job')).'</h2><p class="tiny muted" style="margin:0 0 14px">The public sees the employer as PMBSI. Nothing goes live until you publish.</p>';
+        .'<h2 style="margin:0 0 4px;font-size:17px">'.($id?'Edit job':($fromRequest?'Post job from manpower request':'New job')).'</h2><p class="tiny muted" style="margin:0 0 14px">The public sees the employer as '.e(brand('company')).'. Nothing goes live until you publish.</p>';
     echo '<div class="split"><div class="field"><label for="jf-title">Job title</label><input id="jf-title" name="title" required maxlength="180" value="'.$v('title').'"></div>'
         .'<div class="field"><label for="jf-loc">Location</label><input id="jf-loc" name="location_text" maxlength="180" value="'.$v('location_text').'"></div></div><div class="split">'
         .'<div class="field"><label for="jf-type">Employment type</label><select id="jf-type" name="employment_type">';

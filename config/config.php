@@ -1,15 +1,24 @@
 <?php
 return [
     'app' => [
-        'name' => 'PMBSI HRIS',
+        'name' => 'HRIS',
         'base_url' => '',
         'timezone' => 'Asia/Manila',
         'debug' => true,
     ],
+    // White-label identity. Override per client in config.local.php; logo = optional image path (empty = built-in mark).
+    'brand' => [
+        'product' => 'HRIS',
+        'company' => 'Demo Company',
+        'tagline' => 'Human Resources Information System',
+        'logo' => '',
+        'color' => '#2563eb',
+        'color_strong' => '#1d4ed8',
+    ],
     'db' => [
         'host' => '127.0.0.1',
         'port' => '3306',
-        'database' => 'pmbsi_hris',
+        'database' => 'hris_clean',
         'username' => 'root',
         'password' => '',
         'charset' => 'utf8mb4',

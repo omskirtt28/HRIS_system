@@ -22,7 +22,7 @@
 .tk-dot{flex:0 0 28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:13px;border:2px solid var(--hris-line);background:var(--hris-bg)}
 .tk-step-label{font-weight:600;overflow-wrap:anywhere}
 .tk-step.is-done{color:var(--hris-text)}.tk-step.is-done .tk-dot{background:var(--hris-success);border-color:var(--hris-success);color:#fff}
-.tk-step.is-current{color:var(--hris-text);border-color:var(--hris-brand);background:var(--hris-brand-soft)}.tk-step.is-current .tk-dot{background:var(--hris-brand);border-color:var(--hris-brand);color:#17191c}
+.tk-step.is-current{color:var(--hris-text);border-color:var(--hris-brand);background:var(--hris-brand-soft)}.tk-step.is-current .tk-dot{background:var(--hris-brand);border-color:var(--hris-brand);color:var(--hris-on-brand,#fff)}
 .tk-step.is-warn{color:var(--hris-text);border-color:var(--hris-warning);background:var(--hris-warning-soft)}.tk-step.is-warn .tk-dot{background:var(--hris-warning);border-color:var(--hris-warning);color:#fff}
 .tk-step.is-stop{color:var(--hris-text);border-color:var(--hris-danger);background:var(--hris-danger-soft)}.tk-step.is-stop .tk-dot{background:var(--hris-danger);border-color:var(--hris-danger);color:#fff}
 .tk-response{margin:0 0 18px;padding:18px 22px;border-radius:var(--hris-radius);border:1px solid var(--hris-brand);border-left-width:6px;background:var(--hris-brand-soft);color:var(--hris-text)}

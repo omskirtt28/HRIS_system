@@ -1,0 +1,67 @@
+---
+title: Accounting
+type: module
+status: phase1-plus-ap-built-local
+tags: [module, hris, accounting, draft, needs-verification]
+updated: 2026-11-17
+---
+
+# Accounting
+
+## Status
+Phase 1 core is REAL (migration 039, 2026-11-17, applied to the configured local app DB `hris_clean` only; `pmbsi_hris` and `hris_demo` not migrated; not deployed). Sidebar group "Accounting" (HR + Admin) shows only the four built screens: Journal Entries, Chart of Accounts, Fiscal Periods, Financial Reports (`index.php?page=accounting-journal|entry|coa|periods|reports`). Phase 2/3 screens are hidden until built; the sample-data demo and `public/accounting-preview.html` are deleted (John 2026-11-17). Code: `app/Accounting.php` (service), `app/AccountingModule.php` (routes/POST), `app/AccountingViews.php`, `public/assets/accounting.js/.css`. Tests: `tests/accounting_test.php` (pure, 23), `tests/accounting_db_test.php` (48), `tests/accounting_http_test.php` (24), `tests/accounts_payable_db_test.php` (38).
+
+Phase 2 slice A1 Vendors + Accounts Payable is REAL (migration 041, 2026-11-17, applied to `hris_clean`; `hris_demo` gets it from scripts/demo_seed.php; `pmbsi_hris` not migrated; not deployed). Sidebar adds Bills and Vendors (`accounting-bills`, `accounting-bills&view=aging`, `accounting-bill`, `accounting-vendors`). Code: `app/AccountsPayable.php`, `app/AccountsPayableViews.php`.
+Phase 2 slice A2 Customers + Accounts Receivable is REAL (migration 042, 2026-11-17, applied to `hris_clean`; `hris_demo` gets it on the next scripts/demo_seed.php run; `pmbsi_hris` not migrated; not deployed). Sidebar adds Invoices and Customers (`accounting-invoices`, `accounting-invoices&view=aging`, `accounting-invoice`, `accounting-customers`). Code: `app/AccountsReceivable.php`, `app/AccountsReceivableViews.php`.
+Phase 2 slice A3 Cash and Bank is REAL (migration 043, 2026-11-17, applied to `hris_clean`; `hris_demo` gets it on the next scripts/demo_seed.php run; `pmbsi_hris` not migrated; not deployed). Sidebar adds Payments, Bank Accounts, Bank Reconciliation (`accounting-payments`, `accounting-payment`, `accounting-banks`, `accounting-recon`). Code: `app/CashBank.php`, `app/CashBankViews.php`. Rules: a bank account maps to one active asset ledger account (not 1100). A payment is a disbursement voucher DV-YYYY-NNNN (pays posted bills of one vendor: Dr 2010 AP per bill / Cr bank) or a collection receipt CR-YYYY-NNNN (settles posted invoices of one customer: Dr bank / Cr 1100 AR per invoice), partial amounts allowed, one draft JE through the normal approval. A payment that is not voided and not reversed holds its amount even as a draft, so it can never exceed the open balance (document rows locked). A bill/invoice with a live payment cannot be reversed. AP/AR aging subtract payments posted by the as-of date. Bank reconciliation: per bank per month, in order; tick cleared posted lines on the bank ledger account; all cleared lines must equal the statement ending balance; only the latest month can be undone (accounting.approve). The internal CR number is not a BIR Official Receipt; the BIR OR no. goes in Reference (OR/ATP rules NEEDS VERIFICATION).
+Phase 2 slice A4 Remittances is REAL (migration 044, 2026-11-17, applied to `hris_clean`; `hris_demo` gets it on the next scripts/demo_seed.php run; `pmbsi_hris` not migrated; not deployed). Sidebar adds Remittances (`accounting-remittances`, `accounting-remittance`). Code: `app/Remittances.php`, `app/RemittancesViews.php`. Rules: a remittance (agency SSS / PhilHealth / Pag-IBIG / BIR, period month, bank account, payment date, required reference no.) keeps its lines in one draft JE, Dr payable lines (active liability accounts except 2010 AP) / Cr the bank's cash account, approved like any entry; form starts on the agency's sample payable (2100 / 2110 / 2120 / 2130); period cannot be after the payment month; same agency + reference refused unless the earlier one is voided; numbering RMT-YYYY-NNNN. The list shows a "Recorded by month" grid per year (posted, not reversed) so a missing month is visible; deadlines and BIR form numbers show "To confirm". Bank reconciliation picks up remittance lines like any bank line. Full value only once the payroll engine fills the payables.
+
+Phase 2 step 5 Month-close checklist is REAL (2026-11-17, no migration). Fiscal Periods shows per month: All entries posted; Banks reconciled (active banks with a reconciliation for that month, x of y); Remittances recorded (agencies with a posted, not reversed remittance for that period, x of 4). Advisory: only pending entries block Close month. Months with a reconciliation or remittance also appear in the list. Limit: every active bank counts for every month (no opened-on date).
+
+## Phase 1 rules as built
+- Permissions: `accounting.view` (screens, reports, CSV), `accounting.entry` (Bookkeeper: create/edit drafts, submit), `accounting.approve` (Finance Head: approve and post, return with reason, create reversing entry, close/reopen months, edit the chart). Seeded to HRIS_ADMIN only; give HR roles through Roles screen. Super Admin passes all.
+- Journal: Draft -> For approval -> Posted. Drafts may be unbalanced; submit needs >= 2 lines and debits = credits. Each line is debit OR credit, > 0, 2 decimals, active account. Only drafts are editable. The preparer can never approve their own entry (segregation of duties, also for Admin). Posted entries are never edited: "Create reversing entry" makes a linked DRAFT with debits/credits swapped (one reversal per entry, date not before the original) that goes through approval. Numbering JE-YYYY-NNNN per year.
+- Periods: closing a month needs every entry dated in it posted; a closed month blocks save/submit/post/reversal dated in it. Future months cannot be closed. Reopen allowed (Finance Head), audited.
+- Chart: 27-account generic sample seeded once (client chart still NEEDS VERIFICATION). Code unique; code/type locked once an account has lines; inactive accounts stay in reports but cannot be picked.
+- Reports from POSTED lines only: Trial Balance (as of), Income Statement (from-to), Balance Sheet (as of; income/expense not yet closed shows as "Current earnings" in equity). CSV download neutralises formula cells. Every write is in audit_logs (module accounting).
+- Void (migration 040, John 2026-11-17): any draft (including returned or reversal drafts) can be voided by accounting.entry with a reason. Status VOID; the row and JE number stay (no gaps); it counts nowhere and does not block closing a month. Voiding a reversal draft frees the original to be reversed again.
+- Year-end closing (migration 040): Fiscal Periods "Year-end closing" (accounting.approve) creates a DRAFT dated Dec 31, entry_kind CLOSING, that zeroes every income/expense account of the year into the chosen active equity account (default: the one named Retained Earnings). Refused when the year has drafts/submitted entries, nothing posted, Dec 31 is closed, or a live closing entry already exists. Closing drafts cannot be hand-edited (void and recreate). Normal approval applies; a reversal of it is also CLOSING. The Income Statement excludes CLOSING entries; TB and BS include them, so after closing the year's earnings sit in Retained Earnings.
+- Vendors (A1): name unique, TIN optional (digits/dashes only; format NEEDS VERIFICATION), contact, payment terms 0-365 days (default 30), active flag. accounting.entry adds/edits; inactive vendors keep their bills but cannot be picked.
+- Bills (A1): vendor, supplier invoice no. (optional), bill date, due date (blank = bill date + vendor terms; never before the bill date), memo, 1-50 lines of account + description + amount. Numbering BILL-YYYY-NNNN. The bill has no lines of its own: saving creates/updates ONE draft journal entry (Dr each line / Cr 2010 Accounts Payable for the total), so bill status = entry status, and Submit / Return / Approve (by another person) / Void / Reverse are the normal journal actions on that entry. A bill is editable only while its entry is DRAFT; the journal screen refuses to hand-edit a bill's entry ("Edit bill" instead). Same vendor + same supplier invoice no. on a non-voided bill is refused (double-payment guard); voiding frees the number. Accounts Payable itself cannot be a bill line; an inactive or missing 2010 account blocks bills with a clear message. accounting.entry saves bills; posting needs accounting.approve (no new permission, default chosen 2026-11-17).
+- AP aging (A1): Bills > AP aging, as-of date; posted bills dated on/before it whose entry has no posted reversal dated on/before it; buckets by days past due: Current (not yet due or due that day), 1-30, 31-60, 61-90, Over 90; per vendor + total. Until Cash and Bank (A3) exists every posted bill counts fully open (shortcut in code).
+- Customers (A2): same fields and rules as vendors (shared AccountsPayable::saveParty). Inactive customers keep their invoices but cannot be picked.
+- Invoices (A2): customer, customer PO no. (optional, no duplicate check), invoice date, due date (blank = invoice date + customer terms), memo, 1-50 lines of account + description + amount. Numbering INV-YYYY-NNNN. Saving creates/updates ONE draft journal entry (Dr 1100 Accounts Receivable for the total / Cr each line), so invoice status = entry status; Submit / Return / Approve (by another person) / Void / Reverse on that entry. Editable only while DRAFT; the journal screen refuses to hand-edit an invoice entry ("Edit invoice"). Accounts Receivable cannot be an invoice line; an inactive or missing 1100 blocks invoices. No Output VAT split (VAT registration NEEDS VERIFICATION).
+- AR aging (A2): Invoices > AR aging; same rules and buckets as AP aging, per customer. Until collections (A3) every posted invoice counts fully open (shortcut in code).
+- No VAT/EWT split on bills yet (VAT registration and EWT ATC rates are NEEDS VERIFICATION): enter the gross amount; add an Input VAT line by hand if needed.
+- Not yet: payroll posting (needs the payroll engine, plan [[2026-11-17-payroll-engine]]), month-close checklist (plan [[2026-11-17-accounting-phase2]] step 5), tax books, fixed assets, dashboard.
+
+## Why inside the HRIS
+The product (white-label HRIS, see [[Decision-Log]] 2026-11-17) is sold to companies with no separate ERP, so accounting lives here. Main value: released payroll posts to the ledger automatically ([[Payroll]] "Payroll journal export for accounting").
+
+## Scope (from the preview)
+Phase 1, the core:
+- Chart of Accounts (Asset/Liability/Equity/Income/Expense, code + name).
+- Journal entries, double-entry: Draft -> For approval -> Posted. Submit is blocked until debits = credits. Posted entries cannot be edited; corrections use a reversing entry.
+- Two roles: Bookkeeper (create/submit) and Finance Head (approve/post, post payroll, close periods). Segregation of duties.
+- Payroll posting: one journal entry per released payroll run via a payroll-item -> GL account mapping.
+- Fiscal periods: a closed month is locked; there is a close checklist (all entries posted, payroll posted, bank reconciled, remittances recorded).
+- Reports: Trial Balance, Income Statement, Balance Sheet (from the ledger, CSV download).
+
+Phase 2: Accounts Payable (bills, aging), Accounts Receivable (invoices, aging), Cash and Bank (disbursement vouchers, bank reconciliation), Remittances (SSS/PhilHealth/Pag-IBIG/BIR from payroll payables).
+
+Phase 3: Tax books (VAT summary, EWT on suppliers), Fixed assets (straight-line depreciation), dashboard (Monthly/Quarterly/Yearly + All/Clear period picker, Download report).
+
+## NEEDS VERIFICATION (do not hard-code)
+- Whether the client uses it as official books: BIR Computerized Accounting System (CAS) registration, required books and retention.
+- VAT registration, EWT ATC codes and rates, remittance deadlines (SSS, PhilHealth, Pag-IBIG, BIR forms). The preview shows "To confirm".
+- The client's own chart of accounts (preview uses a generic sample).
+- Statutory contribution and tax rates are not computed in the preview (see [[Payroll]]).
+
+## Not in the preview
+Real data model, migrations, permissions, multi-company books, budgeting, multi-currency, audit log screen, general ledger drill-down per account.
+
+## Related
+[[Payroll]], [[Reports-and-Analytics]], [[Auth-and-RBAC]], [[Open-Questions]]
+
+## Payroll posting (2026-11-17)
+Releasing a payroll run (Payroll P5, migration 046) creates one DRAFT journal entry dated the pay date: Dr 5010 Salaries and Wages, Dr 5020 Employer Contributions, Cr 2100/2110/2120 (employee + employer shares), Cr 2130 Withholding Tax Payable, Cr 1200 Advances to Employees (manual deductions), Cr 1030 Cash in Bank - Payroll (net pay). It goes through the normal submit/approve; the run page links it. Remittances then clear 2100-2130.

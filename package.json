@@ -1,0 +1,16 @@
+{
+  "name": "pmbsi-hris-ui",
+  "private": true,
+  "scripts": {
+    "build:css": "tailwindcss -i ./resources/css/tailwind.css -o ./public/assets/tailwind.css --minify",
+    "watch:css": "tailwindcss -i ./resources/css/tailwind.css -o ./public/assets/tailwind.css --watch"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "4.3.4",
+    "daisyui": "5.7.50",
+    "tailwindcss": "4.3.4"
+  },
+  "dependencies": {
+    "alpinejs": "3.17.5"
+  }
+}

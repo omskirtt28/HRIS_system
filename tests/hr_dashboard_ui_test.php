@@ -10,10 +10,10 @@ $data = (string)file_get_contents(__DIR__.'/../app/HrDashboard.php');
 $start = strpos($css, '/* HR dashboard v2 (.hd2)');
 $block = $start === false ? '' : substr($css, $start);
 
-check('view: page is scoped under .hd2', str_contains($view, 'class="hd2"') && str_contains($view, 'render_portal_footer'));
-check('view: slim header with one h1, primary and secondary action', substr_count($view, '<h1>') === 1 && str_contains($view, 'hd-head') && str_contains($view, 'Open HR Request Queue') && str_contains($view, 'Employee directory'));
-check('view: period is a segmented control with aria-current and a label', str_contains($view, 'hd-segctl') && str_contains($view, 'aria-current') && str_contains($view, 'aria-label="Period"'));
-check('view: company filter keeps the period when it submits', str_contains($view, 'name="period"') && str_contains($view, 'name="company"') && str_contains($view, 'hd-filterbar'));
+check('view: page is scoped under .hd2', str_contains($view, 'class="hd2 hd3 tw:min-w-0"') && str_contains($view, 'render_portal_footer'));
+check('view: slim header with one h1, primary and secondary action', substr_count($view, '<h1>') === 1 && str_contains($view, 'hd-head') && str_contains($view, 'HR Request Queue') && str_contains($view, 'Employee directory'));
+check('view: labelled checkbox picker with All/Clear and three modes', str_contains($view, 'name="periods[]"') && str_contains($view, 'data-hd-select="all"') && str_contains($view, 'data-hd-select="clear"') && str_contains($view, 'HrDashboard::MODES'));
+check('view: company filter keeps the period when it submits', str_contains($view, 'name="periods[]"') && str_contains($view, 'name="company"') && str_contains($view, 'hd-filterbar'));
 check('view: KPI cards split in Needs action and Overview tiers', str_contains($view, 'hd-tier-act') && str_contains($view, 'hd-tier-ov') && str_contains($view, 'Needs action') && str_contains($view, 'Overview'));
 check('view: KPI card class kept exactly (older tests count it)', str_contains($view, 'class="metric-card hd-kpi"') && substr_count($view, 'hd_kpi(') >= 7);
 check('view: delta keeps text and an arrow, not colour alone', str_contains($view, "'▲'") && str_contains($view, "'▼'") && str_contains($view, "\$delta['text']"));
@@ -31,5 +31,11 @@ check('css: reduced motion respected', str_contains($block, 'prefers-reduced-mot
 check('css: responsive at 900 and 620', str_contains($block, '@media(max-width:900px)') && str_contains($block, '@media(max-width:620px)'));
 check('css: segmented control and tiers defined', str_contains($block, '.hd2 .hd-segctl') && str_contains($block, '.hd2 .hd-tier-act') && str_contains($block, '.hd2 .hd-tier-ov'));
 check('css: panel link pill removed only inside .hd2', str_contains($block, '.hd2 .panel-link') && !str_contains($modern, '.hd2'));
-check('data layer untouched: queries and delta text still in HrDashboard', str_contains($data, 'vs previous period') && str_contains($data, 'function data('));
+check('data layer keeps legacy windows alongside selected calendar ranges', str_contains($data, 'vs previous period') && str_contains($data, 'function window(') && str_contains($data, 'function selectedWindow('));
+
+
+$pilot=(string)file_get_contents(__DIR__.'/../resources/css/tailwind.css');
+check('v3: scoped responsive components and full stage names', str_contains($pilot,'.hd2.hd3') && str_contains($pilot,'repeat(3,minmax(0,1fr))') && !str_contains($view,'mb_substr'));
+check('v3: export uses validated filters and same data', str_contains($view,'HrDashboard::filters($_GET)') && str_contains($view,"fputcsv(") && str_contains($view,'name="download"'));
+
 exit($fail ? 1 : 0);

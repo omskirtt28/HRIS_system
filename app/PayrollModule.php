@@ -7,6 +7,10 @@ require_once __DIR__ . '/PayrollCutoffExportService.php';
 require_once __DIR__ . '/PayrollCutoffDocuments.php';
 require_once __DIR__ . '/PayrollCutoffViews.php';
 require_once __DIR__ . '/PayrollAttendanceExportViews.php';
+require_once __DIR__ . '/PayrollStatutory.php';
+require_once __DIR__ . '/PayrollStatutoryViews.php';
+require_once __DIR__ . '/PayrollRun.php';
+require_once __DIR__ . '/PayrollRunViews.php';
 
 function payroll_post_action(): void
 {
@@ -27,7 +31,7 @@ function payroll_post_action(): void
     $back='payroll-cutoff'; $params=[];
     try {
         PayrollAttendanceService::requireReady();
-        if(PayrollAttendanceService::reviewOnly() && in_array($action,['payroll_v2_site','payroll_v2_salary','payroll_v2_end_rate','payroll_v2_rules','payroll_v2_holiday'],true)) {
+        if(PayrollAttendanceService::reviewOnly() && $action==='payroll_v2_site') {
             Auth::requirePermission('payroll.configure'); $back='payroll-import';
             throw new RuntimeException('Payroll Setup is deferred. Use biometric import, employee tickets and HR Payroll attendance review.');
         }
@@ -109,6 +113,33 @@ function payroll_post_action(): void
                 $back='payroll-attendance-day'; $params=['id'=>(int)($_POST['daily_id']??0)]; PayrollAttendanceService::zeroCredit($params['id'],(string)($_POST['remarks']??''),(string)($_POST['source_hash']??'')); break;
             case 'payroll_v2_clear_disposition':
                 $back='payroll-attendance-day'; $params=['id'=>(int)($_POST['daily_id']??0)]; PayrollAttendanceService::clearZeroCredit($params['id'],(string)($_POST['remarks']??''),(string)($_POST['source_hash']??'')); break;
+            case 'payroll_v2_stat_save':
+                Auth::requirePermission('payroll.configure'); $back='payroll-statutory';
+                $id=PayrollStatutory::saveDraft((int)($_POST['table_id']??0),$_POST,(int)Auth::user()['id']);
+                flash('success','Draft saved. A second person with payroll setup access must verify it before payroll can use it.'); redirect($back,['view'=>$id]);
+            case 'payroll_v2_stat_verify':
+                Auth::requirePermission('payroll.configure'); $back='payroll-statutory'; $params=['view'=>(int)($_POST['table_id']??0)];
+                PayrollStatutory::verify($params['view'],(int)Auth::user()['id']); break;
+            case 'payroll_v2_stat_discard':
+                Auth::requirePermission('payroll.configure'); $back='payroll-statutory';
+                PayrollStatutory::discard((int)($_POST['table_id']??0)); break;
+            case 'payroll_v2_run_compute':
+                Auth::requirePermission('payroll.process'); $back='payroll-runs';
+                $id=PayrollRun::compute((int)($_POST['cutoff_id']??0),(string)($_POST['pay_date']??''),(int)Auth::user()['id']);
+                flash('success','Payroll computed. Review the register, then a second person releases it.'); redirect('payroll-run',['id'=>$id]);
+            case 'payroll_v2_run_adjust':
+                Auth::requirePermission('payroll.process'); $back='payroll-run'; $params=['id'=>(int)($_POST['run_id']??0)];
+                PayrollRun::addAdjustment($params['id'],(int)($_POST['employee_id']??0),(string)($_POST['kind']??''),(string)($_POST['label']??''),(string)($_POST['amount']??''),(int)Auth::user()['id']); break;
+            case 'payroll_v2_run_adjust_remove':
+                Auth::requirePermission('payroll.process'); $back='payroll-run'; $params=['id'=>(int)($_POST['run_id']??0)];
+                PayrollRun::removeAdjustment($params['id'],(int)($_POST['adjustment_id']??0),(int)Auth::user()['id']); break;
+            case 'payroll_v2_run_void':
+                Auth::requirePermission('payroll.process'); $back='payroll-run'; $params=['id'=>(int)($_POST['run_id']??0)];
+                PayrollRun::void($params['id'],(int)Auth::user()['id']); break;
+            case 'payroll_v2_run_release':
+                Auth::requirePermission('payroll.mark_paid'); $back='payroll-run'; $params=['id'=>(int)($_POST['run_id']??0)];
+                PayrollRun::release($params['id'],(int)Auth::user()['id']);
+                flash('success','Payroll released. Payslips are visible to employees and a draft journal entry is waiting in Accounting.'); redirect($back,$params);
             default: throw new RuntimeException('Unknown payroll action.');
         }
         flash('success','Payroll records updated.');
@@ -143,13 +174,13 @@ function payroll_render(string $page): void
         }
         exit;
     }
-    $pages=['employee-attendance','payroll-import','payroll-import-preview','payroll-cutoff','payroll-attendance-day','payroll-setup','payroll-id-mapping','payroll-export'];
+    $pages=['employee-attendance','payroll-import','payroll-import-preview','payroll-cutoff','payroll-attendance-day','payroll-setup','payroll-id-mapping','payroll-export','payroll-statutory','payroll-runs','payroll-run'];
     if(!in_array($page,$pages,true)) return;
     need_db();
     $employeePage=$page==='employee-attendance';
     if($employeePage) Auth::requirePermission('attendance.view_self');
     elseif(in_array($page,['payroll-import','payroll-import-preview'],true)) Auth::requirePermission('payroll.biometric_import');
-    elseif(in_array($page,['payroll-setup','payroll-id-mapping'],true)) Auth::requirePermission('payroll.configure');
+    elseif(in_array($page,['payroll-setup','payroll-id-mapping','payroll-statutory'],true)) Auth::requirePermission('payroll.configure');
     elseif($page==='payroll-export') Auth::requirePermission('payroll.export');
     elseif($page==='payroll-attendance-day') { if(!Auth::check()) redirect('login'); }
     else Auth::requirePermission('payroll.process');
@@ -167,8 +198,12 @@ function payroll_render(string $page): void
             PayrollCutoffDocuments::download($downloadCutoff,$format,$mode==='review');
         } catch(Throwable $error) {flash('error',$error instanceof RuntimeException?$error->getMessage():'The download could not finish. Check server storage and refresh the cutoff.');redirect('payroll-cutoff',['cutoff_id'=>$downloadCutoff]);}
     }
+    if($page==='payroll-statutory') { payroll_statutory(); exit; }
+    if($page==='payroll-runs') { payroll_runs_page(); exit; }
+    if($page==='payroll-run') { payroll_run_page((int)($_GET['id']??0)); exit; }
     if($page==='payroll-setup') {
-        if(PayrollAttendanceService::reviewOnly()) { flash('info','Payroll Setup is deferred. Continue with biometric import and attendance review.'); redirect('payroll-import'); }
+        // Payroll runs (migration 046) need employee rates and OT rules; the attendance review stays review-only (John 2026-11-17).
+        if(PayrollAttendanceService::reviewOnly() && !in_array($_GET['tab']??'',['salary','rules'],true)) redirect('payroll-setup',['tab'=>'salary']);
         payroll_setup(); exit;
     }
     if($page==='payroll-id-mapping') { payroll_identity_mapping(); exit; }
@@ -288,7 +323,7 @@ function payroll_setup(): void
     render_portal_header('hr','payroll-setup','Payroll Setup'); page_head('HR Payroll / Configuration','Payroll Setup');
     $tab=(string)($_GET['tab']??'sites'); $employees=PayrollRepository::allActiveEmployees(); $branches=db()->query('SELECT id,name FROM branches WHERE active=1 ORDER BY name')->fetchAll();
     $old=$_SESSION['payroll_form_old']??[]; ?>
-    <nav class="payroll-toolbar"><?php foreach(['sites'=>'Sites & approvers','mapping'=>'Biometric IDs','salary'=>'Employee rates','rules'=>'OT & holidays'] as $key=>$label):?><a class="btn <?=$tab===$key?'primary':''?>" href="<?=url('payroll-setup',['tab'=>$key])?>"><?=e($label)?></a><?php endforeach;?></nav>
+    <nav class="payroll-toolbar"><?php foreach(PayrollAttendanceService::reviewOnly()?['salary'=>'Employee rates','rules'=>'OT & holidays']:['sites'=>'Sites & approvers','mapping'=>'Biometric IDs','salary'=>'Employee rates','rules'=>'OT & holidays'] as $key=>$label):?><a class="btn <?=$tab===$key?'primary':''?>" href="<?=url('payroll-setup',['tab'=>$key])?>"><?=e($label)?></a><?php endforeach;?></nav>
     <?php if($tab==='sites'):
         $siteId=(int)($_GET['branch_id']??($old['branch_id']??0)); $site=$siteId?PayrollAttendanceService::site($siteId):null;
         if($siteId && !$site) {
@@ -349,8 +384,8 @@ function payroll_setup(): void
         <section class="panel payroll-section"><div class="payroll-table-scroll"><table class="phase3a-table"><thead><tr><th>Employee</th><th>Employee no.</th><th>Biometric ID</th></tr></thead><tbody><?php foreach($maps as $m):?><tr><td><?=e($m['employee_name'])?></td><td><?=e($m['employee_no'])?></td><td><?=e($m['biometric_id'])?></td></tr><?php endforeach;?></tbody></table></div></section>
     <?php elseif($tab==='salary'):
         $rates=db()->query('SELECT r.*,CONCAT_WS(" ",e.first_name,e.last_name) employee_name,e.employee_no FROM payroll_employee_rates r JOIN employees e ON e.id=r.employee_id ORDER BY e.last_name,r.effective_from DESC LIMIT 1000')->fetchAll(); ?>
-        <section class="panel payroll-section"><div class="panel-head"><div><h2>Effective-dated salary rates</h2><p>Hourly rate = salary amount ÷ hourly divisor. Enter the company's actual divisor; historical finalized earnings remain locked.</p></div></div><form method="post" class="panel-body payroll-form"><?php payroll_hidden_action('salary');?><div class="payroll-form-grid"><div class="field"><label>Employee</label><select name="employee_id" required><option value="">Select employee</option><?php payroll_employee_options($employees,(int)($old['employee_id']??0));?></select></div><div class="field"><label>Salary basis</label><select name="salary_basis"><option value="MONTHLY" <?=($old['salary_basis']??'MONTHLY')==='MONTHLY'?'selected':''?>>Monthly</option><option value="DAILY" <?=($old['salary_basis']??'')==='DAILY'?'selected':''?>>Daily</option><option value="HOURLY" <?=($old['salary_basis']??'')==='HOURLY'?'selected':''?>>Hourly (divisor 1)</option></select></div><div class="field"><label>Salary amount</label><input type="number" name="salary_amount" min="0.0001" step="0.0001" value="<?=payroll_old('salary_amount')?>" required></div><div class="field"><label>Hourly divisor</label><input type="number" name="hourly_divisor" min="0.0001" step="0.0001" value="<?=payroll_old('hourly_divisor')?>" required></div><div class="field"><label>Effective from</label><input type="date" name="effective_from" value="<?=payroll_old('effective_from')?>" required></div><div class="field"><label>Effective to (optional)</label><input type="date" name="effective_to" value="<?=payroll_old('effective_to')?>"></div></div><button class="btn primary">Add salary rate</button></form></section>
-        <section class="panel payroll-section"><div class="payroll-table-scroll"><table class="phase3a-table"><thead><tr><th>Employee</th><th>Effective period</th><th>Basis</th><th>Amount / divisor</th><th>Hourly rate</th><th>End previous rate</th></tr></thead><tbody><?php foreach($rates as $r):?><tr><td><?=e($r['employee_name'].' · '.$r['employee_no'])?></td><td><?=e($r['effective_from'].' to '.($r['effective_to']??'ongoing'))?></td><td><?=e($r['salary_basis'])?></td><td><?=payroll_amount($r['salary_amount'])?> / <?=e($r['hourly_divisor'])?></td><td><?=payroll_amount((float)$r['salary_amount']/(float)$r['hourly_divisor'])?></td><td><form method="post" class="payroll-inline-form"><?php payroll_hidden_action('end_rate');?><input type="hidden" name="rate_id" value="<?=$r['id']?>"><input type="date" name="effective_to" min="<?=e($r['effective_from'])?>" required aria-label="Rate end date"><button class="btn sm">Set end</button></form></td></tr><?php endforeach;?></tbody></table></div></section>
+        <section class="panel payroll-section"><div class="panel-head"><div><h2>Effective-dated salary rates</h2><p>Hourly rate = salary amount ÷ hourly divisor. Enter the company's actual divisor; historical finalized earnings remain locked.</p></div></div><form method="post" class="panel-body payroll-form"><?php payroll_hidden_action('salary');?><div class="payroll-form-grid"><div class="field"><label>Employee</label><select name="employee_id" required><option value="">Select employee</option><?php payroll_employee_options($employees,(int)($old['employee_id']??0));?></select></div><div class="field"><label>Salary basis</label><select name="salary_basis"><option value="MONTHLY" <?=($old['salary_basis']??'MONTHLY')==='MONTHLY'?'selected':''?>>Monthly</option><option value="DAILY" <?=($old['salary_basis']??'')==='DAILY'?'selected':''?>>Daily</option><option value="HOURLY" <?=($old['salary_basis']??'')==='HOURLY'?'selected':''?>>Hourly (divisor 1)</option></select></div><div class="field"><label>Pay method</label><select name="pay_method"><option value="PER_HOUR" <?=($old['pay_method']??'PER_HOUR')==='PER_HOUR'?'selected':''?>>Per hour worked</option><option value="FIXED" <?=($old['pay_method']??'')==='FIXED'?'selected':''?>>Fixed monthly (less absences)</option></select><small>Fixed monthly needs a Monthly basis.</small></div><div class="field"><label>Salary amount</label><input type="number" name="salary_amount" min="0.0001" step="0.0001" value="<?=payroll_old('salary_amount')?>" required></div><div class="field"><label>Hourly divisor</label><input type="number" name="hourly_divisor" min="0.0001" step="0.0001" value="<?=payroll_old('hourly_divisor')?>" required></div><div class="field"><label>Effective from</label><input type="date" name="effective_from" value="<?=payroll_old('effective_from')?>" required></div><div class="field"><label>Effective to (optional)</label><input type="date" name="effective_to" value="<?=payroll_old('effective_to')?>"></div></div><button class="btn primary">Add salary rate</button></form></section>
+        <section class="panel payroll-section"><div class="payroll-table-scroll"><table class="phase3a-table"><thead><tr><th>Employee</th><th>Effective period</th><th>Basis</th><th>Amount / divisor</th><th>Hourly rate</th><th>End previous rate</th></tr></thead><tbody><?php foreach($rates as $r):?><tr><td><?=e($r['employee_name'].' · '.$r['employee_no'])?></td><td><?=e($r['effective_from'].' to '.($r['effective_to']??'ongoing'))?></td><td><?=e($r['salary_basis'])?><?=($r['pay_method']??'PER_HOUR')==='FIXED'?' · Fixed':''?></td><td><?=payroll_amount($r['salary_amount'])?> / <?=e($r['hourly_divisor'])?></td><td><?=payroll_amount((float)$r['salary_amount']/(float)$r['hourly_divisor'])?></td><td><form method="post" class="payroll-inline-form"><?php payroll_hidden_action('end_rate');?><input type="hidden" name="rate_id" value="<?=$r['id']?>"><input type="date" name="effective_to" min="<?=e($r['effective_from'])?>" required aria-label="Rate end date"><button class="btn sm">Set end</button></form></td></tr><?php endforeach;?></tbody></table></div></section>
     <?php elseif($tab==='rules'):
         $rules=PayrollAttendanceService::rules(); $settings=PayrollAttendanceService::settings(); $paytypes=db()->query('SELECT p.*,t.name,t.code FROM payroll_request_pay_rules p JOIN payroll_request_types t ON t.id=p.request_type_id')->fetchAll(); $holidays=db()->query('SELECT h.*,b.name branch_name FROM payroll_holidays h LEFT JOIN branches b ON b.id=h.branch_id ORDER BY h.holiday_date DESC LIMIT 250')->fetchAll(); ?>
         <?php if(($old['action']??'')==='payroll_v2_rules') { $settings=array_replace($settings,array_intersect_key($old,array_flip(['night_start','night_end']))); foreach($rules as $type=>&$rule) foreach(['regular_multiplier','ot_multiplier','night_percent'] as $field) if(isset($old[$field][$type])) $rule[$field]=$old[$field][$type]; unset($rule); foreach($paytypes as &$p) if(isset($old['pay_treatment'][$p['request_type_id']])) $p['pay_treatment']=$old['pay_treatment'][$p['request_type_id']]; unset($p); } ?>

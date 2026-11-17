@@ -105,7 +105,7 @@ final class NotificationService
         $sent=0;$failed=0;
         foreach($q->fetchAll() as $n) {
             try {
-                Mailer::send((string)$n['email_to'],'[PMBSI HRIS] '.$n['title'],$n['body']."\n\n— PMBSI HRIS (automatic message)");
+                Mailer::send((string)$n['email_to'],'['.brand('product').'] '.$n['title'],$n['body']."\n\n— ".brand('product')." (automatic message)");
                 db()->prepare('UPDATE notifications SET emailed_at=NOW(),email_error=NULL,email_attempts=email_attempts+1 WHERE id=?')->execute([$n['id']]); $sent++;
             } catch(Throwable $e) {
                 db()->prepare('UPDATE notifications SET email_error=?,email_attempts=email_attempts+1 WHERE id=?')->execute([mb_substr($e->getMessage(),0,250),$n['id']]); $failed++;

@@ -86,6 +86,7 @@ $suites = [ // script => [minimum PASS count, needs scratch DB]
     'tests/rec_jobs_test.php' => [52, true],
     'tests/rec_jobs_http_test.php' => [51, true],
     'tests/offer_rate_test.php' => [15, false],
+    'tests/brand_test.php' => [6, false],
     'tests/rec_convert_auto_account_test.php' => [18, true],
     'tests/rec_convert_auto_account_http_test.php' => [22, true],
     'tests/rec_endorse_manager_test.php' => [43, true],
@@ -110,10 +111,23 @@ $suites = [ // script => [minimum PASS count, needs scratch DB]
     'tests/pipeline_site_split_http_test.php' => [22, true],
     'tests/applicant_tracking_test.php' => [32, false],
     'tests/applicant_tracking_db_test.php' => [14, true],
+    'tests/accounting_test.php' => [24, false],
+    'tests/accounting_db_test.php' => [48, true],
+    'tests/accounting_http_test.php' => [50, true],
+    'tests/accounts_payable_db_test.php' => [38, true],
+    'tests/accounts_receivable_db_test.php' => [32, true],
+    'tests/cash_bank_db_test.php' => [46, true],
+    'tests/remittances_db_test.php' => [24, true],
+    'tests/payroll_statutory_test.php' => [31, false],
+    'tests/payroll_statutory_db_test.php' => [24, true],
+    'tests/payroll_statutory_http_test.php' => [14, true],
+    'tests/payroll_run_test.php' => [36, false],
+    'tests/payroll_run_db_test.php' => [40, true],
+    'tests/payroll_run_http_test.php' => [17, true],
     'tests/applicant_tracking_http_test.php' => [13, true],
 ];
 $db = getenv('HRIS_TEST_DB') ?: '';
-$dbOk = $db !== '' && $db !== 'pmbsi_hris';
+$dbOk = $db !== '' && !in_array($db, ['pmbsi_hris', 'hris_clean'], true); // never run tests against a real/app DB
 foreach ($suites as $script => [$floor, $needsDb]) {
     if ($needsDb && !$dbOk) { if ($mode === 'full') skip($script, 'set HRIS_TEST_DB to a scratch copy to run'); continue; }
     if ($mode === 'task' && $needsDb) continue;

@@ -8,7 +8,7 @@ require_once __DIR__.'/InterviewInvite.php';
 final class RecruitmentRepository
 {
     public static function publishedJobs(?string $q=null, ?string $department=null, ?string $type=null): array {
-        $sql='SELECT j.*, "PMBSI" client_name, d.name department_name FROM job_openings j LEFT JOIN departments d ON d.id=j.department_id WHERE '.JobOpenings::PUBLIC_WHERE;
+        $sql='SELECT j.*, '.db()->quote(brand('company')).' client_name, d.name department_name FROM job_openings j LEFT JOIN departments d ON d.id=j.department_id WHERE '.JobOpenings::PUBLIC_WHERE;
         $p=[];
         if ($q) { $sql.=' AND (j.title LIKE ? OR j.location_text LIKE ?)'; $x='%'.$q.'%'; array_push($p,$x,$x); }
         if ($department) { $sql.=' AND d.name=?'; $p[]=$department; }
@@ -17,7 +17,7 @@ final class RecruitmentRepository
         $st=db()->prepare($sql); $st->execute($p); return $st->fetchAll();
     }
     public static function jobBySlug(string $slug): ?array {
-        $st=db()->prepare('SELECT j.*, "PMBSI" client_name, d.name department_name FROM job_openings j LEFT JOIN departments d ON d.id=j.department_id WHERE j.slug=? AND '.JobOpenings::PUBLIC_WHERE.' LIMIT 1');
+        $st=db()->prepare('SELECT j.*, '.db()->quote(brand('company')).' client_name, d.name department_name FROM job_openings j LEFT JOIN departments d ON d.id=j.department_id WHERE j.slug=? AND '.JobOpenings::PUBLIC_WHERE.' LIMIT 1');
         $st->execute([$slug]); return $st->fetch() ?: null;
     }
     public static function stages(): array { return db()->query('SELECT id,code,IF(code="CLIENT_REVIEW","Hiring Review",name) name,sequence_no,stage_type,client_visible,applicant_visible,active FROM recruitment_stages WHERE active=1 ORDER BY sequence_no')->fetchAll(); }
@@ -60,7 +60,7 @@ final class RecruitmentRepository
     /** Private tracking link entry (ApplicantTracking::find gives the id). Same row shape as track(). */
     public static function trackById(int $id): ?array { return self::trackRow('a.id=?',[$id]); }
     private static function trackRow(string $where,array $p): ?array {
-        $st=db()->prepare('SELECT a.id,a.application_no,a.applied_at,j.title,"PMBSI" client_name,s.code stage_code,IF(s.code="CLIENT_REVIEW","Hiring Review",s.name) stage_name FROM applications a JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN recruitment_stages s ON s.id=a.current_stage_id WHERE '.$where.' LIMIT 1');
+        $st=db()->prepare('SELECT a.id,a.application_no,a.applied_at,j.title,'.db()->quote(brand('company')).' client_name,s.code stage_code,IF(s.code="CLIENT_REVIEW","Hiring Review",s.name) stage_name FROM applications a JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id JOIN recruitment_stages s ON s.id=a.current_stage_id WHERE '.$where.' LIMIT 1');
         $st->execute($p); $row=$st->fetch(); if (!$row) return null;
         $hs=db()->prepare('SELECT h.*,ts.code to_code,IF(fs.code="CLIENT_REVIEW","Hiring Review",fs.name) from_name,IF(ts.code="CLIENT_REVIEW","Hiring Review",ts.name) to_name FROM application_stage_history h LEFT JOIN recruitment_stages fs ON fs.id=h.from_stage_id JOIN recruitment_stages ts ON ts.id=h.to_stage_id WHERE h.application_id=? ORDER BY h.changed_at,h.id'); $hs->execute([$row['id']]); $row['history']=$hs->fetchAll(); return $row;
     }

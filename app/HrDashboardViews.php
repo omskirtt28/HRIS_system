@@ -20,49 +20,71 @@ function hd_setup_row(string $href,string $title,string $hint,int $count,string 
 
 function hr_dashboard_page():void
 {
-    $p=HrDashboard::params($_GET);$d=HrDashboard::data($p);$t=$d['tickets'];$w=$d['window'];$group=$p['company']==='ALL'?'':$p['company'];
-    $period=strtolower(HrDashboard::PERIODS[$p['period']]);
+    $p=HrDashboard::filters($_GET);$d=HrDashboard::data($p);$t=$d['tickets'];$w=$d['window'];$group=$p['company']==='ALL'?'':$p['company'];
+    $period='selected periods';$options=HrDashboard::options($p['mode'],$p['mode']==='yearly'?(int)date('Y'):$p['year']);
+    $selection=implode(', ',array_map(static fn($n)=>(string)$options[$n],$p['periods']));
     $queue=static fn(array $x=[])=>url('hr-service-requests',$x+($group!==''?['company_group'=>$group]:[]));
     $incOpen=$d['incident']?url($d['incident']['open_link']['page'],$d['incident']['open_link']['params']):'';// Incident Cases, Open tab: the same list the count comes from
     $incAll=url(TicketIncident::QUEUE_PAGE,['status'=>'all']);// every status, for the "latest reports" feed
+    if(($_GET['download']??'')==='summary'){
+        header('Content-Type: text/csv; charset=UTF-8');header('Content-Disposition: attachment; filename="hr-dashboard.csv"');header('Cache-Control: private, no-store');
+        $out=fopen('php://output','w');
+        foreach([['HR dashboard','Value'],['Company',HrDashboard::COMPANIES[$p['company']]],['Mode',HrDashboard::MODES[$p['mode']]],['Year',$p['mode']==='yearly'?'Selected years':$p['year']],['Selected periods',$selection?:'None'],['Comparison','Same selected dates last year'],['Live counts as of',date('Y-m-d H:i:s')],['Active employees (live)',$d['employees']['active']],['Active recruitment (live)',$d['recruitment']['active']],['Applications in selected periods',$d['recruitment']['applied']],['Hires in selected periods',$d['employees']['hired']]] as $row)fputcsv($out,$row,',','"','');
+        if($d['is_hr'])foreach(['pending'=>'Pending requests (live)','progress'=>'In progress (live)','served'=>'Served in selected periods','filed'=>'Filed in selected periods'] as $key=>$label)fputcsv($out,[$label,$t[$key]],',','"','');
+        if($d['incident']){fputcsv($out,['Open Incident Reports (live)',$d['incident']['open']],',','"','');fputcsv($out,['New Incident Reports in selected periods',$d['incident']['new']],',','"','');}
+        fclose($out);return;
+    }
     $counts=RecruitmentRepository::stageCounts();$maxStage=max(1,...array_map(fn($x)=>(int)$x['total'],$counts?:[['total'=>0]]));$pulseTotal=array_sum(array_map(fn($x)=>(int)$x['total'],$counts));
     $interviews=db()->query('SELECT i.*, CONCAT(ap.first_name," ",ap.last_name) applicant_name,j.title job_title FROM interviews i JOIN applications a ON a.id=i.application_id JOIN applicants ap ON ap.id=a.applicant_id JOIN job_openings j ON j.id=a.job_opening_id WHERE DATE(i.scheduled_at)=CURDATE() ORDER BY i.scheduled_at LIMIT 6')->fetchAll();
     $first=explode(' ',trim((string)(Auth::user()['name']??'HR Team')))[0];
     render_portal_header('hr','hr-dashboard','HR Dashboard');
     echo '<link rel="stylesheet" href="public/assets/hr-ops.css?v=20261031-hd2">';
+    echo '<link rel="stylesheet" href="public/assets/tailwind.css?v=20261106-hrdashboard-design-v3"><script src="public/assets/hr-dashboard.js?v=20261106-hrdashboard-v1" defer></script>';
     ?>
-<div class="hd2">
-    <header class="hd-head"><div><div class="eyebrow">Human Resources</div><h1><?=e(hd_greeting().', '.$first.'.')?></h1><p>Workforce, request and recruitment activity that needs your attention.</p></div>
-      <div class="hero-actions"><a href="<?=url('hr-employees')?>" class="btn"><?=icon_svg('users')?> Employee directory</a><?php if($d['is_hr']):?><a href="<?=e($queue(['tab'=>'pending']))?>" class="btn primary">Open HR Request Queue <?=icon_svg('arrow')?></a><?php else:?><a href="<?=url('hr-pipeline')?>" class="btn primary">Open recruitment pipeline <?=icon_svg('arrow')?></a><?php endif;?></div></header>
+<div class="hd2 hd3 tw:min-w-0">
+    <header class="hd-head"><div><div class="eyebrow">Human Resources / Workspace</div><h1><?=e(hd_greeting().', '.$first.'.')?></h1><p>A clear view of your people, requests and hiring.</p><div class="hd-context"><span><?=icon_svg('store')?> <?=e(HrDashboard::COMPANIES[$p['company']])?></span><span><?=icon_svg('calendar')?> <?=e(date('l, F j, Y'))?></span></div></div>
+      <div class="hero-actions"><a href="<?=url('hr-employees')?>" class="btn"><?=icon_svg('users')?> Employee directory</a><?php if($d['is_hr']):?><a href="<?=e($queue(['tab'=>'pending']))?>" class="btn primary">HR Request Queue <?=icon_svg('arrow')?></a><?php else:?><a href="<?=url('hr-pipeline')?>" class="btn primary">Open recruitment pipeline <?=icon_svg('arrow')?></a><?php endif;?></div></header>
 
-    <form method="get" class="hd-filterbar" action="index.php"><input type="hidden" name="page" value="hr-dashboard"><input type="hidden" name="period" value="<?=e($p['period'])?>">
-      <div class="field"><label for="hd-company">Company</label><select id="hd-company" name="company" onchange="this.form.submit()"><?php foreach(HrDashboard::COMPANIES as $k=>$l):?><option value="<?=e($k)?>" <?=$p['company']===$k?'selected':''?>><?=e($l)?></option><?php endforeach;?></select></div>
-      <div class="field"><span class="hd-lbl" id="hd-period-lbl">Period</span><nav class="hd-segctl" aria-label="Period"><?php foreach(HrDashboard::PERIODS as $k=>$l):?><a href="<?=e(url('hr-dashboard',['company'=>$p['company'],'period'=>$k]))?>"<?=$p['period']===$k?' aria-current="true"':''?>><?=e($l)?></a><?php endforeach;?></nav></div>
-      <noscript><button class="btn">Apply</button></noscript>
-      <span class="hd-caption"><?=e($w['start'])?> to <?=e($w['last_day'])?> · compared with the same stretch before it<?=$group!==''?' · requests and employees follow the company filter; recruitment is not split by company':''?></span>
+    <form method="get" class="hd-filterbar" action="index.php" data-hd-filters>
+      <input type="hidden" name="page" value="hr-dashboard"><input type="hidden" name="selection" value="1"><input type="hidden" name="selection_mode" value="<?=e($p['mode'])?>">
+      <details class="hd-filter-panel">
+      <summary class="hd-filter-heading"><span class="hd-filter-icon"><?=icon_svg('calendar')?></span><span class="hd-filter-label"><strong>Dashboard filters</strong><span><?=e(HrDashboard::COMPANIES[$p['company']])?> &middot; <?=e(HrDashboard::MODES[$p['mode']])?> &middot; <?=count($p['periods'])?> periods selected<?=$p['mode']==='yearly'?'':' &middot; '.$p['year']?></span></span></summary>
+      <div class="hd-filter-fields tw:flex tw:flex-wrap tw:items-end tw:gap-4">
+        <div class="field"><label for="hd-company">Company</label><select id="hd-company" name="company"><?php foreach(HrDashboard::COMPANIES as $k=>$l):?><option value="<?=e($k)?>" <?=$p['company']===$k?'selected':''?>><?=e($l)?></option><?php endforeach;?></select></div>
+        <div class="field"><label for="hd-mode">View by</label><select id="hd-mode" name="mode" data-hd-mode><?php foreach(HrDashboard::MODES as $k=>$l):?><option value="<?=e($k)?>" <?=$p['mode']===$k?'selected':''?>><?=e($l)?></option><?php endforeach;?></select></div>
+        <?php if($p['mode']!=='yearly'):?><div class="field"><label for="hd-year">Year</label><input id="hd-year" type="number" name="year" min="2000" max="<?=date('Y')?>" value="<?=$p['year']?>"></div><?php endif;?>
+        <button class="btn primary" type="submit">Apply filters <?=icon_svg('arrow')?></button>
+        <button class="btn" type="submit" name="download" value="summary"><?=icon_svg('download')?> Download Report</button>
+      </div>
+      <fieldset class="hd-period-picker"><legend>Periods <span aria-live="polite">(<?=count($p['periods'])?> selected)</span></legend><div class="hd-period-tools"><button type="button" class="btn" data-hd-select="all" hidden>All</button><button type="button" class="btn" data-hd-select="clear" hidden>Clear</button></div>
+        <div class="hd-period-options"><?php foreach($options as $k=>$label):?><label><input type="checkbox" name="periods[]" value="<?=$k?>" <?=in_array($k,$p['periods'],true)?'checked':''?>><span><?=e((string)$label)?></span></label><?php endforeach;?></div>
+      </fieldset>
+      <p class="hd-caption" role="status"><?=$p['periods']?e($selection.($p['mode']==='yearly'?'':' · '.$p['year'])).' · compared with the same dates last year.':'No periods selected. Period totals are zero.'?> Live workload and workforce counts stay current. Recruitment includes all companies. Queue links open live lists across all dates.</p>
+      </details>
     </form>
+
 
     <?php
       ob_start();
       if($d['is_hr']){
-        hd_kpi('Pending requests',$t['pending'],$queue(['tab'=>'pending']),'clipboard','Waiting for HR',HrDashboard::delta($t['pending'],$t['pending_before']),'warn');
-        hd_kpi('In progress',$t['progress'],$queue(['tab'=>'progress']),'clock','Being handled by HR',HrDashboard::delta($t['progress'],$t['progress_before']),'info');
+        hd_kpi('Pending requests',$t['pending'],$queue(['tab'=>'pending']),'clipboard','Live · waiting for HR',null,'warn');
+        hd_kpi('In progress',$t['progress'],$queue(['tab'=>'progress']),'clock','Live · being handled by HR',null,'info');
       }
-      if($d['incident'])hd_kpi('Incident Reports',$d['incident']['open'],$incOpen,'alert',$d['incident']['new'].' new · '.$period,HrDashboard::delta($d['incident']['new'],$d['incident']['new_before']),'danger');
+      if($d['incident'])hd_kpi('Incident Reports',$d['incident']['open'],$incOpen,'alert','Live open cases · '.$d['incident']['new'].' new in '.$period,null,'danger');
       $act=ob_get_clean();
       ob_start();
-      if($d['is_hr'])hd_kpi('Served · '.$period,$t['served'],$queue(['tab'=>'served','closed_from'=>$w['start'],'closed_to'=>$w['last_day']]),'check-square',$t['filed'].' filed in the period',HrDashboard::delta($t['served'],$t['served_before']),'ok');
-      $r=$d['recruitment'];hd_kpi('Recruitment',(int)$r['active'],url('hr-pipeline'),'user-plus',(int)$r['openReq'].' open headcount',HrDashboard::delta($r['applied'],$r['applied_before']));
-      $em=$d['employees'];hd_kpi('Active employees',$em['active'],url('hr-employees'),'users',$em['probation_due'].' probation due in '.$em['due_days'].' days',HrDashboard::delta($em['hired'],$em['hired_before']));
+      if($d['is_hr'])hd_kpi('Served requests',$t['served'],$queue(['tab'=>'served']),'check-square',$t['filed'].' filed in the period',HrDashboard::delta($t['served'],$t['served_before']),'ok');
+      $r=$d['recruitment'];hd_kpi('Recruitment',(int)$r['active'],url('hr-pipeline'),'user-plus',(int)$r['openReq'].' open headcount · live',null);
+      $em=$d['employees'];hd_kpi('Active employees',$em['active'],url('hr-employees'),'users','Live · '.$em['probation_due'].' probation due in '.$em['due_days'].' days',null);
       $ov=ob_get_clean();?>
-    <?php if($act!==''):?><h2 class="hd-tier-title">Needs action</h2><div class="hd-kpis hd-tier-act"><?=$act?></div><?php endif;?>
-    <h2 class="hd-tier-title">Overview</h2><div class="hd-kpis hd-tier-ov"><?=$ov?></div>
+    <?php if($act!==''):?><h2 class="hd-tier-title"><span class="hd-section-index" aria-hidden="true">01</span>Needs action <span>Prioritize your workload</span></h2><div class="hd-kpis hd-tier-act"><?=$act?></div><?php endif;?>
+    <h2 class="hd-tier-title"><span class="hd-section-index" aria-hidden="true">02</span>Overview <span>People and activity at a glance</span></h2><div class="hd-kpis hd-tier-ov"><?=$ov?></div>
 
     <?php if($d['is_hr']):$maxType=max(1,...array_values(array_map(fn($x)=>$x["total"],$t["types"])));$ageMax=max(1,array_sum($t['age']));
       $segs=['pending'=>'Pending','progress'=>'In progress','served'=>'Served','cancelled'=>'Cancelled','other'=>'Other (awaiting approver, returned, rejected)'];?>
     <div class="dashboard-grid">
       <div>
-        <section class="panel"><div class="panel-head"><div><h2>Requests by type</h2><p>Filed <?=e($period)?>, by current status</p></div><a class="panel-link hd-link" href="<?=e($queue())?>">Open queue</a></div><div class="panel-body">
+        <section class="panel"><div class="panel-head"><div><h2>Requests by type</h2><p>Filed in selected periods · current status</p></div><a class="panel-link hd-link" href="<?=e($queue())?>">Open queue</a></div><div class="panel-body">
           <?php if(!array_sum(array_column($t['types'],'total'))):?><div class="empty">No requests were filed in this period.</div><?php else:?>
           <?php foreach($t['types'] as $code=>$ty):$label=$ty['name'].': '.$ty['total'].' filed';foreach($segs as $k=>$sl)if($ty[$k])$label.=', '.$ty[$k].' '.strtolower(explode(' (',$sl)[0]);?>
           <a class="hd-bar-row<?=$ty['total']?'':' is-zero'?>" href="<?=e($queue(['type_code'=>$code]))?>" aria-label="<?=e($label)?>"><span class="lbl"><?=icon_svg(TicketQueue::icon($code))?><span><?=e($ty['name'])?></span></span>
@@ -90,9 +112,9 @@ function hr_dashboard_page():void
     <?php endif;?>
 
     <div class="dashboard-grid equal">
-      <section class="panel"><div class="panel-head"><div><h2>Recruitment pulse</h2><p>Applicants by stage</p></div><a class="panel-link hd-link" href="<?=url('hr-pipeline')?>">View pipeline</a></div><div class="panel-body">
+      <section class="panel"><div class="panel-head"><div><h2>Recruitment pulse</h2><p>Live applicants by stage</p></div><a class="panel-link hd-link" href="<?=url('hr-pipeline')?>">View pipeline</a></div><div class="panel-body">
         <?php if(!$pulseTotal):?><div class="empty">No applicants are in the pipeline yet.</div><?php endif;?>
-        <div class="pulse-bars compact"><?php foreach($counts as $c):$n=(int)$c['total'];$h=max(8,round(($n/$maxStage)*85));?><div class="col<?=$n?'':' hd-pulse-zero'?>" title="<?=e($c['name'].' · '.$n)?>"><?php if($n):?><div class="bar" style="height:<?=$h?>px"></div><span class="hd-n"><?=$n?></span><?php else:?><span class="hd-n">–</span><?php endif;?><div class="label"><?=e(mb_substr($c['name'],0,8))?></div></div><?php endforeach;?></div><div class="legend-row"><span><i class="legend-dot" style="background:var(--hris-brand)"></i>Applicant volume by stage</span><span><?=(int)$r['interviews']?> interviews · <?=count($interviews)?> today</span></div></div></section>
+        <div class="pulse-bars compact"><?php foreach($counts as $c):$n=(int)$c['total'];?><div class="col<?=$n?'':' hd-pulse-zero'?>" title="<?=e($c['name'].' · '.$n)?>"><?php if($n):?><div class="bar" style="width:<?=round($n/$maxStage*100,2)?>%"></div><span class="hd-n"><?=$n?></span><?php else:?><span class="hd-n">–</span><?php endif;?><div class="label"><?=e($c['name'])?></div></div><?php endforeach;?></div><div class="legend-row"><span><i class="legend-dot" style="background:var(--hris-brand)"></i>Applicant volume by stage</span><span><?=(int)$r['interviews']?> interviews · <?=count($interviews)?> today</span></div></div></section>
       <?php if($d['incident']):?><section class="panel"><div class="panel-head"><div><h2>Latest Incident Feed</h2><p>Most recent reports</p></div><a class="panel-link hd-link" href="<?=e($incAll)?>">Open feed</a></div><div class="panel-body">
         <?php if(!$d['incident']['latest']):?><div class="empty">No Incident Reports have been filed.</div><?php else:?><div class="hd-list"><?php foreach($d['incident']['latest'] as $i):?>
           <a class="hd-item" href="<?=e(url('hr-request',['id'=>$i['id']]))?>"><span><strong><?=e($i['title'])?></strong><small><?=e($i['ticket_no'])?> · <?=e(substr((string)$i['filed'],0,10))?></small></span><?=hq_pill($i['status'],'INCIDENT_REPORT')?></a><?php endforeach;?></div><?php endif;?></div></section><?php endif;?>

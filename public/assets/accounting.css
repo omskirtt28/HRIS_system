@@ -1,0 +1,23 @@
+/* Accounting Phase 1 (migration 039): chart of accounts, journal, periods, reports. Scoped to .acct; tokens only. */
+.ac-scroll{overflow-x:auto;position:relative}.ac-num{text-align:right!important;font-variant-numeric:tabular-nums;white-space:nowrap}
+table.tbl tr.ac-total td{font-weight:700;border-top:2px solid var(--hris-line);background:var(--hris-surface-2)}
+table.tbl tr.ac-group td{font-weight:650;color:var(--hris-muted);background:var(--hris-surface-2);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+.ac-indent{padding-left:34px!important}.ac-muted{color:var(--hris-muted)}.ac-good{color:var(--hris-success);font-weight:650}.ac-bad{color:var(--hris-danger);font-weight:650}
+.ac-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.ac-spacer{flex:1}
+.ac-lines input,.ac-lines select{width:100%;border:1px solid var(--hris-line);border-radius:8px;padding:7px 9px;font:13px Inter,sans-serif;background:var(--hris-surface);color:var(--hris-text);box-sizing:border-box}
+.ac-lines td{padding:8px 8px!important}.ac-form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.ac-msg{margin-top:12px;padding:10px 12px;border-radius:10px;font-size:13px}.ac-msg.ok{background:var(--hris-success-soft);color:var(--hris-success)}.ac-msg.err{background:var(--hris-danger-soft);color:var(--hris-danger)}
+.acct .panel{margin-bottom:16px}
+.ac-field{display:flex;flex-direction:column;gap:5px;font-size:12.5px;font-weight:600;color:var(--hris-muted)}
+.ac-field input,.ac-field select{border:1px solid var(--hris-line);border-radius:8px;padding:8px 10px;min-height:40px;font:13px Inter,sans-serif;background:var(--hris-surface);color:var(--hris-text);box-sizing:border-box}
+.ac-field input:focus-visible,.ac-field select:focus-visible,.ac-lines input:focus-visible,.ac-lines select:focus-visible{outline:2px solid var(--hris-brand);outline-offset:1px}
+.ac-wide{grid-column:span 2}.ac-end{display:flex;align-items:flex-end}.ac-check{display:flex;align-items:center;gap:8px;font-size:13px}
+.ac-block{display:block;margin-top:3px}.ac-actions{margin-top:16px;align-items:flex-end}.ac-actions form{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.ac-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}.ac-tabs a{padding:8px 14px;min-height:40px;box-sizing:border-box;border:1px solid var(--hris-line);border-radius:999px;font-size:13px;color:var(--hris-text);text-decoration:none;background:var(--hris-surface)}
+.ac-tabs a span{color:var(--hris-muted);margin-left:4px}.ac-tabs a[aria-current="page"]{background:var(--hris-brand);border-color:var(--hris-brand);color:var(--hris-on-brand)}.ac-tabs a[aria-current="page"] span{color:inherit}
+.ac-tabs a:focus-visible{outline:2px solid var(--hris-brand);outline-offset:2px}
+.ac-edit summary{list-style:none;cursor:pointer}.ac-edit summary::-webkit-details-marker{display:none}.ac-pop{margin-top:10px;padding:12px;border:1px solid var(--hris-line);border-radius:12px;background:var(--hris-surface-2);min-width:260px}
+.btn[disabled]{opacity:.55;cursor:not-allowed}
+@media(max-width:640px){.ac-wide{grid-column:auto}.ac-lines thead{display:none}.ac-lines tr{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:8px 0;border-bottom:1px solid var(--hris-line)}.ac-lines td{display:block}.ac-lines td:first-child,.ac-lines td:nth-child(2){grid-column:span 2}.ac-lines tfoot td{grid-column:auto!important}}
+.ac-checklist{list-style:none;margin:0;padding:0;display:grid;gap:2px;font-size:13px;white-space:nowrap}.ac-checklist .ac-good,.ac-checklist .ac-muted{font-weight:500}
+.ac-checklist .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}

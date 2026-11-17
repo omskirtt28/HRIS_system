@@ -26,10 +26,10 @@
 /* One-page printable summary (standalone page, no app shell) */
 body.tr-print{margin:0;background:#f4f4f5;color:#1c1d1f;font:13px/1.45 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
 .tr-sheet{max-width:780px;margin:18px auto;padding:28px 32px;background:#fff;border:1px solid #e4e4e5;border-radius:6px}
-.tr-sheet header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:3px solid #fdae04;padding-bottom:10px;margin-bottom:14px}
+.tr-sheet header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:3px solid #2563eb;padding-bottom:10px;margin-bottom:14px}
 .tr-sheet h1{margin:0;font-size:22px}.tr-sheet header p{margin:3px 0 0;color:#676b6e;font-size:12px}
 .tr-sheet h2{margin:14px 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.03em;color:#676b6e}.tr-sheet h3{margin:8px 0 4px;font-size:12px}
-.tr-actions button{height:34px;padding:0 16px;border:0;border-radius:8px;background:#fdae04;color:#1c1d1f;font-weight:700;cursor:pointer}
+.tr-actions button{height:34px;padding:0 16px;border:0;border-radius:8px;background:#2563eb;color:var(--hris-on-brand,#fff);font-weight:700;cursor:pointer}
 .tr-kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
 .tr-kpi-row div{border:1px solid #e4e4e5;border-radius:8px;padding:8px 10px;background:#fafafa}.tr-kpi-row strong{display:block;font-size:20px}.tr-kpi-row span{font-size:11px;color:#676b6e}
 .tr-sheet table{width:100%;border-collapse:collapse;font-size:12px}.tr-sheet th,.tr-sheet td{padding:5px 8px;border-bottom:1px solid #e4e4e5;text-align:left}.tr-sheet th{font-size:10.5px;text-transform:uppercase;color:#676b6e}

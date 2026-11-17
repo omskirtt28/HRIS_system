@@ -1,3 +1,89 @@
+## 2026-11-17 - Payroll follow-up: pay method, paid leave, carry-forward (Claude, local)
+- Migration 047: each salary rate has a pay method, Per hour worked or Fixed monthly (half the monthly salary per cutoff less absences, late and undertime).
+- Approved leave of a paid leave type is paid. Holidays and rest days are now classified from the holiday calendar and site workdays.
+- A negative net no longer blocks release: the payslip shows 0 and the balance is deducted in the next payroll (posted to account 1200).
+- No SSS/PhilHealth/Pag-IBIG in a month with no pay.
+- Files: app/PayrollRun.php, app/PayrollRunViews.php, app/PayrollAttendanceService.php, app/PayrollModule.php, database/migrations/20261117_047_payroll_pay_method_carry(.down).sql, tests/payroll_run_test.php, tests/payroll_run_db_test.php, scripts/check.php.
+
+## 2026-11-17 - Payroll engine P2-P5: payroll runs, payslips, posting to Accounting (Claude, local)
+- Migration 046: payroll runs over a finalized attendance cutoff. Gross pay from attendance minutes x employee rate x OT/holiday rules; SSS, PhilHealth and Pag-IBIG split across the month's cutoffs (half first, month balance last); withholding tax from the verified semi-monthly BIR table; manual earnings and deductions.
+- A different person releases the run: it locks, payslips appear under My Profile > Payslip, and one draft journal entry goes to Accounting for the normal approval.
+- New screens HR Payroll > Payroll Runs and the run page (register, adjustments, CSV). Payroll Setup now opens the Employee rates and OT & holidays tabs.
+- Statutory table brackets may start at the previous bracket's end (BIR "over" amounts).
+- Files: app/PayrollRun.php, app/PayrollRunViews.php, app/PayrollModule.php, app/PayrollStatutory.php, app/View.php, index.php, database/migrations/20261117_046_payroll_runs(.down).sql, tests/payroll_run_test.php, tests/payroll_run_db_test.php, tests/payroll_run_http_test.php, tests/payroll_statutory_test.php, scripts/check.php.
+
+## 2026-11-17 - Payroll engine P1: Statutory tables (Claude, local)
+- Migration 045: SSS, PhilHealth, Pag-IBIG and BIR withholding (per payroll frequency) tables as effectivity-dated versions with their circular reference. No rates are included; the client enters them.
+- One person enters a draft, a different person verifies it. Verified versions are locked; a new version closes the previous one. Payroll will use verified versions only.
+- New screen HR Payroll > Statutory Tables (payroll setup access). Rows can be pasted from a spreadsheet.
+- Files: app/PayrollStatutory.php, app/PayrollStatutoryViews.php, app/PayrollModule.php, app/View.php, database/migrations/20261117_045_payroll_statutory_tables(.down).sql, tests/payroll_statutory_test.php, tests/payroll_statutory_db_test.php, tests/payroll_statutory_http_test.php, scripts/check.php.
+
+## 2026-11-17 - Accounting Phase 2 step 5: Month-close checklist (Claude, local)
+- Fiscal Periods shows a Close checklist per month: all entries posted, banks reconciled, remittances recorded. Reminders only; pending entries still block closing. No migration.
+- Files: app/Accounting.php, app/AccountingViews.php, public/assets/accounting.css, tests/remittances_db_test.php, tests/cash_bank_db_test.php, tests/accounting_http_test.php, scripts/check.php.
+
+## 2026-11-17 - Accounting Phase 2 A4: Remittances (Claude, local)
+- Migration 044: SSS, PhilHealth, Pag-IBIG and BIR remittances. Each creates one draft journal entry (payable accounts debited, the bank's cash account credited) that goes through the normal approval.
+- New Accounting screen Remittances: a yearly "Recorded by month" grid per agency shows which months are posted; deadlines and form numbers show "To confirm".
+- Files: app/Remittances.php, app/RemittancesViews.php, app/Accounting.php, app/AccountingModule.php, app/AccountingViews.php, app/View.php, database/migrations/20261117_044_accounting_remittances(.down).sql, tests/remittances_db_test.php, tests/accounting_test.php, tests/accounting_http_test.php, scripts/check.php.
+
+## 2026-11-17 - Accounting Phase 2 A3: Cash and Bank (Claude, local)
+- Migration 043: bank accounts, payments and bank reconciliation. A disbursement voucher (DV) pays posted bills and a collection receipt (CR) settles posted invoices, in full or in part; each creates one draft journal entry that goes through the normal approval.
+- AP and AR aging now subtract posted payments. A bill or invoice that still has a live payment cannot be reversed. Bill and invoice pages show the paid and open balance.
+- New screens under Accounting: Payments, Bank Accounts, Bank Reconciliation (monthly, in order, undo latest month).
+- Files: app/CashBank.php, app/CashBankViews.php, app/Accounting.php, app/AccountsPayable.php, app/AccountsReceivable.php, app/AccountsPayableViews.php, app/AccountsReceivableViews.php, app/AccountingModule.php, app/AccountingViews.php, app/View.php, public/assets/accounting.js, database/migrations/20261117_043_accounting_cash_bank(.down).sql, tests/cash_bank_db_test.php, tests/accounting_test.php, tests/accounting_http_test.php, scripts/check.php.
+
+## 2026-11-17 - Accounting Phase 2 A2: Customers and Accounts Receivable (Claude, local)
+- Migration 042: customers and sales invoices. An invoice creates one draft journal entry (1100 Accounts Receivable debited, income lines credited) that goes through the normal approval. AR aging by days past due.
+- New screens under Accounting: Invoices (with AR aging) and Customers.
+- Files: app/AccountsReceivable.php, app/AccountsReceivableViews.php, app/AccountsPayable.php (shared saveParty), app/AccountsPayableViews.php (shared fields + aging page), app/Accounting.php, app/AccountingModule.php, app/AccountingViews.php, app/View.php, public/assets/accounting.js, database/migrations/20261117_042_accounting_receivables(.down).sql, tests/accounting_test.php, tests/accounting_http_test.php, tests/accounts_receivable_db_test.php, scripts/check.php.
+
+## 2026-11-17 - Accounting Phase 2 A1: Vendors and Accounts Payable (Claude, local)
+- Migration 041: vendors and supplier bills. A bill creates one draft journal entry (expense lines debited, 2010 Accounts Payable credited) that goes through the normal approval. AP aging by days past due.
+- New screens under Accounting: Bills (with AP aging) and Vendors.
+- Files: app/AccountsPayable.php, app/AccountsPayableViews.php, app/Accounting.php, app/AccountingModule.php, app/AccountingViews.php, app/View.php, public/assets/accounting.js, database/migrations/20261117_041_accounting_payables(.down).sql, tests/accounting_test.php, tests/accounting_http_test.php, tests/accounts_payable_db_test.php, scripts/check.php.
+
+## 2026-11-17 - Accounting void + year-end closing (Claude, local)
+- Migration 040: void a draft journal entry with a reason (number kept, no gaps) and a year-end closing entry that moves the year's income and expenses to Retained Earnings (left out of the Income Statement).
+- Demo database: scripts/demo_seed.php now applies the accounting migrations and seeds three months of sample books.
+- Plans (not built): payroll engine with posting to Accounting; Accounting Phase 2 (AP, AR, Cash and Bank, Remittances).
+- Files: app/Accounting.php, app/AccountingModule.php, app/AccountingViews.php, database/migrations/20261117_040_accounting_void_closing(.down).sql, scripts/demo_seed.php, scripts/ticket_stageb_database.php, scripts/check.php, tests/accounting_test.php, tests/accounting_db_test.php.
+
+## 2026-11-17 - Accounting Phase 1 core (Claude, local)
+- Migration 039: chart of accounts (27-account sample), journal entries and lines, closed months; permissions accounting.view/entry/approve (HRIS_ADMIN).
+- Real screens replace the sample-data demo: Journal Entries (draft, submit, return, approve by another person, reversing entry), Chart of Accounts, Fiscal Periods (close/reopen), Financial Reports (Trial Balance, Income Statement, Balance Sheet, CSV). Other accounting screens hidden until built. public/accounting-preview.html deleted.
+- Files: app/Accounting.php, app/AccountingModule.php, app/AccountingViews.php, index.php, app/View.php, public/assets/accounting.js/.css, database/migrations/20261117_039_accounting_core(.down).sql, tests/accounting_test.php, tests/accounting_db_test.php, tests/accounting_http_test.php, scripts/check.php.
+
+## 2026-11-17 - Accounting draft preview (Claude, local)
+- Accounting draft now inside the app (sidebar group Accounting, page=accounting-<screen>, public/assets/accounting.js/.css), sample data only, reports.view gate.
+- New public/accounting-preview.html: design-only clickable accounting draft (sample data, no DB) for client presentation and video. Chart of accounts, journal entries with approval and balance check, payroll posting, fiscal periods, AP/AR aging, bank reconciliation, remittances, trial balance/income statement/balance sheet, VAT/EWT, fixed assets. Spec: HRIS-Vault/02-Modules/Accounting.md.
+- Checks: headless Edge walkthrough desktop + 390px, no console errors. Not committed.
+
+## 2026-11-17 - Walkthrough demo database (Claude, local)
+- New scripts/demo_seed.php rebuilds hris_demo from the hris_clean export and seeds a fictional company through the app services: org, 47 employees/33 accounts on every role, all ticket types and statuses, leave and payroll requests in every state, two cutoffs of biometric logs, recruitment jobs/applicants/interviews, FAQs. Demo mail outbox marked delivered. pmbsi_hris and hris_clean untouched; no schema/code change to the app.
+- Checks: php -l, check.php task OK, HTTP smoke (7 roles, 40 pages) 200 with no PHP errors. Not committed.
+
+## 2026-11-17 - White-label rebrand: HRIS, blue palette, new logo (Claude, local)
+- PMBSI project stopped; product will be sold to other companies (John). Rebrand to neutral white-label "HRIS": product/company/tagline/logo/brand colour come from config brand.* (override per client in config.local.php; default company "Demo Company"). Palette: amber #f7a600 -> "default system" blue #2563eb / hover #1d4ed8, white text on brand fills (--hris-on-brand), brand-soft derived with color-mix so a config colour updates tints. New authored SVG mark (blue rounded square, H + head dot) + live-text wordmark replaces all PMBSI logo images. Front: kicker/overlines removed, PMBSI staffing-services section removed, copy uses config company; login no longer prefills real account emails.
+- Files: config/config.php (brand block), app/functions.php (brand, brand_lockup, brand_style), app/View.php, index.php (home/about/login/users copy), app/{ApplicantTracking,InterviewInvite,Mailer,NotificationService,PayrollAttendanceExportViews,PayrollCutoffDocuments,JobOpeningsViews,RecruitmentRepository,TicketPrintForms}.php, scripts/run_notifications.php, config/config.local.example.php, public/assets/{app,hris-modern,payroll,sidebar-fold,sidebar-logout,ticket-report,tickets}.css, resources/css/tailwind.css + rebuilt public/assets/tailwind.css, new public/assets/branding/hris-mark.svg + hris-mark-192/512.png, regenerated favicon.ico/favicon-16x16/32x32/apple-touch-icon.png, public/home-preview.html, public/meeting-preview.html, new tests/brand_test.php (registered in scripts/check.php, floor 6).
+- php -l on 14 changed PHP files, npm run build:css, php scripts/check.php task OK (8 suites incl. palette contrast test), tests/brand_test.php 6 PASS. Not run: browser/visual check, full suite with HRIS_TEST_DB, measured contrast of blue in palettes. No DB/schema/permission change, no commit/push/deploy.
+
+## 2026-11-06 - HR dashboard collapsed filters (Codex, local)
+- Dashboard filters closed by default using native details/summary; click/keyboard toggle, chevron and focus styling. Existing selections and report controls retained.
+- app/HrDashboardViews.php, resources/css/tailwind.css and rebuilt public/assets/tailwind.css; asset 20261106-hrdashboard-filters-v2. PHP lint/CSS build passed; browser/runtime not checked, not deployed. Graphify blocked by execution policy; refresh pending.
+
+## 2026-11-06 - HR dashboard Tailwind v1 (Codex, local)
+- Modernized header, filter panel, compact KPI cards, full-label recruitment bars and responsive token-based panels; scoped CSS after legacy dashboard stylesheet.
+- Monthly/Quarterly/Yearly checkbox periods with All/Clear (default Monthly/All), disjoint date filtering, previous-year comparison and matching Download Report CSV summary. Explicit live-versus-period labels; queue links remain all-date live lists.
+- Existing route permissions/privacy unchanged; no schema/data writes or new dependency. Build/PHP/JS syntax and source diff checks only; tests authored/updated but not executed, browser/DB/export runtime unverified. Graphify blocked by execution policy; refresh/extraction pending. Not deployed.
+
+## 2026-11-06 - My Team icon helper fatal fix (local)
+- Replaced two undefined ui_icon() calls with existing icon_svg() in index.php:1285-1286. PHP lint and targeted diff passed; browser/runtime unverified. No deployment; Graphify blocked by execution policy.
+
+## 2026-11-06 - My Team Tailwind pilot v1 (local)
+- First Tailwind screen: clearer directory header/count, visible search label, refined roster rows and name-first mobile cards. PMBSI theme, read-only team scope, search and pagination retained.
+- Page-only generated stylesheet; no added dependency/backend/schema change. CSS build and PHP syntax checks passed. Browser/device/DB and updated source tests not run; not deployed. Graphify refresh pending (execution policy).
+
 ## 2026-11-05 - Pipeline card no longer overflows (local)
 - Kanban card footer wraps, so the screening rating badge (e.g. Outstanding) drops to its own line instead of spilling past the card in narrow columns. Job title shows up to 2 lines; name and job title have hover tooltips. No migration.
 
@@ -629,3 +715,24 @@ Proposed tracking-access -> offer-response per John's clarification: acceptance 
 
 ## 2026-11-05 - Pipeline "No site" tab (Claude)
 Pipeline now has a third tab, No site, for candidates on jobs with site Other/blank (shown when any exist), so every active applicant is on a board. Replaces the unassigned notice. Files: index.php hr-pipeline, public/assets/app.css (.pv-tab link, .pv-un removed), app/View.php css v7. No migration/data change.
+
+## 2026-11-06 - Tailwind CSS build tooling (Codex, installed locally)
+John authorized installation after framework comparison. Scope: Tailwind CSS + CLI 4.3.4, exact devDependencies and lockfile; package.json build:css/watch:css; resources/css/tailwind.css and README; generated public/assets/tailwind.css; node_modules ignored. No Alpine/Bootstrap, PHP templates, shared asset loading, data/schema/permission changes. Source uses tw prefix, no Preflight, explicit index.php/app PHP/asset JS sources. Existing UI remains unchanged; pilot screen and design still pending. npm install (ignore-scripts, 28 packages) and npm run build:css passed. No application JS/PHP changed, so syntax lint not applicable. Static manifest/config/output/diff checks only; no browser/app/DB tests, npm audit, commit or deployment. Modern browser support and unlayered legacy CSS precedence must be checked for the pilot. Latest recorded application work includes Claude 2026-11-05 pipeline card overflow (Session-Log/CHANGELOG); migration 038 recorded localhost, not reverified. Earlier No site-only summary omitted the newer overflow evidence. Graphify query remains blocked by execution policy; selected-note registration/current-session semantic extraction/refresh/export pending outside workspace. Continue: resources/css/README.md, resources/css/tailwind.css, package.json and selected pilot screen; next plan pilot before markup/loading changes.
+
+## 2026-11-06 - Shared portal UI polish (Codex, local)
+John authorized CSS/UI improvements. Applied a focused shared-shell pass using existing HRIS tokens: 44px navigation/topbar/profile targets, palette-aware active navigation, clearer page heading/divider, rounded direct content cards, visible keyboard focus, mobile action wrapping and disabled-button feedback. Same-pattern sweep includes reduced-motion sidebar hover and group animation. Files: public/assets/hris-modern.css:816, app/View.php:69 (asset version 20261106-shell-polish-v1). Existing uncommitted tooling/docs preserved; Tailwind remains installed but unloaded, no new dependency or package. No backend, dashboard period logic, permissions, data, schema or payment changes; Data-Model unchanged by design. Latest actual application patch is this local shell polish, following Claude's pipeline overflow; migration 038 remains previously recorded localhost only, not reverified. Checks: View.php php -l passed; scoped diff/static review and whitespace check passed. Scenarios reviewed by source only: desktop/folded navigation, mobile headings/actions, dark/palette/focus/reduced-motion states. Browser/app/DB tests not run per project rules; rendered cross-module layout remains unverified. No commit/push/deployment. Graphify query attempted and blocked by PowerShell execution policy; selected note registration, current-session semantic extraction and refresh/export remain pending. Next: owner visual acceptance of the shared shell; module-specific redesign requires a scoped follow-up. Skills: hris-ui and hris-patch, with active Ponytail guidance.
+
+
+## 2026-11-06 - Additional UI/backend framework research (Codex, selection pending)
+John requested more modern UI/UX and backend frameworks, then installation. Official upstream docs reviewed: daisyUI (Tailwind components), Alpine.js (HTML interactions), Chart.js (charts), Laravel and Slim (PHP backend alternatives); UI UX Pro Max and wshobson architecture/API skills also checked as a separate assistant-tool category. Local package.json confirms Tailwind/CLI 4.3.4; composer.json requires PHP >=8.2 and no Laravel/Slim framework. Recommendation pending owner clarification: actual HRIS libraries versus Codex skills versus both. No new package/skill installed, no application/config/data/schema/permission/payment edits, no tests/commit/deployment. Latest actual local app patch remains HR dashboard collapsed filters (20261106-hrdashboard-filters-v2); this research does not supersede it. Continue: package.json, composer.json, resources/css/tailwind.css, existing Design-System; next select installation category and minimal package set, inspect/pin sources before scoped installation. Risks: component CSS/theme conflicts and duplicate interaction handlers; backend adoption requires a migration/API scope. Graphify scoped query attempted, blocked by PowerShell execution policy; note registration/current-session semantic extraction/refresh/export pending, no freshness claim.
+
+
+## 2026-11-06 - Actual HRIS UI libraries installed (Codex, local tooling)
+Owner clarified: actual HRIS libraries/frameworks only; no additional Codex skills wanted. Installed daisyui 5.7.50 (devDependency) and alpinejs 3.17.5 (dependency), exact pins in package.json/package-lock.json; four total new packages, ignore-scripts/no-audit/no-fund. Existing Tailwind/CLI 4.3.4 preserved. Files: package.json, package-lock.json, resources/css/README.md and shared vault notes. Pre-edit copies: .work/framework-libraries-20261106/. Packages are not yet registered/loaded in templates/CSS or copied into public assets; no visible screen change, new backend framework, application logic/config, data/schema/permission/payment change. Latest actual application patch remains HR dashboard collapsed filters (20261106-hrdashboard-filters-v2), local; no deployment/commit/package ZIP. Prior research entry's category question is now resolved.
+Checks: npm install passed for both; npm ls --depth=0 confirms all four direct dependencies; node --check node_modules/alpinejs/dist/cdn.min.js passed. Source sweep found no existing Alpine/daisyUI/Chart.js/htmx usage in scoped app/index/assets/resources files. Manifest/lock consistency and unchanged prior scripts/Tailwind checked statically. No browser/app/DB tests, dependency audit or runtime behavior checks. Risks before screen adoption: daisyUI theme/class collisions, Alpine duplicate handlers/CSP; use prefix/scoped themes and local deferred asset. Backend alternatives researched: Symfony components for specific features, Slim for API scope, Laravel for wider migration; selection/compatibility plan still needed. Continue: resources/css/README.md and next chosen screen; install-only request completed. Graphify query blocked by PowerShell execution policy; approved-note registration/current-session semantic extraction/refresh/export pending, no freshness claim.
+
+
+## HR dashboard design v3 - 6 November 2026 (Codex): HR dashboard design v3 (local)
+Owner requested a more advanced visual direction on HR dashboard first; other screens await owner acceptance. Applied workspace heading with escaped company/date context, visible applied-filter summary while disclosure remains closed, numbered action/overview sections, tone-accented action cards, clearer panel headers, slimmer request bars, separated rows, status chips and larger quick actions. Existing shared components/tokens, dark theme, mobile collapse and keyboard focus retained; scoped to .hd2.hd3. No new dependency or JS/backend/filter/report/permission/data/schema/payment change. Existing daisyUI/Alpine remain installed but unloaded; no unnecessary interaction added.
+Files: app/HrDashboardViews.php:42-81; resources/css/tailwind.css:60-146; rebuilt public/assets/tailwind.css. Asset 20261106-hrdashboard-design-v3. No upload package, commit/push/deployment. Previous uncommitted work preserved. Data model unchanged; prior migration 038 status not reverified. Latest actual local app patch is this v3, superseding collapsed filters v2; wider UI rollout remains pending acceptance.
+Checks: PHP lint and npm.cmd run build:css passed; scoped pre-edit PHP comparison and CSS source diff reviewed, unchanged My Team block confirmed. Three source-only scenarios: desktop/status hierarchy; mobile/dark/focus; collapsed filters/escaped applied context and existing report controls. No browser/app/DB/device tests or measured contrast; rendered design requires owner acceptance. Graphify scoped query attempted and blocked by PowerShell execution policy; registration/current-session semantic extraction/refresh/export pending, no freshness claim. Next: owner reloads HR dashboard and reviews this direction before any wider UI patch. Skills: hris-ui/hris-patch, active Ponytail.

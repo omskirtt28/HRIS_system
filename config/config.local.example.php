@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // Copy to config.local.php and edit for your local/live server.
 return [
     'app' => ['debug' => false, 'base_url' => ''],
@@ -19,13 +19,13 @@ return [
         'port' => 465,
         'username' => 'your.hr.account@gmail.com',
         'password' => 'xxxx xxxx xxxx xxxx',
-        'from_name' => 'PMBSI HRIS',
+        'from_name' => 'HRIS',
         'send_interview_invites' => false, // true = email applicants their interview details. Test with your own address first.
     ],
     'db' => [
         'host' => '127.0.0.1',
         'port' => '3306',
-        'database' => 'pmbsi_hris',
+        'database' => 'hris_clean',
         'username' => 'root',
         'password' => '',
         'charset' => 'utf8mb4',

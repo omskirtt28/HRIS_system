@@ -10,7 +10,7 @@ function payroll_attendance_export_page(array $cutoffs,int $cutoffId): void
     $actions=Auth::can('payroll.biometric_import')?'<a class="btn" href="'.url('payroll-import',['cutoff_id'=>$cutoffId]).'">'.icon_svg('files').'Import logs</a>':'';
     if(Auth::can('payroll.export'))$actions.='<a class="btn primary" href="#export-all-logs" data-export-launch aria-controls="export-all-logs" aria-expanded="true">'.icon_svg('download').'Export all logs</a>';
     page_head('HR / Payroll / Attendance','Attendance Export',$actions);
-    echo '<p class="export-intro">Everyone\'s cutoff logs for PMBSI HR.</p>';
+    echo '<p class="export-intro">Everyone\'s cutoff logs for '.e(brand('company')).' HR.</p>';
     ?>
     <form method="get" class="export-cutoff" data-export-cutoff>
       <input type="hidden" name="page" value="payroll-cutoff">
@@ -58,7 +58,7 @@ function payroll_attendance_export_page(array $cutoffs,int $cutoffId): void
     <section class="panel export-options" id="export-all-logs" data-export-panel aria-labelledby="export-all-title">
       <div class="export-options-head"><h2 id="export-all-title"><?=icon_svg('download')?>Export all logs</h2><button type="button" class="btn sm export-close" data-export-close hidden aria-label="Close export options"><?=icon_svg('x')?></button></div>
       <div class="export-options-copy"><h3>All <?=count($model['employees'])?> employees · <?=e(date('M j',strtotime($run['period_start'])).' – '.date('M j, Y',strtotime($run['period_end'])))?></h3><p>Every employee and date in this cutoff, across all groups.</p>
-      <?php if(!$finalDownload):?><div class="export-review-notice"><?=icon_svg('info')?><div><strong>For review</strong><span>Export now, even with missing logs. Missing times stay blank. Pending requests are listed separately.</span><small>This download keeps the cutoff status the same.</small></div></div><?php else:?><p>Choose a file for PMBSI HR.</p><?php endif;?></div>
+      <?php if(!$finalDownload):?><div class="export-review-notice"><?=icon_svg('info')?><div><strong>For review</strong><span>Export now, even with missing logs. Missing times stay blank. Pending requests are listed separately.</span><small>This download keeps the cutoff status the same.</small></div></div><?php else:?><p>Choose a file for <?=e(brand('company'))?> HR.</p><?php endif;?></div>
       <div class="export-format-grid">
         <?php foreach(['xlsx'=>'Excel','pdf'=>'PDF'] as $format=>$label):$content=icon_svg($format==='xlsx'?'table':'file').'<span><strong>Download '.$label.'</strong><small>'.($format==='xlsx'?'Full attendance · tabs by department or area / branch':'Full logs · grouped by department or area / branch').'</small></span>'.icon_svg('arrow');
           if($finalDownload&&!$batch):?><button type="button" class="export-format" data-export-download="<?=$format?>" hidden><?=$content?></button>

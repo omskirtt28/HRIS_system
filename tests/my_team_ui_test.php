@@ -10,7 +10,8 @@ $s = strpos($index, "if (\$page === 'employee-team')");
 $e = $s === false ? false : strpos($index, 'render_portal_footer(); exit;', $s);
 $tpl = ($s === false || $e === false) ? '' : substr($index, $s, $e - $s);
 $cs = strpos($css, '/* My Team (.myteam)');
-$block = $cs === false ? '' : substr($css, $cs);
+$ce = $cs === false ? false : strpos($css, '/* Shared portal polish:', $cs);
+$block = $cs === false ? '' : substr($css, $cs, $ce === false ? null : $ce - $cs);
 
 // 1. Populated roster: five fields, emphasis, escaped output, consistent dash.
 check('tpl: scoped under .myteam inside the shared panel', str_contains($tpl, 'class="panel myteam"'));
@@ -43,7 +44,7 @@ check('css: visible focus', str_contains($block, ':focus-visible'));
 check('css: stacked rows at phone width with no forced min-width', str_contains($block, '@media(max-width:720px)') && str_contains($block, 'attr(') === false && !str_contains($block, 'min-width:7') && !str_contains($block, 'min-width:8'));
 check('css: long values wrap', str_contains($block, 'overflow-wrap:anywhere'));
 check('css: shared table and field styles untouched', str_contains($css, '.phase3a-table{width:100%;border-collapse:collapse;min-width:820px}') && !str_contains($block, '.field{') && !str_contains($block, 'phase3a'));
-check('shell: stylesheet version bumped', str_contains($shell, 'hris-modern.css?v=20261105-my-team-ui4'));
+check('shell: stylesheet version bumped', str_contains($shell, 'hris-modern.css?v=') && str_contains($shell, 'tailwind.css?v=20261106-myteam-pilot-v1'));
 
 // 4. v3 modern pass (addendum v3): decorative avatar, code chip, ghost Clear, calm header, motion guard.
 check('v3 tpl: initials avatar is decorative and escaped', str_contains($tpl, 'class="myteam-avatar" aria-hidden="true"><?=e($ini('));
@@ -54,6 +55,12 @@ check('v3 tpl: empty state has a decorative icon', str_contains($tpl, 'class="my
 check('v3 css: sentence-case header (no uppercase tracking)', $block !== '' && !str_contains($block, 'text-transform:uppercase'));
 check('v3 css: hover transitions respect reduced motion', str_contains($block, 'transition:') && str_contains($block, 'prefers-reduced-motion'));
 check('v3 css: panel uses shared radius and shadow tokens', str_contains($block, 'var(--hris-radius)') && str_contains($block, 'var(--hris-shadow)'));
+
+// Tailwind pilot remains presentation-only and route-scoped.
+$pilot = (string)file_get_contents(__DIR__.'/../resources/css/tailwind.css');
+check('pilot: prefixed layout utilities used in the roster', str_contains($tpl, 'tw:flex tw:items-center tw:gap-4'));
+check('pilot: output loads only on employee-team', str_contains($shell, "if((\$GLOBALS['page']??'')==='employee-team')") && str_contains($shell, 'tailwind.css?v='));
+check('pilot: mobile name first and visible search label', str_contains($pilot, '.myteam .myteam-table td.myteam-name{order:-1;') && str_contains($pilot, '.myteam .myteam-field label{position:static;'));
 
 echo "\n$pass passed, $fail failed\n";
 exit($fail ? 1 : 0);

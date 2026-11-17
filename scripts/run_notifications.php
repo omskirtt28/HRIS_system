@@ -9,7 +9,7 @@ require 'app/bootstrap.php';
 require_once 'app/ProbationService.php';
 foreach(array_slice($argv,1) as $arg) {
     if(str_starts_with($arg,'--test-email=')) {
-        try { Mailer::send(substr($arg,13),'[PMBSI HRIS] Test email','If you can read this, HRIS email is working.'); echo "Test email sent.\n"; }
+        try { Mailer::send(substr($arg,13),'['.brand('product').'] Test email','If you can read this, HRIS email is working.'); echo "Test email sent.\n"; }
         catch(Throwable $e) { echo 'Test email failed: '.$e->getMessage()."\n"; exit(1); }
         exit(0);
     }

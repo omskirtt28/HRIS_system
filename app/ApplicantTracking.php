@@ -74,10 +74,10 @@ final class ApplicantTracking
     public static function email(string $to,string $applicationNo,string $token): bool
     {
         $base=(string)cfg('app.base_url',''); if($base===''||!Mailer::configured()) return false;
-        $body="Thank you for applying to PMBSI.\n\nReference number: $applicationNo\n\nOpen your private tracking link to see your application status:\n"
+        $body="Thank you for applying to ".brand('company').".\n\nReference number: $applicationNo\n\nOpen your private tracking link to see your application status:\n"
             .self::link($base,$token)."\n\nKeep this link private. Anyone with it can see this application's status. It works for ".self::LINK_DAYS." days.\n"
             ."You can also use Track Application on our website with your reference number and email.\n";
-        try { Mailer::send($to,'Your PMBSI application tracking link',$body); return true; }
+        try { Mailer::send($to,'Your '.brand('company').' application tracking link',$body); return true; }
         catch(Throwable $e){ error_log('Tracking link email failed: '.$e->getMessage()); return false; }
     }
 }

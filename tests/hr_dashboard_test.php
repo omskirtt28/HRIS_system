@@ -98,14 +98,14 @@ check('that account still gets recruitment and employee KPIs',str_contains($html
 
 // ---------------------------------------------------------------- the real page as HR
 act($hr);$html=page_html([]);
-check('page renders with greeting, action strip, filter bar, six KPI cards',str_contains($html,'Needs your action today')&&str_contains($html,'hd-filterbar')&&substr_count($html,'class="metric-card hd-kpi"')===6&&clean($html));
-foreach(['Pending requests','In progress','Served ·','Incident Reports','Recruitment','Active employees'] as $label)check("KPI card present: $label",str_contains($html,'metric-label">'.$label)||str_contains($html,'metric-label">'.e($label)));
-check('request KPIs open the filtered queue (Pending, In progress, Served this week with its date range)',
-    str_contains($html,'href="index.php?page=hr-service-requests&amp;tab=pending"')&&str_contains($html,'tab=progress')&&str_contains($html,'tab=served&amp;closed_from='.$w['start'].'&amp;closed_to='.$w['last_day']));
+check('page renders with greeting, action strip, filter bar, six KPI cards',str_contains($html,'Needs action')&&str_contains($html,'hd-filterbar')&&substr_count($html,'class="metric-card hd-kpi"')===6&&clean($html));
+foreach(['Pending requests','In progress','Served requests','Incident Reports','Recruitment','Active employees'] as $label)check("KPI card present: $label",str_contains($html,'metric-label">'.$label)||str_contains($html,'metric-label">'.e($label)));
+check('request KPIs open live queue tabs (period totals may be disjoint)',
+    str_contains($html,'href="index.php?page=hr-service-requests&amp;tab=pending"')&&str_contains($html,'tab=progress')&&str_contains($html,'tab=served'));
 check('charts and attention panel render: by-type bars, age bars, oldest pending, incident block, setup warnings',str_contains($html,'Requests by type')&&str_contains($html,'How long requests have waited')&&str_contains($html,'Oldest pending requests')&&str_contains($html,'Setup warnings')&&str_contains($html,'Latest Incident Feed'));
 check('every bar links to the queue with its type; legend uses text labels',str_contains($html,'type_code=ATM_REQUEST')&&str_contains($html,'Other (awaiting approver')&&str_contains($html,'aria-label="ATM Request:'));
 check('existing recruitment pulse, interviews and quick actions are kept',str_contains($html,'Recruitment pulse')&&str_contains($html,'pulse-bars compact')&&str_contains($html,'Today’s interviews')&&str_contains($html,'Quick actions')&&str_contains($html,'HR Request Queue'));
-foreach(['this_week','last_week','this_month','last_30'] as $per)foreach(['ALL','OC','SW'] as $co){$h=page_html(['period'=>$per,'company'=>$co]);if(!clean($h)||!str_contains($h,'hd-kpis')){check("page $per/$co renders cleanly",false);}}
+foreach(['monthly','quarterly','yearly'] as $per)foreach(['ALL','OC','SW'] as $co){$h=page_html(['mode'=>$per,'company'=>$co]);if(!clean($h)||!str_contains($h,'hd-kpis')){check("page $per/$co renders cleanly",false);}}
 check('all period and company combinations render cleanly',true);
 $h=page_html(['company'=>'OC','period'=>'last_30']);check('company filter keeps the queue links scoped (company_group=OC)',str_contains($h,'company_group=OC')&&str_contains($h,'selected>Ocampo'));
 

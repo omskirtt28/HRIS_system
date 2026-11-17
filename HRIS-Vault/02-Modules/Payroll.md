@@ -285,3 +285,9 @@ See [[Business-Rules]] for full statements. Payroll-critical ones:
 [[Attendance-and-DTR]] · [[Leave-Management]] · [[Employee-Records]] · [[Org-Structure]] · [[Reports-and-Analytics]] · [[Self-Service-Portal]] · [[Offboarding-and-Clearance]] · [[Business-Rules]] · [[Data-Model]] · [[API-Surface]] · [[Screens]] · [[Security-and-Compliance]] · [[ADR-003-Payroll-Engine-Approach]] · [[PH-Labor-and-Payroll-Notes]] · [[Glossary]] · [[Notifications]]
 
 Hub for HR requests: [[Employee-Tickets]] · UI rules: [[Design-System]]
+
+## Build status (2026-11-17)
+- P1 Statutory tables DONE (migration 045, `app/PayrollStatutory.php`, page `payroll-statutory`). Flow 8 and BR-514 enforced; no figures seeded.
+- P2 gross pay waiting on Q-P2 in [[Open-Questions]]; P3 also needs Q-P3 and the verified tables.
+- P2-P5 DONE (migration 046, `app/PayrollRun.php`, `app/PayrollRunViews.php`): Payroll Runs compute from the finalized cutoff, adjustments, release by a second person (payroll.mark_paid), payslips in My Profile, draft JE to [[Accounting]]. Open points Q-P4 to Q-P7 in [[Open-Questions]]. Later: 13th month, final pay, bank file, loans ledger.
+- Follow-up DONE (migration 047): pay method per rate (PER_HOUR / FIXED), paid leave, carry-forward of negative net (BR-507), day type classified from holidays + site workdays. Open: Q-P7 (account mapping), Q-P8 (FIXED rest day factor).

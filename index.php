@@ -48,6 +48,8 @@ require_once __DIR__.'/app/EmployeeDeleteModule.php';
 employee_delete_handle($page);
 require_once __DIR__.'/app/EmployeeArchiveModule.php';
 employee_archive_handle($page);
+require_once __DIR__.'/app/AccountingModule.php';
+accounting_handle($page);
 require_once __DIR__.'/app/NotificationModule.php';
 notification_handle($page);
 employee_roster_handle($page);
@@ -585,7 +587,6 @@ if ($page === 'home') {
     <section class="home-hero">
       <div class="home-hero-grid">
         <div class="home-hero-copy">
-          <span class="home-kicker">Prime Mover Business Solutions, Inc.</span>
           <h1>People operations,<br><span>built for today.</span></h1>
           <p>Modern workforce solutions for hiring, deployment, employee services and HR operations — connected through one secure HRIS experience.</p>
           <div class="home-hero-actions">
@@ -593,16 +594,16 @@ if ($page === 'home') {
             <a class="btn home-btn home-btn-light" href="<?=url('login')?>">Employee Login</a>
           </div>
           <div class="home-trust-row">
-            <span>Recruitment</span><i></i><span>Staffing</span><i></i><span>Outsourcing</span><i></i><span>HR Services</span>
+            <span>Recruitment</span><i></i><span>Attendance</span><i></i><span>Payroll</span><i></i><span>Self-service</span>
           </div>
         </div>
-        <div class="home-hero-visual" aria-label="PMBSI workforce platform preview">
+        <div class="home-hero-visual" aria-label="<?=e(brand('company'))?> HR platform preview">
           <div class="home-float-card home-float-card--main">
-            <div class="home-card-head"><div><span class="home-card-eyebrow">WORKFORCE OVERVIEW</span><strong>Today at PMBSI</strong></div><span class="home-live"><i></i> Live</span></div>
+            <div class="home-card-head"><div><span class="home-card-eyebrow">WORKFORCE OVERVIEW</span><strong>Today at <?=e(brand('company'))?></strong></div><span class="home-live"><i></i> Live</span></div>
             <div class="home-metric-row">
               <div><span>Employees</span><strong>428</strong><small>+12 this month</small></div>
               <div><span>Present</span><strong>376</strong><small>87.9% today</small></div>
-              <div><span>Open Roles</span><strong><?=$open?></strong><small>Across partner sites</small></div>
+              <div><span>Open Roles</span><strong><?=$open?></strong><small>Published now</small></div>
             </div>
             <div class="home-chart-wrap">
               <div class="home-chart-title"><span>Attendance pulse</span><small>Last 8 workdays</small></div>
@@ -621,26 +622,9 @@ if ($page === 'home') {
       </div>
     </section>
 
-    <section class="home-section" id="services">
-      <div class="home-section-head">
-        <div><span class="home-overline">WHAT WE DO</span><h2>Workforce solutions that move with your business.</h2></div>
-        <p>From flexible staffing to direct placement and outsourced operations, PMBSI supports organizations across the employee lifecycle.</p>
-      </div>
-      <div class="home-service-grid">
-        <?php foreach([
-          ['Contractual Staffing','Flexible manpower support for operational and clerical requirements.','users'],
-          ['Project-Based Staffing','Deploy skilled resources for fixed-term projects and time-boxed requirements.','calendar'],
-          ['One-Time Placement','Direct placement support from rank-and-file to specialized and leadership roles.','briefcase'],
-          ['Outsourcing Services','Managed back-office and workforce functions built around your operational needs.','settings']
-        ] as [$title,$desc,$ico]): ?>
-        <article class="home-service-card"><span class="home-service-icon"><?=icon_svg($ico)?></span><h3><?=e($title)?></h3><p><?=e($desc)?></p><span class="home-card-link">Learn more <?=icon_svg('arrow')?></span></article>
-        <?php endforeach; ?>
-      </div>
-    </section>
 
     <section class="home-platform-section">
       <div class="home-platform-copy">
-        <span class="home-overline">CONNECTED HR EXPERIENCE</span>
         <h2>One platform. Different experiences for every role.</h2>
         <p>Employees get a simple self-service portal. HR gets the operational workspace they need. HR Admin gets organization, security and access control — all inside the same system.</p>
         <div class="home-feature-list">
@@ -652,9 +636,9 @@ if ($page === 'home') {
       </div>
       <div class="home-platform-panel">
         <div class="home-platform-window">
-          <div class="home-window-top"><span class="home-dots"><i></i><i></i><i></i></span><small>PMBSI HRIS</small><span></span></div>
+          <div class="home-window-top"><span class="home-dots"><i></i><i></i><i></i></span><small><?=e(brand('product'))?></small><span></span></div>
           <div class="home-window-body">
-            <aside><div class="home-window-brand"><img src="public/assets/branding/pmbsi-logo-transparent-v2.png" alt="Prime Mover Business Solutions, Inc."><b>PMBSI HRIS</b></div><i class="active"></i><i></i><i></i><i></i><i></i><i></i></aside>
+            <aside><div class="home-window-brand"><?=brand_lockup(false)?><b><?=e(brand('product'))?></b></div><i class="active"></i><i></i><i></i><i></i><i></i><i></i></aside>
             <main><div class="home-window-bar"><i></i><i></i><i></i></div><div class="home-window-title"></div><div class="home-window-kpis"><i></i><i></i><i></i><i></i></div><div class="home-window-panels"><i></i><i></i></div></main>
           </div>
         </div>
@@ -663,7 +647,7 @@ if ($page === 'home') {
 
     <section class="home-section home-jobs-section">
       <div class="home-section-head compact">
-        <div><span class="home-overline">CAREERS</span><h2>Build your next chapter with PMBSI.</h2></div>
+        <div><h2>Build your next chapter with <?=e(brand('company'))?>.</h2></div>
         <a href="<?=url('careers')?>" class="btn">View all openings <?=icon_svg('arrow')?></a>
       </div>
       <div class="jobgrid home-jobgrid"><?php foreach(array_slice($jobs,0,3) as $j) job_card($j); ?></div>
@@ -671,7 +655,7 @@ if ($page === 'home') {
     </section>
 
     <section class="home-portal-cta">
-      <div><span class="home-overline">PMBSI EMPLOYEE PORTAL</span><h2>Already part of the team?</h2><p>Access your personal HR workspace, attendance, leave, requests and company updates through one secure login.</p></div>
+      <div><h2>Already part of the team?</h2><p>Access your personal HR workspace, attendance, leave, requests and company updates through one secure login.</p></div>
       <a href="<?=url('login')?>" class="btn primary home-btn">Open Employee Login <?=icon_svg('arrow')?></a>
     </section>
 
@@ -731,7 +715,7 @@ if ($page === 'track') {
 
 if ($page === 'about' || $page === 'contact') {
     render_head($page==='about'?'About Us':'Contact'); render_public_header($page); ?>
-    <div class="wrap" style="padding-top:36px;max-width:820px"><?php if($page==='about'):?><div class="pagehead"><div><div class="crumb">Home / About Us</div><h1 style="font-size:30px">About PMBSI</h1></div></div><p class="muted" style="font-size:16px">Prime Mover Business Solutions, Inc. is a Philippine workforce management and recruitment partner. This HRIS Recruitment module manages the lifecycle from manpower request to deployment.</p><div class="jobgrid" style="margin-top:26px"><div class="card pad"><h3>End-to-end recruitment</h3><p class="muted small">Sourcing, screening, interviews, endorsement, offers and deployment.</p></div><div class="card pad"><h3>Client collaboration</h3><p class="muted small">Scoped client review and approval of formally endorsed candidates.</p></div><div class="card pad"><h3>Recruitment records</h3><p class="muted small">Structured applicant/application history with audit visibility.</p></div></div><?php else:?><div class="pagehead"><div><div class="crumb">Home / Contact</div><h1 style="font-size:26px">Get in touch</h1></div></div><div class="card pad"><p class="muted">Use your organization’s official PMBSI contact details here before production deployment.</p><div class="small muted">HR Portal: <a class="btn sm" href="<?=url('login',['portal'=>'hr'])?>">Sign in</a> &nbsp; Client Portal: <a class="btn sm" href="<?=url('login',['portal'=>'client'])?>">Sign in</a></div></div><?php endif;?></div>
+    <div class="wrap" style="padding-top:36px;max-width:820px"><?php if($page==='about'):?><div class="pagehead"><div><div class="crumb">Home / About Us</div><h1 style="font-size:30px">About <?=e(brand('company'))?></h1></div></div><p class="muted" style="font-size:16px"><?=e(brand('company'))?> uses <?=e(brand('product'))?> to run recruitment, employee records, attendance and HR services in one place, from manpower request to deployment.</p><div class="jobgrid" style="margin-top:26px"><div class="card pad"><h3>End-to-end recruitment</h3><p class="muted small">Sourcing, screening, interviews, endorsement, offers and deployment.</p></div><div class="card pad"><h3>Client collaboration</h3><p class="muted small">Scoped client review and approval of formally endorsed candidates.</p></div><div class="card pad"><h3>Recruitment records</h3><p class="muted small">Structured applicant/application history with audit visibility.</p></div></div><?php else:?><div class="pagehead"><div><div class="crumb">Home / Contact</div><h1 style="font-size:26px">Get in touch</h1></div></div><div class="card pad"><p class="muted">Use your organization’s official PMBSI contact details here before production deployment.</p><div class="small muted">HR Portal: <a class="btn sm" href="<?=url('login',['portal'=>'hr'])?>">Sign in</a> &nbsp; Client Portal: <a class="btn sm" href="<?=url('login',['portal'=>'client'])?>">Sign in</a></div></div><?php endif;?></div>
     <?php render_public_footer(); exit;
 }
 
@@ -741,18 +725,18 @@ if ($page === 'login') {
     $portal=trim((string)($_GET['portal']??''));
     if(!in_array($portal,['employee','hr','client','admin'],true)) $portal='';
     $meta = match($portal) {
-        'client' => ['Client Portal','Review endorsed candidates and recruitment decisions in one secure workspace.','ops@primelogistics.com'],
-        'admin' => ['HRIS Administration','Manage access, organization settings, security and audit visibility.','winston.cruz@pmbsi.com'],
+        'client' => ['Client Portal','Review endorsed candidates and recruitment decisions in one secure workspace.',''],
+        'admin' => ['HRIS Administration','Manage access, organization settings, security and audit visibility.',''],
         'hr' => ['Human Resources','Recruitment, people operations and HR services in one secure workspace.',''],
         'employee' => ['Employee Self-Service','Your workday, requests and HR services in one modern workspace.',''],
-        default => ['PMBSI HRIS','Your workday, HR services and workforce tools in one modern workspace.',''],
+        default => [brand('product'),'Your workday, HR services and workforce tools in one modern workspace.',''],
     };
     render_head($meta[0]); render_flashes(); ?>
     <div class="loginwrap">
       <div class="login-hero">
-        <a href="<?=url('home')?>" class="brand brand-official brand-official-login" style="position:relative;z-index:2" aria-label="Prime Mover Business Solutions, Inc."><img src="public/assets/branding/pmbsi-logo-transparent-v2.png" alt="Prime Mover Business Solutions, Inc." class="brand-full-logo"></a>
-        <div class="login-copy"><span class="login-kicker">Secure HR workspace</span><h1>People operations,<br>designed for how teams work now.</h1><p>One HRIS experience for employees, HR teams and administrators — with role-based access, clear workflows and a modern responsive interface.</p><div class="login-benefits"><div class="login-benefit"><span class="login-benefit-icon"><?=icon_svg('users')?></span><div><strong>Employee self-service</strong><span>Attendance, leave, requests and profile access.</span></div></div><div class="login-benefit"><span class="login-benefit-icon"><?=icon_svg('briefcase')?></span><div><strong>HR operations</strong><span>Recruitment, workforce actions and reporting.</span></div></div><div class="login-benefit"><span class="login-benefit-icon"><?=icon_svg('lock')?></span><div><strong>Role-based access</strong><span>Each user only sees tools relevant to their role.</span></div></div><div class="login-benefit"><span class="login-benefit-icon"><?=icon_svg('shield')?></span><div><strong>Audit-ready</strong><span>Security controls and traceable system activity.</span></div></div></div></div>
-        <div class="tiny login-hero-foot">Prime Mover Business Solutions, Inc. · Human Resources Information System</div>
+        <a href="<?=url('home')?>" class="brand brand-official brand-official-login" style="position:relative;z-index:2" aria-label="<?=e(brand('company'))?> home"><?=brand_lockup()?></a>
+        <div class="login-copy"><h1>People operations,<br>designed for how teams work now.</h1><p>One HRIS experience for employees, HR teams and administrators — with role-based access, clear workflows and a modern responsive interface.</p><div class="login-benefits"><div class="login-benefit"><span class="login-benefit-icon"><?=icon_svg('users')?></span><div><strong>Employee self-service</strong><span>Attendance, leave, requests and profile access.</span></div></div><div class="login-benefit"><span class="login-benefit-icon"><?=icon_svg('briefcase')?></span><div><strong>HR operations</strong><span>Recruitment, workforce actions and reporting.</span></div></div><div class="login-benefit"><span class="login-benefit-icon"><?=icon_svg('lock')?></span><div><strong>Role-based access</strong><span>Each user only sees tools relevant to their role.</span></div></div><div class="login-benefit"><span class="login-benefit-icon"><?=icon_svg('shield')?></span><div><strong>Audit-ready</strong><span>Security controls and traceable system activity.</span></div></div></div></div>
+        <div class="tiny login-hero-foot"><?=e(brand('company'))?> · <?=e(brand('tagline'))?></div>
       </div>
       <div class="login-form"><form class="login-card" method="post"><?=csrf_field()?><input type="hidden" name="action" value="login"><?php if($portal!==''):?><input type="hidden" name="portal" value="<?=e($portal)?>"><?php endif;?>
         <div><h2>Welcome back</h2><div class="login-sub"><?=e($meta[1])?></div></div>
@@ -761,7 +745,7 @@ if ($page === 'login') {
         <button class="btn primary block" style="height:44px;justify-content:center">Sign in <?=icon_svg('arrow')?></button>
         <p class="tiny" style="margin:0;text-align:center">Forgot your password? Ask HR to reset it.</p>
         <div class="login-footnote">Your dashboard is selected automatically based on your account role.</div>
-        <div style="text-align:center;margin-top:14px"><a href="<?=url('home')?>" class="small muted">← Back to PMBSI Careers</a></div>
+        <div style="text-align:center;margin-top:14px"><a href="<?=url('home')?>" class="small muted">← Back to careers</a></div>
       </form></div>
     </div>
     <script>document.querySelectorAll('[data-login-pw-toggle]').forEach(function(b){b.addEventListener('click',function(){var i=document.getElementById('loginPassword'),show=i.type==='password';i.type=show?'text':'password';b.classList.toggle('active',show);b.setAttribute('aria-pressed',show?'true':'false');b.setAttribute('aria-label',show?'Hide password':'Show password');});});</script>
@@ -1258,6 +1242,7 @@ if (in_array($page,['profile-downloads','profile-faqs','profile-payslip','profil
     page_head($area.' / '.$title,$title,PortalContentViews::back());
     if($page==='profile-downloads') echo PortalContentService::ready()?PortalContentViews::downloads(PortalContentService::downloads(),$manage):PortalContentViews::notReady($manage);
     elseif($page==='profile-faqs') echo PortalContentService::ready()?PortalContentViews::faqs(PortalContentService::faqs(),$manage):PortalContentViews::notReady($manage);
+    elseif($page==='profile-payslip' && PayrollRun::ready()) echo payroll_payslip_html();
     else echo PortalContentViews::payPage($page,$kind!=='employee');
     render_portal_footer(); exit;
 }
@@ -1282,12 +1267,13 @@ if ($page === 'employee-team') {
     render_portal_header('employee',$page,'My Team');
     page_head('Employee Self-Service / My Team','My Team'); ?>
     <?php $dash=static fn($v)=>trim((string)$v)===''?'—':trim((string)$v); $teamTotal=(int)$team['total']; $ini=static fn($m)=>mb_strtoupper(mb_substr(trim((string)$m['first_name']),0,1).mb_substr(trim((string)$m['last_name']),0,1)); ?>
-    <section class="panel myteam"><div class="panel-head"><div><h2>Team roster</h2><p>View the people assigned to your team. This list is read-only.</p></div><span class="myteam-count"><?=$teamTotal?> <?=$teamSearch!==''?'matching result'.($teamTotal===1?'':'s'):'team member'.($teamTotal===1?'':'s')?></span></div>
+    <section class="panel myteam"><div class="panel-head myteam-head"><div class="tw:flex tw:items-center tw:gap-4 tw:min-w-0"><span class="myteam-heading-icon"><?=icon_svg('users')?></span><div><span class="myteam-eyebrow">PEOPLE DIRECTORY</span><h2>Team roster</h2><p>View the people assigned to your team.</p></div></div><div class="myteam-count tw:flex tw:flex-col tw:items-start"><strong><?=$teamTotal?></strong><span><?=$teamSearch!==''?'matching result'.($teamTotal===1?'':'s'):'team member'.($teamTotal===1?'':'s')?></span></div></div>
+      <div class="myteam-toolbar"><span class="myteam-access tw:inline-flex tw:items-center tw:gap-2"><?=icon_svg('lock')?> Read-only directory</span>
       <form method="get" class="myteam-search" role="search"><input type="hidden" name="page" value="employee-team">
         <div class="myteam-field"><label for="teamSearch">Search by name or employee code</label><div class="myteam-input"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="teamSearch" type="search" name="q" value="<?=e($teamSearch)?>" maxlength="60" autocomplete="off" placeholder="Search name or employee code"></div></div>
         <button class="btn primary" type="submit">Search</button><?php if($teamSearch!==''):?><a class="btn myteam-clear" href="<?=e(url('employee-team'))?>">Clear</a><?php endif;?>
-      </form>
-      <div class="myteam-wrap"><table class="myteam-table" role="table"><thead role="rowgroup"><tr role="row"><th scope="col">Employee code</th><th scope="col">Name</th><th scope="col">Position</th><th scope="col">Area / Branch</th><th scope="col">Reporting to</th></tr></thead><tbody role="rowgroup">
+      </form></div>
+      <div class="myteam-wrap"><table class="myteam-table" role="table" aria-label="Team roster"><thead role="rowgroup"><tr role="row"><th scope="col">Employee code</th><th scope="col">Name</th><th scope="col">Position</th><th scope="col">Area / Branch</th><th scope="col">Reporting to</th></tr></thead><tbody role="rowgroup">
       <?php foreach($team['rows'] as $m):?><tr role="row"><td role="cell" class="myteam-code"><span class="myteam-lbl" aria-hidden="true">Employee code</span><span class="myteam-chip"><?=e($dash($m['employee_no']))?></span></td><td role="cell" class="myteam-name"><span class="myteam-lbl" aria-hidden="true">Name</span><span class="myteam-person"><?php if($ini($m)!==''):?><span class="myteam-avatar" aria-hidden="true"><?=e($ini($m))?></span><?php endif;?><span><?=e($dash(trim($m['first_name'].' '.$m['last_name'])))?></span></span></td><td role="cell"><span class="myteam-lbl" aria-hidden="true">Position</span><?=e($dash($m['position_name']??''))?></td><td role="cell"><span class="myteam-lbl" aria-hidden="true">Area / Branch</span><?=e($dash(implode(' / ',array_filter([(string)($m['area_name']??''),(string)($m['branch_name']??'')]))))?></td><td role="cell"><span class="myteam-lbl" aria-hidden="true">Reporting to</span><?=e($dash($m['reporting_to']))?></td></tr>
       <?php endforeach; if(!$team['rows']):?><tr role="row" class="myteam-empty"><td role="cell" colspan="5"><svg class="myteam-empty-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6.5 6.5 0 0 1 3.5 6"/></svg><?=$teamSearch!==''?'No team members match your search. Clear the search to see your full team.':'No team members are assigned to you yet. Contact HR to assign people to your team.'?></td></tr><?php endif;?>
       </tbody></table></div>
@@ -1935,6 +1921,7 @@ if ($page === 'hr-reports') {
     <?php render_portal_footer(); exit;
 }
 
+
 // -------- Client portal --------
 if (str_starts_with($page,'client-')) {
     need_db(); if (!Auth::check()) redirect('login',['portal'=>'client']); Auth::requireRoles(['CLIENT_USER']);
@@ -2021,7 +2008,7 @@ if ($page === 'admin-users') {
     <div class="users-pagehead">
       <div>
         <h1>Users &amp; Access</h1>
-        <p>Manage user accounts, roles, and access to PMBSI HRIS.</p>
+        <p>Manage user accounts, roles, and access to <?=e(brand('product'))?>.</p>
       </div>
     </div>
 
@@ -2163,7 +2150,7 @@ if ($page === 'admin-users') {
     <div class="users-modal-backdrop" id="passwordAccessModal" hidden>
       <div class="users-modal users-password-access-modal" role="dialog" aria-modal="true" aria-labelledby="passwordAccessTitle" tabindex="-1">
         <div class="users-modal-head"><div><h2 id="passwordAccessTitle">Password access</h2><p>Current password for this account. Every view is recorded in the audit log.</p></div><button class="users-modal-close" type="button" aria-label="Close password access dialog" data-close-password-access>×</button></div>
-        <div class="users-modal-user"><span class="users-modal-avatar" id="passwordAccessInitials">U</span><div><strong id="passwordAccessName">User</strong><span id="passwordAccessEmail">user@pmbsi.com</span></div></div>
+        <div class="users-modal-user"><span class="users-modal-avatar" id="passwordAccessInitials">U</span><div><strong id="passwordAccessName">User</strong><span id="passwordAccessEmail">user@example.com</span></div></div>
         <div class="users-credential-reveal" id="passwordCredentialReveal" hidden>
           <label for="passwordCredentialValue">Current password</label>
           <div class="users-password-input"><input id="passwordCredentialValue" type="password" readonly autocomplete="off"><button class="users-eye-btn" type="button" aria-label="Show current password" data-password-toggle="#passwordCredentialValue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
@@ -2180,7 +2167,7 @@ if ($page === 'admin-users') {
     <div class="users-modal-backdrop" id="resetPasswordModal" hidden>
       <div class="users-modal" role="dialog" aria-modal="true" aria-labelledby="resetPasswordTitle" tabindex="-1">
         <div class="users-modal-head"><div><h2 id="resetPasswordTitle">Reset password</h2><p>Set a new temporary password for this user.</p></div><button class="users-modal-close" type="button" aria-label="Close reset password dialog" data-close-reset-modal>×</button></div>
-        <div class="users-modal-user"><span class="users-modal-avatar" id="resetModalInitials">U</span><div><strong id="resetModalName">User</strong><span id="resetModalEmail">user@pmbsi.com</span></div></div>
+        <div class="users-modal-user"><span class="users-modal-avatar" id="resetModalInitials">U</span><div><strong id="resetModalName">User</strong><span id="resetModalEmail">user@example.com</span></div></div>
         <form method="post" id="resetPasswordForm">
           <?=csrf_field()?>
           <input type="hidden" name="action" value="reset_user_password">

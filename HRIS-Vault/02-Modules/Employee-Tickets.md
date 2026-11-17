@@ -86,3 +86,7 @@ Ticket type PORTAL_ACCOUNT_REQUEST (HR_ONLY routing, filing permission ticket.fi
 
 ## Addendum 2026-11-02 - Manpower Request is served from Recruitment
 A Manpower Request ticket can no longer be marked Served/Complete from the ticket screens (TicketTypes::complete refuses) until a manpower_requests row exists for it. HR approves it in HR > Recruitment > Manpower Requests, which creates the row first and then completes the ticket (date_served stamped at approval). Decline there rejects the ticket with the HR reason, which the requester sees as a normal HR response. Quick and bulk actions already excluded this type.
+
+
+## 2026-11-06 - HR dashboard Tailwind v1 (Codex, local)
+HR dashboard Tailwind v1 modernizes the view, with Monthly/Quarterly/Yearly selected ranges and matching CSV summary. Prepared date predicates exclude gaps; Served/Filed/New follow dates while queue workload, age and oldest remain live. Request queue definitions, status transitions, incident privacy, permissions and schema unchanged; all-date queue links explicitly described. Static/build checks only; DB/runtime/browser unverified. Current Progress checkpoint has details.

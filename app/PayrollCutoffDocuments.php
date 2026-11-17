@@ -31,7 +31,7 @@ final class PayrollCutoffDocuments
             if($format==='xlsx') self::excel($file,$saved,$run,$batch); else self::pdf($file,$saved,$run,$batch);
             audit('Payroll',$forReview?'DOWNLOAD_ATTENDANCE_FOR_REVIEW':'DOWNLOAD_COMPLETE_ATTENDANCE','payroll_cutoff',$cutoffId,['format'=>$format,'content_hash'=>$batch['content_hash']??null,'employees'=>$batch['employee_count'],'for_review'=>$forReview]);
             header('Content-Type: '.($format==='xlsx'?'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'application/pdf'));
-            header('Content-Disposition: attachment; filename="PMBSI-Attendance-'.($forReview?'For-Review-':'').$run['period_start'].'-'.$run['period_end'].'.'.$format.'"');
+            header('Content-Disposition: attachment; filename="Attendance-'.($forReview?'For-Review-':'').$run['period_start'].'-'.$run['period_end'].'.'.$format.'"');
             header('Cache-Control: no-store, private');header('X-Content-Type-Options: nosniff');header('Content-Length: '.filesize($file));
             readfile($file);
         } finally {if(is_file($file))unlink($file);}
@@ -127,7 +127,7 @@ final class PayrollCutoffDocuments
     private static function summarySheet(array $gaps,array $employees,array $run,array $batch): string
     {
         $xml='<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetFormatPr defaultRowHeight="20"/><cols><col min="1" max="1" width="48" customWidth="1"/><col min="2" max="4" width="16" customWidth="1"/><col min="5" max="5" width="34" customWidth="1"/></cols><sheetData>';
-        $r=1;$xml.='<row r="1" ht="26" customHeight="1">'.self::cell(1,1,'PMBSI - Biometric source summary / FOR REVIEW',8).'</row>';
+        $r=1;$xml.='<row r="1" ht="26" customHeight="1">'.self::cell(1,1,brand('company').' - Biometric source summary / FOR REVIEW',8).'</row>';
         $r++;$xml.='<row r="'.$r.'">'.self::cell(1,$r,$run['period_start'].' to '.$run['period_end'].' / Generated: '.$batch['generated_at']).'</row>';
         $r++;$xml.='<row r="'.$r.'">'.self::cell(1,$r,'Yellow = no biometric log received for any employee in that group. Request or import that file; nothing is assumed absent.').'</row>';
         $r+=2;$xml.='<row r="'.$r.'" ht="30" customHeight="1">';
@@ -156,7 +156,7 @@ final class PayrollCutoffDocuments
         foreach([1=>16,2=>30,3=>15,4=>22,5=>20,6=>25,7=>25,8=>10,9=>16,10=>12,11=>13,12=>13,13=>13,14=>13,15=>55,16=>24] as $c=>$width)$xml.='<col min="'.$c.'" max="'.$c.'" width="'.$width.'" customWidth="1"/>';
         $xml.='<col min="17" max="45" width="13" customWidth="1"/></cols><sheetData>';
         $review=!empty($batch['for_review']);
-        $headings=[1=>'PMBSI - Payroll Timekeep / '.($review?'FOR REVIEW':'Complete Attendance'),2=>$run['period_start'].' to '.$run['period_end'],3=>$section,4=>'Generated: '.$batch['generated_at'].' / '.count($employees).' employees',5=>'Yellow: approved TA / OB clock changes and matched approved OT',6=>$review?'FOR REVIEW: missing times stay blank. Pending requests are not applied. Cutoff status stays the same.':'Blank pay columns stay available for Payroll. Attendance hours do not calculate salary.'];
+        $headings=[1=>brand('company').' - Payroll Timekeep / '.($review?'FOR REVIEW':'Complete Attendance'),2=>$run['period_start'].' to '.$run['period_end'],3=>$section,4=>'Generated: '.$batch['generated_at'].' / '.count($employees).' employees',5=>'Yellow: approved TA / OB clock changes and matched approved OT',6=>$review?'FOR REVIEW: missing times stay blank. Pending requests are not applied. Cutoff status stays the same.':'Blank pay columns stay available for Payroll. Attendance hours do not calculate salary.'];
         if($review)$headings[7]=$batch['notice'];
         foreach($headings as $r=>$label)$xml.='<row r="'.$r.'" ht="26" customHeight="1">'.self::cell(1,$r,$label,$r===1?8:0).'</row>';
         $xml.='<row r="10" ht="42" customHeight="1">';foreach($headers as $c=>$value)$xml.=self::cell($c+1,10,$value,1);$xml.='</row>';$r=10;
@@ -201,7 +201,7 @@ final class PayrollCutoffDocuments
         if(!empty($saved['source_gaps'])) {
             $y=0;
             $summaryHeader=static function()use($pdf,$run,$batch,&$page,&$y):void {
-                $pdf->page();$page++;$pdf->text(36,40,'PMBSI - Biometric source summary / FOR REVIEW',17,true,523);
+                $pdf->page();$page++;$pdf->text(36,40,brand('company').' - Biometric source summary / FOR REVIEW',17,true,523);
                 $pdf->text(36,58,$run['period_start'].' to '.$run['period_end'].' / Generated '.$batch['generated_at'],9,false,523);
                 $pdf->text(36,76,'Groups marked NO LOGS have no biometric punches in any imported file. Nothing is assumed absent.',8,false,523);
                 $pdf->rect(36,90,523,22,[.94,.96,.98]);$pdf->text(42,105,'Group / Department / Branch',9,true,280);$pdf->text(330,105,'With logs / Total',9,true,90);$pdf->text(430,105,'Status',9,true,125);
@@ -220,7 +220,7 @@ final class PayrollCutoffDocuments
             $e=$days[0]['_employee'];$y=0;$continuation=false;
             $header=static function()use($pdf,$run,$batch,$section,$e,&$page,&$y,&$continuation):void {
                 $review=!empty($batch['for_review']);
-                $pdf->page();$page++;$pdf->text(36,40,$review?'PMBSI - Attendance / FOR REVIEW':'PMBSI - Cutoff Attendance Logs',17,true,523);
+                $pdf->page();$page++;$pdf->text(36,40,$review?brand('company').' - Attendance / FOR REVIEW':brand('company').' - Cutoff Attendance Logs',17,true,523);
                 $pdf->text(36,58,$run['period_start'].' to '.$run['period_end'].' / Generated '.$batch['generated_at'],9,false,523);
                 $y=81;
                 if($review)foreach($pdf->wrap($batch['notice'],100) as $line){$pdf->text(36,$y,$line,8,false,523);$y+=13;}

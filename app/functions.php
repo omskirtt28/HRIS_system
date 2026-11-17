@@ -17,6 +17,23 @@ function db(): PDO {
     return $GLOBALS['pdo'];
 }
 function e(mixed $v): string { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
+/** White-label brand settings (config brand.*); the defaults are a neutral demo identity. */
+function brand(string $key): string {
+    static $d = ['product'=>'HRIS','company'=>'Demo Company','tagline'=>'Human Resources Information System','logo'=>'','color'=>'#2563eb','color_strong'=>'#1d4ed8'];
+    return (string)cfg('brand.'.$key, $d[$key] ?? '');
+}
+/** Logo lockup: the configured image (brand.logo), otherwise the built-in mark plus the product name as live text. */
+function brand_lockup(bool $word = true): string {
+    $logo = brand('logo');
+    if ($logo !== '') return '<img src="'.e($logo).'" alt="'.e(brand('company')).'" class="brand-full-logo">';
+    return '<span class="brand-lockup"><svg class="brand-glyph" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect width="32" height="32" rx="8" fill="currentColor"/><path d="M10.5 9.5v13M21.5 9.5v13M10.5 17.5h11" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><circle cx="16" cy="12.6" r="2.1" fill="#fff"/></svg>'.($word ? '<b>'.e(brand('product')).'</b>' : '').'</span>';
+}
+/** Inline override of the CSS brand tokens; only valid #rrggbb values from config are emitted. */
+function brand_style(): string {
+    $c = brand('color'); $s = brand('color_strong');
+    if (!preg_match('/^#[0-9a-f]{6}$/i', $c) || !preg_match('/^#[0-9a-f]{6}$/i', $s)) return '';
+    return '<style>:root{--hris-brand:'.$c.';--hris-brand-strong:'.$s.'}</style>';
+}
 function url(string $page = 'home', array $params = []): string {
     return 'index.php?' . http_build_query(array_merge(['page'=>$page], $params));
 }

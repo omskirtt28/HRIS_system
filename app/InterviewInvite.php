@@ -26,7 +26,7 @@ final class InterviewInvite
         $where=trim((string)$i['location_or_link']);
         $body="Hello ".$i['first_name'].",\n\nYour ".$i['interview_type']." for ".$i['job_title']." is scheduled on "
             .date('F j, Y \a\t g:i A',strtotime((string)$i['scheduled_at']))." (Philippine Time).\n\n"
-            .'Location / link: '.($where!==''?$where:'To be confirmed')."\n\nReply to this email if you cannot attend.\n\nPMBSI HR\n";
+            .'Location / link: '.($where!==''?$where:'To be confirmed')."\n\nReply to this email if you cannot attend.\n\n".brand('company')." HR\n";
         try { Mailer::send($to,'Interview schedule: '.$i['job_title'],$body); }
         catch(Throwable $e){ return ['failed','Invite email failed: '.mb_substr($e->getMessage(),0,120)]; }
         return ['sent','Invite emailed to '.self::mask($to)];
