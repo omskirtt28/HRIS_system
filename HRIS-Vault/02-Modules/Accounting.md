@@ -1,7 +1,7 @@
 ---
 title: Accounting
 type: module
-status: phase1-plus-ap-built-local
+status: phase3-built-local
 tags: [module, hris, accounting, draft, needs-verification]
 updated: 2026-11-17
 ---
@@ -9,6 +9,8 @@ updated: 2026-11-17
 # Accounting
 
 ## Status
+**Current (2026-11-17):** Phases 1-3 are built and committed (latest 0581708). Migrations 039-049 are on local `hris_clean` and `hris_demo` only; not deployed. PMBSI is no longer the client (John 2026-11-17): `pmbsi_hris` is the old client's database and is NOT the go-live target. The new client's name, database and hosting are still to be confirmed. The per-slice lines below are history; their "pmbsi_hris not migrated" notes no longer apply.
+
 Phase 1 core is REAL (migration 039, 2026-11-17, applied to the configured local app DB `hris_clean` only; `pmbsi_hris` and `hris_demo` not migrated; not deployed). Sidebar group "Accounting" (HR + Admin) shows only the four built screens: Journal Entries, Chart of Accounts, Fiscal Periods, Financial Reports (`index.php?page=accounting-journal|entry|coa|periods|reports`). Phase 2/3 screens are hidden until built; the sample-data demo and `public/accounting-preview.html` are deleted (John 2026-11-17). Code: `app/Accounting.php` (service), `app/AccountingModule.php` (routes/POST), `app/AccountingViews.php`, `public/assets/accounting.js/.css`. Tests: `tests/accounting_test.php` (pure, 23), `tests/accounting_db_test.php` (48), `tests/accounting_http_test.php` (24), `tests/accounts_payable_db_test.php` (38).
 
 Phase 2 slice A1 Vendors + Accounts Payable is REAL (migration 041, 2026-11-17, applied to `hris_clean`; `hris_demo` gets it from scripts/demo_seed.php; `pmbsi_hris` not migrated; not deployed). Sidebar adds Bills and Vendors (`accounting-bills`, `accounting-bills&view=aging`, `accounting-bill`, `accounting-vendors`). Code: `app/AccountsPayable.php`, `app/AccountsPayableViews.php`.
@@ -35,12 +37,12 @@ Tests: `tests/accounting_phase3_db_test.php` (57). Still needed from the client 
 - Year-end closing (migration 040): Fiscal Periods "Year-end closing" (accounting.approve) creates a DRAFT dated Dec 31, entry_kind CLOSING, that zeroes every income/expense account of the year into the chosen active equity account (default: the one named Retained Earnings). Refused when the year has drafts/submitted entries, nothing posted, Dec 31 is closed, or a live closing entry already exists. Closing drafts cannot be hand-edited (void and recreate). Normal approval applies; a reversal of it is also CLOSING. The Income Statement excludes CLOSING entries; TB and BS include them, so after closing the year's earnings sit in Retained Earnings.
 - Vendors (A1): name unique, TIN optional (digits/dashes only; format NEEDS VERIFICATION), contact, payment terms 0-365 days (default 30), active flag. accounting.entry adds/edits; inactive vendors keep their bills but cannot be picked.
 - Bills (A1): vendor, supplier invoice no. (optional), bill date, due date (blank = bill date + vendor terms; never before the bill date), memo, 1-50 lines of account + description + amount. Numbering BILL-YYYY-NNNN. The bill has no lines of its own: saving creates/updates ONE draft journal entry (Dr each line / Cr 2010 Accounts Payable for the total), so bill status = entry status, and Submit / Return / Approve (by another person) / Void / Reverse are the normal journal actions on that entry. A bill is editable only while its entry is DRAFT; the journal screen refuses to hand-edit a bill's entry ("Edit bill" instead). Same vendor + same supplier invoice no. on a non-voided bill is refused (double-payment guard); voiding frees the number. Accounts Payable itself cannot be a bill line; an inactive or missing 2010 account blocks bills with a clear message. accounting.entry saves bills; posting needs accounting.approve (no new permission, default chosen 2026-11-17).
-- AP aging (A1): Bills > AP aging, as-of date; posted bills dated on/before it whose entry has no posted reversal dated on/before it; buckets by days past due: Current (not yet due or due that day), 1-30, 31-60, 61-90, Over 90; per vendor + total. Until Cash and Bank (A3) exists every posted bill counts fully open (shortcut in code).
+- AP aging (A1): Bills > AP aging, as-of date; posted bills dated on/before it whose entry has no posted reversal dated on/before it; buckets by days past due: Current (not yet due or due that day), 1-30, 31-60, 61-90, Over 90; per vendor + total. Since A3, payments posted by the as-of date are subtracted; fully paid bills drop out.
 - Customers (A2): same fields and rules as vendors (shared AccountsPayable::saveParty). Inactive customers keep their invoices but cannot be picked.
 - Invoices (A2): customer, customer PO no. (optional, no duplicate check), invoice date, due date (blank = invoice date + customer terms), memo, 1-50 lines of account + description + amount. Numbering INV-YYYY-NNNN. Saving creates/updates ONE draft journal entry (Dr 1100 Accounts Receivable for the total / Cr each line), so invoice status = entry status; Submit / Return / Approve (by another person) / Void / Reverse on that entry. Editable only while DRAFT; the journal screen refuses to hand-edit an invoice entry ("Edit invoice"). Accounts Receivable cannot be an invoice line; an inactive or missing 1100 blocks invoices. No Output VAT split (VAT registration NEEDS VERIFICATION).
-- AR aging (A2): Invoices > AR aging; same rules and buckets as AP aging, per customer. Until collections (A3) every posted invoice counts fully open (shortcut in code).
-- No VAT/EWT split on bills yet (VAT registration and EWT ATC rates are NEEDS VERIFICATION): enter the gross amount; add an Input VAT line by hand if needed.
-- Not yet: payroll posting (needs the payroll engine, plan [[2026-11-17-payroll-engine]]), month-close checklist (plan [[2026-11-17-accounting-phase2]] step 5), tax books, fixed assets, dashboard.
+- AR aging (A2): Invoices > AR aging; same rules and buckets as AP aging, per customer. Since A3, collections posted by the as-of date are subtracted.
+- VAT/EWT on bills and invoices: added in Phase 3 (migration 049) but OFF until the client's VAT registration and EWT ATC codes/rates are entered in Accounting Settings (NEEDS VERIFICATION; no rate is seeded).
+- Built since Phase 1: payroll posting (see Payroll posting below), month-close checklist (Phase 2 step 5), tax reports, fixed assets, dashboard and general ledger (Phase 3). Still open: client input only (own chart and opening balances, VAT, EWT, Q-P7, BIR CAS, remittance deadlines).
 
 ## Why inside the HRIS
 The product (white-label HRIS, see [[Decision-Log]] 2026-11-17) is sold to companies with no separate ERP, so accounting lives here. Main value: released payroll posts to the ledger automatically ([[Payroll]] "Payroll journal export for accounting").
@@ -64,8 +66,8 @@ Phase 3: Tax books (VAT summary, EWT on suppliers), Fixed assets (straight-line 
 - The client's own chart of accounts (preview uses a generic sample).
 - Statutory contribution and tax rates are not computed in the preview (see [[Payroll]]).
 
-## Not in the preview
-Real data model, migrations, permissions, multi-company books, budgeting, multi-currency, audit log screen, general ledger drill-down per account.
+## Not built (out of scope so far)
+Multi-company books, budgeting, multi-currency, accounting audit log screen (writes are already in audit_logs).
 
 ## Related
 [[Payroll]], [[Reports-and-Analytics]], [[Auth-and-RBAC]], [[Open-Questions]]
