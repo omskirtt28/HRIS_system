@@ -267,11 +267,7 @@ final class PayrollRun
             $tot=['gross'=>0.0,'deductions'=>0.0,'employer'=>0.0,'net'=>0.0]; $issueCount=0;
             foreach($employees as $emp) {
                 $b=$branch[$emp]??0; $site=$sites[$b]??=PayrollAttendanceService::attendancePolicy($b);
-                $sched=null;
-                if(!empty($site['shift_start']) && !empty($site['shift_end']) && ($site['break_minutes']??null)!==null) {
-                    $m=(strtotime('2000-01-01 '.$site['shift_end'])-strtotime('2000-01-01 '.$site['shift_start']))/60; if($m<=0) $m+=1440; // overnight shift
-                    $sched=max(0,(int)$m-(int)$site['break_minutes']);
-                }
+                $sched=self::scheduleMinutes($site);
                 $holidays=[]; $hol->execute([$cut['period_start'],$cut['period_end'],$b]); foreach($hol->fetchAll() as $h) $holidays[$h['holiday_date']]??=$h['day_type'];
                 $leave=[]; $lv->execute([$emp,$cut['period_end'],$cut['period_start']]);
                 // shortcut: a half day is read only from a one-day filing (days < 1); upgrade if multi-day filings carry per-day parts.
@@ -294,6 +290,14 @@ final class PayrollRun
         } catch(Throwable $e) { $pdo->rollBack(); throw $e; }
         audit('payroll','run_computed','payroll_runs',$id,['cutoff_id'=>$cutoffId,'employees'=>count($employees),'issues'=>$issueCount]);
         return $id;
+    }
+
+    /** Paid minutes of one scheduled day from the site's shift less break; null when the site has no schedule. */
+    public static function scheduleMinutes(array $site): ?int
+    {
+        if(empty($site['shift_start']) || empty($site['shift_end']) || ($site['break_minutes']??null)===null) return null;
+        $m=(strtotime('2000-01-01 '.$site['shift_end'])-strtotime('2000-01-01 '.$site['shift_start']))/60; if($m<=0) $m+=1440; // overnight shift
+        return max(0,(int)$m-(int)$site['break_minutes']);
     }
 
     private static function computedRun(int $id): array

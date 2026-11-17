@@ -255,3 +255,5 @@ Update 2026-11-02: POST action upload_own_photo (page employee-profile): any int
 - 2026-11-05: GET index.php?page=track&t=<64 hex> (public, private link) or &ref=&email= (public). POST apply now redirects to track&t=<token> (no email/ref in URL); falls back to track&ref= if the link cannot be issued.
 
 13th month (migration 050, form posts on `?page=payroll-runs` / `?page=payroll-13th`, CSRF): `payroll_v2_13th_compute` (payroll.process), `payroll_v2_13th_void` (payroll.process), `payroll_v2_13th_release` (payroll.mark_paid, not the person who computed). GET `?page=payroll-13th&id=` (payroll.process), `?page=profile-additional` (own data only).
+
+Back pay (migration 051, form posts on `?page=payroll-final-pay`, CSRF): `payroll_v2_final_compute`, `payroll_v2_final_item_add`, `payroll_v2_final_item_remove`, `payroll_v2_final_void` (payroll.process), `payroll_v2_final_release` (payroll.mark_paid, `clearance=1` required).

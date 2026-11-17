@@ -115,6 +115,19 @@ check('13th month compute without CSRF is refused',(int)$pdo->query('SELECT COUN
 $add=req($empJar,'GET','/index.php?page=profile-additional')['body'];
 check('employee Additional page shows the 13th month empty state',str_contains($add,'Your 13th month pay will appear here'));
 check('employee cannot open a 13th month run page',!str_contains(req($empJar,'GET','/index.php?page=payroll-13th&id=1')['body'],'Basic pay earned'));
+// Back pay (migration 051): sidebar link, page access, CSRF.
+check('sidebar links Back Pay',str_contains($page['body'],'page=payroll-final-pay'));
+$bp=req($hrJar,'GET','/index.php?page=payroll-final-pay');
+check('HR with payroll.process opens Back Pay',$bp['code']===200 && str_contains($bp['body'],'Compute back pay'));
+check('employee without payroll.process cannot open Back Pay',!str_contains(req($empJar,'GET','/index.php?page=payroll-final-pay')['body'],'Compute back pay'));
+$fpBefore=(int)$pdo->query('SELECT COUNT(*) FROM payroll_final_pays')->fetchColumn();
+req($hrJar,'POST','/index.php?page=payroll-final-pay',['action'=>'payroll_v2_final_compute','employee_id'=>$emp,'pay_date'=>'2092-12-20','exempt_ceiling'=>'90000']);
+check('back pay compute without CSRF is refused',(int)$pdo->query('SELECT COUNT(*) FROM payroll_final_pays')->fetchColumn()===$fpBefore);
+$pdo->prepare('INSERT INTO payroll_final_pays(employee_id,separation_date,pay_date,exempt_ceiling,thirteenth,earnings_total,net,issues_json,computed_by) VALUES(?,?,?,?,?,?,?,?,?)')->execute([$emp,'2092-06-30','2092-07-15',90000,1234.5,1234.5,1234.5,'["<b>x</b>"]',$admin]);
+$fpId=(int)$pdo->lastInsertId();
+$det=req($hrJar,'GET',"/index.php?page=payroll-final-pay&id=$fpId")['body'];
+$pdo->prepare('DELETE FROM payroll_final_pays WHERE id=?')->execute([$fpId]);
+check('back pay record page renders figures, escapes issues, offers items and clearance release',str_contains($det,'Net back pay') && str_contains($det,'₱1,234.50') && str_contains($det,'&lt;b&gt;x&lt;/b&gt;') && str_contains($det,'payroll_v2_final_item_add') && !preg_match('/(Warning|Fatal error|Notice|Deprecated):/',$det));
 
 echo $fail?"\n$fail FAILED\n":"\nALL PASSED\n";
 exit($fail?1:0);

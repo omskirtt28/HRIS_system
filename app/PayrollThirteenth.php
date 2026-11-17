@@ -6,7 +6,7 @@ require_once __DIR__.'/PayrollRun.php';
 /**
  * 13th month pay (migration 050; HRIS-Vault/02-Modules/Payroll.md Flow 6, John 2026-11-17).
  * NEEDS VERIFICATION: divisor 12, what counts as basic and the tax-exempt ceiling are statutory. Defaults chosen by John:
- * basic = BASE_CODES lines of the year's RELEASED payroll runs; active employees only (resigned = back pay);
+ * basic = BASE_CODES lines of the year's RELEASED payroll runs; active employees only (archived: inactive, resigned, terminated = back pay);
  * the ceiling is typed on each run (never seeded) and the excess is recorded as taxable, not withheld.
  */
 final class PayrollThirteenth
@@ -76,9 +76,11 @@ final class PayrollThirteenth
                 $id=(int)$pdo->lastInsertId();
             }
             $codes=implode(',',array_map(fn($c)=>$pdo->quote($c),self::BASE_CODES));
+            // Archived (inactive, resigned, terminated) employees get theirs in back pay (PayrollFinalPay).
+            $archived=implode(',',array_map(fn($c)=>$pdo->quote($c),EmployeeRepository::ARCHIVED_STATUSES));
             $q=$pdo->prepare("SELECT pre.employee_id,SUM(l.amount) basic FROM payroll_run_lines l JOIN payroll_run_employees pre ON pre.id=l.run_employee_id
                 JOIN payroll_runs r ON r.id=pre.run_id JOIN payroll_cutoffs c ON c.id=r.cutoff_id JOIN employees e ON e.id=pre.employee_id
-                WHERE r.status='RELEASED' AND YEAR(c.period_end)=? AND l.kind='EARNING' AND l.code IN ($codes) AND e.status<>'RESIGNED'
+                WHERE r.status='RELEASED' AND YEAR(c.period_end)=? AND l.kind='EARNING' AND l.code IN ($codes) AND e.status NOT IN ($archived)
                 GROUP BY pre.employee_id");
             $q->execute([$year]);
             $ins=$pdo->prepare('INSERT INTO payroll_13th_employees(run_id,employee_id,basic_total,amount,taxable) VALUES(?,?,?,?,?)');

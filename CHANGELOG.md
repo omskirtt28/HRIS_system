@@ -1,3 +1,9 @@
+## 2026-11-17 - Payroll back pay / final pay (Claude, local, migration 051)
+- Back Pay screen for employees in the Employee Archive: pro-rated 13th month of the separation year + unused Sick Leave x daily rate + manual items, less accountabilities and withholding tax adjustments. The last salary stays in the regular payroll run.
+- Release by a second person who confirms 'Clearance is complete'; one draft journal entry (13th month, leave and other pay, accountabilities, withholding tax, net pay).
+- 13th month pay now also leaves out inactive and terminated employees (they get it in back pay).
+- Files: database/migrations/20261117_051_payroll_final_pay(.down).sql, app/PayrollFinalPay.php, app/PayrollFinalPayViews.php, app/PayrollModule.php, app/PayrollRun.php, app/PayrollThirteenth.php, app/View.php, tests/payroll_final_pay_db_test.php, tests/payroll_13th_db_test.php, tests/payroll_run_test.php, tests/payroll_run_http_test.php, scripts/check.php.
+
 ## 2026-11-17 - Payroll 13th month pay (Claude, local, migration 050)
 - 13th month pay per year: basic pay earned in the year's released payroll runs (basic, regular pay, paid leave, less absences and late) divided by 12; active employees only (resigned employees get it in back pay).
 - Tax-exempt ceiling typed by HR on each run (nothing seeded); the amount above it is shown as taxable, not withheld.

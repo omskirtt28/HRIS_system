@@ -100,6 +100,16 @@ require_once dirname(__DIR__).'/app/PayrollThirteenth.php';
 check('13th month: 240000 / 12 = 20000, under a 90000 ceiling = 0 taxable',PayrollThirteenth::amount(240000,90000)===[20000.0,0.0]);
 check('13th month: 1200000 / 12 = 100000, 10000 over the ceiling is taxable',PayrollThirteenth::amount(1200000,90000)===[100000.0,10000.0]);
 check('13th month: rounds to centavos, zero or negative basic pays nothing',PayrollThirteenth::amount(1000,0)===[83.33,83.33] && PayrollThirteenth::amount(-50,0)===[0.0,0.0]);
+// ---- back pay (migration 051) ----
+require_once dirname(__DIR__).'/app/PayrollFinalPay.php';
+$fp=PayrollFinalPay::settle(['basic'=>60000,'ceiling'=>90000,'paid13'=>false,'leave_days'=>3.5,'daily_rate'=>800.0,'items'=>[['EARNING','500'],['DEDUCTION','1200'],['TAX','300']]]);
+check('back pay: 13th 60000/12 = 5000 + SL 3.5 x 800 = 2800 + 500, less 1200 + 300 = 6800',$near($fp['thirteenth'],5000) && $near($fp['leave'],2800) && $near($fp['earnings'],8300) && $near($fp['deductions'],1500) && $near($fp['net'],6800) && !$fp['issues']);
+$fp2=PayrollFinalPay::settle(['basic'=>60000,'ceiling'=>90000,'paid13'=>true,'leave_days'=>2,'daily_rate'=>null,'items'=>[['DEDUCTION','100']]]);
+check('back pay: 13th already released = 0; leave without a rate or schedule is an issue; negative net is an issue',$fp2['thirteenth']===0.0 && count($fp2['issues'])===2);
+check('scheduleMinutes: 08:00-17:00 less 60 = 480; overnight 22:00-07:00 less 60 = 480; no break set = null',PayrollRun::scheduleMinutes(['shift_start'=>'08:00:00','shift_end'=>'17:00:00','break_minutes'=>60])===480 && PayrollRun::scheduleMinutes(['shift_start'=>'22:00:00','shift_end'=>'07:00:00','break_minutes'=>60])===480 && PayrollRun::scheduleMinutes(['shift_start'=>'08:00:00','shift_end'=>'17:00:00'])===null);
+check('back pay: negative leave balance converts nothing',PayrollFinalPay::settle(['basic'=>0,'ceiling'=>0,'paid13'=>false,'leave_days'=>-2,'daily_rate'=>800.0,'items'=>[]])['leave']===0.0);
+$acc=PayrollRun::ACCOUNTS; $jl=PayrollFinalPay::journalLines(['thirteenth'=>5000,'leave_amount'=>2800],['EARNING'=>500,'DEDUCTION'=>1200,'TAX'=>300],$acc,'X'); $bj=[]; foreach($jl as $l) $bj[$l[0]]=$l;
+check('back pay JE: Dr 5030 5000, Dr 5010 3300, Cr 1200 1200, Cr 2130 300, Cr 1030 6800, balanced',$bj['5030'][2]===500000 && $bj['5010'][2]===330000 && $bj['1200'][3]===120000 && $bj['2130'][3]===30000 && $bj['1030'][3]===680000 && array_sum(array_column($jl,2))===array_sum(array_column($jl,3)));
 check('13th month base excludes OT, night, premium, adjustments and carried balances',!array_intersect(PayrollThirteenth::BASE_CODES,['OT','NIGHT','PREMIUM','ADJ','CARRY']) && in_array('LEAVE',PayrollThirteenth::BASE_CODES,true));
 
 echo $fail?"\n$fail FAILED\n":"\nALL PASSED\n";

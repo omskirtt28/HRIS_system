@@ -12,6 +12,8 @@ require_once __DIR__ . '/PayrollStatutoryViews.php';
 require_once __DIR__ . '/PayrollRun.php';
 require_once __DIR__ . '/PayrollRunViews.php';
 require_once __DIR__ . '/PayrollThirteenth.php';
+require_once __DIR__ . '/PayrollFinalPay.php';
+require_once __DIR__ . '/PayrollFinalPayViews.php';
 
 function payroll_post_action(): void
 {
@@ -152,6 +154,23 @@ function payroll_post_action(): void
                 Auth::requirePermission('payroll.mark_paid'); $back='payroll-13th'; $params=['id'=>(int)($_POST['run_id']??0)];
                 PayrollThirteenth::release($params['id'],(int)Auth::user()['id']);
                 flash('success','13th month pay released. Employees can see it and a draft journal entry is waiting in Accounting.'); redirect($back,$params);
+            case 'payroll_v2_final_compute':
+                Auth::requirePermission('payroll.process'); $back='payroll-final-pay';
+                $id=PayrollFinalPay::compute((int)($_POST['employee_id']??0),(string)($_POST['pay_date']??''),(string)($_POST['exempt_ceiling']??''),(int)Auth::user()['id']);
+                flash('success','Back pay computed. Add accountabilities if any, then a second person confirms clearance and releases it.'); redirect('payroll-final-pay',['id'=>$id]);
+            case 'payroll_v2_final_item_add':
+                Auth::requirePermission('payroll.process'); $back='payroll-final-pay'; $params=['id'=>(int)($_POST['final_pay_id']??0)];
+                PayrollFinalPay::addItem($params['id'],(string)($_POST['kind']??''),(string)($_POST['label']??''),(string)($_POST['amount']??''),(int)Auth::user()['id']); break;
+            case 'payroll_v2_final_item_remove':
+                Auth::requirePermission('payroll.process'); $back='payroll-final-pay'; $params=['id'=>(int)($_POST['final_pay_id']??0)];
+                PayrollFinalPay::removeItem($params['id'],(int)($_POST['item_id']??0),(int)Auth::user()['id']); break;
+            case 'payroll_v2_final_void':
+                Auth::requirePermission('payroll.process'); $back='payroll-final-pay'; $params=['id'=>(int)($_POST['final_pay_id']??0)];
+                PayrollFinalPay::void($params['id'],(int)Auth::user()['id']); break;
+            case 'payroll_v2_final_release':
+                Auth::requirePermission('payroll.mark_paid'); $back='payroll-final-pay'; $params=['id'=>(int)($_POST['final_pay_id']??0)];
+                PayrollFinalPay::release($params['id'],(int)Auth::user()['id'],($_POST['clearance']??'')==='1');
+                flash('success','Back pay released. A draft journal entry is waiting in Accounting.'); redirect($back,$params);
             default: throw new RuntimeException('Unknown payroll action.');
         }
         flash('success','Payroll records updated.');
@@ -186,7 +205,7 @@ function payroll_render(string $page): void
         }
         exit;
     }
-    $pages=['employee-attendance','payroll-import','payroll-import-preview','payroll-cutoff','payroll-attendance-day','payroll-setup','payroll-id-mapping','payroll-export','payroll-statutory','payroll-runs','payroll-run','payroll-13th'];
+    $pages=['employee-attendance','payroll-import','payroll-import-preview','payroll-cutoff','payroll-attendance-day','payroll-setup','payroll-id-mapping','payroll-export','payroll-statutory','payroll-runs','payroll-run','payroll-13th','payroll-final-pay'];
     if(!in_array($page,$pages,true)) return;
     need_db();
     $employeePage=$page==='employee-attendance';
@@ -214,6 +233,7 @@ function payroll_render(string $page): void
     if($page==='payroll-runs') { payroll_runs_page(); exit; }
     if($page==='payroll-run') { payroll_run_page((int)($_GET['id']??0)); exit; }
     if($page==='payroll-13th') { payroll_13th_page((int)($_GET['id']??0)); exit; }
+    if($page==='payroll-final-pay') { payroll_final_pay_page((int)($_GET['id']??0)); exit; }
     if($page==='payroll-setup') {
         // Payroll runs (migration 046) need employee rates and OT rules; the attendance review stays review-only (John 2026-11-17).
         if(PayrollAttendanceService::reviewOnly() && !in_array($_GET['tab']??'',['salary','rules'],true)) redirect('payroll-setup',['tab'=>'salary']);

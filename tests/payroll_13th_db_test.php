@@ -31,7 +31,7 @@ $startAudit=(int)$pdo->query('SELECT COALESCE(MAX(id),0) FROM audit_logs')->fetc
 $startEntry=(int)$pdo->query('SELECT COALESCE(MAX(id),0) FROM acct_journal_entries')->fetchColumn();
 $emps=[]; $cuts=[]; $p13=[];
 try {
-    foreach(['A'=>'ACTIVE','L'=>'ON_LEAVE','R'=>'RESIGNED'] as $k=>$st) { $pdo->prepare('INSERT INTO employees(employee_no,first_name,last_name,status,hire_date) VALUES(?,?,?,?,"2020-01-01")')->execute(["ZZP13-$k-$sfx",'P13',"Test $k",$st]); $emps[$k]=(int)$pdo->lastInsertId(); }
+    foreach(['A'=>'ACTIVE','L'=>'ON_LEAVE','R'=>'RESIGNED','I'=>'INACTIVE','T'=>'TERMINATED'] as $k=>$st) { $pdo->prepare('INSERT INTO employees(employee_no,first_name,last_name,status,hire_date) VALUES(?,?,?,?,"2020-01-01")')->execute(["ZZP13-$k-$sfx",'P13',"Test $k",$st]); $emps[$k]=(int)$pdo->lastInsertId(); }
     $cut=function(string $s,string $e,int $i) use($pdo,$sfx,&$cuts) { $pdo->prepare('INSERT INTO payroll_cutoffs(code,period_start,period_end,status) VALUES(?,?,?,"OPEN")')->execute(["ZZP13-$i-$sfx",$s,$e]); return $cuts[]=(int)$pdo->lastInsertId(); };
     $run=function(int $cutoff,string $status,array $byEmp) use($pdo,$a,$b) {
         $pdo->prepare('INSERT INTO payroll_runs(cutoff_id,pay_date,status,computed_by,released_by) VALUES(?,?,?,?,?)')->execute([$cutoff,'2093-12-31',$status,$a,$status==='RELEASED'?$b:null]); $r=(int)$pdo->lastInsertId();
@@ -45,7 +45,7 @@ try {
     $run($cut('2093-01-01','2093-06-30',0),'RELEASED',[
         $emps['A']=>[['EARNING','BASIC',120000],['EARNING','OT',5000],['EARNING','PREMIUM',2000],['EARNING','ABSENT',-3000],['DEDUCTION','SSS',900]],
         $emps['L']=>[['EARNING','BASIC',60000]],
-        $emps['R']=>[['EARNING','BASIC',50000]]]);
+        $emps['R']=>[['EARNING','BASIC',50000]],$emps['I']=>[['EARNING','BASIC',50000]],$emps['T']=>[['EARNING','BASIC',50000]]]);
     $run($cut('2093-07-01','2093-12-31',1),'RELEASED',[
         $emps['A']=>[['EARNING','REGULAR',60000],['EARNING','LEAVE',6000],['EARNING','LATE',-600],['EARNING','NIGHT',700],['EARNING','ADJ',1500]]]);
     $run($cut('2092-12-01','2092-12-31',2),'RELEASED',[$emps['A']=>[['EARNING','BASIC',99999]]]); // other year: ignored
@@ -58,7 +58,7 @@ try {
     $id=PayrollThirteenth::compute('2093','2093-12-20','90000',$a); $p13[]=$id;
     $r=PayrollThirteenth::run($id); $by=array_column($r['employees'],null,'employee_id');
     check('base = basic/regular/leave less absences and late only: 182400 / 12 = 15200',isset($by[$emps['A']]) && $near($by[$emps['A']]['basic_total'],182400) && $near($by[$emps['A']]['amount'],15200),json_encode($by[$emps['A']]??null));
-    check('on-leave employee included (60000 / 12 = 5000), resigned excluded',$near($by[$emps['L']]['amount']??0,5000) && !isset($by[$emps['R']]));
+    check('on-leave employee included (60000 / 12 = 5000); resigned, inactive and terminated excluded',$near($by[$emps['L']]['amount']??0,5000) && !isset($by[$emps['R']]) && !isset($by[$emps['I']]) && !isset($by[$emps['T']]));
     check('totals and nothing taxable under the ceiling',(int)$r['employee_count']===2 && $near($r['total_amount'],20200) && $near($r['total_taxable'],0));
 
     $id2=PayrollThirteenth::compute('2093','2093-12-21','10000',$a);

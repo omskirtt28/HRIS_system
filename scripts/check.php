@@ -122,10 +122,11 @@ $suites = [ // script => [minimum PASS count, needs scratch DB]
     'tests/payroll_statutory_test.php' => [31, false],
     'tests/payroll_statutory_db_test.php' => [24, true],
     'tests/payroll_statutory_http_test.php' => [14, true],
-    'tests/payroll_run_test.php' => [40, false],
+    'tests/payroll_run_test.php' => [45, false],
     'tests/payroll_run_db_test.php' => [40, true],
-    'tests/payroll_run_http_test.php' => [21, true],
+    'tests/payroll_run_http_test.php' => [26, true],
     'tests/payroll_13th_db_test.php' => [13, true],
+    'tests/payroll_final_pay_db_test.php' => [19, true],
     'tests/applicant_tracking_http_test.php' => [13, true],
 ];
 $db = getenv('HRIS_TEST_DB') ?: '';
