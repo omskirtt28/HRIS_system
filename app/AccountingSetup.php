@@ -12,7 +12,7 @@ final class AccountingSetup
 {
     /** Payroll release keys => label; defaults are PayrollRun::ACCOUNTS (sample chart of migration 039). */
     public const PAYROLL=['salaries'=>'Gross pay (expense)','employer'=>'Employer contributions (expense)','SSS'=>'SSS payable','PHILHEALTH'=>'PhilHealth payable',
-        'PAGIBIG'=>'Pag-IBIG payable','WHT'=>'Withholding tax payable','advances'=>'Payroll deductions (advances receivable)','carry'=>'Balance owed by employees','bank'=>'Net pay: payroll bank'];
+        'PAGIBIG'=>'Pag-IBIG payable','WHT'=>'Withholding tax payable','advances'=>'Payroll deductions (advances receivable)','carry'=>'Balance owed by employees','bank'=>'Net pay: payroll bank','thirteenth'=>'13th month pay (expense)'];
     public const TAX_ACCOUNTS=['tax.vat_input'=>['Input VAT','A'],'tax.vat_output'=>['Output VAT','L'],'tax.ewt'=>['Expanded withholding tax payable','L']];
 
     public static function ready(): bool

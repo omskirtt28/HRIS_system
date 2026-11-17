@@ -18,7 +18,7 @@ final class PayrollRun
     public const LABELS = ['REGULAR'=>'Regular pay','OT'=>'Overtime','NIGHT'=>'Night premium','SSS'=>'SSS','PHILHEALTH'=>'PhilHealth','PAGIBIG'=>'Pag-IBIG','WHT'=>'Withholding tax','ADJ'=>'Adjustment',
         'BASIC'=>'Basic pay (half month)','LEAVE'=>'Paid leave','PREMIUM'=>'Rest day / holiday premium','ABSENT'=>'Absences','LATE'=>'Late and undertime','CARRY'=>'Balance from previous payroll'];
     /** Journal accounts by Chart of Accounts code (sample COA from migration 039). */
-    public const ACCOUNTS = ['salaries'=>'5010','employer'=>'5020','SSS'=>'2100','PHILHEALTH'=>'2110','PAGIBIG'=>'2120','WHT'=>'2130','advances'=>'1200','carry'=>'1200','bank'=>'1030'];
+    public const ACCOUNTS = ['salaries'=>'5010','employer'=>'5020','SSS'=>'2100','PHILHEALTH'=>'2110','PAGIBIG'=>'2120','WHT'=>'2130','advances'=>'1200','carry'=>'1200','bank'=>'1030','thirteenth'=>'5030'];
 
     public static function ready(): bool
     {
@@ -102,7 +102,10 @@ final class PayrollRun
                 $p=self::dayPay(['day_type'=>$type]+$day,$r,$rules);
                 array_push($issues,...$p['issues']);
                 $sum['OT']+=$p['OT']; $sum['NIGHT']+=$p['NIGHT'];
-                if(!$fixed) $sum['REGULAR']+=$p['REGULAR'];
+                if(!$fixed) { // rest day / holiday multiplier part goes to PREMIUM so REGULAR stays basic pay (13th month base); gross unchanged
+                    $base=$p['REGULAR']>0 ? $reg/60*$hourly : 0.0;
+                    $sum['REGULAR']+=$base; $sum['PREMIUM']+=$p['REGULAR']-$base;
+                }
                 elseif(!$workday && $reg>0) {
                     $m=$rules[$type]['regular_multiplier']??null;
                     if($m!==null) $sum['PREMIUM']+=$reg/60*$hourly*((float)$m-1);

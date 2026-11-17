@@ -253,3 +253,5 @@ Update 2026-11-02: POST action upload_own_photo (page employee-profile): any int
 - 2026-11-05: GET index.php?page=employee-team&q=&p= (employees.view_team). POST change_user_role: users.manage -> changeUserRole, else users.assign_employee_role -> changeEmployeeUserRole (CSRF global).
 
 - 2026-11-05: GET index.php?page=track&t=<64 hex> (public, private link) or &ref=&email= (public). POST apply now redirects to track&t=<token> (no email/ref in URL); falls back to track&ref= if the link cannot be issued.
+
+13th month (migration 050, form posts on `?page=payroll-runs` / `?page=payroll-13th`, CSRF): `payroll_v2_13th_compute` (payroll.process), `payroll_v2_13th_void` (payroll.process), `payroll_v2_13th_release` (payroll.mark_paid, not the person who computed). GET `?page=payroll-13th&id=` (payroll.process), `?page=profile-additional` (own data only).

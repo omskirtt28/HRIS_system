@@ -1,3 +1,11 @@
+## 2026-11-17 - Payroll 13th month pay (Claude, local, migration 050)
+- 13th month pay per year: basic pay earned in the year's released payroll runs (basic, regular pay, paid leave, less absences and late) divided by 12; active employees only (resigned employees get it in back pay).
+- Tax-exempt ceiling typed by HR on each run (nothing seeded); the amount above it is shown as taxable, not withheld.
+- Second-person release creates a draft journal entry Dr 5030 13th Month Pay / Cr net pay account; account mappable in Accounting Settings.
+- Screens: 13th month section on Payroll Runs, 13th month run page, My Profile > Additional for employees.
+- Per-hour payslips now show the rest day/holiday multiplier part as "Rest day / holiday premium" (same gross).
+- Files: database/migrations/20261117_050_payroll_13th_month(.down).sql, app/PayrollThirteenth.php, app/PayrollRunViews.php, app/PayrollModule.php, app/PayrollRun.php, app/AccountingSetup.php, index.php, tests/payroll_13th_db_test.php, tests/payroll_run_test.php, tests/payroll_run_http_test.php, scripts/check.php.
+
 ## 2026-11-17 - Accounting Phase 3: dashboard, general ledger, fixed assets, VAT/EWT, settings (Claude, local)
 - Accounting Dashboard: live bank, receivable, payable and approval figures; Income and expenses chart with Monthly/Quarterly/Yearly periods and Download report.
 - General Ledger per account with running balance; account names in the financial reports open their ledger.

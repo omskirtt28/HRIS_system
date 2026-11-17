@@ -71,7 +71,7 @@ check('FIXED: half month 10000, holiday premium 8h x 100 x 0.3 = 240, OT 125',$n
 check('FIXED: absences = half leave day 400 + full day 800, late 30m = 50',$near($l['ABSENT'],-1200) && $near($l['LATE'],-50) && $f['issues']===[]);
 $h=PayrollRun::earnings($days,$ctx(['pay_method'=>'PER_HOUR','salary_basis'=>'DAILY','salary_amount'=>'800','hourly_divisor'=>'8']));
 $l=$lines($h);
-check('PER_HOUR: 8h+8h x1 + holiday 8h x1.3 = 2640, OT 125, paid half leave 400',$near($l['REGULAR'],2640) && $near($l['OT'],125) && $near($l['LEAVE'],400) && !isset($l['ABSENT']) && $h['issues']===[]);
+check('PER_HOUR: 3 x 8h basic = 2400 + holiday premium 8h x 0.3 = 240 (same 2640 gross), OT 125, paid half leave 400',$near($l['REGULAR'],2400) && $near($l['PREMIUM'],240) && $near($l['OT'],125) && $near($l['LEAVE'],400) && !isset($l['ABSENT']) && $h['issues']===[]);
 $n=PayrollRun::earnings($days,$ctx(['pay_method'=>'FIXED','salary_basis'=>'MONTHLY','salary_amount'=>'20000','hourly_divisor'=>'200'],null));
 check('FIXED without a site schedule is an issue (no absence deduction guessed)',str_contains(implode(' ',$n['issues']),'Work schedule') && !isset($lines($n)['ABSENT']));
 $none=PayrollRun::settle(['earnings'=>['REGULAR'=>100],'adjustments'=>[],'basis'=>'MONTHLY','salary'=>100,'tables'=>['SSS'=>null,'PHILHEALTH'=>null,'PAGIBIG'=>null,'BIR'=>null],'last'=>false,'prev'=>[]]);
@@ -94,6 +94,13 @@ check('a negative month balance flips to a debit',$by['2100'][2]===3000 && $by['
 $sum=['earnings'=>1000,'employer'=>0,'WHT'=>0,'adj_deductions'=>1300,'carry_out'=>300,'SSS'=>['employee'=>0,'employer'=>0],'PHILHEALTH'=>['employee'=>0,'employer'=>0],'PAGIBIG'=>['employee'=>0,'employer'=>0]];
 $j=PayrollRun::journalLines($sum,'X'); $c12=array_values(array_filter($j,fn($l)=>$l[0]==='1200'));
 check('carried balance is a Dr 1200 receivable, deductions Cr 1200, bank 0',count($c12)===2 && $c12[0][2]===30000 && $c12[1][3]===130000 && !in_array('1030',array_column($j,0),true) && array_sum(array_column($j,2))===array_sum(array_column($j,3)));
+
+// ---- 13th month (migration 050): basic / 12, excess over the typed ceiling is taxable ----
+require_once dirname(__DIR__).'/app/PayrollThirteenth.php';
+check('13th month: 240000 / 12 = 20000, under a 90000 ceiling = 0 taxable',PayrollThirteenth::amount(240000,90000)===[20000.0,0.0]);
+check('13th month: 1200000 / 12 = 100000, 10000 over the ceiling is taxable',PayrollThirteenth::amount(1200000,90000)===[100000.0,10000.0]);
+check('13th month: rounds to centavos, zero or negative basic pays nothing',PayrollThirteenth::amount(1000,0)===[83.33,83.33] && PayrollThirteenth::amount(-50,0)===[0.0,0.0]);
+check('13th month base excludes OT, night, premium, adjustments and carried balances',!array_intersect(PayrollThirteenth::BASE_CODES,['OT','NIGHT','PREMIUM','ADJ','CARRY']) && in_array('LEAVE',PayrollThirteenth::BASE_CODES,true));
 
 echo $fail?"\n$fail FAILED\n":"\nALL PASSED\n";
 exit($fail?1:0);

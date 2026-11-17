@@ -23,7 +23,63 @@ function payroll_runs_page(): void
         <td><?=payroll_peso($r['total_gross'])?></td><td><?=payroll_peso($r['total_net'])?></td><td><?=payroll_run_badge($r['status'])?></td><td><?=$r['entry_no']?'<a href="'.e(url('accounting-entry',['id'=>$r['entry_id']])).'">'.e($r['entry_no']).'</a>':'—'?></td>
         <td><a class="btn sm" href="<?=url('payroll-run',['id'=>$r['id']])?>">Open</a></td></tr><?php endforeach;?>
       </tbody></table></div><?php endif;?></section>
+    <?php if(PayrollThirteenth::ready()) payroll_13th_section(); else echo '<div class="alert">For 13th month pay, apply database/migrations/20261117_050_payroll_13th_month.sql.</div>';
+    render_portal_footer();
+}
+
+/** 13th month pay on the Payroll Runs page: compute form and the year runs. */
+function payroll_13th_section(): void
+{
+    $runs=PayrollThirteenth::runs(); $year=(int)date('Y'); ?>
+    <section class="panel payroll-section"><div class="panel-head"><div><h2>13th month pay</h2><p>Basic pay earned in the year's released payroll runs (basic, regular pay and paid leave, less absences and late; no overtime, premiums or adjustments) divided by 12. Active employees only: resigned employees get theirs in back pay. Release the year's payroll runs first.</p></div></div>
+      <form method="post" class="panel-body payroll-form"><?php payroll_hidden_action('13th_compute');?><div class="payroll-form-grid">
+        <div class="field"><label for="p13-year">Year</label><input id="p13-year" name="pay_year" inputmode="numeric" pattern="\d{4}" maxlength="4" value="<?=payroll_old('pay_year',$year)?>" required></div>
+        <div class="field"><label for="p13-pay">Pay date</label><input id="p13-pay" type="date" name="pay_date" value="<?=payroll_old('pay_date')?>" required></div>
+        <div class="field"><label for="p13-ceiling">Tax-exempt ceiling (₱)</label><input id="p13-ceiling" name="exempt_ceiling" inputmode="decimal" value="<?=payroll_old('exempt_ceiling',PayrollThirteenth::lastCeiling()??'')?>" required aria-describedby="p13-ceiling-help"><div id="p13-ceiling-help" class="small muted">Confirm the current BIR ceiling for 13th month and other benefits. The amount above it is recorded as taxable but not withheld.</div></div>
+      </div><button class="btn primary">Compute 13th month pay</button></form>
+      <?php if($runs):?><div class="payroll-table-scroll"><table class="phase3a-table"><thead><tr><th>Year</th><th>Pay date</th><th>Employees</th><th>Total</th><th>Taxable</th><th>Status</th><th>Journal</th><th></th></tr></thead><tbody>
+      <?php foreach($runs as $r):?><tr><td><?=(int)$r['pay_year']?></td><td><?=e($r['pay_date'])?></td><td><?=(int)$r['employee_count']?></td><td><?=payroll_peso($r['total_amount'])?></td><td><?=payroll_peso($r['total_taxable'])?></td><td><?=payroll_run_badge($r['status'])?></td>
+        <td><?=$r['entry_no']?'<a href="'.e(url('accounting-entry',['id'=>$r['entry_id']])).'">'.e($r['entry_no']).'</a>':'—'?></td><td><a class="btn sm" href="<?=url('payroll-13th',['id'=>$r['id']])?>">Open</a></td></tr><?php endforeach;?>
+      </tbody></table></div><?php endif;?></section>
+<?php }
+
+function payroll_13th_page(int $id): void
+{
+    if(!PayrollThirteenth::ready()) redirect('payroll-runs');
+    try { $r=PayrollThirteenth::run($id); } catch(RuntimeException) { flash('error','13th month run not found.'); redirect('payroll-runs'); }
+    $me=(int)Auth::user()['id']; $editable=$r['status']==='COMPUTED';
+    render_portal_header('hr','payroll-runs','13th Month Pay'); page_head('HR Payroll / Payroll Runs','13th month pay '.(int)$r['pay_year'],'<a class="btn" href="'.e(url('payroll-runs')).'">Back to runs</a>'); ?>
+    <section class="panel payroll-section"><div class="panel-body">
+      <p><?=payroll_run_badge($r['status'])?> Pay date <?=e($r['pay_date'])?> · tax-exempt ceiling <?=payroll_peso($r['exempt_ceiling'])?> · computed by <?=e($r['computed_name'])?><?=$r['released_name']?' · released by '.e($r['released_name']):''?><?=$r['entry_no']?' · journal <a href="'.e(url('accounting-entry',['id'=>$r['entry_id']])).'">'.e($r['entry_no']).'</a> (draft until Accounting approves)':''?></p>
+      <p>Total <strong><?=payroll_peso($r['total_amount'])?></strong> · Taxable portion <strong><?=payroll_peso($r['total_taxable'])?></strong> · Employees <strong><?=(int)$r['employee_count']?></strong></p>
+      <?php if((float)$r['total_taxable']>0):?><div class="alert">Some amounts are above the tax-exempt ceiling. Withholding tax on the excess is not computed here; handle it in payroll or year-end tax.</div><?php endif;?>
+      <?php if($editable):?><div class="actions">
+        <form method="post" class="payroll-inline-form"><?php payroll_hidden_action('13th_compute');?><input type="hidden" name="pay_year" value="<?=(int)$r['pay_year']?>"><input type="hidden" name="pay_date" value="<?=e($r['pay_date'])?>"><input type="hidden" name="exempt_ceiling" value="<?=e($r['exempt_ceiling'])?>"><button class="btn">Recompute</button></form>
+        <?php if(Auth::can('payroll.mark_paid') && (int)$r['computed_by']!==$me):?><form method="post" class="payroll-inline-form" onsubmit="return confirm('Release the 13th month pay? It locks the figures, shows them to employees and sends a draft journal entry to Accounting.')"><?php payroll_hidden_action('13th_release');?><input type="hidden" name="run_id" value="<?=$id?>"><button class="btn primary" <?=$r['employee_count']?'':'disabled title="No employees"'?>>Release 13th month pay</button></form>
+        <?php elseif((int)$r['computed_by']===$me):?><span class="small muted">A different person with release access must release this.</span><?php endif;?>
+        <form method="post" class="payroll-inline-form" onsubmit="return confirm('Void this 13th month run? You can compute the year again afterwards.')"><?php payroll_hidden_action('13th_void');?><input type="hidden" name="run_id" value="<?=$id?>"><button class="btn">Void run</button></form>
+      </div><?php endif;?>
+    </div></section>
+    <section class="panel payroll-section"><div class="panel-head"><div><h2>Register</h2></div></div>
+      <?php if(!$r['employees']):?><div class="empty">No active employee has released basic pay in <?=(int)$r['pay_year']?>.</div><?php else:?>
+      <div class="payroll-table-scroll"><table class="phase3a-table"><thead><tr><th>Employee</th><th>Basic pay earned</th><th>13th month pay</th><th>Taxable portion</th></tr></thead><tbody>
+      <?php foreach($r['employees'] as $e):?><tr><td><?=e($e['employee_name'])?><div class="small muted"><?=e($e['employee_no'])?></div></td><td><?=payroll_peso($e['basic_total'])?></td><td><strong><?=payroll_peso($e['amount'])?></strong></td><td><?=payroll_peso($e['taxable'])?></td></tr><?php endforeach;?>
+      </tbody></table></div><?php endif;?></section>
     <?php render_portal_footer();
+}
+
+/** Employee portal Additional page: the signed-in employee's own released 13th month pay only. */
+function payroll_additional_html(): string
+{
+    $emp=PayrollRepository::currentEmployee();
+    if(!$emp) return '<div class="empty">HR must link your account to your employee record before extra pay can appear.</div>';
+    $list=PayrollThirteenth::forEmployee((int)$emp['id']);
+    if(!$list) return '<div class="empty">Your 13th month pay will appear here once it is released.</div>';
+    ob_start(); ?>
+    <section class="panel payroll-section"><div class="panel-head"><div><h2>13th month pay</h2></div></div><div class="payroll-table-scroll"><table class="phase3a-table"><thead><tr><th>Year</th><th>Pay date</th><th>Basic pay earned</th><th>13th month pay</th><th>Taxable portion</th></tr></thead><tbody>
+    <?php foreach($list as $p):?><tr><td><?=(int)$p['pay_year']?></td><td><?=e($p['pay_date'])?></td><td><?=payroll_peso($p['basic_total'])?></td><td><strong><?=payroll_peso($p['amount'])?></strong></td><td><?=payroll_peso($p['taxable'])?></td></tr><?php endforeach;?>
+    </tbody></table></div></section>
+    <?php return (string)ob_get_clean();
 }
 
 function payroll_run_badge(string $s): string { return ['COMPUTED'=>'<span class="badge blue">Computed</span>','RELEASED'=>'<span class="badge green">Released</span>','VOIDED'=>'<span class="badge gray">Voided</span>'][$s]??e($s); }

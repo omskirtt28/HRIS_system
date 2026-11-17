@@ -8,7 +8,7 @@ updated: 2026-11-17
 
 # Payroll engine (peso computation) + posting to Accounting
 
-Status: done - P1 (045) and P2-P5 (046) built and applied to hris_clean 2026-11-17. Later items (13th month, final pay, bank file, loans) and Q-P4..Q-P7 remain
+Status: done - P1 (045) and P2-P5 (046) built and applied to hris_clean 2026-11-17; 13th month (050) done 2026-11-17. Later items (final pay, bank file, loans) and Q-P4..Q-P7 remain
 Date: 2026-11-17
 Session: [[Session-Log]]
 

@@ -107,6 +107,14 @@ $setup=req($payJar,'GET','/index.php?page=payroll-setup');
 check('Payroll Setup opens on Employee rates in review-only mode',str_contains($setup['head'],'tab=salary') || str_contains($setup['body'],'Effective-dated salary rates'));
 $rules=req($payJar,'GET','/index.php?page=payroll-setup&tab=rules')['body'];
 check('OT & holidays tab opens, sites tab hidden',str_contains($rules,'Company OT and night rules') && !str_contains($rules,'Sites &amp; approvers'));
+// 13th month (migration 050): form on Payroll Runs, CSRF on compute, employee Additional page.
+$p13=(int)$pdo->query('SELECT COUNT(*) FROM payroll_13th_runs')->fetchColumn();
+check('Payroll Runs shows the 13th month form',str_contains($page['body'],'Compute 13th month pay') && str_contains($page['body'],'name="exempt_ceiling"'));
+req($hrJar,'POST','/index.php?page=payroll-runs',['action'=>'payroll_v2_13th_compute','pay_year'=>'2092','pay_date'=>'2092-12-20','exempt_ceiling'=>'90000']);
+check('13th month compute without CSRF is refused',(int)$pdo->query('SELECT COUNT(*) FROM payroll_13th_runs')->fetchColumn()===$p13);
+$add=req($empJar,'GET','/index.php?page=profile-additional')['body'];
+check('employee Additional page shows the 13th month empty state',str_contains($add,'Your 13th month pay will appear here'));
+check('employee cannot open a 13th month run page',!str_contains(req($empJar,'GET','/index.php?page=payroll-13th&id=1')['body'],'Basic pay earned'));
 
 echo $fail?"\n$fail FAILED\n":"\nALL PASSED\n";
 exit($fail?1:0);

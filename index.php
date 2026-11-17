@@ -1243,6 +1243,7 @@ if (in_array($page,['profile-downloads','profile-faqs','profile-payslip','profil
     if($page==='profile-downloads') echo PortalContentService::ready()?PortalContentViews::downloads(PortalContentService::downloads(),$manage):PortalContentViews::notReady($manage);
     elseif($page==='profile-faqs') echo PortalContentService::ready()?PortalContentViews::faqs(PortalContentService::faqs(),$manage):PortalContentViews::notReady($manage);
     elseif($page==='profile-payslip' && PayrollRun::ready()) echo payroll_payslip_html();
+    elseif($page==='profile-additional' && PayrollThirteenth::ready()) echo payroll_additional_html();
     else echo PortalContentViews::payPage($page,$kind!=='employee');
     render_portal_footer(); exit;
 }

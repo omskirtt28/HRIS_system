@@ -11,6 +11,7 @@ require_once __DIR__ . '/PayrollStatutory.php';
 require_once __DIR__ . '/PayrollStatutoryViews.php';
 require_once __DIR__ . '/PayrollRun.php';
 require_once __DIR__ . '/PayrollRunViews.php';
+require_once __DIR__ . '/PayrollThirteenth.php';
 
 function payroll_post_action(): void
 {
@@ -140,6 +141,17 @@ function payroll_post_action(): void
                 Auth::requirePermission('payroll.mark_paid'); $back='payroll-run'; $params=['id'=>(int)($_POST['run_id']??0)];
                 PayrollRun::release($params['id'],(int)Auth::user()['id']);
                 flash('success','Payroll released. Payslips are visible to employees and a draft journal entry is waiting in Accounting.'); redirect($back,$params);
+            case 'payroll_v2_13th_compute':
+                Auth::requirePermission('payroll.process'); $back='payroll-runs';
+                $id=PayrollThirteenth::compute((string)($_POST['pay_year']??''),(string)($_POST['pay_date']??''),(string)($_POST['exempt_ceiling']??''),(int)Auth::user()['id']);
+                flash('success','13th month pay computed. Review it, then a second person releases it.'); redirect('payroll-13th',['id'=>$id]);
+            case 'payroll_v2_13th_void':
+                Auth::requirePermission('payroll.process'); $back='payroll-13th'; $params=['id'=>(int)($_POST['run_id']??0)];
+                PayrollThirteenth::void($params['id'],(int)Auth::user()['id']); break;
+            case 'payroll_v2_13th_release':
+                Auth::requirePermission('payroll.mark_paid'); $back='payroll-13th'; $params=['id'=>(int)($_POST['run_id']??0)];
+                PayrollThirteenth::release($params['id'],(int)Auth::user()['id']);
+                flash('success','13th month pay released. Employees can see it and a draft journal entry is waiting in Accounting.'); redirect($back,$params);
             default: throw new RuntimeException('Unknown payroll action.');
         }
         flash('success','Payroll records updated.');
@@ -174,7 +186,7 @@ function payroll_render(string $page): void
         }
         exit;
     }
-    $pages=['employee-attendance','payroll-import','payroll-import-preview','payroll-cutoff','payroll-attendance-day','payroll-setup','payroll-id-mapping','payroll-export','payroll-statutory','payroll-runs','payroll-run'];
+    $pages=['employee-attendance','payroll-import','payroll-import-preview','payroll-cutoff','payroll-attendance-day','payroll-setup','payroll-id-mapping','payroll-export','payroll-statutory','payroll-runs','payroll-run','payroll-13th'];
     if(!in_array($page,$pages,true)) return;
     need_db();
     $employeePage=$page==='employee-attendance';
@@ -201,6 +213,7 @@ function payroll_render(string $page): void
     if($page==='payroll-statutory') { payroll_statutory(); exit; }
     if($page==='payroll-runs') { payroll_runs_page(); exit; }
     if($page==='payroll-run') { payroll_run_page((int)($_GET['id']??0)); exit; }
+    if($page==='payroll-13th') { payroll_13th_page((int)($_GET['id']??0)); exit; }
     if($page==='payroll-setup') {
         // Payroll runs (migration 046) need employee rates and OT rules; the attendance review stays review-only (John 2026-11-17).
         if(PayrollAttendanceService::reviewOnly() && !in_array($_GET['tab']??'',['salary','rules'],true)) redirect('payroll-setup',['tab'=>'salary']);
