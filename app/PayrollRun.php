@@ -332,7 +332,7 @@ final class PayrollRun
     }
 
     /** Journal lines in cents [account code, description, debit, credit]; the bank (net pay) line absorbs 4dp rounding (BR-512). */
-    public static function journalLines(array $sum, string $memo): array
+    public static function journalLines(array $sum, string $memo, array $accounts=self::ACCOUNTS): array
     {
         $c=fn(float $v)=>(int)round($v*100);
         $dr=['salaries'=>$c($sum['earnings']),'employer'=>$c($sum['employer']),'carry'=>$c($sum['carry_out']??0)];
@@ -342,8 +342,8 @@ final class PayrollRun
         $lines=[];
         $names=['salaries'=>'Gross pay','employer'=>'Employer contributions','SSS'=>'SSS','PHILHEALTH'=>'PhilHealth','PAGIBIG'=>'Pag-IBIG','WHT'=>'Withholding tax','advances'=>'Payroll deductions','carry'=>'Balance owed by employees','bank'=>'Net pay'];
         // A negative amount (a month-balance refund) flips to the other side so every line stays positive.
-        foreach($dr as $k=>$v) if($v!==0) $lines[]=[self::ACCOUNTS[$k],"$memo ".$names[$k],max($v,0),max(-$v,0)];
-        foreach($cr as $k=>$v) if($v!==0) $lines[]=[self::ACCOUNTS[$k],"$memo ".$names[$k],max(-$v,0),max($v,0)];
+        foreach($dr as $k=>$v) if($v!==0) $lines[]=[$accounts[$k],"$memo ".$names[$k],max($v,0),max(-$v,0)];
+        foreach($cr as $k=>$v) if($v!==0) $lines[]=[$accounts[$k],"$memo ".$names[$k],max(-$v,0),max($v,0)];
         return $lines;
     }
 
@@ -372,7 +372,8 @@ final class PayrollRun
                 }
                 $q=$pdo->prepare('SELECT COALESCE(SUM(carry_out),0) FROM payroll_run_employees WHERE run_id=?'); $q->execute([$runId]); $sum['carry_out']=(float)$q->fetchColumn();
                 $memo='Payroll '.$r['cutoff_code'];
-                $lines=self::journalLines($sum,$memo);
+                require_once __DIR__.'/AccountingSetup.php'; // posting accounts from Accounting Settings (Phase 3 B3, Q-P7)
+                $lines=self::journalLines($sum,$memo,AccountingSetup::payrollAccounts(self::ACCOUNTS));
                 $ids=$pdo->prepare('SELECT id FROM acct_accounts WHERE code=? AND is_active=1');
                 foreach($lines as &$line) { $ids->execute([$line[0]]); $line[0]=(int)$ids->fetchColumn() ?: throw new RuntimeException('Chart of Accounts needs an active account '.$line[0].' for payroll posting.'); } unset($line);
                 $entry=Accounting::insertHeader($r['pay_date'],"$memo, pay date ".$r['pay_date'],$actor,null);

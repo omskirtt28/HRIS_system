@@ -114,7 +114,7 @@ $suites = [ // script => [minimum PASS count, needs scratch DB]
     'tests/accounting_test.php' => [24, false],
     'tests/accounting_db_test.php' => [48, true],
     'tests/accounting_http_test.php' => [51, true],
-    'tests/accounting_phase3_db_test.php' => [36, true],
+    'tests/accounting_phase3_db_test.php' => [57, true],
     'tests/accounts_payable_db_test.php' => [38, true],
     'tests/accounts_receivable_db_test.php' => [32, true],
     'tests/cash_bank_db_test.php' => [46, true],

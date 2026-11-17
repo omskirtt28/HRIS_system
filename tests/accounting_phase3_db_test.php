@@ -10,7 +10,7 @@ $dbName=getenv('HRIS_TEST_DB') ?: '';
 if(!preg_match('/^hris_slice15_test_\d{8}_\d{6}$/',$dbName)) { fwrite(STDERR,"Set HRIS_TEST_DB to a scratch copy (hris_slice15_test_...).\n"); exit(2); }
 $_SERVER['REMOTE_ADDR']='127.0.0.1';
 require dirname(__DIR__).'/app/bootstrap.php';
-foreach(['Accounting','AccountsPayable','AccountsReceivable','CashBank','Remittances','HrDashboard','AccountingDashboard','FixedAssets'] as $c) require_once dirname(__DIR__)."/app/$c.php";
+foreach(['Accounting','AccountingSetup','AccountsPayable','AccountsReceivable','CashBank','Remittances','HrDashboard','AccountingDashboard','FixedAssets'] as $c) require_once dirname(__DIR__)."/app/$c.php";
 $GLOBALS['pdo']=new PDO('mysql:host=127.0.0.1;dbname='.$dbName.';charset=utf8mb4','root','',[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
 if(db()->query('SELECT DATABASE()')->fetchColumn()!==$dbName) exit(2);
 if(!Accounting::ready() || !FixedAssets::ready()) { fwrite(STDERR,"Run migrations 039 to 048 on the scratch copy first.\n"); exit(2); }
@@ -96,13 +96,64 @@ try {
     $r4=FixedAssets::run($m(4),$bk);
     check('a new asset runs for a month the other asset already has',array_map('intval',db()->query("SELECT asset_id FROM acct_depreciation WHERE entry_id=$r4")->fetchAll(PDO::FETCH_COLUMN))===[$b2]);
     check('disposed asset stops after its disposal month',str_contains((string)err(fn()=>FixedAssets::run($m(5),$bk)),'Nothing to depreciate'));
+
+    // B3-B5 (migration 049): settings, tax codes, VAT / EWT on bills and invoices, payroll posting accounts.
+    if(AccountingSetup::ready()) {
+        check('tax rounds half up to the centavo',AccountingSetup::tax(100000,'12')===12000 && AccountingSetup::tax(333,'12')===40 && AccountingSetup::tax(100000,'0.5')===500);
+        $vatIn=Accounting::saveAccount(0,'9150','P3 Input VAT','A',true); $vatOut=Accounting::saveAccount(0,'9250','P3 Output VAT','L',true);
+        $ewtAcc=Accounting::saveAccount(0,'9235','P3 EWT payable','L',true); $salPay=Accounting::saveAccount(0,'9260','P3 Salaries payable','L',true);
+        check('rate must be above 0 and below 100',str_contains((string)err(fn()=>AccountingSetup::saveCode(0,'VAT','P3V','x','100',true)),'Rate'));
+        check('code format checked',str_contains((string)err(fn()=>AccountingSetup::saveCode(0,'EWT','bad code!','x','1',true)),'Code'));
+        $vc=AccountingSetup::saveCode(0,'VAT','P3V12','P3 VAT test','12',true); $wc=AccountingSetup::saveCode(0,'EWT','P3W2','P3 EWT test','2',true);
+        check('duplicate tax code refused',str_contains((string)err(fn()=>AccountingSetup::saveCode(0,'VAT','P3V12','again','12',true)),'already exists'));
+        $v=AccountsPayable::saveVendor(0,'P3 Vendor','','',30,true); $c=AccountsReceivable::saveCustomer(0,'P3 Customer','','',30,true);
+        $billRow=[['account_id'=>$acc('5120'),'amount'=>'1,000']];
+        check('tax code without its account set is refused',str_contains((string)err(fn()=>AccountsPayable::saveBill(0,$v,'',$d(8,1),'','',$billRow,$bk,$vc)),'Accounting Settings'));
+        check('payable account must be a liability',str_contains((string)err(fn()=>AccountingSetup::saveSettings(['tax.vat_input'=>'1020','payroll.payable'=>'1020','payroll.net_to'=>'payable'],$bk)),'Liability'));
+        check('Salaries Payable required when net pay goes there',str_contains((string)err(fn()=>AccountingSetup::saveSettings(['payroll.net_to'=>'payable'],$bk)),'Salaries Payable'));
+        AccountingSetup::saveSettings(['tax.vat_input'=>'9150','tax.vat_output'=>'9250','tax.ewt'=>'9235','payroll.net_to'=>'payable','payroll.payable'=>'9260','payroll.salaries'=>'5010'],$bk);
+        $b=AccountsPayable::saveBill(0,$v,'',$d(8,1),'','',$billRow,$bk,$vc,$wc); $bill=AccountsPayable::bill($b); $be=Accounting::entry((int)$bill['entry_id']);
+        check('bill total = net + VAT - EWT',(float)$bill['total']===1100.0 && (float)$bill['vat_amount']===120.0 && (float)$bill['ewt_amount']===20.0);
+        check('bill entry balances with Input VAT and EWT lines',$be['debit']===112000 && $be['credit']===112000 && count($be['lines'])===4);
+        check('bill shows only its own lines (VAT line hidden)',count($bill['lines'])===1 && (int)$bill['lines'][0]['account_id']===$acc('5120'));
+        check('a tax account cannot be a bill line',str_contains((string)err(fn()=>AccountsPayable::saveBill(0,$v,'',$d(8,1),'','',[['account_id'=>$vatIn,'amount'=>'5']],$bk,$vc)),'added by the tax codes'));
+        AccountsPayable::saveBill($b,$v,'',$d(8,1),'','',$billRow,$bk); $bill=AccountsPayable::bill($b);
+        check('editing a bill without codes clears its tax',(float)$bill['total']===1000.0 && $bill['vat_code_id']===null && (float)$bill['ewt_amount']===0.0);
+        AccountsPayable::saveBill($b,$v,'',$d(8,1),'','',$billRow,$bk,$vc,$wc); $post((int)AccountsPayable::bill($b)['entry_id']);
+        $i=AccountsReceivable::saveInvoice(0,$c,'',$d(8,2),'','',[['account_id'=>$acc('4010'),'amount'=>'2,000']],$bk,$vc); $inv=AccountsReceivable::invoice($i);
+        $ie=Accounting::entry((int)$inv['entry_id']);
+        check('invoice total = net + Output VAT',(float)$inv['total']===2240.0 && $ie['debit']===224000 && $ie['credit']===224000 && count($inv['lines'])===1);
+        $post((int)$inv['entry_id']);
+        $vs=AccountingSetup::vatSummary($y)[$d(8,1)];
+        check('VAT summary: output, input and payable',$vs['output']===24000 && $vs['input']===12000 && $vs['net']===12000 && $vs['sales']===200000 && $vs['purchases']===100000);
+        $ew=AccountingSetup::ewtList($d(8,1));
+        check('EWT list row: vendor, ATC, base and amount',count($ew)===1 && $ew[0]['atc']==='P3W2' && (float)$ew[0]['base']===1000.0 && (float)$ew[0]['ewt_amount']===20.0);
+        check('AP aging carries the amount after withholding',in_array(110000,array_column(AccountsPayable::aging($d(8,31))['rows'],'total'),true));
+        check('used code keeps its kind and code',str_contains((string)err(fn()=>AccountingSetup::saveCode($vc,'VAT','P3V13','P3 VAT test','12',true)),'only its description'));
+        check('used code may change rate going forward',AccountingSetup::saveCode($vc,'VAT','P3V12','P3 VAT test','10',true)===$vc && (float)AccountsPayable::bill($b)['vat_rate']===12.0);
+        require_once dirname(__DIR__).'/app/PayrollRun.php';
+        $map=AccountingSetup::payrollAccounts(PayrollRun::ACCOUNTS);
+        check('net pay goes to Salaries Payable when chosen (Q-P7)',$map['bank']==='9260' && $map['salaries']==='5010' && $map['SSS']===PayrollRun::ACCOUNTS['SSS']);
+        $sum=['earnings'=>1000.0,'employer'=>0.0,'WHT'=>0.0,'adj_deductions'=>0.0,'carry_out'=>0.0]; foreach(PayrollRun::STAT as $st) $sum[$st]=['employee'=>0.0,'employer'=>0.0];
+        $codes=array_column(PayrollRun::journalLines($sum,'X',$map),0);
+        check('payroll journal uses the mapped accounts',$codes===['5010','9260']);
+        AccountingSetup::saveSettings(['payroll.net_to'=>'bank'],$bk);
+        check('blank settings fall back to the sample chart',AccountingSetup::payrollAccounts(PayrollRun::ACCOUNTS)===PayrollRun::ACCOUNTS);
+    }
 } catch(Throwable $x) { check('no unexpected error',false,$x->getMessage()); }
 finally {
+    if(AccountingSetup::ready()) {
+        db()->exec("DELETE b FROM acct_bills b JOIN acct_vendors v ON v.id=b.vendor_id WHERE v.name='P3 Vendor'");
+        db()->exec("DELETE i FROM acct_invoices i JOIN acct_customers c ON c.id=i.customer_id WHERE c.name='P3 Customer'");
+        db()->exec("DELETE FROM acct_vendors WHERE name='P3 Vendor'"); db()->exec("DELETE FROM acct_customers WHERE name='P3 Customer'");
+        db()->exec("DELETE FROM acct_tax_codes WHERE code IN ('P3V12','P3W2')"); db()->exec('DELETE FROM acct_settings');
+    }
     db()->exec("DELETE FROM acct_depreciation WHERE asset_id IN (SELECT id FROM acct_assets WHERE name LIKE 'P3 %')");
     db()->exec("DELETE FROM acct_assets WHERE name LIKE 'P3 %'");
     db()->exec("DELETE l FROM acct_journal_lines l JOIN acct_journal_entries e ON e.id=l.entry_id WHERE e.id>$startId");
     db()->exec("UPDATE acct_journal_entries SET reverses_entry_id=NULL WHERE id>$startId");
     db()->exec("DELETE FROM acct_journal_entries WHERE id>$startId");
+    db()->exec("DELETE FROM acct_accounts WHERE code IN ('9150','9250','9235','9260')");
     db()->prepare("DELETE FROM audit_logs WHERE user_id=?")->execute([$fh]);
     db()->prepare('DELETE FROM users WHERE id=?')->execute([$fh]);
 }

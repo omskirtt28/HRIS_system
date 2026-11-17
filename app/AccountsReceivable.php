@@ -45,7 +45,7 @@ final class AccountsReceivable
         $q=db()->prepare(self::INV_SQL.' WHERE i.id=?'); $q->execute([$id]); $i=$q->fetch();
         if(!$i) return null;
         // The invoice's own lines are the entry's credit lines; the debit line is the AR total.
-        $i['lines']=array_values(array_filter(Accounting::entry((int)$i['entry_id'])['lines'],fn($l)=>(float)$l['credit']>0));
+        $i['lines']=array_values(array_filter(Accounting::entry((int)$i['entry_id'])['lines'],fn($l)=>(float)$l['credit']>0 && !((float)($i['vat_amount']??0)>0 && (int)$l['account_id']===(int)$i['vat_account_id']))); // Output VAT line comes from the tax code
         return $i;
     }
 
@@ -79,7 +79,7 @@ final class AccountsReceivable
     }
 
     /** Creates ($id=0) or updates an invoice while its entry is still a DRAFT. A blank due date uses the customer's terms. */
-    public static function saveInvoice(int $id,int $customerId,string $ref,string $invDate,string $dueDate,string $memo,array $rows,int $userId): int
+    public static function saveInvoice(int $id,int $customerId,string $ref,string $invDate,string $dueDate,string $memo,array $rows,int $userId,int $vatId=0): int
     {
         $invDate=Accounting::validDate(trim($invDate)); $ref=trim($ref); $memo=trim(preg_replace('/\s+/',' ',$memo));
         $c=db()->prepare('SELECT * FROM acct_customers WHERE id=? AND is_active=1'); $c->execute([$customerId]); $c=$c->fetch();
@@ -89,6 +89,7 @@ final class AccountsReceivable
         if(mb_strlen($ref)>50) throw new RuntimeException('Customer PO no. is too long (50 characters).');
         if(mb_strlen($memo)>150) throw new RuntimeException('Memo is too long (150 characters).');
         [$lines,$total]=self::invoiceLines($rows,self::arAccount(),$c['name']);
+        [$lines,$total,$taxCols]=AccountingSetup::invoiceTax($lines,$total,$vatId);
         Accounting::assertOpen($invDate);
         $pdo=db(); $pdo->beginTransaction();
         try {
@@ -111,6 +112,7 @@ final class AccountsReceivable
                 $id=(int)$pdo->lastInsertId();
             }
             Accounting::insertLines($entry,$lines);
+            AccountingSetup::storeColumns('acct_invoices',$id,$taxCols);
             $pdo->commit();
         } catch(Throwable $e) { $pdo->rollBack(); throw $e; }
         audit('accounting','invoice_save','acct_invoice',$id,['lines'=>count($lines)-1]);

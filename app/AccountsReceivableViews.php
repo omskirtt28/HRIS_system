@@ -63,6 +63,7 @@ function accounting_invoice_page(?array $inv,bool $editing,array $customers,arra
           <label class="ac-field">Invoice date<input type="date" name="invoice_date" required value="<?=e($f('invoice_date',date('Y-m-d')))?>"></label>
           <label class="ac-field">Due date <small>(blank = customer terms)</small><input type="date" name="due_date" value="<?=e($f('due_date'))?>"></label>
           <label class="ac-field ac-wide">Memo <small>(optional)</small><input name="memo" maxlength="150" value="<?=e($f('memo'))?>" placeholder="What was sold or billed?"></label>
+          <?=accounting_tax_fields(false,is_array($form)?$form:[],$inv)?>
         </div>
         <div class="panel-body"><div class="ac-scroll"><table class="tbl ac-lines"><thead><tr><th>Income account</th><th>Description</th><th class="ac-num">Amount</th></tr></thead><tbody data-ac-lines>
         <?php foreach($lines as $i=>$l):?><tr>
@@ -83,7 +84,7 @@ function accounting_invoice_page(?array $inv,bool $editing,array $customers,arra
       <?php if($inv['reversed_by_no']):?><div class="ac-msg err">Cancelled by reversing entry <?=e($inv['reversed_by_no'])?>; it is no longer in AR aging.</div><?php endif;?>
       <div class="ac-scroll"><table class="tbl"><thead><tr><th>Account</th><th>Description</th><th class="ac-num">Amount</th></tr></thead><tbody>
       <?php foreach($inv['lines'] as $l):?><tr><td><?=e($l['code'].' '.$l['name'])?></td><td><?=e($l['description']??'')?></td><td class="ac-num"><?=e(number_format((float)$l['credit'],2))?></td></tr><?php endforeach;?>
-      <tr class="ac-total"><td colspan="2">Total (debited to Accounts Receivable)</td><td class="ac-num"><?=Accounting::money((int)round($inv['total']*100))?></td></tr></tbody></table></div>
+      <?=accounting_tax_rows($inv,false)?><tr class="ac-total"><td colspan="2">Total (debited to Accounts Receivable)</td><td class="ac-num"><?=Accounting::money((int)round($inv['total']*100))?></td></tr></tbody></table></div>
       <div class="ac-row ac-actions">
         <?php if($inv['status']==='DRAFT' && Auth::can('accounting.entry')):?><a class="btn" href="<?=url('accounting-invoice',['id'=>$inv['id'],'edit'=>1])?>">Edit</a><?php endif;?>
         <span class="ac-spacer"></span>

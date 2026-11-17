@@ -477,6 +477,25 @@ step('accounting fixed assets', function () use ($users, $admin) {
     Accounting::submit($run); act_as($admin); Accounting::approve($run, $admin);
 });
 
+/* ---------- Accounting Phase 3: settings and SAMPLE tax codes (049). Demo only: real rates are to be confirmed by the client. ---------- */
+step('accounting settings + sample VAT/EWT', function () use ($users, $admin) {
+    $prep = $users['pay'];
+    $m = fn(int $back, int $day) => date('Y-m-', strtotime(date('Y-m-01')." -$back month")).sprintf('%02d', $day);
+    act_as($admin);
+    // The 039 sample chart already has 1300 Input VAT, 2200 Output VAT and 2140 EWT Payable; only Salaries Payable is new.
+    if (!AccountingSetup::accountByCode('2150')) Accounting::saveAccount(0, '2150', 'Salaries Payable', 'L', true);
+    AccountingSetup::saveSettings(['tax.vat_input' => '1300', 'tax.vat_output' => '2200', 'tax.ewt' => '2140', 'payroll.net_to' => 'bank', 'payroll.payable' => '2150'], $admin);
+    $vat = AccountingSetup::saveCode(0, 'VAT', 'VAT-S', 'Sample VAT rate (to confirm)', '12', true);
+    $ewt = AccountingSetup::saveCode(0, 'EWT', 'EWT-S', 'Sample supplier withholding (to confirm)', '2', true);
+    $acc = q('SELECT code,id FROM acct_accounts')->fetchAll(PDO::FETCH_KEY_PAIR);
+    $vendor = (int)q("SELECT id FROM acct_vendors WHERE name='Metro Office Supplies Co.'")->fetchColumn();
+    $customer = (int)q("SELECT id FROM acct_customers WHERE name='Summit Foods Corp.'")->fetchColumn();
+    act_as($prep);
+    $b = AccountsPayable::saveBill(0, $vendor, 'MOS-1101', $m(0, 5), '', 'Printer toner', [['account_id' => $acc['5120'], 'description' => '', 'amount' => '15000']], $prep, $vat, $ewt);
+    $i = AccountsReceivable::saveInvoice(0, $customer, '', $m(0, 6), '', 'Store management services', [['account_id' => $acc['4010'], 'description' => '', 'amount' => '120000']], $prep, $vat);
+    foreach ([(int)AccountsPayable::bill($b)['entry_id'], (int)AccountsReceivable::invoice($i)['entry_id']] as $e) { act_as($prep); Accounting::submit($e); act_as($admin); Accounting::approve($e, $admin); }
+});
+
 act_as($admin);
 echo "\nSummary\n";
 foreach (['employees', 'users', 'attendance_daily', 'leave_requests', 'payroll_requests', 'tickets', 'job_openings', 'applications', 'interviews'] as $t)

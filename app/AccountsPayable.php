@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/Accounting.php';
+require_once __DIR__.'/AccountingSetup.php';
 require_once __DIR__.'/CashBank.php'; // aging subtracts payments
 
 /**
@@ -75,7 +76,7 @@ final class AccountsPayable
         $q=db()->prepare(self::BILL_SQL.' WHERE b.id=?'); $q->execute([$id]); $b=$q->fetch();
         if(!$b) return null;
         // The bill's own lines are the entry's debit lines; the credit line is the AP total.
-        $b['lines']=array_values(array_filter(Accounting::entry((int)$b['entry_id'])['lines'],fn($l)=>(float)$l['debit']>0));
+        $b['lines']=array_values(array_filter(Accounting::entry((int)$b['entry_id'])['lines'],fn($l)=>(float)$l['debit']>0 && !((float)($b['vat_amount']??0)>0 && (int)$l['account_id']===(int)$b['vat_account_id']))); // Input VAT line comes from the tax code
         return $b;
     }
 
@@ -109,7 +110,7 @@ final class AccountsPayable
     }
 
     /** Creates ($id=0) or updates a bill while its entry is still a DRAFT. A blank due date uses the vendor's terms. */
-    public static function saveBill(int $id,int $vendorId,string $ref,string $billDate,string $dueDate,string $memo,array $rows,int $userId): int
+    public static function saveBill(int $id,int $vendorId,string $ref,string $billDate,string $dueDate,string $memo,array $rows,int $userId,int $vatId=0,int $ewtId=0): int
     {
         $billDate=Accounting::validDate(trim($billDate)); $ref=trim($ref); $memo=trim(preg_replace('/\s+/',' ',$memo));
         $v=db()->prepare('SELECT * FROM acct_vendors WHERE id=? AND is_active=1'); $v->execute([$vendorId]); $v=$v->fetch();
@@ -119,6 +120,7 @@ final class AccountsPayable
         if(mb_strlen($ref)>50) throw new RuntimeException('Supplier invoice no. is too long (50 characters).');
         if(mb_strlen($memo)>150) throw new RuntimeException('Memo is too long (150 characters).');
         [$lines,$total]=self::billLines($rows,self::apAccount(),$v['name']);
+        [$lines,$total,$taxCols]=AccountingSetup::billTax($lines,$total,$vatId,$ewtId);
         Accounting::assertOpen($billDate);
         $pdo=db(); $pdo->beginTransaction();
         try {
@@ -147,6 +149,7 @@ final class AccountsPayable
                 $id=(int)$pdo->lastInsertId();
             }
             Accounting::insertLines($entry,$lines);
+            AccountingSetup::storeColumns('acct_bills',$id,$taxCols);
             $pdo->commit();
         } catch(Throwable $e) { $pdo->rollBack(); throw $e; }
         audit('accounting','bill_save','acct_bill',$id,['lines'=>count($lines)-1]);

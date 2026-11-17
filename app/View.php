@@ -152,7 +152,7 @@ function nav_config(string $kind): array {
         ]]]);
         // Accounting Phase 1 (migration 039) + payables (041), receivables (042), cash and bank (043); see HRIS-Vault/02-Modules/Accounting.md. Phase 2/3 screens stay hidden until built.
         $base[$portal]['groups'][]=['Accounting',array_map(fn($x)=>[$x[0],'accounting-'.$x[1],$x[2],false,'accounting.view'],[
-            ['Dashboard','dashboard','chart'],['Journal Entries','journal','file'],['Bills','bills','receipt'],['Vendors','vendors','users'],['Invoices','invoices','receipt'],['Customers','customers','users'],['Payments','payments','wallet'],['Bank Accounts','banks','book'],['Bank Reconciliation','recon','check'],['Remittances','remittances','wallet'],['Fixed Assets','assets','boxes'],['Chart of Accounts','coa','book'],['Fiscal Periods','periods','calendar'],['Financial Reports','reports','chart'],
+            ['Dashboard','dashboard','chart'],['Journal Entries','journal','file'],['Bills','bills','receipt'],['Vendors','vendors','users'],['Invoices','invoices','receipt'],['Customers','customers','users'],['Payments','payments','wallet'],['Bank Accounts','banks','book'],['Bank Reconciliation','recon','check'],['Remittances','remittances','wallet'],['Fixed Assets','assets','boxes'],['Tax Reports','tax','receipt'],['Chart of Accounts','coa','book'],['Fiscal Periods','periods','calendar'],['Financial Reports','reports','chart'],['Accounting Settings','settings','settings'],
         ])];
     }
     return $base[$kind] ?? $base['employee'];

@@ -14,6 +14,9 @@ require_once __DIR__.'/HrDashboard.php';
 require_once __DIR__.'/AccountingDashboard.php';
 require_once __DIR__.'/FixedAssets.php';
 require_once __DIR__.'/FixedAssetsViews.php';
+require_once __DIR__.'/AccountingSetup.php';
+require_once __DIR__.'/AccountingSetupViews.php';
+require_once __DIR__.'/PayrollRun.php'; // default payroll posting accounts on the settings screen
 
 /** Accounting Phase 1 routes: accounting-coa | journal | entry | periods | reports. */
 function accounting_handle(string $page): void
@@ -69,7 +72,7 @@ function accounting_handle(string $page): void
                 case 'acct_bill_save':
                     Auth::requirePermission('accounting.entry'); $back=['accounting-bill',$id>0?['id'=>$id,'edit'=>1]:['new'=>1]];
                     $lines=is_array($_POST['lines']??null)?$_POST['lines']:[];
-                    $id=AccountsPayable::saveBill($id,(int)($_POST['vendor_id']??0),(string)($_POST['vendor_ref']??''),(string)($_POST['bill_date']??''),(string)($_POST['due_date']??''),(string)($_POST['memo']??''),$lines,$uid);
+                    $id=AccountsPayable::saveBill($id,(int)($_POST['vendor_id']??0),(string)($_POST['vendor_ref']??''),(string)($_POST['bill_date']??''),(string)($_POST['due_date']??''),(string)($_POST['memo']??''),$lines,$uid,(int)($_POST['vat_code_id']??0),(int)($_POST['ewt_code_id']??0));
                     $back=['accounting-bill',['id'=>$id,'edit'=>1]];
                     if(!empty($_POST['submit_after'])) { Accounting::submit((int)AccountsPayable::bill($id)['entry_id']); flash('success','Bill saved and submitted for approval.'); }
                     else flash('success','Bill saved as a draft.');
@@ -81,7 +84,7 @@ function accounting_handle(string $page): void
                 case 'acct_invoice_save':
                     Auth::requirePermission('accounting.entry'); $back=['accounting-invoice',$id>0?['id'=>$id,'edit'=>1]:['new'=>1]];
                     $lines=is_array($_POST['lines']??null)?$_POST['lines']:[];
-                    $id=AccountsReceivable::saveInvoice($id,(int)($_POST['customer_id']??0),(string)($_POST['customer_ref']??''),(string)($_POST['invoice_date']??''),(string)($_POST['due_date']??''),(string)($_POST['memo']??''),$lines,$uid);
+                    $id=AccountsReceivable::saveInvoice($id,(int)($_POST['customer_id']??0),(string)($_POST['customer_ref']??''),(string)($_POST['invoice_date']??''),(string)($_POST['due_date']??''),(string)($_POST['memo']??''),$lines,$uid,(int)($_POST['vat_code_id']??0));
                     $back=['accounting-invoice',['id'=>$id,'edit'=>1]];
                     if(!empty($_POST['submit_after'])) { Accounting::submit((int)AccountsReceivable::invoice($id)['entry_id']); flash('success','Invoice saved and submitted for approval.'); }
                     else flash('success','Invoice saved as a draft.');
@@ -135,6 +138,15 @@ function accounting_handle(string $page): void
                     $back=['accounting-assets',[]];
                     $new=FixedAssets::run((string)($_POST['month']??''),$uid);
                     flash('success','Depreciation entry created as a draft. Submit it for approval to post it.'); $back=['accounting-entry',['id'=>$new]]; break;
+                case 'acct_settings_save':
+                    Auth::requirePermission('accounting.approve'); $back=['accounting-settings',[]];
+                    if(!AccountingSetup::ready()) throw new RuntimeException('Accounting settings are not installed yet (migration 049).');
+                    AccountingSetup::saveSettings($_POST,$uid); flash('success','Settings saved.'); break;
+                case 'acct_tax_code_save':
+                    Auth::requirePermission('accounting.approve'); $back=['accounting-settings',[]];
+                    if(!AccountingSetup::ready()) throw new RuntimeException('Tax codes are not installed yet (migration 049).');
+                    AccountingSetup::saveCode($id,(string)($_POST['kind']??''),(string)($_POST['code']??''),(string)($_POST['description']??''),(string)($_POST['rate']??''),!empty($_POST['is_active']));
+                    flash('success','Tax code saved.'); break;
                 default: throw new RuntimeException('Unknown action.');
             }
         } catch(Throwable $error) {
@@ -164,6 +176,15 @@ function accounting_handle(string $page): void
             $edit=isset($_GET['edit'])?FixedAssets::asset((int)$_GET['edit']):null;
             if(!Auth::can('accounting.entry')) { $edit=null; $form=null; }
             accounting_assets_page(FixedAssets::assets(),FixedAssets::runs(),$edit,is_array($form)?$form:null); break;
+        case 'settings':
+            if(!AccountingSetup::ready()) { flash('error','Accounting settings are not installed yet (migration 049).'); redirect('accounting-dashboard'); }
+            accounting_settings_page(AccountingSetup::settings(),Accounting::accounts(),AccountingSetup::codes(),PayrollRun::ACCOUNTS); break;
+        case 'tax':
+            $year=(int)($_GET['year']??date('Y')); if($year<2000 || $year>(int)date('Y')) $year=(int)date('Y');
+            $m=(string)($_GET['month']??''); $month=preg_match('/^\d{4}-\d{2}$/',$m)?$m.'-01':date('Y-m-01');
+            $vat=AccountingSetup::vatSummary($year); $ewt=AccountingSetup::ewtList($month);
+            if(in_array($_GET['csv']??'',['vat','ewt'],true)) { accounting_tax_csv($_GET['csv'],$vat,$year,$ewt,$month); exit; }
+            accounting_tax_page($vat,$year,$ewt,$month); break;
         case 'coa': accounting_coa_page(Accounting::accounts()); break;
         case 'journal':
             $st=strtoupper((string)($_GET['status']??''));
