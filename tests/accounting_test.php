@@ -19,12 +19,13 @@ check('money: format and negative in brackets',Accounting::money(123456)==='1,23
 check('debit-normal types are assets and expenses',Accounting::debitNormal('A') && Accounting::debitNormal('X') && !Accounting::debitNormal('L') && !Accounting::debitNormal('I'));
 
 $views=file_get_contents(dirname(__DIR__).'/app/AccountingViews.php').file_get_contents(dirname(__DIR__).'/app/AccountsPayableViews.php').file_get_contents(dirname(__DIR__).'/app/AccountsReceivableViews.php').file_get_contents(dirname(__DIR__).'/app/CashBankViews.php').file_get_contents(dirname(__DIR__).'/app/RemittancesViews.php');
+$views.=file_get_contents(dirname(__DIR__).'/app/FixedAssetsViews.php').file_get_contents(dirname(__DIR__).'/app/AccountingDashboard.php');
 $module=file_get_contents(dirname(__DIR__).'/app/AccountingModule.php');
 $css=file_get_contents(dirname(__DIR__).'/public/assets/accounting.css');
 $nav=file_get_contents(dirname(__DIR__).'/app/View.php');
 check('every POST form carries a CSRF field',substr_count($views,'<form method="post"')===substr_count($views,'csrf_field()'));
 check('handler verifies CSRF before any action',strpos($module,'verify_csrf()')<strpos($module,'switch($action)'));
-check('write actions check entry/approve permissions',substr_count($module,"requirePermission('accounting.approve')")>=6 && substr_count($module,"requirePermission('accounting.entry')")===10); // journal save, submit, void; vendor, bill, customer, invoice save; payment save; remittance save; recon finish (approve also: bank save, recon undo)
+check('write actions check entry/approve permissions',substr_count($module,"requirePermission('accounting.approve')")>=6 && substr_count($module,"requirePermission('accounting.entry')")===12); // asset save, depreciation run (Phase 3 B6); journal save, submit, void; vendor, bill, customer, invoice save; payment save; remittance save; recon finish (approve also: bank save, recon undo)
 check('screens require accounting.view',str_contains($module,"Auth::requirePermission('accounting.view')"));
 check('CSV neutralises formula cells',str_contains($views,"preg_match('/^[=+\\-@\\t\\r]/'"));
 check('sidebar shows only built screens',str_contains($nav,"'accounting.view'") && !str_contains($nav,"'accounting-'.\$x[1],\$x[2],false,'reports.view'") && !preg_match("/\\['Accounts Payable','ap'/",$nav));
