@@ -254,3 +254,6 @@ Request: John 'go sa final pay / back pay'. Decisions (John): back pay = pro-rat
 
 ## Status note - 18 November 2026 (Claude): waiting on client reply, docs only
 Latest application patch stays Payroll back pay (migration 051, commits 9c81565/d27860e). Since then: Accounting and Payroll demo videos + workflow PNGs (Desktop/HRIS Accounting Demo, Desktop/HRIS Payroll Demo); John (owner-reported) sent the videos to the client. Decision: John's own accountant joins the client meeting. Question list grouped by owner in 01-Product/Open-Questions.md (2026-11-18 section). No code/DB change. Blocker: client reply. Next: record the answers, then adjust Q-P7..Q-P10 builds; payroll backlog (bank file, loans) on hold.
+
+## Config checkpoint - 18 November 2026 (Claude): agent roster
+Latest application patch unchanged: migration 051 back pay (applied hris_clean + hris_demo, committed). Config/docs only: agents friday/edith/karen/vision in `.claude/agents/` (sonnet, ponytail full); screenshot flow = Friday checks/plans first, John approves, Edith builds, Vision verifies. Cleanup done (John): root SPEC-*/PAYROLL_* moved to `HRIS-Vault/06-Reference/specs-archive/`, `.work/` deleted, duplicate user test-engineer agent deleted. check task OK. Committed locally, not pushed. Codex side unchanged. Next: waiting on client reply; first bug uses the new flow.

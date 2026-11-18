@@ -783,3 +783,7 @@ John: gawan din ng video + workflow PNG ang payroll. Output sa Desktop/HRIS Payr
 
 ## 2026-11-18 - Client questions, hintay sa reply (Claude)
 John: ano ang last patch at mga tanong sa client. Last patch pa rin: back pay (051). Nai-send na ni John ang demo videos sa client; dadalhin nila ang accountant nila sa meeting. Tanong naka-group per sumasagot sa Open-Questions.md (2026-11-18). Walang code/DB change. Next: hintay sa sagot ng client.
+
+## 2026-11-18 - Agent roster: Friday, Edith, Karen, Vision (Claude)
+John: gusto ng agents na may skills, tipid sa 5h/7d, Jarvis ang harness. Ginawa: `.claude/agents/` friday/edith/karen/vision (sonnet, ponytail full), CLAUDE.md "Agent roster" section (pinalitan ang "pipeline REMOVED"), Claude-Agents-and-Skills.md rewrite, Decision-Log. Bagong flow: screenshot -> Friday check + plan muna -> go ni John -> Edith -> Vision. Walang app code/DB change. Pending kay John: cleanup (47 SPEC-*.md + 2 PAYROLL_*.md sa root -> archive sa vault; .work/ 90MB; duplicate ~/.claude/agents/test-engineer.md). Next: unang bug/screenshot gamit ang flow.
+- Follow-up 2026-11-18: John: go cleanup + commit. Root SPEC-*.md at PAYROLL_*.md -> `HRIS-Vault/06-Reference/specs-archive/` (git mv, same filenames, may README); `.work/` (90MB, gitignored scratch) binura; duplicate `~/.claude/agents/test-engineer.md` binura (nasa plugin pa rin). check task OK. Committed locally.

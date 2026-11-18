@@ -58,8 +58,13 @@ Installed but not mapped (use only if the user asks): `backend-design:` boring-b
 ## Fix sweep (mandatory)
 When John points at one UI/UX or backend issue, do not fix only that. Fix it, then grep the same pattern elsewhere in the repo: same kind of button/component/layout, inconsistent spacing/size/colour against `HRIS-Vault/03-Design/Design-System.md`, overflow and responsive breakage, missing states (hover, focus, disabled, loading, empty, error), buttons with no handler or inconsistent labels; and on the backend the same bug in other handlers, missing validation, missing permission/scope/CSRF checks, error handling, and UI/POST/API mismatches. Fix the small, clearly same-class items in the same patch. List (do not touch) anything large or risky: migrations, roles/permissions, payroll rules, data deletion. No redesign and no unrelated features. The final report must include: Fixed (file:line) / Found and also fixed / Found but left alone (why) / Not verified, plus the vault files changed. "Sweep" alone means apply this checklist to the whole project (plan first if large). Details: `HRIS-Vault/00-Meta/Conventions.md` (Fix sweep).
 
-## Agent pipeline: REMOVED (John, 4 Nov 2026)
-No automatic planner -> engineers -> tester relay. Main session plans briefly and implements directly (Ponytail); one patch-tester or code-review only for risky work, per the Token budget section. Fix sweep, security and vault rules are unchanged.
+## Agent roster (John, 18 Nov 2026; replaces "Agent pipeline: REMOVED" of 4 Nov)
+Jarvis (main session) is the harness: dispatches agents, owns vault/checkpoint/Graphify/commits. Agents in `.claude/agents/`, all `sonnet`, all run `ponytail` full:
+- **friday**: Spec + Plan + bug triage, read-only.
+- **edith**: Builder (incremental-implementation, TDD, impeccable + frontend-ui-engineering for UI, hris-patch).
+- **karen**: Simplify + Constraints gate, proposals only unless John approves apply; before commit or on request.
+- **vision**: Test + Debug on isolated DB/browser.
+Screenshot/bug flow (John): **check first, never fix straight away.** Friday triages the root cause and plans -> Jarvis shows John the short plan -> on John's "go", Edith builds -> Vision verifies. John saying "diretso" skips the wait. Small 1-2 file tasks with no screenshot: Jarvis may still do them directly. Packets <=400 words with exact files/lines; max 2 agents at once, depth 1. Fix sweep, security and vault rules are unchanged.
 
 ## Session start and auto-update (mandatory)
 - At the start of every session read `HRIS-Vault/05-Implementation/Session-Log.md` (latest entries) and `Progress.md`, so John does not have to re-explain. Read HRIS-Vault/05-Implementation/Claude-Code-Brief.md first. Use grep + partial reads; do not scan the repo.
@@ -71,7 +76,7 @@ No automatic planner -> engineers -> tester relay. Main session plans briefly an
 ## Token budget (John, 2026-10-28; overrides the pipeline and session-start rules above)
 - Only the main session reads Brief / Build-Plan / Session-Log (last ~3 entries via `tail`/offset) once per session. NEVER read Progress.md whole (59KB): Grep the slice, or read the last entries only.
 - Subagents get a task prompt with exact file paths, line ranges and vault note paths, and must not re-read Brief/Build-Plan/Progress/Session-Log (see `READ BUDGET` in `.claude/agents/`). Paste the few lines they need instead of making them reopen files.
-- Spawn agents only for migrations, permissions, payroll rules, deletes or multi-file work. Small fixes, UI tweaks and docs: main does it directly; one `patch-tester` at the end at most. No simplify-gatekeeper unless John asks.
+- Spawn agents per the Agent roster section (Friday first for screenshots/bugs and multi-file work). Small no-screenshot fixes, UI tweaks and docs: main does it directly. Karen only before a commit or when John asks.
 - Never read whole code files: Grep, then Read with offset/limit. Do not re-read a file already read this session. Note: `Obsidian-only` scope in `HRIS-Vault/00-Meta/Conventions.md` still wins when John invokes it.
 
 <!-- VERIFIED-DEV-WORKFLOWS-20261030 -->

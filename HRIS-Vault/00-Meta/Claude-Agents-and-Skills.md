@@ -1,34 +1,28 @@
-# Claude agents and skills (token budget)
+# Claude agents and skills
 
-John, 2026-10-28: sessions ran out of context because every subagent re-read the vault and code. Fixed in `.claude/agents/*` (READ BUDGET) and CLAUDE.md "Token budget".
+Updated 2026-11-18 (John + Claude). Pinalitan ang lumang roster (planner, backend-engineer, ux-designer, patch-tester, researcher, simplify-gatekeeper — wala na sa `.claude/agents/` mula 4 Nov).
 
-## Roles (`.claude/agents/`)
-planner (read-only plan), backend-engineer, ux-designer, patch-tester (last, no repo edits), researcher (haiku lookups), simplify-gatekeeper (proposals only, on request).
+## Roster (`.claude/agents/`, lahat sonnet, lahat ponytail full)
+| Agent | Gamit | Skills | Hindi gagawin |
+|---|---|---|---|
+| Jarvis (main) | Harness: nagbabato ng trabaho, vault, checkpoint, Graphify, commit | lahat ng kailangan | — |
+| friday | Spec + Plan + bug/screenshot triage | spec-driven-development, planning-and-task-breakdown, debugging-and-error-recovery | Walang edit, walang DB write |
+| edith | Builder | incremental-implementation, test-driven-development, impeccable + frontend-ui-engineering (UI), hris-patch | Commit/push/deploy, vault, pmbsi_hris |
+| karen | Simplify + Constraints gate | code-simplification, constraint-driven-development, ponytail-review | Proposals lang maliban kung "John approved apply" |
+| vision | Test + Debug | test-driven-development, debugging-and-error-recovery, run-hris-system | hris_clean writes, pmbsi_hris, pag-skip ng tests |
 
-## Rules
-- Main reads Brief, Build-Plan and the latest Session-Log entries once; agents receive exact paths/line ranges and never reopen them.
-- Grep first, then Read offset/limit. No whole-file or whole-repo reads. Progress.md is large: grep or tail only.
-- Spawn agents only for migrations, permissions, payroll rules, deletes or multi-file work; otherwise main does it.
-- Obsidian-only scope ([[Conventions]]) takes precedence when John invokes it.
-- Skills: `hris-patch` (workflow), `run-hris-system` (scratch DB and browser). Load only when the task needs them. [[Codex-First]] is superseded; [[Codex-Agent-Workflow]] is the Codex side.
+## Flow
+- **Screenshot/bug:** friday muna (check + root cause + plan) -> ipapakita ni Jarvis ang plano -> "go" ni John -> edith -> vision. Hindi na diretso fix (John: redundant ang trabaho kapag hindi muna chineck). "diretso" = skip ng wait.
+- **Medium/multi-file feature:** friday -> John -> edith -> vision; karen bago commit o kapag hiniling.
+- **Maliit (1-2 files, walang screenshot):** Jarvis na lang, walang agent.
 
-## Tungkol kay John (read this instead of asking him again)
-- Si John ang owner ng PMBSI HRIS. Chat: Taglish, maikli, diretso. **Lahat ng user-visible text sa app (labels, buttons, empty states, errors, README) ay English lang**, walang Tagalog ([[Conventions]]).
-- Hindi siya nag-uulit ng utos: kapag may sinabi/napagkasunduan, kusang i-update ang vault (module note, Progress, Session-Log, Decision-Log, CHANGELOG, Open-Questions) at ilista ang vault files sa final report.
-- "Same as" ibang module = kopyahin AS IS, huwag magtanong ng detalye (magtanong lang kung may risk sa permission/data/schema).
-- Kapag tinuro niya ang isang UI/backend issue: fix + sweep ng parehong pattern (Fix sweep sa project CLAUDE.md). Hindi redesign.
-- Dashboard: Monthly/Quarterly/Yearly checkbox period picker (All/Clear), default Monthly/All, i-mirror sa Download Report. Charts: iisang Charges-style 3D bar design, label sa itaas, axis Q1-Q4 / January...
-- Bawal nang walang malinaw na utos niya: `git push`, deploy, delete ng data/roles, pag-apply ng migration na bagsak sa check, live `pmbsi_hris` na walang verified dump. Commit ay local lang at kapag hiniling.
-- Ayaw ng "kailangan pang i-download" na flow: ipakita agad ang laman (may download pa rin bilang option). Ayaw ng sticky/overlapping na UI at ng duplicate na button/seksyon na nakakagulo.
-- Permissions/payroll/migration: ipakita muna ang plano; ang iba (maliit na UI/docs) gawin na agad.
+## Token rules
+- Sonnet para sa lahat ng agents (mas tipid sa 5h/7d kaysa Opus; Haiku hindi pinili dahil mahina sa payroll/permission logic).
+- Packet <=400 words, exact files + line ranges; agents hindi nagbabasa ng Brief/Build-Plan/Progress/Session-Log.
+- Max 2 agents sabay, depth 1. Returns <=12-15 lines.
 
-## Sino gumagawa ng ano (buod)
-| Agent | Gamit | Hindi gagawin |
-|---|---|---|
-| planner | Plano: split, files, risks, 3 test scenarios | Walang edit |
-| backend-engineer | PHP/MySQL, permissions, handlers, SQL | UI layout |
-| ux-designer | Pages, CSS, forms, a11y, responsive | Backend logic |
-| patch-tester | Huling hakbang: lint, tests sa isolated DB, critique | Hindi nag-e-edit ng repo, hindi hahawak sa live DB |
-| researcher | Mabilis na "where is X" | Walang code |
-| simplify-gatekeeper | Proposals lang, kapag hiniling | Hindi nag-a-apply |
-Main session = orchestrator; subagents hindi nagtatawag ng subagents. Skills: `hris-patch` (lahat ng pagbabago), `run-hris-system` (scratch DB, browser checks).
+## Iba pang agents (installed, hindi pinangalanan)
+Plugin: agent-skills:code-reviewer, security-auditor, test-engineer (overlap kay vision), web-performance-auditor. Built-in: Explore, Plan, general-purpose.
+
+## Tungkol kay John
+Tingnan ang [[Conventions]] at [[Shared Project Handoff]]: Taglish chat, English-only UI, auto vault sync, "same as" = copy AS IS, Fix sweep, walang push/deploy/delete nang walang utos.
