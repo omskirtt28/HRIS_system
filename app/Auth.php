@@ -61,7 +61,7 @@ final class Auth
         if (in_array($role,['SUPER_ADMIN','HRIS_ADMIN'],true) || $portal==='admin') return 'admin-dashboard';
         return match ($portal) {
             'employee' => 'employee-dashboard',
-            'hr' => 'hr-dashboard',
+            'hr' => !self::can('dashboard.hr.view') && self::can('accounting.view') ? 'accounting-dashboard' : 'hr-dashboard',
             'client' => 'client-dashboard',
             default => 'login',
         };

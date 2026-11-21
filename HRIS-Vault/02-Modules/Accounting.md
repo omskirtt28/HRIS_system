@@ -76,3 +76,14 @@ Multi-company books, budgeting, multi-currency, accounting audit log screen (wri
 Releasing a payroll run (Payroll P5, migration 046) creates one DRAFT journal entry dated the pay date: Dr 5010 Salaries and Wages, Dr 5020 Employer Contributions, Cr 2100/2110/2120 (employee + employer shares), Cr 2130 Withholding Tax Payable, Cr 1200 Advances to Employees (manual deductions), Cr 1030 Cash in Bank - Payroll (net pay). It goes through the normal submit/approve; the run page links it. Remittances then clear 2100-2130.
 - 13th month (migration 050): releasing a 13th month run creates one DRAFT entry Dr 5030 13th Month Pay / Cr the net pay account (bank 1030, or Salaries Payable when chosen). The 5030 account is mappable in Accounting Settings ("13th month pay (expense)").
 - Back pay (migration 051): releasing a back pay creates one DRAFT entry Dr 5030 (pro-rated 13th month), Dr 5010 (leave conversion + other pay), Cr 1200 (accountabilities), Cr 2130 (withholding tax adjustment), Cr net pay account.
+
+## CASH card complete (2026-11-21, migration 052, hris_demo only; not deployed)
+- acct_bank_accounts.kind BANK/EWALLET/PETTY (default BANK). E-wallet reconciles like a bank; PETTY has no statement recon, is hidden from the recon picker and the month-close bank check. Petty replenish = normal payment/JE (John).
+- Cheque register acct_cheques (page accounting-cheques, sidebar after Bank Accounts): cheque no. unique per bank account, free-text payee, optional link to a DISBURSEMENT payment on the same bank. Statuses ISSUED/CLEARED/BOUNCED/VOID/STALE. CLEARED only via finished reconciliation (undo reverts to ISSUED). VOID = accounting.entry; BOUNCED/STALE = accounting.approve. STALE is a manual button; the 180-day badge is a hint only (NEEDS VERIFICATION). Cheques are not editable: void and re-enter.
+- Banks list shows Type, Book balance and a Ledger link (per-account log). Code: app/CashBank.php, CashBankViews.php, AccountingModule.php. Tests: tests/cash_bank_db_test.php (71), accounting_http_test.php.
+- Known limit: a cheque linked to an already-reconciled payment stays ISSUED (no back-fill).
+
+## Separate Accounting accounts (2026-11-21, hris_demo only; not deployed)
+- Roles ACCOUNTANT (accounting.view+entry) and FINANCE_HEAD (+approve), portal hr, no HR permissions. PAYROLL no longer has any accounting.* (was a demo-only grant). Segregation kept: preparer cannot approve own entry.
+- Auth::landingPage: hr-portal user without dashboard.hr.view but with accounting.view lands on accounting-dashboard (avoids the 403 from hr-dashboard).
+- Demo logins: camille.mercado@ (Accountant), benjamin.ocampo@ (Finance Head) @northwind.demo, Demo@2026. Created in scripts/demo_seed.php and inserted by hand into hris_demo. Open: no schema migration for these roles yet.

@@ -21,7 +21,7 @@ $mysql = 'C:\\xampp\\mysql\\bin\\mysql.exe';
 exec('"'.$mysql.'" -uroot '.DEMO_DB.' < "'.str_replace('/', '\\', $dump).'"', $out, $code);
 if ($code !== 0) exit("Import of hris_clean.sql failed.\n");
 // hris_clean.sql predates the accounting migrations; apply them in order (each is idempotent).
-foreach (glob($root.'/database/migrations/2026111*_0[4-9]*.sql') ?: [] as $m) if (!str_ends_with($m, '.down.sql')) $mig[] = $m;
+foreach (glob($root.'/database/migrations/202611*_0[4-9]*.sql') ?: [] as $m) if (!str_ends_with($m, '.down.sql')) $mig[] = $m;
 foreach (array_merge([$root.'/database/migrations/20261117_039_accounting_core.sql'], $mig ?? []) as $m) {
     exec('"'.$mysql.'" -uroot '.DEMO_DB.' < "'.str_replace('/', '\\', $m).'"', $out, $code);
     if ($code !== 0) exit('Migration failed: '.basename($m)."\n");
@@ -115,6 +115,12 @@ echo "  ok  organisation: 2 companies, 2 areas, 7 sites, 7 departments, ".count(
 $role = fn(string $c) => id_of('roles', $c);
 $et = fn(string $c) => id_of('employment_types', $c);
 $hash = password_hash(DEMO_PASS, PASSWORD_DEFAULT);
+// Accounting-only roles: no HR permissions, so the sidebar shows just Dashboard + Accounting.
+foreach ([['ACCOUNTANT', 'Accountant (Bookkeeper)', ['accounting.view', 'accounting.entry']],
+          ['FINANCE_HEAD', 'Finance Head', ['accounting.view', 'accounting.entry', 'accounting.approve']]] as [$rc, $rn, $perms]) {
+    q('INSERT IGNORE INTO roles(code,name,portal,is_system) VALUES(?,?,"hr",0)', [$rc, $rn]);
+    foreach ($perms as $pc) q('INSERT IGNORE INTO role_permissions(role_id,permission_id) SELECT r.id,p.id FROM roles r JOIN permissions p ON p.code=? WHERE r.code=?', [$pc, $rc]);
+}
 $first = ['Angelo','Bea','Carlo','Dana','Enzo','Faith','Gabriel','Hannah','Ivan','Jasmine','Kyle','Lara','Marco','Nina','Oscar','Patricia','Quinn','Rafael','Sam','Trixie','Ulysses','Vince','Wendy','Xavier','Yna','Zack'];
 $last = ['Abad','Bautista','Castillo','Dizon','Estrada','Flores','Gomez','Herrera','Ilagan','Jimenez','Lopez','Morales','Natividad','Ocampo','Pascual','Quiambao','Rivera','Salazar','Tan','Uy','Valdez','Yap'];
 $emp = []; $users = []; $no = 1000;
@@ -154,6 +160,8 @@ $person('rec', 'Jerome', 'Lim', 'HO', 'RECRUITER', 'RECRUITER', 'recm', '2022-02
 $person('fin', 'Grace', 'Navarro', 'HO', 'FIN_OFF', 'EMPLOYEE', 'ops', '2021-08-23');
 $person('it', 'Kevin', 'Bautista', 'HO', 'IT_SPEC', 'EMPLOYEE', 'ops', '2022-05-16', gender: 'Male');
 $person('acct', 'Liza', 'Ramos', 'HO', 'ACCT_STAFF', 'EMPLOYEE', 'ops', '2026-07-01', 'PROBATIONARY', 'PROBATIONARY');
+$person('acctnt', 'Camille', 'Mercado', 'HO', 'ACCT_STAFF', 'ACCOUNTANT', 'ops', '2020-05-04');
+$person('finhead', 'Benjamin', 'Ocampo', 'HO', 'FIN_OFF', 'FINANCE_HEAD', 'ops', '2018-09-17', gender: 'Male');
 $person('mktg', 'Bianca', 'Ferrer', 'HO', 'MKTG_ASSOC', 'EMPLOYEE', 'ops', '2023-10-02');
 $person('retm', 'Teresa', 'Aquino', 'HO', 'RET_MGR', 'RETAIL_MANAGER', 'ops', '2017-11-06');
 // Retail: one ADL per area, then each store's OIC / Sales Captain / associates
@@ -379,11 +387,10 @@ step('portal FAQs + notifications', function () use ($emp, $users) {
 });
 
 /* ---------- Accounting: three months of sample books ---------- */
-// Payroll Specialist prepares (demo DB only gets view+entry for that role), admin approves: segregation of duties stays visible.
+// Accountant prepares, admin approves: segregation of duties stays visible. Payroll role has no accounting access.
 step('accounting journals', function () use ($users, $admin) {
-    q("INSERT IGNORE INTO role_permissions(role_id,permission_id) SELECT r.id,p.id FROM roles r JOIN permissions p ON p.code IN ('accounting.view','accounting.entry') WHERE r.code='PAYROLL'");
     $acc = q('SELECT code,id FROM acct_accounts')->fetchAll(PDO::FETCH_KEY_PAIR);
-    $prep = $users['pay'];
+    $prep = $users['acctnt'];
     $je = function (string $date, string $memo, array $lines, string $end = 'POSTED', string $note = '') use ($acc, $prep, $admin): int {
         act_as($prep);
         $rows = array_map(fn($l) => ['account_id' => $acc[$l[0]], 'description' => $l[3] ?? '', 'debit' => $l[1] ?: '', 'credit' => $l[2] ?: ''], $lines);
@@ -422,7 +429,7 @@ step('accounting journals', function () use ($users, $admin) {
 /* ---------- Accounting Phase 2: vendors/bills, customers/invoices, payments, bank recon, remittances ---------- */
 step('accounting AP/AR/cash/remittances', function () use ($users, $admin) {
     $acc = q('SELECT code,id FROM acct_accounts')->fetchAll(PDO::FETCH_KEY_PAIR);
-    $prep = $users['pay'];
+    $prep = $users['acctnt'];
     $m = fn(int $back, int $day) => date('Y-m-', strtotime(date('Y-m-01')." -$back month")).sprintf('%02d', $day);
     $entry = fn(string $t, int $id) => (int)q("SELECT entry_id FROM $t WHERE id=?", [$id])->fetchColumn();
     $post = function (int $entryId) use ($prep, $admin) { act_as($prep); Accounting::submit($entryId); act_as($admin); Accounting::approve($entryId, $admin); };
@@ -467,7 +474,7 @@ step('accounting AP/AR/cash/remittances', function () use ($users, $admin) {
 /* ---------- Accounting Phase 3: fixed assets (048) ---------- */
 step('accounting fixed assets', function () use ($users, $admin) {
     $acc = q('SELECT code,id FROM acct_accounts')->fetchAll(PDO::FETCH_KEY_PAIR);
-    $prep = $users['pay'];
+    $prep = $users['acctnt'];
     $m = fn(int $back, int $day) => date('Y-m-', strtotime(date('Y-m-01')." -$back month")).sprintf('%02d', $day);
     $gl = ['asset_account_id' => $acc['1500'], 'accum_account_id' => $acc['1510'], 'expense_account_id' => $acc['5130'], 'salvage' => '0'];
     act_as($prep);
@@ -479,7 +486,7 @@ step('accounting fixed assets', function () use ($users, $admin) {
 
 /* ---------- Accounting Phase 3: settings and SAMPLE tax codes (049). Demo only: real rates are to be confirmed by the client. ---------- */
 step('accounting settings + sample VAT/EWT', function () use ($users, $admin) {
-    $prep = $users['pay'];
+    $prep = $users['acctnt'];
     $m = fn(int $back, int $day) => date('Y-m-', strtotime(date('Y-m-01')." -$back month")).sprintf('%02d', $day);
     act_as($admin);
     // The 039 sample chart already has 1300 Input VAT, 2200 Output VAT and 2140 EWT Payable; only Salaries Payable is new.

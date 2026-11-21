@@ -787,3 +787,22 @@ John: ano ang last patch at mga tanong sa client. Last patch pa rin: back pay (0
 ## 2026-11-18 - Agent roster: Friday, Edith, Karen, Vision (Claude)
 John: gusto ng agents na may skills, tipid sa 5h/7d, Jarvis ang harness. Ginawa: `.claude/agents/` friday/edith/karen/vision (sonnet, ponytail full), CLAUDE.md "Agent roster" section (pinalitan ang "pipeline REMOVED"), Claude-Agents-and-Skills.md rewrite, Decision-Log. Bagong flow: screenshot -> Friday check + plan muna -> go ni John -> Edith -> Vision. Walang app code/DB change. Pending kay John: cleanup (47 SPEC-*.md + 2 PAYROLL_*.md sa root -> archive sa vault; .work/ 90MB; duplicate ~/.claude/agents/test-engineer.md). Next: unang bug/screenshot gamit ang flow.
 - Follow-up 2026-11-18: John: go cleanup + commit. Root SPEC-*.md at PAYROLL_*.md -> `HRIS-Vault/06-Reference/specs-archive/` (git mv, same filenames, may README); `.work/` (90MB, gitignored scratch) binura; duplicate `~/.claude/agents/test-engineer.md` binura (nasa plugin pa rin). check task OK. Committed locally.
+
+## 2026-11-21 - BlitzSync module audit (Claude)
+John: "start na natin" ang BlitzSync direction. Friday audit (read-only) done: walang schema needed; config-based module switch (module_on + Auth::can prefix gate + router/nav wraps). Plan: Plans/2026-11-21-blitzsync-module-switches.md (draft). Walang code/DB change. Next: sagot ni John sa 4 open questions, tapos "go" para kay Edith.
+- Follow-up 2026-11-21: John: ibebenta as subscription na may tiers (SIMSO pricing screenshot as reference). Naka-note sa plan (Update section) + 2 bagong tanong (hosting, self-service). Walang code change.
+- Follow-up 2026-11-21: John sumagot 1-4,6 (tingnan ang Plans note, Sagot section); BlitzSync ang host, hanap pa ng hosting+domain. Walang code change. Next: John "go" kay Edith para sa slice 1; hosting research kapag hiningi.
+
+## 2026-11-21 - Accounting CASH card plan (Claude)
+John: tapusin ang CASH (bank, e-wallet, cheque, petty cash). Friday plan done (Plans/2026-11-21-accounting-cash-complete.md): kind column sa acct_bank_accounts + acct_cheques table, migration 052. John G sa 3 defaults (petty = normal DV/JE; cheque payment_id optional; STALE manual). Walang code/DB change. Next: John "go" kay Edith.
+
+## 2026-11-21 - Accounting CASH card built (Claude)
+John "go". Edith build, Vision verify (Apache workaround, php.exe blocked by Device Guard; accounting_http 50/51, 1 data-dependent CSV check). Migration 052 applied to hris_demo only. Lapse: my Stage B loop did not stop after guard FAIL, so apply ran; verified by hand afterward (rows identical, down guard refuses with PETTY). Backup: storage/slice15-private/before_stageb_apply_52_*.sql. Not committed. Leftover cosmetics: date column wraps in cheques table at 1280px; CSRF failure returns 500 (global, pre-existing). Next: John review in browser (hris_demo), then commit.
+
+## 2026-11-21 - Separate Accounting accounts (Claude)
+John: separate account para sa Accounting, tanggalin ang accounting sa Payroll. Done: roles ACCOUNTANT (view+entry) at FINANCE_HEAD (view+entry+approve), portal hr, walang HR permissions; PAYROLL role walang accounting.*. Users camille.mercado@ / benjamin.ocampo@northwind.demo (Demo@2026) inserted direkta sa hris_demo (walang reseed). config database -> hris_demo (John "go"). Bug: Access denied after login (hr-dashboard needs dashboard.hr.view) -> Auth::landingPage goes to accounting-dashboard if no dashboard.hr.view but has accounting.view. John confirmed "gumana na". Hindi na-lint (php.exe blocked). Desktop "HRIS Demo Accounts.txt" updated. Not committed.
+
+## 2026-11-21 - Hide HR Operations for Accountant (Claude)
+John (screenshot): tanggalin ang HR Operations sa Accountant sidebar. Fix: app/View.php nav_config filters the "HR Operations" (Soon placeholders) group when user has accounting.view and no employees.view_all. HR/Admin unchanged. Not run: php.exe blocked (Device Guard), no lint/browser check. Local only.
+
+Update 2026-11-21: John also wants Incident Reports hidden for the Accountant; filter moved to the end of nav_config (app/View.php) and now covers HR Operations + Incident Reports. Sidebar only; the incident pages are not blocked by URL. Not run (php.exe blocked).

@@ -92,8 +92,17 @@ function accounting_handle(string $page): void
                 case 'acct_bank_save':
                     // Mapping a bank to a ledger account shapes the books, like the chart of accounts.
                     Auth::requirePermission('accounting.approve'); $back=['accounting-banks',[]];
-                    CashBank::saveBank($id,(string)($_POST['name']??''),(string)($_POST['bank_name']??''),(string)($_POST['account_no']??''),(int)($_POST['account_id']??0),!empty($_POST['is_active']));
+                    CashBank::saveBank($id,(string)($_POST['name']??''),(string)($_POST['bank_name']??''),(string)($_POST['account_no']??''),(int)($_POST['account_id']??0),!empty($_POST['is_active']),(string)($_POST['kind']??'BANK'));
                     flash('success','Bank account saved.'); break;
+                case 'acct_cheque_save':
+                    Auth::requirePermission('accounting.entry'); $back=['accounting-cheques',[]];
+                    CashBank::saveCheque((int)($_POST['bank_account_id']??0),(string)($_POST['cheque_no']??''),(string)($_POST['payee']??''),(string)($_POST['cheque_date']??''),(string)($_POST['amount']??''),(int)($_POST['payment_id']??0),(string)($_POST['memo']??''),$uid);
+                    flash('success','Cheque recorded as issued.'); break;
+                case 'acct_cheque_status':
+                    $st=(string)($_POST['status']??''); $back=['accounting-cheques',[]];
+                    // Voiding your own cheque is data entry; bounced and stale are approver calls.
+                    Auth::requirePermission($st==='VOID'?'accounting.entry':'accounting.approve');
+                    CashBank::setChequeStatus($id,$st); flash('success','Cheque marked '.strtolower(CashBank::CHEQUE_STATUS[$st]).'.'); break;
                 case 'acct_payment_save':
                     Auth::requirePermission('accounting.entry');
                     $kind=(string)($_POST['kind']??''); $party=(int)($_POST['party_id']??0);
@@ -116,7 +125,7 @@ function accounting_handle(string $page): void
                     Auth::requirePermission('accounting.entry');
                     $bank=(int)($_POST['bank_account_id']??0); $m=(string)($_POST['month']??'');
                     $back=['accounting-recon',['bank'=>$bank,'month'=>$m]];
-                    CashBank::finishRecon($bank,$m,(string)($_POST['statement_balance']??''),is_array($_POST['cleared']??null)?$_POST['cleared']:[],$uid);
+                    CashBank::finishRecon($bank,$m,(string)($_POST['statement_balance']??''),is_array($_POST['cleared']??null)?$_POST['cleared']:[],$uid,is_array($_POST['cheques']??null)?$_POST['cheques']:[]);
                     flash('success','Reconciliation saved. The ticked lines are now cleared.'); break;
                 case 'acct_recon_undo':
                     Auth::requirePermission('accounting.approve'); $back=['accounting-recon',[]];
@@ -152,7 +161,7 @@ function accounting_handle(string $page): void
         } catch(Throwable $error) {
             if(!$error instanceof RuntimeException) error_log('Accounting action failed: '.$error->getMessage());
             flash('error',$error instanceof RuntimeException?$error->getMessage():'The change could not be saved. Try again.');
-            if(in_array($action,['acct_journal_save','acct_bill_save','acct_invoice_save','acct_payment_save','acct_remittance_save','acct_recon_finish','acct_asset_save'],true)) $_SESSION['acct_form']=$_POST; // keep what was typed
+            if(in_array($action,['acct_journal_save','acct_bill_save','acct_invoice_save','acct_payment_save','acct_remittance_save','acct_recon_finish','acct_asset_save','acct_cheque_save'],true)) $_SESSION['acct_form']=$_POST; // keep what was typed
         }
         redirect($back[0],$back[1]);
     }
@@ -223,6 +232,12 @@ function accounting_handle(string $page): void
             $accounts=array_filter(Accounting::accounts(true),fn($a)=>$a['code']!==AccountsReceivable::AR_CODE);
             accounting_invoice_page($inv,$editing,AccountsReceivable::customers(true),$accounts,is_array($form)?$form:null); break;
         case 'banks': accounting_banks_page(CashBank::banks(),CashBank::cashAccounts()); break;
+        case 'cheques':
+            if(!CashBank::ready()) { flash('error','The cheque register is not installed yet (migration 052).'); redirect('accounting-banks'); }
+            $form=$_SESSION['acct_form']??null; unset($_SESSION['acct_form']);
+            $st=strtoupper((string)($_GET['status']??''));
+            $banks=array_values(array_filter(CashBank::banks(true),fn($b)=>$b['kind']==='BANK'));
+            accounting_cheques_page(CashBank::cheques($st),CashBank::chequeCounts(),$st,$banks,Auth::can('accounting.entry')?CashBank::chequePayments():[],is_array($form)?$form:null); break;
         case 'payments':
             $kind=($_GET['kind']??'')==='COLLECTION'?'COLLECTION':'DISBURSEMENT'; $st=strtoupper((string)($_GET['status']??''));
             accounting_payments_page($kind,CashBank::payments($kind,$st),CashBank::statusCounts($kind),$st); break;
@@ -248,7 +263,7 @@ function accounting_handle(string $page): void
             if(!$r && !$editing) redirect('accounting-remittances');
             accounting_remittance_page($r,$editing,CashBank::banks(true),Remittances::payableAccounts(),is_array($form)?$form:null); break;
         case 'recon':
-            $banks=CashBank::banks(); $bank=null;
+            $banks=array_values(array_filter(CashBank::banks(),fn($b)=>($b['kind']??'BANK')!=='PETTY')); $bank=null; // petty cash has no statement
             foreach($banks as $b) if((int)$b['id']===(int)($_GET['bank']??0) || (!$bank && !isset($_GET['bank']) && $b['is_active'])) $bank=$b;
             $form=$_SESSION['acct_form']??null; unset($_SESSION['acct_form']);
             $m=(string)($_GET['month']??'');

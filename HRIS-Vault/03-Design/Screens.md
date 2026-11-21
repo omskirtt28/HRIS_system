@@ -279,3 +279,6 @@ New sidebar items under Accounting (accounting.view): `accounting-dashboard` (KP
 13th month pay (migration 050): "13th month pay" section on `payroll-runs` (Year, Pay date, Tax-exempt ceiling; table of year runs), `payroll-13th` run page (payroll.process; Recompute, Release for payroll.mark_paid by a different person, Void; register Basic pay earned / 13th month pay / Taxable portion), `profile-additional` now lists the employee's own released 13th month pay.
 
 Back pay (migration 051): `payroll-final-pay` (HR Payroll > Back Pay, payroll.process): compute form (archived employee, pay date, tax-exempt ceiling) and archived employees table with back pay status; `payroll-final-pay&id=`: breakdown table (13th month, leave conversion, items, totals, net), Recompute, Void, Add item (Earning / Deduction / Withholding tax adjustment), Release with required 'Clearance is complete' checkbox (payroll.mark_paid, not the person who computed), Print.
+
+## accounting-cheques (2026-11-21)
+Cheque register: add form, status tabs with counts, Void/Bounced/Stale buttons on ISSUED rows, "Over 180 days" hint. Bank Accounts list gained Type, Book balance, Ledger link. Recon page lists unlinked cheques to tick.

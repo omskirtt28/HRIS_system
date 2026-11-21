@@ -758,3 +758,14 @@ Checks: npm install passed for both; npm ls --depth=0 confirms all four direct d
 Owner requested a more advanced visual direction on HR dashboard first; other screens await owner acceptance. Applied workspace heading with escaped company/date context, visible applied-filter summary while disclosure remains closed, numbered action/overview sections, tone-accented action cards, clearer panel headers, slimmer request bars, separated rows, status chips and larger quick actions. Existing shared components/tokens, dark theme, mobile collapse and keyboard focus retained; scoped to .hd2.hd3. No new dependency or JS/backend/filter/report/permission/data/schema/payment change. Existing daisyUI/Alpine remain installed but unloaded; no unnecessary interaction added.
 Files: app/HrDashboardViews.php:42-81; resources/css/tailwind.css:60-146; rebuilt public/assets/tailwind.css. Asset 20261106-hrdashboard-design-v3. No upload package, commit/push/deployment. Previous uncommitted work preserved. Data model unchanged; prior migration 038 status not reverified. Latest actual local app patch is this v3, superseding collapsed filters v2; wider UI rollout remains pending acceptance.
 Checks: PHP lint and npm.cmd run build:css passed; scoped pre-edit PHP comparison and CSS source diff reviewed, unchanged My Team block confirmed. Three source-only scenarios: desktop/status hierarchy; mobile/dark/focus; collapsed filters/escaped applied context and existing report controls. No browser/app/DB/device tests or measured contrast; rendered design requires owner acceptance. Graphify scoped query attempted and blocked by PowerShell execution policy; registration/current-session semantic extraction/refresh/export pending, no freshness claim. Next: owner reloads HR dashboard and reviews this direction before any wider UI patch. Skills: hris-ui/hris-patch, active Ponytail.
+
+## 2026-11-21 - Accounting CASH card complete (migration 052)
+E-wallet and petty cash account types, cheque register (accounting-cheques), per-account balance and ledger link on Bank Accounts. Applied to hris_demo only; not deployed.
+
+## 2026-11-21 - Separate Accounting accounts
+- New roles Accountant and Finance Head (Accounting screens only). Payroll no longer has Accounting access.
+- Accounting-only users now land on the Accounting dashboard after sign-in instead of an Access denied page.
+- Files: app/Auth.php, scripts/demo_seed.php, config/config.php (demo database).
+
+## 2026-11-21 - Accountant sidebar (Claude, local)
+- HR Operations placeholder group hidden for accounting-only accounts. Files: app/View.php.

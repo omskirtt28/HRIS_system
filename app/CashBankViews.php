@@ -26,6 +26,7 @@ function accounting_bank_fields(?array $b,array $gl): string
 {
     ob_start(); ?>
     <label class="ac-field">Account name<input name="name" required maxlength="100" value="<?=e($b['name']??'')?>" placeholder="e.g. BDO Payroll"></label>
+    <?php if(CashBank::ready()):?><label class="ac-field">Type<select name="kind"><?php foreach(CashBank::TYPES as $k=>$v):?><option value="<?=$k?>" <?=($b['kind']??'BANK')===$k?'selected':''?>><?=e($v)?></option><?php endforeach;?></select></label><?php endif;?>
     <label class="ac-field">Bank <small>(optional)</small><input name="bank_name" maxlength="100" value="<?=e($b['bank_name']??'')?>"></label>
     <label class="ac-field">Bank account no. <small>(optional)</small><input name="account_no" maxlength="30" pattern="[0-9 \-]{1,30}" inputmode="numeric" value="<?=e($b['account_no']??'')?>"></label>
     <label class="ac-field">Ledger account<select name="account_id" required><option value="">Choose asset account</option><?php foreach($gl as $a):?><option value="<?=(int)$a['id']?>" <?=(int)($b['account_id']??0)===(int)$a['id']?'selected':''?>><?=e($a['code'].' '.$a['name'])?></option><?php endforeach;?></select></label>
@@ -35,9 +36,9 @@ function accounting_bank_fields(?array $b,array $gl): string
 function accounting_banks_page(array $banks,array $gl): void
 {
     $canEdit=Auth::can('accounting.approve');
-    accounting_open('accounting-banks','Bank Accounts','<a class="btn" href="'.url('accounting-recon').'">Bank reconciliation</a>'); ?>
+    accounting_open('accounting-banks','Bank Accounts',(CashBank::ready()?'<a class="btn" href="'.url('accounting-cheques').'">Cheques</a> ':'').'<a class="btn" href="'.url('accounting-recon').'">Bank reconciliation</a>'); ?>
     <?php if($canEdit):?>
-    <section class="panel"><div class="panel-head"><div><h2>Add bank account</h2><p>Each bank account posts to its own asset account in the chart of accounts (for example 1020 Cash in Bank).</p></div></div>
+    <section class="panel"><div class="panel-head"><div><h2>Add bank account</h2><p>Each bank account posts to its own asset account in the chart of accounts (for example 1020 Cash in Bank).<?=CashBank::ready()?' Petty cash is not reconciled; top it up with a normal journal entry.':''?></p></div></div>
       <form method="post" class="panel-body ac-form-grid"><?=csrf_field()?><input type="hidden" name="action" value="acct_bank_save"><input type="hidden" name="is_active" value="1">
         <?=accounting_bank_fields(null,$gl)?>
         <div class="ac-field ac-end"><button class="btn primary" type="submit" <?=$gl?'':'disabled'?>>Add bank account</button></div>
@@ -46,9 +47,11 @@ function accounting_banks_page(array $banks,array $gl): void
     <?php endif;?>
     <section class="panel"><div class="panel-head"><div><h2>Bank accounts</h2><p><?=count($banks)?> accounts. Inactive accounts keep their history but cannot be picked on new payments.</p></div></div>
     <div class="panel-body"><?php if(!$banks):?><div class="empty">No bank accounts yet.<?=$canEdit?' Add the first one above.':' An approver adds them.'?></div><?php else:?>
-    <div class="ac-scroll" role="region" aria-label="Bank accounts" tabindex="0"><table class="tbl"><thead><tr><th>Name</th><th>Bank</th><th>Account no.</th><th>Ledger account</th><th class="ac-num">Payments</th><th>Last reconciled</th><th>Status</th><?php if($canEdit):?><th>Edit</th><?php endif;?></tr></thead><tbody>
-    <?php foreach($banks as $b):?><tr><td><?=e($b['name'])?></td><td><?=e($b['bank_name']??'')?></td><td><?=e($b['account_no']??'')?></td><td><?=e($b['code'].' '.$b['gl_name'])?></td><td class="ac-num"><?=(int)$b['payments']?></td>
-      <td><?php if($b['last_recon']):?><a href="<?=url('accounting-recon',['bank'=>$b['id']])?>"><?=e(date('F Y',strtotime($b['last_recon'])))?></a><?php else:?><a href="<?=url('accounting-recon',['bank'=>$b['id']])?>">Not yet</a><?php endif;?></td>
+    <div class="ac-scroll" role="region" aria-label="Bank accounts" tabindex="0"><table class="tbl"><thead><tr><th>Name</th><th>Type</th><th>Bank</th><th>Account no.</th><th>Ledger account</th><th class="ac-num">Book balance</th><th class="ac-num">Payments</th><th>Last reconciled</th><th>Status</th><?php if($canEdit):?><th>Edit</th><?php endif;?></tr></thead><tbody>
+    <?php foreach($banks as $b): $kind=$b['kind']??'BANK'; ?><tr><td><?=e($b['name'])?></td><td><?=e(CashBank::TYPES[$kind])?></td><td><?=e($b['bank_name']??'')?></td><td><?=e($b['account_no']??'')?></td>
+      <td><a href="<?=url('accounting-ledger',['account'=>$b['account_id']])?>" aria-label="Ledger of <?=e($b['code'].' '.$b['gl_name'])?>"><?=e($b['code'].' '.$b['gl_name'])?></a></td>
+      <td class="ac-num"><?=Accounting::money((int)round($b['book_balance']*100))?></td><td class="ac-num"><?=(int)$b['payments']?></td>
+      <td><?php if($kind==='PETTY'):?><span class="ac-muted">No statement</span><?php elseif($b['last_recon']):?><a href="<?=url('accounting-recon',['bank'=>$b['id']])?>"><?=e(date('F Y',strtotime($b['last_recon'])))?></a><?php else:?><a href="<?=url('accounting-recon',['bank'=>$b['id']])?>">Not yet</a><?php endif;?></td>
       <td><?=$b['is_active']?'<span class="badge green">Active</span>':'<span class="badge gray">Inactive</span>'?></td>
       <?php if($canEdit):?><td><details class="ac-edit"><summary class="btn sm">Edit</summary>
         <form method="post" class="ac-form-grid ac-pop"><?=csrf_field()?><input type="hidden" name="action" value="acct_bank_save"><input type="hidden" name="id" value="<?=(int)$b['id']?>">
@@ -178,6 +181,12 @@ function accounting_recon_page(array $banks,?array $bank,string $month,?array $d
           <td><?=e(date('M j, Y',strtotime($l['entry_date'])))?></td><td><a href="<?=url('accounting-entry',['id'=>$l['entry_id']])?>"><?=e($l['entry_no'])?></a></td><td><?=e($l['description'] ?: $l['memo'])?></td>
           <td class="ac-num"><?=(float)$l['debit']?e(number_format((float)$l['debit'],2)):''?></td><td class="ac-num"><?=(float)$l['credit']?e(number_format((float)$l['credit'],2)):''?></td></tr>
       <?php endforeach;?></tbody></table></div><?php endif;?>
+      <?php if($d['cheques']): $tickedChq=is_array($form['cheques']??null)?array_flip(array_map('intval',$form['cheques'])):[]; ?>
+      <p><strong>Cheques with no linked payment</strong> <span class="ac-muted ac-block">Tick the cheques the bank paid in this statement; they become cleared. They do not change the balance above. Cheques linked to a disbursement clear with its ticked line.</span></p>
+      <div class="ac-scroll" role="region" aria-label="Issued cheques" tabindex="0"><table class="tbl"><thead><tr><th><span class="sr-only">Cleared</span></th><th>Date</th><th>Cheque no.</th><th>Payee</th><th class="ac-num">Amount</th></tr></thead><tbody>
+      <?php foreach($d['cheques'] as $c):?><tr><td><input type="checkbox" name="cheques[]" value="<?=(int)$c['id']?>" <?=isset($tickedChq[(int)$c['id']])?'checked':''?> aria-label="Cleared: cheque <?=e($c['cheque_no'])?>"></td>
+        <td><?=e(date('M j, Y',strtotime($c['cheque_date'])))?></td><td><?=e($c['cheque_no'])?></td><td><?=e($c['payee'])?></td><td class="ac-num"><?=e(number_format((float)$c['amount'],2))?></td></tr><?php endforeach;?>
+      </tbody></table></div><?php endif;?>
       <div class="ac-row ac-actions"><span class="ac-spacer"></span><?php if($canEntry):?><button class="btn primary" type="submit">Finish reconciliation</button><?php else:?><span class="ac-muted">Your role can view only.</span><?php endif;?></div></div>
     </form>
     <?php endif; ?>
@@ -189,4 +198,47 @@ function accounting_recon_page(array $banks,?array $bank,string $month,?array $d
       <td><?php if($i===0 && Auth::can('accounting.approve')):?><form method="post" onsubmit="return confirm('Undo the <?=e(date('F Y',strtotime($r['period_month'])))?> reconciliation? Its lines become uncleared again.')"><?=csrf_field()?><input type="hidden" name="action" value="acct_recon_undo"><input type="hidden" name="id" value="<?=(int)$r['id']?>"><button class="btn sm" type="submit">Undo</button></form><?php endif;?></td></tr>
     <?php endforeach;?></tbody></table></div><?php endif;?></div></section>
     <?php accounting_close(true);
+}
+
+/** Cheque register (migration 052): record issued cheques, void / bounced / stale by hand, cleared only by a reconciliation. */
+function accounting_cheques_page(array $rows,array $counts,string $status,array $banks,array $payments,?array $form): void
+{
+    $canEntry=Auth::can('accounting.entry'); $canApprove=Auth::can('accounting.approve');
+    $tone=['ISSUED'=>'blue','CLEARED'=>'green','BOUNCED'=>'red','VOID'=>'gray','STALE'=>'amber'];
+    $staleBefore=date('Y-m-d',strtotime('-'.CashBank::STALE_HINT_DAYS.' days'));
+    $f=fn(string $k)=>(string)($form[$k]??'');
+    accounting_open('accounting-cheques','Cheques','<a class="btn" href="'.url('accounting-banks').'">Bank accounts</a>'); ?>
+    <?php if($canEntry):?>
+    <section class="panel"><div class="panel-head"><div><h2>Record issued cheque</h2><p>Link a disbursement paid from the same bank account, or leave it blank and type the payee. A cheque becomes cleared when you tick it in the bank reconciliation.</p></div></div>
+      <?php if(!$banks):?><div class="panel-body"><div class="empty">No active bank accounts of type Bank. <?=$canApprove?'<a href="'.url('accounting-banks').'">Add one</a> first.':'Ask an approver to add one.'?></div></div><?php else:?>
+      <form method="post" class="panel-body ac-form-grid"><?=csrf_field()?><input type="hidden" name="action" value="acct_cheque_save">
+        <label class="ac-field">Bank account<select name="bank_account_id" required><option value="">Choose bank account</option><?php foreach($banks as $b):?><option value="<?=(int)$b['id']?>" <?=(int)$f('bank_account_id')===(int)$b['id']?'selected':''?>><?=e($b['name'])?></option><?php endforeach;?></select></label>
+        <label class="ac-field">Cheque no.<input name="cheque_no" required maxlength="30" pattern="[0-9A-Za-z\-]{1,30}" value="<?=e($f('cheque_no'))?>"></label>
+        <label class="ac-field">Cheque date<input type="date" name="cheque_date" required value="<?=e($f('cheque_date') ?: date('Y-m-d'))?>"></label>
+        <label class="ac-field">Amount<input name="amount" required inputmode="decimal" class="ac-num" placeholder="0.00" value="<?=e($f('amount'))?>"></label>
+        <label class="ac-field">Linked disbursement <small>(optional)</small><select name="payment_id"><option value="">None</option><?php foreach($payments as $p):?><option value="<?=(int)$p['id']?>" <?=(int)$f('payment_id')===(int)$p['id']?'selected':''?>><?=e($p['payment_no'].' · '.$p['vendor'].' · '.$p['bank_name'].' · '.number_format((float)$p['total'],2))?></option><?php endforeach;?></select></label>
+        <label class="ac-field">Payee <small>(blank = the vendor of the linked disbursement)</small><input name="payee" maxlength="150" value="<?=e($f('payee'))?>"></label>
+        <label class="ac-field ac-wide">Memo <small>(optional)</small><input name="memo" maxlength="150" value="<?=e($f('memo'))?>"></label>
+        <div class="ac-field ac-end"><button class="btn primary" type="submit">Record cheque</button></div>
+      </form><?php endif;?></section>
+    <?php endif;?>
+    <nav class="ac-tabs" aria-label="Filter by status">
+      <a href="<?=url('accounting-cheques')?>" <?=$status===''?'aria-current="page"':''?>>All <span><?=array_sum($counts)?></span></a>
+      <?php foreach(CashBank::CHEQUE_STATUS as $k=>$v):?><a href="<?=url('accounting-cheques',['status'=>$k])?>" <?=$status===$k?'aria-current="page"':''?>><?=e($v)?> <span><?=(int)$counts[$k]?></span></a><?php endforeach;?>
+    </nav>
+    <section class="panel"><div class="panel-body"><?php if(!$rows):?><div class="empty"><?=array_sum($counts)?'No cheques with this status.':'No cheques recorded yet.'.($canEntry?' Record the first one above.':'')?></div><?php else:?>
+    <div class="ac-scroll" role="region" aria-label="Cheques" tabindex="0"><table class="tbl"><thead><tr><th>Cheque no.</th><th>Bank account</th><th>Date</th><th>Payee</th><th class="ac-num">Amount</th><th>Disbursement</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
+    <?php foreach($rows as $c): $issued=$c['status']==='ISSUED'; ?><tr><td><?=e($c['cheque_no'])?><?php if($c['memo']):?><small class="ac-muted ac-block"><?=e($c['memo'])?></small><?php endif;?></td><td><?=e($c['bank_name'])?></td>
+      <td><?=e(date('M j, Y',strtotime($c['cheque_date'])))?></td><td><?=e($c['payee'])?></td><td class="ac-num"><?=e(number_format((float)$c['amount'],2))?></td>
+      <td><?php if($c['payment_id']):?><a href="<?=url('accounting-payment',['id'=>$c['payment_id']])?>"><?=e($c['payment_no'])?></a><?php else:?><span class="ac-muted">None</span><?php endif;?></td>
+      <td><span class="badge <?=$tone[$c['status']]?>"><?=e(CashBank::CHEQUE_STATUS[$c['status']])?></span>
+        <?php if($c['recon_month']):?><small class="ac-muted ac-block">Reconciled <?=e(date('F Y',strtotime($c['recon_month'])))?></small><?php endif;?>
+        <?php if($issued && $c['cheque_date']<$staleBefore):?><small class="ac-block"><span class="badge amber" title="The usual stale period is <?=CashBank::STALE_HINT_DAYS?> days; confirm with the bank before marking it stale.">Over <?=CashBank::STALE_HINT_DAYS?> days</span></small><?php endif;?></td>
+      <td><?php if($issued && ($canEntry || $canApprove)):?><div class="ac-row">
+        <?php foreach(['VOID'=>[$canEntry,'Void'],'BOUNCED'=>[$canApprove,'Bounced'],'STALE'=>[$canApprove,'Stale']] as $st=>[$may,$lbl]): if(!$may) continue; ?>
+        <form method="post" onsubmit="return confirm('Mark cheque <?=e($c['cheque_no'])?> as <?=strtolower($lbl)?>? This cannot be undone.')"><?=csrf_field()?><input type="hidden" name="action" value="acct_cheque_status"><input type="hidden" name="id" value="<?=(int)$c['id']?>"><input type="hidden" name="status" value="<?=$st?>">
+          <button class="btn sm" type="submit" aria-label="Mark cheque <?=e($c['cheque_no'])?> as <?=strtolower($lbl)?>"><?=$lbl?></button></form>
+        <?php endforeach;?></div><?php endif;?></td></tr>
+    <?php endforeach;?></tbody></table></div><?php if(count($rows)>=500):?><p class="ac-muted">Showing the latest 500 cheques.</p><?php endif;?><?php endif;?></div></section>
+    <?php accounting_close();
 }

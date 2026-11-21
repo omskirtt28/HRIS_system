@@ -20,6 +20,7 @@ $proc=proc_open([PHP_BINARY,'-S','127.0.0.1:'.$port,'-t',$tmp,$tmp.'/router.php'
 $startId=(int)$pdo->query('SELECT COALESCE(MAX(id),0) FROM acct_journal_entries')->fetchColumn();
 $users=[];
 register_shutdown_function(function() use($proc,$tmp,$pdo,&$users,$startId){
+    try { $pdo->exec("DELETE ch FROM acct_cheques ch JOIN acct_bank_accounts b ON b.id=ch.bank_account_id WHERE b.name LIKE 'zz-acct-bank-%'"); } catch(Throwable) {} // migration 052 may be absent
     $pdo->exec("DELETE r FROM acct_bank_recons r JOIN acct_bank_accounts b ON b.id=r.bank_account_id WHERE b.name LIKE 'zz-acct-bank-%'"); $pdo->exec('DELETE al FROM acct_payment_allocations al JOIN acct_payments p ON p.id=al.payment_id WHERE p.entry_id>'.$startId); $pdo->exec('DELETE FROM acct_payments WHERE entry_id>'.$startId);
     $pdo->exec('DELETE FROM acct_remittances WHERE entry_id>'.$startId);
     $pdo->exec('DELETE FROM acct_bills WHERE entry_id>'.$startId); $pdo->exec("DELETE FROM acct_vendors WHERE name LIKE 'zz-acct-vendor-%'");
@@ -158,6 +159,30 @@ $line=(int)$pdo->query("SELECT l.id FROM acct_journal_lines l WHERE l.entry_id="
 check('reconciliation lists the posted bank line',str_contains($rp,'id="acReconForm"') && str_contains($rp,'name="cleared[]" value="'.$line.'"'));
 req($a,'POST','/index.php',['csrf'=>csrf($rp),'action'=>'acct_recon_finish','bank_account_id'=>$bid,'month'=>date('Y-m'),'statement_balance'=>'500','cleared'=>[$line]]);
 check('finished reconciliation clears the line',(int)$pdo->query('SELECT COUNT(*) FROM acct_recon_lines WHERE line_id='.$line)->fetchColumn()===1 && str_contains(req($a,'GET','/index.php?page=accounting-recon&bank='.$bid.'&month='.date('Y-m'))['body'],'is reconciled'));
+// ---- Migration 052: account type, book balance, cheque register ----
+if((int)$pdo->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='acct_cheques'")->fetchColumn()) {
+    $bp=req($a,'GET','/index.php?page=accounting-banks')['body'];
+    check('banks list shows Type, Book balance and a ledger link',str_contains($bp,'<th>Type</th>') && str_contains($bp,'Book balance') && str_contains($bp,'page=accounting-ledger&account='.$acc('1030')) && str_contains($bp,'name="kind"'));
+    check('sidebar lists Cheques',str_contains($bp,'page=accounting-cheques'));
+    $cq=req($a,'GET','/index.php?page=accounting-cheques');
+    check('cheques page opens with the record form and empty state',$cq['code']===200 && str_contains($cq['body'],'Record issued cheque') && str_contains($cq['body'],'acct_cheque_save'));
+    $chq=['action'=>'acct_cheque_save','bank_account_id'=>$bid,'cheque_no'=>"Q$sfx",'cheque_date'=>date('Y-m-d',strtotime('-200 days')),'amount'=>'75','payee'=>'<b>Payee</b>','payment_id'=>'','memo'=>''];
+    req($a,'POST','/index.php',$chq);
+    $cnt=fn()=>(int)$pdo->query('SELECT COUNT(*) FROM acct_cheques WHERE bank_account_id='.$bid)->fetchColumn();
+    check('cheque save without CSRF is refused',$cnt()===0);
+    req($hr,'POST','/index.php',$chq+['csrf'=>csrf(req($hr,'GET','/index.php?page=hr-dashboard')['body'])]);
+    check('HR without permission cannot record a cheque',$cnt()===0);
+    req($a,'POST','/index.php',$chq+['csrf'=>csrf($cq['body'])]);
+    $cl=req($a,'GET','/index.php?page=accounting-cheques')['body'];
+    $cqid=(int)$pdo->query('SELECT id FROM acct_cheques WHERE bank_account_id='.$bid)->fetchColumn();
+    check('cheque recorded, payee escaped, stale hint shown',$cqid>0 && str_contains($cl,'&lt;b&gt;Payee') && !str_contains($cl,'<b>Payee') && str_contains($cl,'Over 180 days'));
+    req($hr,'POST','/index.php',['csrf'=>csrf(req($hr,'GET','/index.php?page=hr-dashboard')['body']),'action'=>'acct_cheque_status','id'=>$cqid,'status'=>'STALE']);
+    check('HR cannot change a cheque status',$pdo->query("SELECT status FROM acct_cheques WHERE id=$cqid")->fetchColumn()==='ISSUED');
+    req($a,'POST','/index.php',['csrf'=>csrf($cl),'action'=>'acct_cheque_status','id'=>$cqid,'status'=>'CLEARED']);
+    check('cleared cannot be posted by hand',$pdo->query("SELECT status FROM acct_cheques WHERE id=$cqid")->fetchColumn()==='ISSUED');
+    req($a,'POST','/index.php',['csrf'=>csrf($cl),'action'=>'acct_cheque_status','id'=>$cqid,'status'=>'STALE']);
+    check('approver marks the cheque stale',$pdo->query("SELECT status FROM acct_cheques WHERE id=$cqid")->fetchColumn()==='STALE');
+} else echo "SKIP migration 052 checks (acct_cheques missing on the scratch copy)\n";
 // ---- Slice A4: remittance ----
 $rl=req($a,'GET','/index.php?page=accounting-remittances')['body'];
 check('remittances page lists the month grid and To confirm',str_contains($rl,'Recorded by month') && str_contains($rl,'To confirm') && str_contains($rl,'page=accounting-remittances'));

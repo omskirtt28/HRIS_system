@@ -129,7 +129,54 @@ try {
     CashBank::undoRecon($r2);
     check('undo latest month: it can be redone',CashBank::reconData(CashBank::bank($bank),'2001-05-01')['done']===null && CashBank::finishRecon($bank,'2001-05','1500',array_column($m['lines'],'id'),$bk)>0);
     check('bank with payments cannot move to another ledger account',str_contains((string)err(fn()=>CashBank::saveBank($bank,$n,'','',Accounting::saveAccount(0,"ZZ3-$sfx","$n cash 3",'A',true),true)),'cannot change'));
+
+    // ---- Migration 052: account kind, petty cash, cheque register ----
+    if(!CashBank::ready()) { echo "SKIP migration 052 checks (acct_cheques missing on the scratch copy)\n"; }
+    else {
+        check('unknown account type refused',str_contains((string)err(fn()=>CashBank::saveBank(0,"$n-x",'','',Accounting::saveAccount(0,"ZZ4-$sfx","$n cash 4",'A',true),true,'SAFE')),'petty cash'));
+        $tot=fn()=>(array_values(array_filter(Accounting::periods(),fn($p)=>$p['month']===date('Y-m-01')))[0]['banks_total']??-1);
+        $before=$tot();
+        $petty=CashBank::saveBank(0,"$n-petty",'','',Accounting::saveAccount(0,"ZZ5-$sfx","$n petty",'A',true),true,'PETTY');
+        $ew=CashBank::saveBank(0,"$n-ewallet",'','',Accounting::saveAccount(0,"ZZ6-$sfx","$n ewallet",'A',true),true,'EWALLET');
+        check('petty cash and e-wallet saved with their type',CashBank::bank($petty)['kind']==='PETTY' && CashBank::bank($ew)['kind']==='EWALLET' && CashBank::bank($bank)['kind']==='BANK');
+        check('close checklist skips petty cash, counts e-wallet',$tot()===$before+1);
+        check('petty cash cannot be reconciled',str_contains((string)err(fn()=>CashBank::finishRecon($petty,'2001-04','0',[],$bk)),'Petty cash'));
+        check('banks list carries the book balance',(float)array_values(array_filter(CashBank::banks(),fn($b)=>(int)$b['id']===$bank))[0]['book_balance']===1500.0);
+        check('cheque on an e-wallet refused',str_contains((string)err(fn()=>CashBank::saveCheque($ew,'100','X','2001-06-01','10',0,'',$bk)),'not an e-wallet'));
+        check('cheque no. symbols refused',str_contains((string)err(fn()=>CashBank::saveCheque($bank,'1/2','X','2001-06-01','10',0,'',$bk)),'Cheque no.'));
+        check('zero cheque amount refused',str_contains((string)err(fn()=>CashBank::saveCheque($bank,'100','X','2001-06-01','0',0,'',$bk)),'amount'));
+        check('standalone cheque needs a payee',str_contains((string)err(fn()=>CashBank::saveCheque($bank,'100','','2001-06-01','10',0,'',$bk)),'payee'));
+        $ch1=CashBank::saveCheque($bank,'100','Juan Supplier','2001-06-02','250',0,'Rent',$bk);
+        check('standalone cheque recorded as issued',$ch1>0 && (int)db()->query("SELECT COUNT(*) FROM acct_cheques WHERE id=$ch1 AND status='ISSUED' AND payment_id IS NULL")->fetchColumn()===1);
+        check('duplicate cheque no. on the same bank refused',str_contains((string)err(fn()=>CashBank::saveCheque($bank,'100','Y','2001-06-02','5',0,'',$bk)),'already recorded'));
+        check('cheque linked to a collection refused',str_contains((string)err(fn()=>CashBank::saveCheque($bank,'101','','2001-06-02','1500',$p3,'',$bk)),'disbursement'));
+        check('cheque linked to a voided disbursement refused',str_contains((string)err(fn()=>CashBank::saveCheque($bank,'101','','2001-06-02','700',$p2,'',$bk)),'not voided'));
+        $p4=CashBank::savePayment($D,0,$bank,$v,'2001-06-05','','',[$b1=>'300'],$bk); $post((int)CashBank::payment($p4)['entry_id']);
+        check('linked cheque amount must equal the disbursement',str_contains((string)err(fn()=>CashBank::saveCheque($bank,'101','','2001-06-05','299',$p4,'',$bk)),'must equal'));
+        $bank3=CashBank::saveBank(0,"$n-b3",'','',Accounting::saveAccount(0,"ZZ7-$sfx","$n cash 7",'A',true),true);
+        check('linked disbursement from another bank refused',str_contains((string)err(fn()=>CashBank::saveCheque($bank3,'101','','2001-06-05','300',$p4,'',$bk)),'another bank'));
+        $ch2=CashBank::saveCheque($bank,'101','','2001-06-05','300',$p4,'',$bk);
+        check('linked cheque takes the vendor as payee',db()->query("SELECT payee FROM acct_cheques WHERE id=$ch2")->fetchColumn()==="$n-vendor");
+        check('second cheque on the same disbursement refused',str_contains((string)err(fn()=>CashBank::saveCheque($bank,'102','','2001-06-05','300',$p4,'',$bk)),'already has cheque'));
+        check('linked disbursement leaves the cheque picker',!in_array($p4,array_map('intval',array_column(CashBank::chequePayments(),'id')),true));
+        $ch3=CashBank::saveCheque($bank,'103','Void Me','2001-06-06','10',0,'',$bk);
+        $ch4=CashBank::saveCheque($bank,'104','Later','2001-07-01','10',0,'',$bk);
+        check('cleared cannot be set by hand',str_contains((string)err(fn()=>CashBank::setChequeStatus($ch3,'CLEARED')),'reconciliation'));
+        CashBank::setChequeStatus($ch3,'VOID');
+        check('voided cheque cannot change again',str_contains((string)err(fn()=>CashBank::setChequeStatus($ch3,'STALE')),'Only an issued'));
+        $jd=CashBank::reconData(CashBank::bank($bank),'2001-06-01');
+        check('June recon offers only issued standalone cheques up to month end',array_map('intval',array_column($jd['cheques'],'id'))===[$ch1]);
+        $p4line=array_values(array_filter($jd['lines'],fn($l)=>(int)$l['entry_id']===(int)CashBank::payment($p4)['entry_id']))[0]['id'];
+        check('a cheque dated after the month refused',str_contains((string)err(fn()=>CashBank::finishRecon($bank,'2001-06','1,200',[$p4line],$bk,[$ch4])),'cheque is no longer open'));
+        $r3=CashBank::finishRecon($bank,'2001-06','1,200',[$p4line],$bk,[$ch1]);
+        $stOf=fn(int $id)=>db()->query("SELECT CONCAT(status,'/',COALESCE(recon_id,0)) FROM acct_cheques WHERE id=$id")->fetchColumn();
+        check('reconciliation clears the ticked and the linked cheque',$stOf($ch1)==="CLEARED/$r3" && $stOf($ch2)==="CLEARED/$r3" && $stOf($ch4)==='ISSUED/0');
+        CashBank::undoRecon($r3);
+        check('undo puts the cheques back to issued',$stOf($ch1)==='ISSUED/0' && $stOf($ch2)==='ISSUED/0');
+        check('bank with cheques cannot become petty cash',str_contains((string)err(fn()=>CashBank::saveBank($bank,$n,'','',$gl,true,'PETTY')),'stays a bank'));
+    }
 } finally {
+    if(CashBank::ready()) db()->exec("DELETE ch FROM acct_cheques ch JOIN acct_bank_accounts b ON b.id=ch.bank_account_id WHERE b.name LIKE 'zz-cash-test-%'");
     $banks=implode(',',array_map('intval',db()->query("SELECT id FROM acct_bank_accounts WHERE name LIKE 'zz-cash-test-%'")->fetchAll(PDO::FETCH_COLUMN))) ?: '0';
     db()->exec("DELETE FROM acct_bank_recons WHERE bank_account_id IN ($banks)");
     db()->exec('DELETE al FROM acct_payment_allocations al JOIN acct_payments p ON p.id=al.payment_id WHERE p.entry_id>'.$startId);

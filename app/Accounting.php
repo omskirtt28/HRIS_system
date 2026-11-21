@@ -90,9 +90,10 @@ final class Accounting
         $counts=db()->query("SELECT DATE_FORMAT(entry_date,'%Y-%m-01') m,SUM(status='POSTED') posted,SUM(status IN ('DRAFT','FOR_APPROVAL')) pending FROM acct_journal_entries GROUP BY m")->fetchAll(PDO::FETCH_UNIQUE);
         // Month-close checklist (advisory; only pending entries block the close): active banks reconciled, agencies with a posted, not reversed remittance.
         // shortcut: counts every active bank for every month, even before the bank was opened; add an opened-on date if that misleads.
-        require_once __DIR__.'/Remittances.php';
-        $banks=(int)db()->query('SELECT COUNT(*) FROM acct_bank_accounts WHERE is_active=1')->fetchColumn();
-        $recon=db()->query('SELECT r.period_month,COUNT(*) FROM acct_bank_recons r JOIN acct_bank_accounts b ON b.id=r.bank_account_id AND b.is_active=1 GROUP BY r.period_month')->fetchAll(PDO::FETCH_KEY_PAIR);
+        require_once __DIR__.'/Remittances.php'; require_once __DIR__.'/CashBank.php';
+        $noPetty=CashBank::ready()?" AND b.kind<>'PETTY'":''; // petty cash has no statement to reconcile
+        $banks=(int)db()->query('SELECT COUNT(*) FROM acct_bank_accounts b WHERE b.is_active=1'.$noPetty)->fetchColumn();
+        $recon=db()->query('SELECT r.period_month,COUNT(*) FROM acct_bank_recons r JOIN acct_bank_accounts b ON b.id=r.bank_account_id AND b.is_active=1'.$noPetty.' GROUP BY r.period_month')->fetchAll(PDO::FETCH_KEY_PAIR);
         $remit=db()->query("SELECT r.period_month,COUNT(DISTINCT r.agency) FROM acct_remittances r JOIN acct_journal_entries e ON e.id=r.entry_id
             WHERE e.status='POSTED' AND NOT EXISTS (SELECT 1 FROM acct_journal_entries x WHERE x.reverses_entry_id=e.id AND x.status='POSTED') GROUP BY r.period_month")->fetchAll(PDO::FETCH_KEY_PAIR);
         $months=array_merge(array_keys($closed),array_keys($counts),array_keys($recon),array_keys($remit));
